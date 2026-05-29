@@ -1,41 +1,32 @@
-# Website
+# CamusDB Documentation
 
-This website is built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
+This repository contains the Docusaurus site published at
+https://camusdb.github.io/.
 
-### Installation
+The source project lives at https://github.com/camusdb/camusdb.
 
-```
-$ yarn
-```
+## Install
 
-### Local Development
-
-```
-$ yarn start
+```bash
+npm install
 ```
 
-This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
+## Develop
 
-### Build
-
-```
-$ yarn build
+```bash
+npm run start
 ```
 
-This command generates static content into the `build` directory and can be served using any static contents hosting service.
+## Build
 
-### Deployment
-
-Using SSH:
-
-```
-$ USE_SSH=true yarn deploy
+```bash
+npm run build
 ```
 
-Not using SSH:
+The static site is generated in `build/`.
 
-```
-$ GIT_USER=<Your GitHub username> yarn deploy
-```
+## Deploy
 
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+```bash
+npm run deploy
+```

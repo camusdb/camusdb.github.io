@@ -9,7 +9,7 @@ import {themes as prismThemes} from 'prism-react-renderer';
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'CamusDB',
-  tagline: 'Distributed Database',
+  tagline: 'Open-source relational database with SQL, indexes, and transactions',
   favicon: 'img/favicon.ico',
 
   // Set the production url of your site here
@@ -41,17 +41,13 @@ const config = {
       ({
         docs: {
           sidebarPath: './sidebars.js',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+            'https://github.com/camusdb/camusdb.github.io/tree/main/',
         },
         blog: {
           showReadingTime: true,
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+            'https://github.com/camusdb/camusdb.github.io/tree/main/',
         },
         theme: {
           customCss: './src/css/custom.css',
@@ -63,12 +59,11 @@ const config = {
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
-      // Replace with your project's social card
       image: 'img/docusaurus-social-card.jpg',
       navbar: {
         title: 'CamusDB',
         logo: {
-          alt: 'My Site Logo',
+          alt: 'CamusDB logo',
           src: 'img/logo.svg',
         },
         items: [
@@ -76,11 +71,10 @@ const config = {
             type: 'docSidebar',
             sidebarId: 'tutorialSidebar',
             position: 'left',
-            label: 'Tutorial',
+            label: 'Docs',
           },
-          {to: '/blog', label: 'Blog', position: 'left'},
           {
-            href: 'https://github.com/facebook/docusaurus',
+            href: 'https://github.com/camusdb/camusdb',
             label: 'GitHub',
             position: 'right',
           },
@@ -93,25 +87,20 @@ const config = {
             title: 'Docs',
             items: [
               {
-                label: 'Tutorial',
+                label: 'Getting Started',
                 to: '/docs/intro',
               },
-            ],
-          },
-          {
-            title: 'Community',
-            items: [
               {
-                label: 'Stack Overflow',
-                href: 'https://stackoverflow.com/questions/tagged/docusaurus',
+                label: 'SQL',
+                to: '/docs/sql',
               },
               {
-                label: 'Discord',
-                href: 'https://discordapp.com/invite/docusaurus',
+                label: 'HTTP API',
+                to: '/docs/http-api',
               },
               {
-                label: 'Twitter',
-                href: 'https://twitter.com/docusaurus',
+                label: 'Architecture',
+                to: '/docs/architecture',
               },
             ],
           },
@@ -119,12 +108,12 @@ const config = {
             title: 'More',
             items: [
               {
-                label: 'Blog',
-                to: '/blog',
+                label: 'Source',
+                href: 'https://github.com/camusdb/camusdb',
               },
               {
-                label: 'GitHub',
-                href: 'https://github.com/facebook/docusaurus',
+                label: 'Docs Repo',
+                href: 'https://github.com/camusdb/camusdb.github.io',
               },
             ],
           },
