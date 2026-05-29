@@ -3,9 +3,9 @@ import styles from './styles.module.css';
 
 const FeatureList = [
   {
-    title: 'SQL-first relational engine',
+    title: 'SQL-first NewSQL',
     description:
-      'Create schemas, index tables, query rows, aggregate data, and mutate records through a compact SQL dialect.',
+      'Create schemas, index tables, query rows, aggregate data, and mutate records through familiar SQL.',
   },
   {
     title: 'Transactional writes',
@@ -13,9 +13,9 @@ const FeatureList = [
       'Group changes with explicit transactions and keep writes consistent with ACID semantics.',
   },
   {
-    title: 'Kahuna-backed storage',
+    title: 'Distributed cluster mode',
     description:
-      'Rows and index entries are persisted in an embedded transactional KV store with pessimistic locking.',
+      'Run multiple nodes with partition routing, automatic leader election, and replicated storage.',
   },
 ];
 

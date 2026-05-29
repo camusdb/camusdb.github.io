@@ -1,10 +1,11 @@
 ---
-sidebar_position: 4
+sidebar_position: 5
 ---
 
 # Architecture
 
-CamusDB is split into an ASP.NET Core host and a reusable core engine.
+CamusDB is a NewSQL distributed database split into a host process, a reusable
+SQL execution engine, and a distributed transactional storage layer.
 
 ## Host
 
@@ -18,6 +19,7 @@ The host exposes:
 - JSON controllers under root-level routes such as `/execute-sql-query`.
 - Console logging.
 - A shutdown hook that disposes the command executor.
+- Cluster-mode Raft gRPC routes when `mode: cluster` or peers are configured.
 
 ## Core Engine
 
@@ -56,16 +58,30 @@ SQL queries are planned and executed through composable operators:
 `Storage/Kv` maps relational rows and index entries to keys in an embedded
 Kahuna node:
 
-- `EmbeddedKahuna` hosts the local KV store.
+- `EmbeddedKahuna` hosts the transactional KV store.
 - `KvTableStore` persists rows and indexes.
 - `KeyEncoder` builds deterministic storage keys.
 - `RowEncoder` and the serializer convert row values to and from byte payloads.
+- Cluster mode wires the store to real inter-node gRPC communication and static
+  discovery.
+
+### Cluster Mode
+
+In standalone mode, CamusDB runs with a local embedded storage node. In cluster
+mode, the process owns a shared Kahuna node backed by Raft consensus:
+
+- Multiple CamusDB processes join through a static peer list.
+- Data is routed across Raft partitions.
+- Each partition elects its own leader.
+- Writes are replicated through the partition leader.
+- Table rows use a prefix layout that keeps ordered scans predictable.
 
 ### Transactions
 
 `KvTransactionsManager` and `KvTransaction` coordinate transaction state using
-Kahuna's transactional API. HTTP requests either reuse an explicit transaction
-id or create a transaction for a single operation and commit it automatically.
+Kahuna's transactional API. Cross-partition writes use two-phase commit. HTTP
+requests either reuse an explicit transaction id or create a transaction for a
+single operation and commit it automatically.
 
 ### Catalog
 
@@ -81,6 +97,12 @@ Schema objects are represented by models such as `TableSchema`,
 | --- | --- |
 | `data_dir` | Directory for persisted database files. |
 | `buffer_pool_size` | Optional override for the engine buffer pool size. |
+| `mode` | `standalone` or `cluster`. |
+| `node_name` | Node name used in cluster mode. |
+| `raft_host` | Host address for Raft communication. |
+| `raft_port` | Port for Raft communication. |
+| `initial_partitions` | Number of Raft partitions to initialize. |
+| `peers` | Static peer list in `host:port` form. |
 
 Example:
 

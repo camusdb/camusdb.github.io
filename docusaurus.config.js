@@ -9,7 +9,7 @@ import {themes as prismThemes} from 'prism-react-renderer';
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'CamusDB',
-  tagline: 'Open-source relational database with SQL, indexes, and transactions',
+  tagline: 'Open-source NewSQL distributed database',
   favicon: 'img/favicon.ico',
 
   // Set the production url of your site here
@@ -97,6 +97,10 @@ const config = {
               {
                 label: 'HTTP API',
                 to: '/docs/http-api',
+              },
+              {
+                label: 'Cluster',
+                to: '/docs/cluster',
               },
               {
                 label: 'Architecture',

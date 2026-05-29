@@ -4,8 +4,8 @@ sidebar_position: 3
 
 # HTTP API
 
-CamusDB exposes JSON endpoints from the ASP.NET Core host. Request and response
-properties use camelCase.
+CamusDB exposes JSON endpoints for automation and application integration.
+Request and response properties use camelCase.
 
 ## Status And Errors
 

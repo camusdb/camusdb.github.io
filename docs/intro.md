@@ -4,22 +4,29 @@ sidebar_position: 1
 
 # CamusDB Tutorial
 
-CamusDB is an open-source relational database with SQL, indexes, and
+CamusDB is an open-source NewSQL distributed database with SQL, indexes, and
 transactions.
 
 CamusDB is alpha-quality software. Interfaces and storage formats may change
 between versions, and it should not be used in production.
 
-This tutorial uses `camussqlsh`, the interactive SQL shell. It walks through the
-basic workflow: create a table, insert rows, query data, add an index, and
-update or delete rows.
+This tutorial uses `camus-cli`, the interactive SQL shell. It walks through the
+basic workflow against a running CamusDB node or cluster: create a table, insert
+rows, query data, add an index, and update or delete rows.
 
 ## Start CamusDB
 
-Start the CamusDB server, then open the SQL shell:
+Install the SQL shell:
 
 ```bash
-camussqlsh
+dotnet tool install --global CamusDB.SqlSh
+```
+
+Start CamusDB in standalone mode for local use, or run a cluster when you want
+to try distributed storage. Then open the SQL shell:
+
+```bash
+camus-cli
 ```
 
 You should see an interactive prompt:

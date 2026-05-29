@@ -10,13 +10,13 @@ function HomepageHeader() {
   return (
     <header className={clsx('hero', styles.heroBanner)}>
       <div className="container">
-        <p className={styles.eyebrow}>Alpha relational database</p>
+        <p className={styles.eyebrow}>Alpha NewSQL database</p>
         <Heading as="h1" className={styles.title}>
           CamusDB
         </Heading>
         <p className={styles.subtitle}>
-          An open-source relational database with SQL, indexes, and
-          transactions.
+          An open-source distributed database with SQL, indexes, transactions,
+          and multi-node clustering.
         </p>
         <div className={styles.buttons}>
           <Link className="button button--primary button--lg" to="/docs/intro">
@@ -36,7 +36,7 @@ export default function Home() {
   return (
     <Layout
       title={siteConfig.title}
-      description="CamusDB documentation for SQL, indexes, and transactions.">
+      description="CamusDB documentation for SQL, indexes, transactions, and distributed clusters.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />
