@@ -98,13 +98,18 @@ GEN_ID()
 STR_ID("507f1f77bcf86cd799439011")
 ```
 
+See [Object Id Functions](/docs/functions-object-id) for details.
+
 ## Queries
 
-Select explicit columns, all columns, aliases, or aggregate expressions:
+Select explicit columns, all columns, qualified columns, expressions, aliases,
+or aggregate expressions:
 
 ```sql
 SELECT id, name FROM robots;
 SELECT * FROM robots;
+SELECT r.id, r.name FROM robots r;
+SELECT year + 100 AS display_year FROM robots;
 SELECT SUM(year) AS total_year FROM robots;
 ```
 
@@ -116,8 +121,19 @@ Supported aggregate functions are:
 - `MIN(column)`
 - `MAX(column)`
 
+Scalar functions can be used in projections, filters, aliases, and nested
+expressions:
+
+```sql
+SELECT upper(trim(name)) AS display_name
+FROM robots
+WHERE abs(year - 2000) <= 5;
+```
+
+See [Functions](/docs/functions) for the function reference.
+
 Filters support comparison, boolean composition, pattern matching, and null
-checks:
+checks. They also support subquery predicates:
 
 ```sql
 SELECT id, name
@@ -127,10 +143,79 @@ WHERE year >= 1970 AND name ILIKE "r%";
 SELECT *
 FROM robots
 WHERE year IS NULL OR name LIKE "%D2";
+
+SELECT year
+FROM robots
+WHERE year BETWEEN 2001 AND 2004;
+
+SELECT email
+FROM app_users
+WHERE id IN (SELECT user_id FROM posts WHERE published = true);
+
+SELECT id
+FROM robots
+WHERE id NOT IN (SELECT robots_id FROM blocked_robots);
 ```
 
 Supported filter operators include `=`, `!=`, `<`, `>`, `<=`, `>=`, `AND`,
-`OR`, `LIKE`, `ILIKE`, `IS NULL`, and `IS NOT NULL`.
+`OR`, `LIKE`, `ILIKE`, `BETWEEN ... AND ...`, `IS NULL`, `IS NOT NULL`,
+`IN (SELECT ...)`, `NOT IN (SELECT ...)`, and `EXISTS (SELECT ...)`.
+
+Group rows by columns or expressions:
+
+```sql
+SELECT role, COUNT(*) AS cnt
+FROM app_users
+GROUP BY role
+HAVING cnt > 1
+ORDER BY cnt, role;
+
+SELECT enabled, SUM(year) AS total, AVG(year) AS average
+FROM robots
+GROUP BY enabled
+ORDER BY enabled;
+```
+
+Non-aggregate projections must appear in `GROUP BY`.
+`HAVING` filters grouped or aggregate results after aggregation and can
+reference aggregate aliases, aggregate expressions, or grouped keys.
+
+Join tables with `JOIN`, `INNER JOIN`, or comma join syntax:
+
+```sql
+SELECT u.email, p.title
+FROM app_users u
+JOIN posts p ON p.user_id = u.id
+WHERE u.role = "admin"
+ORDER BY u.email, p.title;
+
+SELECT r.name, ur.amount
+FROM robots r, user_robots ur
+WHERE r.id = ur.robots_id
+ORDER BY r.name, ur.amount;
+```
+
+Use derived tables in `FROM` and join them like named sources:
+
+```sql
+SELECT u.email, d.post_count
+FROM app_users u
+JOIN (
+  SELECT user_id, COUNT(*) AS post_count
+  FROM posts
+  GROUP BY user_id
+) d ON d.user_id = u.id
+ORDER BY u.email;
+```
+
+Scalar subqueries can be used in expressions:
+
+```sql
+SELECT id, name
+FROM robots
+WHERE year = (SELECT MAX(year) FROM robots)
+ORDER BY name;
+```
 
 Order, limit, and offset results:
 
@@ -149,6 +234,10 @@ SELECT id, name
 FROM robots@{FORCE_INDEX=robots_year_idx}
 WHERE year >= 1980;
 ```
+
+See [Query Features](/docs/query-features) for the full query surface, including
+join rules, grouped aggregate behavior, subqueries, derived tables, and planner
+notes.
 
 ## Updates And Deletes
 
@@ -174,8 +263,8 @@ COMMIT;
 ROLLBACK;
 ```
 
-The HTTP API also exposes explicit transaction endpoints. When a write or query
-request does not include a transaction id, the server starts and commits a
+Client APIs also expose explicit transaction handles. When a write or query
+request does not include a transaction id, CamusDB starts and commits a
 single-operation transaction automatically.
 
 ## Schema Inspection
@@ -193,11 +282,11 @@ SHOW INDEX FROM robots;
 
 ## Parameters
 
-SQL requests can pass parameter placeholders through the HTTP API:
+SQL requests can pass parameter placeholders:
 
 ```sql
 SELECT id, name FROM robots WHERE id = @id;
 UPDATE robots SET name = @name WHERE id = @id;
 ```
 
-Parameter values are JSON `ColumnValue` objects in the request body.
+Parameter values are bound by the client or shell command that submits the SQL.

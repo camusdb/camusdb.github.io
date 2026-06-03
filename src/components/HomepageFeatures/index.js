@@ -3,19 +3,19 @@ import styles from './styles.module.css';
 
 const FeatureList = [
   {
-    title: 'SQL-first NewSQL',
+    title: 'SQL without manual sharding',
     description:
-      'Create schemas, index tables, query rows, aggregate data, and mutate records through familiar SQL.',
+      'Define tables and indexes, then query with joins, subqueries, derived tables, grouping, ordering, and pagination.',
   },
   {
-    title: 'Transactional writes',
+    title: 'Serializable by default',
     description:
-      'Group changes with explicit transactions and keep writes consistent with ACID semantics.',
+      'Protect application invariants with serializable transactions and two-phase commit for cross-partition writes.',
   },
   {
-    title: 'Distributed cluster mode',
+    title: 'Multi-active cluster',
     description:
-      'Run multiple nodes with partition routing, automatic leader election, and replicated storage.',
+      'Send traffic to multiple nodes while Raft-backed partitions elect leaders and replicate committed writes.',
   },
 ];
 

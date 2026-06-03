@@ -8,6 +8,9 @@ CamusDB can run as a standalone node for local use or as a multi-node cluster.
 Cluster mode partitions data across nodes, elects a leader for each partition,
 and replicates writes through Raft consensus.
 
+The cluster model is multi-active: each node can expose the database API, while
+CamusDB routes writes to the leader for the partition that owns the target data.
+
 CamusDB cluster mode is alpha-quality. Use it for testing and development, not
 production workloads.
 
@@ -66,7 +69,8 @@ The supported cluster flags are:
 | `--initial-cluster` | Static peer list in `host:port` form. |
 | `--initial-cluster-partitions` | Number of Raft partitions to initialize. |
 
-CLI flags override matching values from `Config/config.yml`.
+CLI flags override matching values from `Config/config.yml`. See
+[Configuration](/docs/configuration) for the full list of config keys and flags.
 
 ## Configuration
 
@@ -90,9 +94,10 @@ Compose setup mounts a separate volume for each node.
 ## How Distribution Works
 
 - Data is partitioned across Raft partitions.
+- Every node can expose the database API.
 - Each partition elects its own leader.
 - Reads and writes are routed to the partition that owns the target key range.
-- Transactions use pessimistic locking with read-committed isolation.
+- Transactions use serializable isolation by default.
 - Cross-partition writes use two-phase commit.
 
 The current storage layout keeps all rows for a table under the same key prefix,

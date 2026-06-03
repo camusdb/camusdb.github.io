@@ -14,6 +14,9 @@ This tutorial uses `camus-cli`, the interactive SQL shell. It walks through the
 basic workflow against a running CamusDB node or cluster: create a table, insert
 rows, query data, add an index, and update or delete rows.
 
+For a higher-level overview of why CamusDB is built as a distributed NewSQL
+database, start with [Why CamusDB?](/docs/why-camusdb).
+
 ## Start CamusDB
 
 Install the SQL shell:
@@ -188,5 +191,6 @@ WHERE name = "K-2SO";
 | `BOOL` | Boolean values. |
 | `OID` | 24-character object id values. |
 
-Continue with the SQL reference for the full statement list, or the HTTP API
-reference when you need request and response shapes.
+Continue with the SQL reference for the full statement list and
+[Query Features](/docs/query-features) for joins, grouping, subqueries, and derived
+tables.

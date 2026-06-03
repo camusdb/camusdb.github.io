@@ -17,6 +17,7 @@ const config = {
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/',
+  trailingSlash: true,
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
@@ -24,7 +25,11 @@ const config = {
   projectName: 'docs', // Usually your repo name.
 
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
+  },
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -91,8 +96,28 @@ const config = {
                 to: '/docs/intro',
               },
               {
+                label: 'Why CamusDB?',
+                to: '/docs/why-camusdb',
+              },
+              {
                 label: 'SQL',
                 to: '/docs/sql',
+              },
+              {
+                label: 'Query Features',
+                to: '/docs/query-features',
+              },
+              {
+                label: 'Functions',
+                to: '/docs/functions',
+              },
+              {
+                label: 'Serializable Transactions',
+                to: '/docs/serializable-transactions',
+              },
+              {
+                label: 'Multi-Active Availability',
+                to: '/docs/multi-active-availability',
               },
               {
                 label: 'HTTP API',
@@ -101,6 +126,18 @@ const config = {
               {
                 label: 'Cluster',
                 to: '/docs/cluster',
+              },
+              {
+                label: 'Configuration',
+                to: '/docs/configuration',
+              },
+              {
+                label: 'Storage',
+                to: '/docs/storage',
+              },
+              {
+                label: 'WAL & Recovery',
+                to: '/docs/wal-recovery',
               },
               {
                 label: 'Architecture',

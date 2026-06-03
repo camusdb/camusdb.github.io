@@ -4,121 +4,231 @@ sidebar_position: 5
 
 # Architecture
 
-CamusDB is a NewSQL distributed database split into a host process, a reusable
-SQL execution engine, and a distributed transactional storage layer.
+CamusDB is a NewSQL distributed database. It accepts SQL statements, plans them
+against relational schema, maps rows and indexes into key/value entries, and
+stores those entries in a distributed transactional storage layer.
 
-## Host
+You do not need to understand the architecture to use CamusDB. This page gives
+operators, application developers, and contributors a shared vocabulary for
+what happens under the hood.
 
-`CamusDB/Program.cs` configures the web application, registers the executor,
-validator, catalog manager, and HTTP transaction coordinator, then initializes
-the database system from `Config/config.yml`.
+CamusDB cluster mode is alpha-quality. Use it for testing and development, not
+production workloads.
 
-The host exposes:
+## Goals
 
-- Razor pages for the default web shell.
-- JSON controllers under root-level routes such as `/execute-sql-query`.
-- Console logging.
-- A shutdown hook that disposes the command executor.
-- Cluster-mode Raft gRPC routes when `mode: cluster` or peers are configured.
+CamusDB is designed around these goals:
 
-## Core Engine
+- Keep SQL as the user-facing model for schema, queries, writes, indexes, and
+  transactions.
+- Provide serializable transactions by default, so committed transactions can
+  be reasoned about as one valid serial order.
+- Run in standalone mode for local development and in cluster mode for
+  distributed testing.
+- Let multiple nodes accept client traffic while the storage layer routes each
+  key to its owning partition.
+- Replicate committed storage changes through Raft-backed partitions instead of
+  relying on a single primary process.
+- Persist committed changes through a write-ahead log so nodes can recover
+  after process crashes and restarts.
+- Keep relational data and distributed storage concerns separated: SQL remains
+  the application contract, while partitioning, consensus, WAL replay, and
+  persistence happen below it.
 
-The core engine lives in `CamusDB.Core/`.
+## Overview
 
-### Parser
+A CamusDB process can run as a standalone node or as part of a cluster.
 
-SQL parsing is generated from `SQLParser/SQLParser.Language.grammar.y` and
-`SQLParser/SQLParser.Language.analyzer.lex`. The parser builds `NodeAst` trees
-and normalizes identifiers to lowercase.
+In standalone mode, the process hosts a local embedded
+[Kahuna](https://kahunakv.github.io/) storage node. This is the simplest setup
+for tutorials, local development, and single-node tests.
 
-### Validation And Execution
+In cluster mode, multiple CamusDB processes join through static peer
+configuration. Each process can expose the database API. The storage layer
+partitions keys across Raft partitions, elects a leader for each partition, and
+replicates writes through [Kommander](https://kahunakv.github.io/kommander.github.io/).
+If a process receives a request for data owned by another partition leader, the
+storage layer routes the work to the node that can coordinate it.
 
-Requests become command tickets, then flow through:
+At a high level, every SQL request follows this path:
 
-1. `CommandValidator`, which validates command inputs.
-2. `CommandExecutor`, which coordinates database, table, SQL, row, index, and
-   transaction controllers.
-3. Specific controllers such as `SqlExecutor`, `QueryExecutor`, `RowInserter`,
-   `RowUpdater`, `RowDeleter`, `TableCreator`, and index/table alterers.
+1. The client sends SQL to any available CamusDB node.
+2. CamusDB parses and validates the statement.
+3. The query or write executor checks catalog metadata, constraints, indexes,
+   and transaction state.
+4. Relational rows, indexes, schema metadata, locks, and transaction records are
+   encoded as key/value entries.
+5. [Kahuna](https://kahunakv.github.io/) coordinates transactional KV reads and
+   writes.
+6. In cluster mode, [Kommander](https://kahunakv.github.io/kommander.github.io/)
+   replicates partition log entries through Raft consensus.
+7. Committed entries are materialized into persistent KV storage and can be
+   replayed from the WAL during recovery.
 
-### Query Pipeline
+## Layers
 
-SQL queries are planned and executed through composable operators:
+CamusDB's architecture is organized into layers. Each layer exposes a smaller
+contract to the layer above it.
 
-- `QueryPlanner` chooses scan and index access paths.
-- `QueryScanner` reads rows from storage.
-- `QueryFilterer` evaluates predicates.
-- `QuerySorter` applies `ORDER BY`.
-- `QueryLimiter` applies `LIMIT` and `OFFSET`.
-- `QueryProjector` shapes result columns and aliases.
-- `QueryAggregator` handles `COUNT`, `SUM`, `AVG`, `MIN`, and `MAX`.
+| Layer | Purpose |
+| --- | --- |
+| SQL interface | Accept SQL statements from clients and tools. |
+| Parser and validator | Normalize statements, validate syntax, and reject invalid command inputs. |
+| Catalog | Track databases, tables, columns, indexes, constraints, and schema versions. |
+| Query and write execution | Plan reads, apply filters, joins, grouping, subqueries, updates, deletes, inserts, and index maintenance. |
+| Transaction coordination | Open, commit, and roll back serializable transactions; coordinate cross-partition writes with two-phase commit. |
+| KV mapping | Encode rows, indexes, metadata, locks, and transaction state as deterministic key/value entries. |
+| Distributed KV storage | Use [Kahuna](https://kahunakv.github.io/) for transactional key/value operations. |
+| Consensus and WAL | Use [Kommander](https://kahunakv.github.io/kommander.github.io/) to order replicated partition log entries and recover committed state. |
+| Persistent storage | Store materialized KV state and partition WAL data on disk. |
 
-### Storage
+## SQL And Query Layer
 
-`Storage/Kv` maps relational rows and index entries to keys in an embedded
-Kahuna node:
+The SQL layer gives applications a relational model even though the lower
+layers operate on key/value entries.
 
-- `EmbeddedKahuna` hosts the transactional KV store.
-- `KvTableStore` persists rows and indexes.
-- `KeyEncoder` builds deterministic storage keys.
-- `RowEncoder` and the serializer convert row values to and from byte payloads.
-- Cluster mode wires the store to real inter-node gRPC communication and static
-  discovery.
+The query pipeline supports:
 
-### Cluster Mode
+- Projections, aliases, scalar expressions, and functions.
+- `WHERE` filters, `HAVING`, ordering, `LIMIT`, and `OFFSET`.
+- `COUNT`, `SUM`, `AVG`, `MIN`, and `MAX`.
+- `GROUP BY` over columns or expressions.
+- `JOIN`, `INNER JOIN`, and comma join syntax.
+- Derived tables.
+- Scalar, `IN`, `NOT IN`, and `EXISTS` subqueries.
+- Index scans and explicit index hints.
 
-In standalone mode, CamusDB runs with a local embedded storage node. In cluster
-mode, the process owns a shared Kahuna node backed by Raft consensus:
+See [Query Features](/docs/query-features) for user-facing examples and
+[Functions](/docs/functions) for the scalar function reference.
 
-- Multiple CamusDB processes join through a static peer list.
-- Data is routed across Raft partitions.
-- Each partition elects its own leader.
-- Writes are replicated through the partition leader.
-- Table rows use a prefix layout that keeps ordered scans predictable.
+## Catalog And Schema
 
-### Transactions
+The catalog stores database, table, column, index, and constraint descriptors.
+Rows include a schema version so CamusDB can decode stored values against the
+schema layout that created them.
 
-`KvTransactionsManager` and `KvTransaction` coordinate transaction state using
-Kahuna's transactional API. Cross-partition writes use two-phase commit. HTTP
-requests either reuse an explicit transaction id or create a transaction for a
-single operation and commit it automatically.
+Schema metadata is persisted through the same key/value storage layer as user
+data. In cluster mode, schema changes are replicated and recovered through the
+distributed storage path, so catalog state follows the same durability model as
+rows and indexes.
+
+## Storage Layer
+
+CamusDB maps relational objects to deterministic KV keys:
+
+- Table rows are stored under row prefixes.
+- Unique and non-unique index entries are stored under index prefixes.
+- Schema and system metadata are stored under database metadata keys.
+- Locks and transaction state are stored as KV entries managed by the
+  transactional storage layer.
+
+The KV mapping keeps ordered table and index scans predictable while letting the
+distributed storage layer handle routing, partition ownership, replication, and
+recovery.
+
+See [Storage](/docs/storage) for the key layout and value encoding details.
+
+## Transactions
+
+CamusDB uses serializable transactions by default. A committed transaction
+appears as if it ran in a single serial order with other committed
+transactions.
+
+Single-operation requests can be auto-wrapped in a transaction. Clients can
+also use explicit transaction handles for multi-statement work.
+
+When a transaction touches keys owned by more than one partition, CamusDB uses
+two-phase commit through the storage layer. This keeps cross-partition writes
+atomic while preserving the consensus rules of each partition.
+
+See [Serializable Transactions](/docs/serializable-transactions) for examples.
+
+## Replication And Recovery
+
+In cluster mode, keys are assigned to Raft partitions. Each partition elects a
+leader. Writes for that partition are ordered by the leader and replicated
+through [Kommander](https://kahunakv.github.io/kommander.github.io/).
+
+The write-ahead log records committed partition log entries before they are
+considered durable. On restart, committed log entries are replayed into
+[Kahuna](https://kahunakv.github.io/) so the materialized KV store catches up
+with the committed history. Checkpoints keep recovery bounded by marking older
+committed state as already represented in persistent KV storage.
+
+See [WAL And Recovery](/docs/wal-recovery) for the recovery path and failure
+behavior.
+
+## Deployment Shape
+
+CamusDB can be deployed in two modes:
+
+| Mode | Description |
+| --- | --- |
+| Standalone | One process with an embedded local storage node. Best for development, tutorials, and tests. |
+| Cluster | Multiple processes with static peer discovery, partition leaders, replicated WAL entries, and distributed transactional KV storage. |
+
+See [Cluster Mode](/docs/cluster) for startup commands and
+[Configuration](/docs/configuration) for active settings.
+
+## Terms
+
+### Cluster
+
+A group of CamusDB nodes configured to communicate with each other and share a
+distributed storage layer.
+
+### Node
+
+One running CamusDB process. In cluster mode, each node can expose the database
+API and participate in storage replication.
+
+### Partition
+
+A shard of the keyspace owned by the distributed KV layer. Each partition has
+its own consensus leadership and log ordering.
+
+### Partition Leader
+
+The node currently responsible for coordinating writes for a partition. Client
+requests do not need to know the leader ahead of time; the storage layer routes
+work to the owner.
+
+### Consensus
+
+The agreement process used by a partition so replicas commit the same ordered
+log entries. CamusDB relies on [Kommander](https://kahunakv.github.io/kommander.github.io/)
+for Raft-backed consensus.
+
+### Replication
+
+The process of copying committed partition log entries across nodes so the
+cluster can recover committed state after node failures or restarts.
+
+### Write-Ahead Log
+
+The durable ordered log of partition entries. The WAL is the source of recovery
+ordering: if a committed entry has not yet been materialized into KV storage,
+it can be replayed after restart.
+
+### Transaction
+
+A set of reads and writes committed or rolled back as one unit. CamusDB uses
+serializable transactions by default and uses two-phase commit when a
+transaction spans multiple partitions.
 
 ### Catalog
 
-`CatalogsManager` tracks database, table, column, and index descriptors.
-Schema objects are represented by models such as `TableSchema`,
-`TableColumnSchema`, and `TableIndexSchema`.
+The metadata that describes databases, tables, columns, indexes, constraints,
+and schema versions.
 
-## Configuration
+### KV Mapping
 
-`CamusStartup` reads YAML through `ConfigReader` and currently applies:
+The encoding layer that turns relational data into deterministic key/value
+entries. This is how SQL rows, indexes, schema metadata, locks, and transaction
+records become storage-layer operations.
 
-| Key | Purpose |
-| --- | --- |
-| `data_dir` | Directory for persisted database files. |
-| `buffer_pool_size` | Optional override for the engine buffer pool size. |
-| `mode` | `standalone` or `cluster`. |
-| `node_name` | Node name used in cluster mode. |
-| `raft_host` | Host address for Raft communication. |
-| `raft_port` | Port for Raft communication. |
-| `initial_partitions` | Number of Raft partitions to initialize. |
-| `peers` | Static peer list in `host:port` form. |
+## What's Next?
 
-Example:
-
-```yaml
-data_dir: /tmp/camusdb/
-buffer_pool_size: 1048576
-```
-
-## Testing
-
-The source repository uses NUnit. Run the test suite with:
-
-```bash
-dotnet test CamusDB.sln
-```
-
-Coverage includes parser behavior, SQL execution, row operations, table and
-index changes, storage encoding, embedded Kahuna integration, transactions,
-serialization, config parsing, and object id utilities.
+Start with [SQL](/docs/sql) and [Query Features](/docs/query-features) for the
+user-facing model. Then read [Storage](/docs/storage), [WAL And Recovery](/docs/wal-recovery),
+and [Cluster Mode](/docs/cluster) for the lower-level distributed behavior.

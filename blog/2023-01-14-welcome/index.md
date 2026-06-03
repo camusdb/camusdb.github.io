@@ -6,3 +6,5 @@ tags: [camusdb]
 ---
 
 Welcome to the CamusDB docs
+
+<!-- truncate -->
