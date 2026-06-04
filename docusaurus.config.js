@@ -69,7 +69,7 @@ const config = {
         title: 'CamusDB',
         logo: {
           alt: 'CamusDB logo',
-          src: 'img/logo.svg',
+          src: 'img/camusdb-logo.png',
         },
         items: [
           {
