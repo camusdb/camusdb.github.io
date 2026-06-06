@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Distributed Schema Changes | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/distributed-schema/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Distributed Schema Changes | CamusDB"><meta data-rh="true" name="description" content="CamusDB treats schema as distributed state, not as a local side table that each"><meta data-rh="true" property="og:description" content="CamusDB treats schema as distributed state, not as a local side table that each"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/distributed-schema/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-schema/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-schema/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Distributed Schema Changes","item":"https://camusdb.github.io/docs/distributed-schema"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.aed60a16.css">
-<script src="/assets/js/runtime~main.b11cb9de.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.fe9042da.js" defer="defer"></script>
 <script src="/assets/js/main.4eae8ade.js" defer="defer"></script>
 </head>
 <body>
@@ -22,6 +22,8 @@ flow through the same replicated system that protects data writes.</p>
 <li class="">Nodes converge on the same schema version before the next stage proceeds.</li>
 <li class="">Online changes are staged so readers and writers do not jump across
 incompatible layouts.</li>
+<li class="">DDL forwarded from a follower is re-executed on the schema leader with retry
+deduplication.</li>
 <li class="">Restarts and leader changes do not lose committed schema work.</li>
 </ul>
 <p>CamusDB cluster mode is alpha-quality. Use it for testing and development, not
@@ -68,6 +70,10 @@ the live cluster.</p>
 <p>The practical effect is simple: a schema change is not just &quot;committed on a
 leader&quot;. It is staged so the cluster can move forward without letting schema
 versions drift arbitrarily apart.</p>
+<p>CamusDB enforces a two-version safety rule during staged DDL: before proposing
+the next schema version, every live node must already have applied the current
+version. That keeps the cluster from drifting into a larger spread of active
+schema versions.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-a-schema-change-flows">How A Schema Change Flows<a href="#how-a-schema-change-flows" class="hash-link" aria-label="Direct link to How A Schema Change Flows" title="Direct link to How A Schema Change Flows" translate="no">​</a></h2>
 <p>At a high level, a cluster DDL request follows this path:</p>
 <ol>
@@ -84,12 +90,14 @@ advancing the next stage when required.</li>
 </ol>
 <p>This means DDL behaves more like a distributed workflow than a local metadata
 mutation.</p>
+<p>Forwarded DDL requests carry a stable operation identifier, so a retry after a
+lost response does not accidentally apply the same schema change twice.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="online-schema-states">Online Schema States<a href="#online-schema-states" class="hash-link" aria-label="Direct link to Online Schema States" title="Direct link to Online Schema States" translate="no">​</a></h2>
 <p>Some schema changes are not exposed all at once. CamusDB uses staged online
 states so a column or index can become visible gradually:</p>
 <table><thead><tr><th>State</th><th>Meaning</th></tr></thead><tbody><tr><td><code>DeleteOnly</code></td><td>The new element exists in metadata but is not yet part of normal reads and writes.</td></tr><tr><td><code>WriteOnly</code></td><td>New writes maintain the element, but normal reads do not depend on it yet.</td></tr><tr><td><code>Public</code></td><td>The element is fully visible for normal query execution.</td></tr></tbody></table>
-<p>For example, adding an index is not one jump from &quot;missing&quot; to &quot;fully active&quot;.
-CamusDB can:</p>
+<p>For example, adding a column or index is not one jump from &quot;missing&quot; to &quot;fully
+active&quot;. CamusDB can:</p>
 <ol>
 <li class="">Add the metadata in an internal state.</li>
 <li class="">Let new writes maintain it.</li>
@@ -98,6 +106,13 @@ CamusDB can:</p>
 </ol>
 <p>The same staged model is what keeps online schema changes compatible with live
 traffic.</p>
+<p>Not every schema operation uses the same number of stages:</p>
+<ul>
+<li class="">Adding a column or index is staged.</li>
+<li class="">Dropping a column can be staged in reverse.</li>
+<li class="">Dropping an index is currently a single replicated schema change, not a
+staged reverse rollout.</li>
+</ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="backfill-and-safety">Backfill And Safety<a href="#backfill-and-safety" class="hash-link" aria-label="Direct link to Backfill And Safety" title="Direct link to Backfill And Safety" translate="no">​</a></h2>
 <p>When CamusDB adds a column or index that needs existing data to catch up, it
 uses a resumable coordinator rather than assuming one short-lived process will
@@ -111,6 +126,9 @@ finish the whole job.</p>
 </ul>
 <p>For users, the important property is that partially completed online work is
 not forgotten just because leadership moved or a node restarted.</p>
+<p>For added columns with defaults, CamusDB backfills existing rows before the
+column becomes fully public. For added indexes, CamusDB backfills index entries
+before publishing the index for normal planning.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="reads-writes-and-compatibility">Reads, Writes, And Compatibility<a href="#reads-writes-and-compatibility" class="hash-link" aria-label="Direct link to Reads, Writes, And Compatibility" title="Direct link to Reads, Writes, And Compatibility" translate="no">​</a></h2>
 <p>CamusDB keeps a bounded spread of schema versions during staged DDL. That
 matters because transactions and row encoding need a coherent understanding of
@@ -124,12 +142,19 @@ changes such as renames do not require a full row rewrite.</li>
 </ul>
 <p>The result is that readers, writers, replication, and backfill all have a
 common version model to reason about.</p>
+<p>Transactions also pin schema versions while they run. If a transaction tries to
+commit against a schema that was invalidated by a later DDL change, CamusDB can
+reject that commit instead of silently mixing incompatible layouts.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="failure-behavior">Failure Behavior<a href="#failure-behavior" class="hash-link" aria-label="Direct link to Failure Behavior" title="Direct link to Failure Behavior" translate="no">​</a></h2>
 <p>Distributed schema changes are designed to survive the same operational issues
 as data replication:</p>
-<table><thead><tr><th>Failure</th><th>What happens</th></tr></thead><tbody><tr><td>Follower receives DDL</td><td>The request is forwarded to the current schema leader.</td></tr><tr><td>Leader changes mid-DDL</td><td>The committed schema log remains authoritative; resumable staged work can continue on the new leader.</td></tr><tr><td>Node restarts</td><td>Persisted metadata checkpoints reload quickly, and committed schema log entries can be replayed to restore in-memory state.</td></tr><tr><td>Slow node</td><td>The cluster can detect that not every live node has acknowledged the current schema version yet, so later stages wait instead of racing ahead blindly.</td></tr></tbody></table>
+<table><thead><tr><th>Failure</th><th>What happens</th></tr></thead><tbody><tr><td>Follower receives DDL</td><td>The request is forwarded to the current schema leader.</td></tr><tr><td>Leader changes mid-DDL</td><td>The committed schema log remains authoritative; resumable staged work can continue on the new leader.</td></tr><tr><td>Node restarts</td><td>Persisted metadata checkpoints reload quickly, and committed schema log entries can be replayed to restore in-memory state.</td></tr><tr><td>Slow node</td><td>The cluster can detect that not every live node has acknowledged the current schema version yet, so later stages wait instead of racing ahead blindly.</td></tr><tr><td>Lost DDL response</td><td>A retry can be deduplicated on the leader instead of double-applying the schema change.</td></tr></tbody></table>
 <p>This does not make schema changes free. It makes their behavior explicit and
 recoverable.</p>
+<p>The acknowledgement gate is based on live Raft membership, not just a static
+peer list. In practice, CamusDB waits for every node the current schema leader
+considers live, rather than requiring a dead or fully inactive node to block
+DDL forever.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-users-should-expect">What Users Should Expect<a href="#what-users-should-expect" class="hash-link" aria-label="Direct link to What Users Should Expect" title="Direct link to What Users Should Expect" translate="no">​</a></h2>
 <p>From an end-user perspective, the distributed schema system gives CamusDB these
 properties:</p>
@@ -137,6 +162,8 @@ properties:</p>
 <li class="">Cluster schema changes have one agreed order.</li>
 <li class="">Nodes do not invent their own local schema history.</li>
 <li class="">Online changes can be staged instead of exposed all at once.</li>
+<li class="">A DDL success means more than &quot;the leader accepted it&quot;; staged steps wait for
+live-cluster convergence before later steps continue.</li>
 <li class="">Committed schema work can survive restarts and leader changes.</li>
 <li class="">Schema and data durability follow the same replicated storage model.</li>
 </ul>
