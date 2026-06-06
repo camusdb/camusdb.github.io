@@ -63,6 +63,7 @@ const sidebars = {
       items: [
         'storage',
         'wal-recovery',
+        'distributed-schema',
         'architecture',
       ],
     },

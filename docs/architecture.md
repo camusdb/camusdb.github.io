@@ -112,6 +112,9 @@ data. In cluster mode, schema changes are replicated and recovered through the
 distributed storage path, so catalog state follows the same durability model as
 rows and indexes.
 
+See [Distributed Schema Changes](/docs/distributed-schema) for the cluster DDL
+model, staged online schema states, convergence rules, and restart behavior.
+
 ## Storage Layer
 
 CamusDB maps relational objects to deterministic KV keys:
