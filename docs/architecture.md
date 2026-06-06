@@ -100,6 +100,9 @@ The query pipeline supports:
 
 See [Query Features](/docs/query-features) for user-facing examples and
 [Functions](/docs/functions) for the scalar function reference.
+See [Query Planning](/docs/query-planning) and
+[Query Planner Internals](/docs/query-planner-internals) for the planner and
+executor pipeline.
 
 ## Catalog And Schema
 

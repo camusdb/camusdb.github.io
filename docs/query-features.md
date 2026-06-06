@@ -8,6 +8,11 @@ CamusDB supports a practical SQL query surface for filtering, joining,
 aggregating, sorting, paginating, and composing results from subqueries and
 derived tables.
 
+The planner can use table scans, unique-index lookups, non-unique index range
+scans, indexed join probes, sort elision, and limit pushdown depending on the
+query shape and available indexes. See [Query Planning](/docs/query-planning)
+for the planning rules and [EXPLAIN](/docs/explain) for plan inspection.
+
 ## Select Lists
 
 Queries can project all columns, named columns, qualified columns, expressions,
@@ -366,6 +371,24 @@ WHERE year >= 1980;
 
 This is useful when you know which index best matches a predicate. Joins can
 also benefit from indexes on right-side equality join columns.
+
+## EXPLAIN
+
+Use `EXPLAIN` to inspect the physical plan CamusDB chose:
+
+```sql
+EXPLAIN SELECT * FROM robots WHERE year = 2024;
+EXPLAIN (ANALYZE) SELECT * FROM robots WHERE year = 2024 LIMIT 5;
+```
+
+`EXPLAIN` can show whether CamusDB used a `table-scan`, `index-lookup`,
+`index-range-scan`, join node, sort, aggregate, or limit stage.
+
+`EXPLAIN (ANALYZE)` executes the query and adds runtime counters such as
+`actual_rows`, `rows_read`, `kv_lookups`, and `kv_scan_entries`. It is
+currently limited to non-join queries.
+
+See [EXPLAIN](/docs/explain) for the full output reference.
 
 ## Parameters
 

@@ -30,6 +30,8 @@ const sidebars = {
       items: [
         'sql',
         'query-features',
+        'query-planning',
+        'explain',
         {
           type: 'category',
           label: 'Functions',
@@ -65,6 +67,7 @@ const sidebars = {
         'wal-recovery',
         'distributed-schema',
         'architecture',
+        'query-planner-internals',
       ],
     },
     {
