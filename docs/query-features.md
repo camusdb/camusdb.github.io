@@ -50,6 +50,34 @@ WHERE json_valid(payload) = true
 See [Functions](/docs/functions) for string, math, date/time, JSON,
 conversion, and object id functions.
 
+## DISTINCT
+
+CamusDB supports row-level `SELECT DISTINCT`:
+
+```sql
+SELECT DISTINCT role
+FROM app_users
+ORDER BY role;
+
+SELECT DISTINCT role, department
+FROM app_users
+ORDER BY role, department;
+```
+
+`DISTINCT` removes duplicate output rows after projection. Two `NULL` values
+are treated as the same distinct value.
+
+Important limits:
+
+- `COUNT(DISTINCT column)` is not supported.
+- `SELECT DISTINCT` cannot be combined with `GROUP BY`.
+- `SELECT DISTINCT` cannot be combined with aggregate projections such as
+  `SELECT DISTINCT COUNT(*) ...`.
+
+When the distinct columns are covered by a compatible `NOT NULL` index, the
+planner can use a streaming distinct path instead of hash-based deduplication.
+See [Query Planning](/docs/query-planning) and [EXPLAIN](/docs/explain).
+
 ## Filters
 
 `WHERE` supports comparisons, boolean composition, pattern matching, null
@@ -82,11 +110,36 @@ Supported filter operators include:
 | Boolean | `AND`, `OR`, bare boolean columns such as `WHERE enabled` |
 | Pattern matching | `LIKE`, `ILIKE` |
 | Null checks | `IS NULL`, `IS NOT NULL` |
-| Subquery membership | `IN (SELECT ...)`, `NOT IN (SELECT ...)` |
+| Membership | `IN (...)`, `NOT IN (...)`, `IN (SELECT ...)`, `NOT IN (SELECT ...)` |
 | Existence checks | `EXISTS (SELECT ...)` |
 
 `BETWEEN` is inclusive. `year BETWEEN 2001 AND 2004` matches `2001`, `2002`,
 `2003`, and `2004`.
+
+## IN And NOT IN Value Lists
+
+CamusDB supports literal and parameterized value lists:
+
+```sql
+SELECT id, name
+FROM robots
+WHERE year IN (2020, 2022, 2024);
+
+SELECT id, name
+FROM robots
+WHERE status NOT IN ("deleted", "archived");
+
+SELECT id, name
+FROM robots
+WHERE id IN (@id1, @id2, @id3);
+```
+
+When an indexed column is used with `IN (...)`, the planner can turn the value
+list into repeated index probes instead of a full scan. This works best for
+small or moderate lists on indexed columns.
+
+`NOT IN (...)` follows SQL null semantics. If the right-side list contains
+`NULL`, a non-matching comparison becomes unknown and the row is filtered out.
 
 ## Ordering And Pagination
 
@@ -296,9 +349,10 @@ WHERE id NOT IN (
 ORDER BY id;
 ```
 
-The subquery result is materialized as a value list for the outer predicate.
-Multi-column `IN` and `NOT IN` subqueries are rejected. Correlated `IN` and
-`NOT IN` subqueries are not supported.
+For eligible indexed inner queries, CamusDB can execute these as a semi-join or
+anti-join rather than materializing the full inner result first. Multi-column
+`IN` and `NOT IN` subqueries are rejected. Correlated `IN` and `NOT IN`
+subqueries are not supported.
 
 `NOT IN` follows SQL null semantics: if the materialized subquery contains
 `NULL`, non-matching rows evaluate to unknown and are filtered out.

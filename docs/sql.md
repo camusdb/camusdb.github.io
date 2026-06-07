@@ -21,6 +21,17 @@ CREATE TABLE robots (
 );
 ```
 
+Inline constraints can define primary keys and unique columns directly in the
+column list:
+
+```sql
+CREATE TABLE app_users (
+  id STRING PRIMARY KEY NOT NULL,
+  email STRING UNIQUE NOT NULL,
+  display_name STRING NOT NULL
+);
+```
+
 Create a table only when it does not exist:
 
 ```sql
@@ -38,6 +49,19 @@ CREATE TABLE readings (
   ts INT64 NOT NULL,
   value FLOAT64 NOT NULL
 ) PRIMARY KEY (sensor_id ASC, ts DESC);
+```
+
+CamusDB also accepts inline index-style constraints inside `CREATE TABLE`:
+
+```sql
+CREATE TABLE robots (
+  id OID NOT NULL,
+  code STRING NOT NULL,
+  name STRING,
+  PRIMARY KEY (id),
+  UNIQUE KEY code_uk (code),
+  KEY name_idx (name)
+);
 ```
 
 Drop tables:
@@ -68,6 +92,13 @@ CREATE UNIQUE INDEX robots_name_idx ON robots (name);
 ALTER TABLE robots ADD INDEX robots_kind_year_idx (kind, year DESC);
 ALTER TABLE robots ADD UNIQUE INDEX robots_name_idx (name);
 ALTER TABLE robots DROP INDEX robots_kind_year_idx;
+```
+
+Multi-column unique indexes are supported:
+
+```sql
+CREATE UNIQUE INDEX robots_kind_year_uq ON robots (kind, year);
+ALTER TABLE robots ADD UNIQUE INDEX robots_code_year_uq (code, year);
 ```
 
 ## Inserts
@@ -111,6 +142,7 @@ SELECT * FROM robots;
 SELECT r.id, r.name FROM robots r;
 SELECT year + 100 AS display_year FROM robots;
 SELECT SUM(year) AS total_year FROM robots;
+SELECT DISTINCT kind FROM robots ORDER BY kind;
 ```
 
 Supported aggregate functions are:
@@ -120,6 +152,20 @@ Supported aggregate functions are:
 - `AVG(column)`
 - `MIN(column)`
 - `MAX(column)`
+
+`SELECT DISTINCT` removes duplicate result rows:
+
+```sql
+SELECT DISTINCT kind FROM robots ORDER BY kind;
+SELECT DISTINCT kind, year FROM robots ORDER BY kind, year;
+```
+
+Current limits:
+
+- `COUNT(DISTINCT column)` is not supported.
+- `SELECT DISTINCT` cannot be combined with `GROUP BY`.
+- `SELECT DISTINCT` cannot wrap aggregate projections such as
+  `SELECT DISTINCT COUNT(*) ...`.
 
 Scalar functions can be used in projections, filters, aliases, and nested
 expressions:
@@ -155,11 +201,20 @@ WHERE id IN (SELECT user_id FROM posts WHERE published = true);
 SELECT id
 FROM robots
 WHERE id NOT IN (SELECT robots_id FROM blocked_robots);
+
+SELECT id
+FROM robots
+WHERE year IN (2001, 2004, 2007);
+
+SELECT id
+FROM robots
+WHERE status NOT IN ("deleted", "archived");
 ```
 
 Supported filter operators include `=`, `!=`, `<`, `>`, `<=`, `>=`, `AND`,
 `OR`, `LIKE`, `ILIKE`, `BETWEEN ... AND ...`, `IS NULL`, `IS NOT NULL`,
-`IN (SELECT ...)`, `NOT IN (SELECT ...)`, and `EXISTS (SELECT ...)`.
+`IN (...)`, `NOT IN (...)`, `IN (SELECT ...)`, `NOT IN (SELECT ...)`, and
+`EXISTS (SELECT ...)`.
 
 Group rows by columns or expressions:
 
@@ -233,6 +288,15 @@ Force a specific index when reading:
 SELECT id, name
 FROM robots@{FORCE_INDEX=robots_year_idx}
 WHERE year >= 1980;
+```
+
+Inspect a plan with `EXPLAIN`:
+
+```sql
+EXPLAIN SELECT * FROM robots WHERE year = 2024;
+EXPLAIN (LOGICAL) SELECT * FROM robots WHERE year = 2024;
+EXPLAIN (PHYSICAL) SELECT * FROM robots WHERE year = 2024;
+EXPLAIN (ANALYZE) SELECT * FROM robots WHERE year = 2024 LIMIT 5;
 ```
 
 See [Query Features](/docs/query-features) for the full query surface, including

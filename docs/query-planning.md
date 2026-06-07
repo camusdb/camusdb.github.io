@@ -19,17 +19,20 @@ Today CamusDB can plan:
 - Full table scans.
 - Unique-index point lookups such as primary-key equality.
 - Non-unique index range scans for equality, inequalities, and `BETWEEN`.
+- Repeated index probes for indexed `IN (...)` value lists.
 - Residual filters above a scan when an index only covers part of the predicate.
 - Sort elision when an index already produces the required ordering.
 - `LIMIT` and `OFFSET` pushdown when a scan can stop early safely.
 - Grouped and global aggregates.
+- Streaming `DISTINCT` on compatible indexed `NOT NULL` projections.
 - Inner joins and comma joins.
 - Indexed nested-loop joins when the right-side join key is indexed.
+- Semi/anti-join rewrites for eligible indexed `IN` and `NOT IN` subqueries.
 - Derived tables, scalar subqueries, `IN`, `NOT IN`, and `EXISTS`.
 - Explicit index forcing with `@{FORCE_INDEX=...}`.
 
-CamusDB is still heuristic-first. It has a small cost model, but planning is
-not yet a fully cost-based optimizer.
+CamusDB is still heuristic-first. It has a small statistics-backed cost model,
+but planning is not yet a fully cost-based optimizer.
 
 ## How Scan Choice Works
 
@@ -76,6 +79,23 @@ FROM robots
 WHERE year BETWEEN 2020 AND 2024;
 ```
 
+### IN value lists
+
+Indexed `IN (...)` predicates can be planned as repeated index probes:
+
+```sql
+SELECT *
+FROM robots
+WHERE id IN ("id1", "id2", "id3");
+
+SELECT *
+FROM robots
+WHERE year IN (2020, 2022, 2024);
+```
+
+This is especially useful when the target column is indexed and the value list
+is small or moderately sized.
+
 ### Residual filters
 
 If an index covers only part of the predicate, CamusDB scans with the index and
@@ -113,6 +133,23 @@ SELECT *
 FROM robots
 WHERE year >= 2020;
 ```
+
+## Statistics And Cost-Based Scan Choice
+
+CamusDB keeps lightweight advisory statistics from live writes. The planner can
+use them to estimate:
+
+- Table row count.
+- Per-index entry count.
+- Per-column min/max bounds for indexed columns.
+
+These estimates currently help with a narrow but useful decision: when an index
+range is so broad that a full table scan is likely cheaper, CamusDB can choose
+the full scan instead. Statistics also feed the `estimated_rows` and
+`estimated_cost` columns in `EXPLAIN`.
+
+This is not a full cost-based optimizer yet. Index selection, join strategy,
+and most operator ordering still come primarily from deterministic rules.
 
 ## Ordering And Sort Elision
 
@@ -175,6 +212,38 @@ JOIN posts p ON p.user_id = u.id;
 
 an index on `posts(user_id)` is far more useful than an unrelated index on
 `posts(title)`.
+
+## IN And NOT IN Subquery Rewrites
+
+For eligible uncorrelated subqueries, CamusDB can rewrite:
+
+- `x IN (SELECT key FROM t)` into a semi-join
+- `x NOT IN (SELECT key FROM t)` into an anti-join
+
+This works when the inner side has a usable index and the subquery shape is
+simple enough. The rewrite avoids scanning or materializing more data than
+necessary.
+
+If the inner side is not a good fit, CamusDB falls back to materializing the
+subquery result and applying the outer predicate normally.
+
+`NOT IN` keeps SQL null semantics. Nullable inner values may force a more
+conservative null-aware anti-join path or a fallback strategy.
+
+## DISTINCT Planning
+
+`SELECT DISTINCT` has two execution shapes:
+
+- Streaming distinct: when the projected distinct columns are all `NOT NULL`
+  and arrive in compatible index order.
+- Hash distinct: when CamusDB must keep a set of seen rows in memory.
+
+Streaming distinct is the better path for repeated reads because it can use
+constant memory and may also avoid a separate `sort` node when `ORDER BY`
+matches the index ordering.
+
+Queries such as `SELECT DISTINCT *` or `SELECT DISTINCT` over non-indexed or
+nullable columns fall back to hash distinct.
 
 ## Derived Tables And Subqueries
 
@@ -241,6 +310,9 @@ The planner is improving, but there are still important limits:
 - Descending-order satisfaction from indexes is limited.
 - Join cost estimates are not yet strong enough to drive broad join
   reordering decisions.
+- `NOT IN (...)` value lists remain filter-driven rather than using a dedicated
+  index-probe plan shape.
+- `COUNT(DISTINCT ...)` is not supported.
 
 These are planning limits, not correctness limits. CamusDB still aims to return
 the right rows; the difference is whether it can pick the fastest available
@@ -258,4 +330,3 @@ EXPLAIN (ANALYZE) SELECT * FROM robots WHERE year = 2024 LIMIT 5;
 See [EXPLAIN](/docs/explain) for the output format and examples, and
 [Query Planner Internals](/docs/query-planner-internals) for the execution
 pipeline and planner architecture.
-

@@ -100,6 +100,10 @@ const config = {
                 to: '/docs/why-camusdb',
               },
               {
+                label: 'camus-cli',
+                to: '/docs/camus-cli',
+              },
+              {
                 label: 'SQL',
                 to: '/docs/sql',
               },
@@ -122,6 +126,18 @@ const config = {
               {
                 label: 'HTTP API',
                 to: '/docs/http-api',
+              },
+              {
+                label: '.NET Driver',
+                to: '/docs/dotnet-driver',
+              },
+              {
+                label: 'EF Core Provider',
+                to: '/docs/ef-core',
+              },
+              {
+                label: 'camus-dump',
+                to: '/docs/camus-dump',
               },
               {
                 label: 'Cluster',

@@ -20,6 +20,7 @@ const sidebars = {
       collapsed: false,
       items: [
         'intro',
+        'camus-cli',
         'why-camusdb',
       ],
     },
@@ -63,10 +64,10 @@ const sidebars = {
       label: 'Storage And Internals',
       collapsed: false,
       items: [
+        'architecture',
         'storage',
         'wal-recovery',
         'distributed-schema',
-        'architecture',
         'query-planner-internals',
       ],
     },
@@ -75,6 +76,16 @@ const sidebars = {
       label: 'Reference',
       collapsed: false,
       items: [
+        {
+          type: 'category',
+          label: '.NET',
+          collapsed: false,
+          items: [
+            'dotnet-driver',
+            'ef-core',
+          ],
+        },
+        'camus-dump',
         'configuration',
         'http-api',
       ],

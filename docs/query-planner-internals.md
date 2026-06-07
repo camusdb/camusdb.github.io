@@ -84,7 +84,8 @@ The parser accepts:
 - `JOIN` and comma joins
 - Derived tables
 - Scalar / `IN` / `NOT IN` / `EXISTS` subqueries
-- `EXPLAIN`
+- `IN (...)` and `NOT IN (...)` value-list membership
+- `EXPLAIN (LOGICAL|PHYSICAL|ANALYZE)`
 
 `SelectQueryCreator` turns the parsed tree into a `SelectQuery` record with:
 
@@ -126,6 +127,7 @@ It analyzes the predicate and tries to choose:
 - Forced index scan.
 - Unique index point lookup.
 - Index range scan.
+- Index `IN`-list scan when repeated probes beat a wider scan.
 
 `PredicateAnalyzer` splits predicates into:
 
@@ -139,6 +141,7 @@ It analyzes the predicate and tries to choose:
 - Non-unique equality and equality-prefix matches are strong candidates.
 - Equality prefix plus next-column range can drive composite range scans.
 - Matching `ORDER BY` prefixes can win even without a filtering predicate.
+- Indexed `IN (...)` lists can compete with range scans and full scans.
 
 ### 2. Filter absorption
 
@@ -150,6 +153,17 @@ execution filter.
 
 If the chosen scan already produces rows in the requested order, the planner
 sets `OutputOrdering` and skips the explicit `SortNode`.
+
+### 3b. DISTINCT strategy
+
+For `SELECT DISTINCT`, the planner decides between:
+
+- `DistinctNode` in streaming mode when the projected columns are simple
+  identifiers, all `NOT NULL`, and covered by scan ordering.
+- `DistinctNode` in hash mode when streaming is unsafe or impossible.
+
+Streaming distinct can also satisfy matching `ORDER BY` without a separate
+`SortNode`.
 
 ### 4. Limit pushdown
 
@@ -176,6 +190,8 @@ Its work includes:
 - Predicate pushdown for single-source predicates.
 - Separation of post-join predicates from scan-local predicates.
 - Building either `NestedLoopJoinNode` or `IndexNestedLoopJoinNode`.
+- Building `SemiJoinNode` variants for eligible indexed `IN` / `NOT IN`
+  subqueries.
 - Representing derived tables as `DerivedTableScanNode`.
 
 If the right-side join key has an index, CamusDB can use indexed join probing
@@ -197,6 +213,7 @@ Common node types include:
 | `ProjectNode` | Projection and alias shaping. |
 | `DistinctNode` | Duplicate elimination. |
 | `LimitNode` | Limit/offset stage. |
+| `SemiJoinNode` | Indexed `IN` / `NOT IN` subquery rewrite. |
 | `NestedLoopJoinNode` | Join without indexed right-side probe. |
 | `IndexNestedLoopJoinNode` | Join with indexed right-side probe. |
 | `DerivedTableScanNode` | Scan of a derived table source. |
@@ -258,6 +275,22 @@ the query to populate counters such as:
 - `actual_time_ms` on the root node
 
 `EXPLAIN (ANALYZE)` is currently limited to non-join queries.
+
+## Statistics And Costing
+
+`StatisticsManager` keeps lightweight advisory table statistics in Kahuna:
+
+- Row count per table.
+- Per-index entry counts.
+- Running min/max bounds for indexed columns.
+
+`CostEstimator` annotates plan nodes with estimated cardinality and cost. Those
+annotations are exposed through `EXPLAIN`, and the planner can use them for a
+small set of decisions, especially choosing a full scan over an unselective
+index range and comparing `IN (...)` probe plans against wider scans.
+
+This is still intentionally narrow. CamusDB does not yet use a broad
+cost-based search across all join orders and operator alternatives.
 
 ## Optimizations Present Today
 
@@ -322,4 +355,3 @@ These are the main boundaries for future planner work.
 See [Query Planning](/docs/query-planning) for user-facing capabilities,
 [EXPLAIN](/docs/explain) for plan inspection, and
 [Architecture](/docs/architecture) for the broader system layout.
-

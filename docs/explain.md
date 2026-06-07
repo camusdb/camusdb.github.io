@@ -32,6 +32,7 @@ Behavior:
   stage label.
 - `EXPLAIN (ANALYZE)` executes the query, drains the result, and adds runtime
   counters.
+- Unrecognized options such as `EXPLAIN (VERBOSE)` are rejected.
 
 ## Important Limits
 
@@ -53,6 +54,10 @@ Behavior:
 | `detail` | `STRING` | Node-specific summary such as index name or bounds. |
 | `estimated_rows` | `INT64` or `NULL` | Estimated output rows when available. |
 | `estimated_cost` | `FLOAT64` or `NULL` | Estimated planner cost when available. |
+
+These estimates come from CamusDB's lightweight planner statistics when they
+exist. Different deployments can produce different numbers depending on current
+row counts and observed indexed-column bounds.
 
 ### EXPLAIN ANALYZE
 
@@ -82,6 +87,9 @@ These are the main node names you will see:
 | `limit` | `LIMIT` / `OFFSET` stage. |
 | `project` | Projection and alias shaping. |
 | `distinct` | Duplicate elimination. |
+| `semi-join` | Indexed `IN (SELECT ...)` rewrite. |
+| `anti-join` | Indexed `NOT IN (SELECT ...)` rewrite over a non-null inner key. |
+| `null-aware-anti-join` | `NOT IN` rewrite that preserves SQL null semantics. |
 | `nested-loop-join` | Join without a usable right-side index. |
 | `index-nested-loop-join` | Join that probes the right side through an index. |
 | `derived-table-scan` | Scan of a derived table from `FROM (SELECT ...) alias`. |
@@ -200,11 +208,49 @@ LIMIT 10;
 Typical output shape:
 
 ```text
-physical  limit      limit(10)
+physical  limit      10
 physical  table-scan table=robots
 ```
 
 CamusDB may also stop the scan early when the query shape allows safe pushdown.
+
+### DISTINCT: streaming vs hash
+
+```sql
+EXPLAIN
+SELECT DISTINCT code
+FROM teams
+ORDER BY code;
+```
+
+Typical output shape:
+
+```text
+physical  distinct          streaming: true
+physical  index-range-scan  index=code_idx
+```
+
+When the distinct columns are covered by a compatible `NOT NULL` index, CamusDB
+can deduplicate adjacent rows as they stream from the scan. Otherwise the
+`distinct` detail reports `hash`.
+
+### IN subquery rewritten to a semi-join
+
+```sql
+EXPLAIN
+SELECT *
+FROM robots
+WHERE owner_id IN (SELECT id FROM owners);
+```
+
+Typical output shape:
+
+```text
+physical  semi-join   outer=owner_id, inner=owners.id, index=~pk
+physical  table-scan  table=robots
+```
+
+`NOT IN` can similarly appear as `anti-join` or `null-aware-anti-join`.
 
 ## EXPLAIN ANALYZE
 
@@ -263,4 +309,3 @@ Read [Query Planning](/docs/query-planning) for user-facing planner behavior,
 [Query Features](/docs/query-features) for the SQL surface, and
 [Query Planner Internals](/docs/query-planner-internals) for the internal
 pipeline and implementation model.
-
