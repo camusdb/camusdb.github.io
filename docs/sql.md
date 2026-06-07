@@ -304,8 +304,8 @@ join rules, grouped aggregate behavior, subqueries, derived tables, and planner
 notes.
 
 See [Query Planning](/docs/query-planning) for how CamusDB chooses scans,
-indexed joins, sorts, and limit pushdown, and [EXPLAIN](/docs/explain) for plan
-inspection output.
+indexed joins, sorts, and limit pushdown, and
+[Explaining Queries And Commands](/docs/explain) for plan inspection output.
 
 ## Updates And Deletes
 

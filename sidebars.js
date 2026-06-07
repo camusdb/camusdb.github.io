@@ -20,7 +20,6 @@ const sidebars = {
       collapsed: false,
       items: [
         'intro',
-        'camus-cli',
         'why-camusdb',
       ],
     },
@@ -32,7 +31,11 @@ const sidebars = {
         'sql',
         'query-features',
         'query-planning',
-        'explain',
+        {
+          type: 'doc',
+          id: 'explain',
+          label: 'Explaining Queries And Commands',
+        },
         {
           type: 'category',
           label: 'Functions',
@@ -76,6 +79,7 @@ const sidebars = {
       label: 'Reference',
       collapsed: false,
       items: [
+        'camus-cli',
         {
           type: 'category',
           label: '.NET',

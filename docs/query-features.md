@@ -11,7 +11,8 @@ derived tables.
 The planner can use table scans, unique-index lookups, non-unique index range
 scans, indexed join probes, sort elision, and limit pushdown depending on the
 query shape and available indexes. See [Query Planning](/docs/query-planning)
-for the planning rules and [EXPLAIN](/docs/explain) for plan inspection.
+for the planning rules and [Explaining Queries And Commands](/docs/explain) for
+plan inspection.
 
 ## Select Lists
 
@@ -76,7 +77,8 @@ Important limits:
 
 When the distinct columns are covered by a compatible `NOT NULL` index, the
 planner can use a streaming distinct path instead of hash-based deduplication.
-See [Query Planning](/docs/query-planning) and [EXPLAIN](/docs/explain).
+See [Query Planning](/docs/query-planning) and
+[Explaining Queries And Commands](/docs/explain).
 
 ## Filters
 
@@ -442,7 +444,8 @@ EXPLAIN (ANALYZE) SELECT * FROM robots WHERE year = 2024 LIMIT 5;
 `actual_rows`, `rows_read`, `kv_lookups`, and `kv_scan_entries`. It is
 currently limited to non-join queries.
 
-See [EXPLAIN](/docs/explain) for the full output reference.
+See [Explaining Queries And Commands](/docs/explain) for the full output
+reference.
 
 ## Parameters
 

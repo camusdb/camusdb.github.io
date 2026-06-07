@@ -2,7 +2,7 @@
 sidebar_position: 3.2
 ---
 
-# EXPLAIN
+# Explaining Queries And Commands
 
 `EXPLAIN` shows how CamusDB plans a query. It is the main user-facing tool for
 understanding whether a query uses a table scan, index lookup, index range

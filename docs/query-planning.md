@@ -327,6 +327,6 @@ EXPLAIN SELECT * FROM robots WHERE year = 2024;
 EXPLAIN (ANALYZE) SELECT * FROM robots WHERE year = 2024 LIMIT 5;
 ```
 
-See [EXPLAIN](/docs/explain) for the output format and examples, and
-[Query Planner Internals](/docs/query-planner-internals) for the execution
-pipeline and planner architecture.
+See [Explaining Queries And Commands](/docs/explain) for the output format and
+examples, and [Query Planner Internals](/docs/query-planner-internals) for the
+execution pipeline and planner architecture.

@@ -5,9 +5,10 @@ sidebar_position: 6.5
 # Query Planner Internals
 
 This page is the internal companion to the user-facing
-[Query Planning](/docs/query-planning) and [EXPLAIN](/docs/explain) docs. It
-describes how CamusDB turns SQL text into a physical plan and then executes
-that plan against the KV layer.
+[Query Planning](/docs/query-planning) and
+[Explaining Queries And Commands](/docs/explain) docs. It describes how
+CamusDB turns SQL text into a physical plan and then executes that plan against
+the KV layer.
 
 ## Mental Model
 
