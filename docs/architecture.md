@@ -147,7 +147,9 @@ When a transaction touches keys owned by more than one partition, CamusDB uses
 two-phase commit through the storage layer. This keeps cross-partition writes
 atomic while preserving the consensus rules of each partition.
 
-See [Serializable Transactions](/docs/serializable-transactions) for examples.
+See [Serializable Transactions](/docs/serializable-transactions) for examples
+and [Distributed Transactions And HLC](/docs/distributed-transactions) for the
+cross-partition commit flow and timestamp model.
 
 ## Replication And Recovery
 

@@ -58,8 +58,10 @@ const sidebars = {
       collapsed: false,
       items: [
         'serializable-transactions',
+        'distributed-transactions',
         'multi-active-availability',
         'cluster',
+        'configuration',
       ],
     },
     {
@@ -90,7 +92,6 @@ const sidebars = {
           ],
         },
         'camus-dump',
-        'configuration',
         'http-api',
       ],
     },

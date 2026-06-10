@@ -24,6 +24,13 @@
   font-size: 0.82rem;
 }
 
+.heroLogo {
+  display: block;
+  width: min(168px, 30vw);
+  height: auto;
+  margin: 0 auto 1.25rem;
+}
+
 .title {
   font-size: 4rem;
   line-height: 1;
@@ -44,6 +51,11 @@
   .title {
     font-size: 3rem;
   }
+
+  .heroLogo {
+    width: min(132px, 34vw);
+    margin-bottom: 1rem;
+  }
 }
 
 .buttons {
@@ -53,6 +65,58 @@
   gap: 0.75rem;
   margin-top: 2rem;
   flex-wrap: wrap;
+}
+
+.heroPillars {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  max-width: 860px;
+  margin: 2.5rem auto 0;
+  text-align: left;
+}
+
+.heroPillar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 8px;
+  background: var(--ifm-background-surface-color);
+}
+
+.heroPillarTitle {
+  font-weight: 700;
+  font-size: 0.98rem;
+}
+
+.heroPillarDetail {
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.heroSnippet {
+  max-width: 860px;
+  margin: 1.5rem auto 0;
+  text-align: left;
+}
+
+.heroSnippet pre {
+  margin: 0;
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+
+@media screen and (max-width: 760px) {
+  .heroPillars {
+    grid-template-columns: 1fr;
+  }
+
+  .heroSnippet {
+    display: none;
+  }
 }
 
 .comparison {
@@ -78,6 +142,45 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
+}
+
+.consistencySection {
+  margin-top: 3rem;
+}
+
+.examplePanel {
+  margin-top: 1rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 8px;
+  background: var(--ifm-background-surface-color);
+  padding: 1.25rem;
+}
+
+.examplePanel h3 {
+  font-size: 1.2rem;
+  margin-bottom: 0.75rem;
+}
+
+.examplePanel p,
+.examplePanel li {
+  color: var(--ifm-color-emphasis-700);
+}
+
+.examplePanel p {
+  margin-bottom: 0.85rem;
+}
+
+.examplePanel ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.examplePanel li {
+  margin-bottom: 0.65rem;
+}
+
+.examplePanel li:last-child {
+  margin-bottom: 0;
 }
 
 .comparisonPanel {

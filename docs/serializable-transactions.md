@@ -143,3 +143,7 @@ again.
 
 This retry pattern is the tradeoff for getting stronger correctness guarantees
 by default.
+
+For the distributed commit path, timestamp ordering, and how cross-partition
+transactions use two-phase commit, see
+[Distributed Transactions And HLC](/docs/distributed-transactions).
