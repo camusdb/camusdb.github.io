@@ -22,10 +22,13 @@ Failed responses use HTTP 500 and include a CamusDB error code when available:
 ```json
 {
   "status": "failed",
-  "code": "CA0000",
+  "code": "CADB0400",
   "message": "error message"
 }
 ```
+
+See [Error Codes](/docs/error-codes) for the reference list and when each code
+is generated.
 
 ## Column Values
 

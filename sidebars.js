@@ -92,6 +92,7 @@ const sidebars = {
           ],
         },
         'camus-dump',
+        'error-codes',
         'http-api',
       ],
     },

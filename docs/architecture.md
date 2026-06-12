@@ -115,6 +115,11 @@ data. In cluster mode, schema changes are replicated and recovered through the
 distributed storage path, so catalog state follows the same durability model as
 rows and indexes.
 
+Online schema changes are staged, and lagging nodes can temporarily fence
+themselves from normal table work until they catch up to the committed schema
+head. This lets schema evolution keep moving without exposing stale schema reads
+as normal behavior.
+
 See [Distributed Schema Changes](/docs/distributed-schema) for the cluster DDL
 model, staged online schema states, convergence rules, and restart behavior.
 

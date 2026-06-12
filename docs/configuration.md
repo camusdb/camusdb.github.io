@@ -24,8 +24,10 @@ data_dir: /tmp/camusdb/
 ```
 
 That means the out-of-the-box sample config uses `/tmp/camusdb/` unless you
-change it. If a key is omitted entirely, CamusDB falls back to the defaults in
-the config model.
+change it.
+
+For real deployments, set `data_dir` explicitly instead of relying on implicit
+startup defaults.
 
 ## YAML Keys
 
@@ -44,6 +46,9 @@ These are the available keys in `Config/config.yml` today:
 | `schema_ack_wait_timeout_ms` | `30000` | Cluster DDL ack wait timeout in milliseconds. |
 | `schema_ack_live_node_lease_ms` | `-1` | Cluster DDL live-node lease in milliseconds, or `-1` for infinite. |
 | `stats_flush_interval_ms` | `5000` | Background advisory table-statistics flush interval in milliseconds. |
+| `sql_parser_cache_ttl_seconds` | `300` | Sliding TTL for the SQL parser AST cache; `0` disables the cache. |
+| `sql_parser_cache_max_entries` | `2048` | Maximum cached SQL texts; `0` means unbounded. |
+| `sql_parser_cache_sweep_seconds` | `60` | Background sweep interval for removing expired parser-cache entries. |
 
 Cluster mode is active when either `mode: cluster` is set or `peers` contains
 at least one entry.
@@ -99,8 +104,9 @@ mode:
   - How long a DDL proposer waits for all live nodes to acknowledge the needed
     schema version before failing the operation.
 - `schema_ack_live_node_lease_ms`
-  - How long a node can go without a relevant acknowledgement before the gate
-    treats it as not live for blocking purposes.
+  - Controls whether the leader waits on every configured live member
+    conservatively (`-1`) or uses a finite liveness window for follower
+    reachability.
   - `-1` means infinite lease.
 
 Most users should keep the defaults unless they are testing cluster DDL behavior
@@ -122,6 +128,21 @@ Values:
 
 This affects planner statistics durability, not SQL correctness.
 
+### SQL parser cache settings
+
+These settings control the SQL parser AST cache:
+
+- `sql_parser_cache_ttl_seconds`
+  - Sliding TTL in seconds.
+  - `0` disables the cache, so every SQL text is parsed from scratch.
+- `sql_parser_cache_max_entries`
+  - Maximum number of distinct SQL texts to keep.
+  - `0` removes the cap.
+- `sql_parser_cache_sweep_seconds`
+  - How often the background sweep removes expired cache entries.
+
+This cache affects parse overhead, not SQL semantics.
+
 ## Validation Rules
 
 CamusDB validates config on startup and rejects invalid values early.
@@ -134,6 +155,9 @@ Important validation rules:
 - `schema_ack_wait_timeout_ms` must be `> 0`
 - `schema_ack_live_node_lease_ms` must be `> 0` or `-1`
 - `stats_flush_interval_ms` must be `>= 0` or `-1`
+- `sql_parser_cache_ttl_seconds` must be `>= 0`
+- `sql_parser_cache_max_entries` must be `>= 0`
+- `sql_parser_cache_sweep_seconds` must be `> 0`
 - `http_peers` count must match `peers` count when `http_peers` is supplied
 
 ## Standalone Example
@@ -142,6 +166,9 @@ Important validation rules:
 data_dir: /var/lib/camusdb
 mode: standalone
 stats_flush_interval_ms: 5000
+sql_parser_cache_ttl_seconds: 300
+sql_parser_cache_max_entries: 2048
+sql_parser_cache_sweep_seconds: 60
 ```
 
 Standalone mode is the default and the simplest option for tutorials, local
@@ -167,6 +194,9 @@ http_peers:
 schema_ack_wait_timeout_ms: 30000
 schema_ack_live_node_lease_ms: -1
 stats_flush_interval_ms: 5000
+sql_parser_cache_ttl_seconds: 300
+sql_parser_cache_max_entries: 2048
+sql_parser_cache_sweep_seconds: 60
 ```
 
 Use `http_peers` whenever nodes do not all expose the API on the same HTTP
@@ -209,10 +239,13 @@ dotnet run --project CamusDB -- \
 Current behavior matters here:
 
 - YAML controls the persistent engine and cluster settings listed above.
-- CLI flags override matching YAML values when explicitly supplied.
+- CLI flags override matching YAML values for `mode`, `node_name`, `raft_host`,
+  `raft_port`, `initial_partitions`, and `peers` when explicitly supplied.
 - HTTP and HTTPS listener ports and certificate paths are CLI-only in the
   current source tree.
-- `stats_flush_interval_ms` is applied process-wide before the engine starts.
+- `stats_flush_interval_ms` and the SQL parser cache settings are applied
+  process-wide before the engine starts.
+- `data_dir` is YAML-driven in the current source tree.
 
 ## Related Pages
 
