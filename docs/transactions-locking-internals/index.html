@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Transaction Internals | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/transactions-locking-internals/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Transaction Internals | CamusDB"><meta data-rh="true" name="description" content="It is aimed at contributors and operators who want to understand how the SQL"><meta data-rh="true" property="og:description" content="It is aimed at contributors and operators who want to understand how the SQL"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/transactions-locking-internals/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/transactions-locking-internals/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/transactions-locking-internals/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Transaction Internals","item":"https://camusdb.github.io/docs/transactions-locking-internals"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
-<link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.77452d9a.css">
-<script src="/assets/js/runtime~main.4ba4f2d9.js" defer="defer"></script>
+<link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.988e7f99.css">
+<script src="/assets/js/runtime~main.446d1aa7.js" defer="defer"></script>
 <script src="/assets/js/main.f428d4a6.js" defer="defer"></script>
 </head>
 <body>
@@ -40,8 +40,22 @@ Kahuna transactions.</p>
 <li class="">range-lock scope</li>
 <li class="">row and index maintenance inside one transaction</li>
 </ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="isolation-levels">Isolation Levels<a href="#isolation-levels" class="hash-link" aria-label="Direct link to Isolation Levels" title="Direct link to Isolation Levels" translate="no">​</a></h2>
+<p>CamusDB now has two isolation levels in the transaction layer:</p>
+<ul>
+<li class=""><code>Read Committed</code> as the default</li>
+<li class=""><code>Serializable</code> as an explicit stronger mode</li>
+</ul>
+<p>Serializable then splits into two execution styles:</p>
+<ul>
+<li class="">serializable read-only transactions use a pinned snapshot timestamp</li>
+<li class="">serializable read-write transactions use read locks plus write locks</li>
+</ul>
+<p>That distinction matters because the internal lock behavior is completely
+different between those modes.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="read-path">Read Path<a href="#read-path" class="hash-link" aria-label="Direct link to Read Path" title="Direct link to Read Path" translate="no">​</a></h2>
-<p>A standalone autocommit <code>SELECT</code> uses a synthetic read-only transaction.</p>
+<p>A standalone autocommit <code>SELECT</code> in the default <code>Read Committed</code> path uses a
+synthetic read-only transaction.</p>
 <p>Important internal properties:</p>
 <ul>
 <li class="">it uses a special read-only transaction identity</li>
@@ -50,10 +64,13 @@ begin/commit round-trips</li>
 <li class="">it takes no write locks</li>
 <li class="">it reads committed MVCC state and skips in-flight intents</li>
 </ul>
-<p>This is why reads are cheap and highly concurrent.</p>
-<p>The tradeoff is that the current model is optimized for fresh committed reads,
+<p>This is why ordinary reads are cheap and highly concurrent.</p>
+<p>The tradeoff is that this default path is optimized for fresh committed reads,
 not for holding a strong global snapshot across arbitrary multi-step query
 behavior.</p>
+<p>Serializable read-only is different: it is pinned to one snapshot timestamp at
+begin time, so every statement in the transaction reads the same MVCC view
+without taking locks.</p>
 <p>When key-range routing is enabled and a scan needs phantom protection, CamusDB
 can promote a read-only scan to a real Kahuna transaction identity so the scan
 can hold a shared range lock during execution.</p>
@@ -84,11 +101,13 @@ the normal write-intent commit path</li>
 <li class="">let the transaction fail on conflict instead of overwriting silently</li>
 </ul>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="range-locks">Range Locks<a href="#range-locks" class="hash-link" aria-label="Direct link to Range Locks" title="Direct link to Range Locks" translate="no">​</a></h3>
-<p>Used for phantom protection on scan-style operations, but only when the
-relevant key space is key-range routed.</p>
+<p>Used for phantom protection on scan-style operations.</p>
 <p>Important implementation constraints:</p>
 <ul>
-<li class="">default hash routing keeps this mostly dormant</li>
+<li class="">serializable read-write scans can take range locks even without key-range
+routing, because they need predicate protection to be correct</li>
+<li class="">default hash routing keeps the ordinary non-serializable scan-lock path mostly
+dormant</li>
 <li class="">point reads stay on the zero-snapshot fast path</li>
 <li class="">promoted read-only scans in key-range mode can hold shared range locks</li>
 <li class="">range locks matter primarily when key-range sharding is enabled and the
@@ -100,6 +119,17 @@ range</li>
 <p>The important behavior change is that scans do not take exclusive range locks.
 Shared scan locks allow overlapping readers to proceed concurrently while still
 blocking conflicting writes into the covered range.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="point-read-locks">Point Read Locks<a href="#point-read-locks" class="hash-link" aria-label="Direct link to Point Read Locks" title="Direct link to Point Read Locks" translate="no">​</a></h3>
+<p>Serializable read-write transactions can also take shared locks on keys read
+through point lookup paths such as row-id and unique-index reads.</p>
+<p>Important consequences:</p>
+<ul>
+<li class="">two serializable readers can coexist on the same key</li>
+<li class="">a writer trying to change a key under an active serializable reader is held
+back or forced to retry</li>
+<li class="">if the same transaction later writes a key it previously read, its shared
+lock can be promoted to the stronger write protection needed for commit</li>
+</ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="mvcc">MVCC<a href="#mvcc" class="hash-link" aria-label="Direct link to MVCC" title="Direct link to MVCC" translate="no">​</a></h2>
 <p>Kahuna stores multiple committed versions of a key plus possible in-flight
 write intents.</p>
@@ -111,28 +141,34 @@ write intents.</p>
 <li class="">readers do not expose dirty data</li>
 </ul>
 <p>This is the basis for the current non-blocking read path.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="isolation-level-today">Isolation Level Today<a href="#isolation-level-today" class="hash-link" aria-label="Direct link to Isolation Level Today" title="Direct link to Isolation Level Today" translate="no">​</a></h2>
-<p>The practical user-facing isolation level today is approximately
-<strong>read committed</strong>, not a blanket full-serializable guarantee.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="isolation-level-semantics">Isolation Level Semantics<a href="#isolation-level-semantics" class="hash-link" aria-label="Direct link to Isolation Level Semantics" title="Direct link to Isolation Level Semantics" translate="no">​</a></h2>
+<p>The practical default isolation level is <code>Read Committed</code>, not a blanket
+full-serializable guarantee.</p>
 <p>What exists already:</p>
 <ul>
 <li class="">atomic transactions</li>
 <li class="">durable commits</li>
 <li class="">no dirty reads</li>
 <li class="">write-write conflict detection</li>
-<li class="">lock-free reads</li>
+<li class="">lock-free reads in the default path</li>
+<li class="">serializable read-only snapshot transactions</li>
+<li class="">serializable read-write locking with read protection</li>
 </ul>
-<p>What the note still treats as incomplete at a blanket level:</p>
+<p>What should still not be overclaimed for the default path:</p>
 <ul>
 <li class="">one global snapshot per query</li>
 <li class="">repeatable reads across arbitrary multi-statement transactions</li>
 <li class="">full phantom protection in the default hash-routed configuration</li>
 </ul>
-<p>What is now stronger than the older default story:</p>
+<p>What is materially stronger than the older story:</p>
 <ul>
 <li class="">in key-range mode, range scans can be phantom-free and serializable for the
 scanned range because they hold shared range locks and conflicting writes are
 delayed until those scans finish</li>
+<li class="">in serializable read-only mode, transactions can hold a stable snapshot
+without taking locks</li>
+<li class="">in serializable read-write mode, point reads and scans are protected by
+shared locks held to commit</li>
 </ul>
 <p>That distinction is important when reviewing user-facing documentation or
 changing transaction behavior.</p>
@@ -169,6 +205,6 @@ table definition after DDL changed the schema.</p>
 <li class=""><code>CamusDB.Core/Commands/Executor/Controllers/Queries/</code></li>
 <li class=""><code>CamusDB.Core/Commands/Executor/QueryExecutor.cs</code></li>
 <li class="">Kahuna transaction and storage code behind <code>IKahuna</code></li>
-</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/transactions-locking-internals.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/query-planner-internals/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Query Planner Internals</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/camus-cli/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">camus-cli</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#layering" class="table-of-contents__link toc-highlight">Layering</a></li><li><a href="#data-model-at-the-kv-layer" class="table-of-contents__link toc-highlight">Data Model At The KV Layer</a></li><li><a href="#read-path" class="table-of-contents__link toc-highlight">Read Path</a></li><li><a href="#write-path" class="table-of-contents__link toc-highlight">Write Path</a></li><li><a href="#locking-model" class="table-of-contents__link toc-highlight">Locking Model</a><ul><li><a href="#per-key-locks" class="table-of-contents__link toc-highlight">Per-Key Locks</a></li><li><a href="#range-locks" class="table-of-contents__link toc-highlight">Range Locks</a></li></ul></li><li><a href="#mvcc" class="table-of-contents__link toc-highlight">MVCC</a></li><li><a href="#isolation-level-today" class="table-of-contents__link toc-highlight">Isolation Level Today</a></li><li><a href="#cluster-behavior" class="table-of-contents__link toc-highlight">Cluster Behavior</a></li><li><a href="#schema-interaction" class="table-of-contents__link toc-highlight">Schema Interaction</a></li><li><a href="#code-map" class="table-of-contents__link toc-highlight">Code Map</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Getting Started</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-cli/">camus-cli</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/sql/">SQL</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-features/">Query Features</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/functions/">Functions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable Transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/multi-active-availability/">Multi-Active Availability</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET Driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core Provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-dump/">camus-dump</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/configuration/">Configuration</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/storage/">Storage</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/wal-recovery/">WAL &amp; Recovery</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">Source<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/camusdb/camusdb.github.io" target="_blank" rel="noopener noreferrer" class="footer__link-item">Docs Repo<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 CamusDB.</div></div></div></footer></div>
+</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/transactions-locking-internals.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/query-planner-internals/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Query Planner Internals</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/camus-cli/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">camus-cli</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#layering" class="table-of-contents__link toc-highlight">Layering</a></li><li><a href="#data-model-at-the-kv-layer" class="table-of-contents__link toc-highlight">Data Model At The KV Layer</a></li><li><a href="#isolation-levels" class="table-of-contents__link toc-highlight">Isolation Levels</a></li><li><a href="#read-path" class="table-of-contents__link toc-highlight">Read Path</a></li><li><a href="#write-path" class="table-of-contents__link toc-highlight">Write Path</a></li><li><a href="#locking-model" class="table-of-contents__link toc-highlight">Locking Model</a><ul><li><a href="#per-key-locks" class="table-of-contents__link toc-highlight">Per-Key Locks</a></li><li><a href="#range-locks" class="table-of-contents__link toc-highlight">Range Locks</a></li><li><a href="#point-read-locks" class="table-of-contents__link toc-highlight">Point Read Locks</a></li></ul></li><li><a href="#mvcc" class="table-of-contents__link toc-highlight">MVCC</a></li><li><a href="#isolation-level-semantics" class="table-of-contents__link toc-highlight">Isolation Level Semantics</a></li><li><a href="#cluster-behavior" class="table-of-contents__link toc-highlight">Cluster Behavior</a></li><li><a href="#schema-interaction" class="table-of-contents__link toc-highlight">Schema Interaction</a></li><li><a href="#code-map" class="table-of-contents__link toc-highlight">Code Map</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Getting Started</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-cli/">camus-cli</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/sql/">SQL</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-features/">Query Features</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/functions/">Functions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable Transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/multi-active-availability/">Multi-Active Availability</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET Driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core Provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-dump/">camus-dump</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/configuration/">Configuration</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/storage/">Storage</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/wal-recovery/">WAL &amp; Recovery</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">Source<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/camusdb/camusdb.github.io" target="_blank" rel="noopener noreferrer" class="footer__link-item">Docs Repo<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 CamusDB.</div></div></div></footer></div>
 </body>
 </html>
