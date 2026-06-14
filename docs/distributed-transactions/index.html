@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Distributed Transactions And HLC | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/distributed-transactions/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Distributed Transactions And HLC | CamusDB"><meta data-rh="true" name="description" content="When a transaction touches data on more than one partition, the storage layer"><meta data-rh="true" property="og:description" content="When a transaction touches data on more than one partition, the storage layer"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/distributed-transactions/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-transactions/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-transactions/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Distributed Transactions And HLC","item":"https://camusdb.github.io/docs/distributed-transactions"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.988e7f99.css">
-<script src="/assets/js/runtime~main.446d1aa7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.29aca776.js" defer="defer"></script>
 <script src="/assets/js/main.f428d4a6.js" defer="defer"></script>
 </head>
 <body>
@@ -34,6 +34,8 @@ silently merged.</li>
 <li class="">Serializable transactions can preserve either a stable snapshot or read-write
 locking semantics across partitions, depending on transaction mode.</li>
 </ul>
+<p>That includes a lock-free serializable read-only snapshot path that can be
+resumed across requests by transaction id.</p>
 <p>In practice, that means CamusDB can safely execute work like:</p>
 <ul>
 <li class="">insert into two different tables in one transaction</li>
@@ -175,6 +177,7 @@ back if the prepare step failed.</li>
 <li class="">a read dependency changed before commit</li>
 <li class="">a concurrent write intent made the serial order invalid</li>
 <li class="">the transaction could not prepare on every participant</li>
+<li class="">a serializable read-write transaction exceeded its lifetime deadline</li>
 </ul>
 <p>Applications should also pick the right isolation mode for the job:</p>
 <ul>
@@ -185,6 +188,9 @@ read-then-write invariant</li>
 <li class="">use the default read committed mode when fresh committed reads and cheaper
 concurrency matter more than full serializable behavior</li>
 </ul>
+<p>CamusDB does not automatically replay failed serializable transactions. The
+client must restart them from the beginning when a retryable conflict or
+deadline error occurs.</p>
 <p>The important point is that these failures are how CamusDB preserves
 correctness. They are not partial commits.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="limits-and-scope">Limits And Scope<a href="#limits-and-scope" class="hash-link" aria-label="Direct link to Limits And Scope" title="Direct link to Limits And Scope" translate="no">​</a></h2>
