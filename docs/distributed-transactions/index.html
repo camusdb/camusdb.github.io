@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Distributed Transactions And HLC | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/distributed-transactions/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Distributed Transactions And HLC | CamusDB"><meta data-rh="true" name="description" content="When a transaction touches data on more than one partition, the storage layer"><meta data-rh="true" property="og:description" content="When a transaction touches data on more than one partition, the storage layer"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/distributed-transactions/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-transactions/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-transactions/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Distributed Transactions And HLC","item":"https://camusdb.github.io/docs/distributed-transactions"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.988e7f99.css">
-<script src="/assets/js/runtime~main.cb51f76d.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.6146e7a0.js" defer="defer"></script>
 <script src="/assets/js/main.2337bd3b.js" defer="defer"></script>
 </head>
 <body>
@@ -181,19 +181,18 @@ back if the prepare step failed.</li>
 </ul>
 <p>Applications should also pick the right isolation mode for the job:</p>
 <ul>
+<li class="">use the default Serializable isolation for correctness-sensitive work</li>
 <li class="">use serializable read-only for consistent multi-statement reads without
 lock-based write blocking</li>
-<li class="">use serializable read-write only when the transaction must protect a
-read-then-write invariant</li>
-<li class="">use the default read committed mode when fresh committed reads and cheaper
-concurrency matter more than full serializable behavior</li>
+<li class="">use Read Committed only as an explicit opt-out when fresh committed reads and
+cheaper concurrency matter more than full serializable behavior</li>
 </ul>
 <p>CamusDB does not automatically replay failed serializable transactions. The
 client must restart them from the beginning when a retryable conflict or
 deadline error occurs.</p>
-<p>For single-statement autocommit serializable work, the source stack also
-includes a helper that performs bounded replay with backoff. Explicit
-multi-statement transactions still need replay from <code>BEGIN</code>.</p>
+<p>For single-statement autocommit serializable work, CamusDB includes a helper
+that performs bounded replay with backoff. Explicit multi-statement
+transactions still need replay from <code>BEGIN</code>.</p>
 <p>The important point is that these failures are how CamusDB preserves
 correctness. They are not partial commits.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="limits-and-scope">Limits And Scope<a href="#limits-and-scope" class="hash-link" aria-label="Direct link to Limits And Scope" title="Direct link to Limits And Scope" translate="no">​</a></h2>
@@ -203,9 +202,8 @@ Kahuna:</p>
 <li class="">cross-partition writes use 2PC</li>
 <li class="">HLC timestamps provide transaction ordering across nodes</li>
 <li class="">lock and intent tracking protect atomic distributed commit</li>
-<li class="">stronger snapshot or serializable guarantees should be read in the context of
-<a class="" href="/docs/serializable-transactions/">Transactions And Isolation</a>, not assumed as
-a blanket property of every current transaction path</li>
+<li class="">Serializable is the default isolation level</li>
+<li class="">Read Committed is available as an explicit opt-out</li>
 </ul>
 <p>CamusDB cluster mode is still alpha-quality, so distributed transaction support
 should be treated as development and testing functionality rather than a
