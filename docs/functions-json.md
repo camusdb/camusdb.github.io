@@ -33,7 +33,7 @@ array indexes are not supported.
 
 ## Examples
 
-```sql
+```camussql
 SELECT json_valid(payload)
 FROM robots;
 

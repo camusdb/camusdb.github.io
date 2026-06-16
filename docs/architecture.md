@@ -21,8 +21,8 @@ CamusDB is designed around these goals:
 
 - Keep SQL as the user-facing model for schema, queries, writes, indexes, and
   transactions.
-- Provide serializable transactions by default, so committed transactions can
-  be reasoned about as one valid serial order.
+- Provide atomic durable transactions, committed reads, and distributed commit
+  coordination.
 - Run in standalone mode for local development and in cluster mode for
   distributed testing.
 - Let multiple nodes accept client traffic while the storage layer routes each
@@ -76,7 +76,7 @@ contract to the layer above it.
 | Parser and validator | Normalize statements, validate syntax, and reject invalid command inputs. |
 | Catalog | Track databases, tables, columns, indexes, constraints, and schema versions. |
 | Query and write execution | Plan reads, apply filters, joins, grouping, subqueries, updates, deletes, inserts, and index maintenance. |
-| Transaction coordination | Open, commit, and roll back serializable transactions; coordinate cross-partition writes with two-phase commit. |
+| Transaction coordination | Open, commit, and roll back transactions; coordinate cross-partition writes with two-phase commit. |
 | KV mapping | Encode rows, indexes, metadata, locks, and transaction state as deterministic key/value entries. |
 | Distributed KV storage | Use [Kahuna](https://kahunakv.github.io/) for transactional key/value operations. |
 | Consensus and WAL | Use [Kommander](https://kahunakv.github.io/kommander.github.io/) to order replicated partition log entries and recover committed state. |
@@ -141,9 +141,8 @@ See [Storage](/docs/storage) for the key layout and value encoding details.
 
 ## Transactions
 
-CamusDB uses serializable transactions by default. A committed transaction
-appears as if it ran in a single serial order with other committed
-transactions.
+CamusDB runs SQL work inside transactions and relies on Kahuna for MVCC,
+locking, and commit coordination.
 
 Single-operation requests can be auto-wrapped in a transaction. Clients can
 also use explicit transaction handles for multi-statement work.
@@ -152,9 +151,9 @@ When a transaction touches keys owned by more than one partition, CamusDB uses
 two-phase commit through the storage layer. This keeps cross-partition writes
 atomic while preserving the consensus rules of each partition.
 
-See [Serializable Transactions](/docs/serializable-transactions) for examples
-and [Distributed Transactions And HLC](/docs/distributed-transactions) for the
-cross-partition commit flow and timestamp model.
+See [Transactions And Isolation](/docs/serializable-transactions) for current
+user-facing guarantees and [Distributed Transactions And HLC](/docs/distributed-transactions)
+for the cross-partition commit flow and timestamp model.
 
 ## Replication And Recovery
 
@@ -226,8 +225,7 @@ it can be replayed after restart.
 ### Transaction
 
 A set of reads and writes committed or rolled back as one unit. CamusDB uses
-serializable transactions by default and uses two-phase commit when a
-transaction spans multiple partitions.
+two-phase commit when a transaction spans multiple partitions.
 
 ### Catalog
 

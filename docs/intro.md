@@ -42,7 +42,7 @@ camus>
 
 Create a table for robot records:
 
-```sql
+```camussql
 CREATE TABLE IF NOT EXISTS robots (
   id OID PRIMARY KEY NOT NULL,
   name STRING NOT NULL,
@@ -64,19 +64,19 @@ The table has:
 
 Show the tables in the current database:
 
-```sql
+```camussql
 SHOW TABLES;
 ```
 
 Show the columns in `robots`:
 
-```sql
+```camussql
 SHOW COLUMNS FROM robots;
 ```
 
 Other useful inspection commands:
 
-```sql
+```camussql
 DESCRIBE robots;
 SHOW CREATE TABLE robots;
 SHOW INDEX FROM robots;
@@ -86,14 +86,14 @@ SHOW INDEX FROM robots;
 
 Insert a single row:
 
-```sql
+```camussql
 INSERT INTO robots (id, name, kind, year)
 VALUES (GEN_ID(), "R2-D2", "utility", 1977);
 ```
 
 Insert more than one row with a single statement:
 
-```sql
+```camussql
 INSERT INTO robots (id, name, kind, year)
 VALUES
   (GEN_ID(), "C-3PO", "protocol", 1977),
@@ -102,7 +102,7 @@ VALUES
 
 Use `DEFAULT` when you want CamusDB to apply the column default:
 
-```sql
+```camussql
 INSERT INTO robots (id, name, kind, year)
 VALUES (GEN_ID(), "K-2SO", "security", DEFAULT);
 ```
@@ -111,7 +111,7 @@ VALUES (GEN_ID(), "K-2SO", "security", DEFAULT);
 
 Select rows from the table:
 
-```sql
+```camussql
 SELECT id, name, kind, year
 FROM robots
 ORDER BY year ASC;
@@ -119,7 +119,7 @@ ORDER BY year ASC;
 
 Filter results with `WHERE`:
 
-```sql
+```camussql
 SELECT name, year
 FROM robots
 WHERE year >= 1980;
@@ -127,7 +127,7 @@ WHERE year >= 1980;
 
 Pattern matching is supported with `LIKE` and `ILIKE`:
 
-```sql
+```camussql
 SELECT id, name
 FROM robots
 WHERE name ILIKE "r%";
@@ -135,7 +135,7 @@ WHERE name ILIKE "r%";
 
 Aggregate rows:
 
-```sql
+```camussql
 SELECT COUNT(*) FROM robots;
 SELECT MIN(year), MAX(year) FROM robots;
 ```
@@ -144,13 +144,13 @@ SELECT MIN(year), MAX(year) FROM robots;
 
 Indexes help CamusDB avoid scanning every row for matching data.
 
-```sql
+```camussql
 CREATE INDEX robots_kind_idx ON robots (kind);
 ```
 
 Inspect indexes:
 
-```sql
+```camussql
 SHOW INDEXES FROM robots;
 ```
 
@@ -158,7 +158,7 @@ SHOW INDEXES FROM robots;
 
 SQL updates require a `WHERE` clause.
 
-```sql
+```camussql
 UPDATE robots
 SET year = 1982
 WHERE name = "T-800";
@@ -166,7 +166,7 @@ WHERE name = "T-800";
 
 Confirm the change:
 
-```sql
+```camussql
 SELECT name, year
 FROM robots
 WHERE name = "T-800";
@@ -176,7 +176,7 @@ WHERE name = "T-800";
 
 SQL deletes also require a `WHERE` clause.
 
-```sql
+```camussql
 DELETE FROM robots
 WHERE name = "K-2SO";
 ```

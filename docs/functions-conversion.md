@@ -9,7 +9,7 @@ returns `NULL`.
 
 You can use either explicit conversion functions or SQL `CAST` syntax:
 
-```sql
+```camussql
 SELECT to_string(year) AS year_text
 FROM robots;
 
@@ -42,7 +42,7 @@ FROM robots;
 
 ## Examples
 
-```sql
+```camussql
 SELECT to_int64("42"), to_float64("42.5"), to_bool("TrUe");
 -- 42, 42.5, true
 

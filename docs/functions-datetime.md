@@ -31,7 +31,7 @@ Supported units are `year`, `month`, `day`, `hour`, `minute`, `second`, and
 
 ## Examples
 
-```sql
+```camussql
 SELECT current_timestamp(), now(), current_date();
 
 SELECT date_add("2024-06-15", 1, "day");

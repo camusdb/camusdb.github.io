@@ -119,7 +119,7 @@ Built-in shell commands:
 
 Examples:
 
-```sql
+```camussql
 use northwind;
 source ./schema.sql
 clear
@@ -146,7 +146,7 @@ Current incomplete cases include:
 
 Example:
 
-```sql
+```camussql
 select
   id,
   name
@@ -201,7 +201,7 @@ The enhanced editor supports:
 
 Queries include:
 
-```sql
+```camussql
 select * from users;
 explain select * from users;
 explain (logical) select * from users;
@@ -214,7 +214,7 @@ describe users;
 
 DDL includes:
 
-```sql
+```camussql
 create table users (
   id oid primary key not null,
   name string not null
@@ -227,7 +227,7 @@ drop table users;
 
 Mutations include:
 
-```sql
+```camussql
 insert into users (id, name) values (gen_id(), 'Ada');
 update users set name = 'A. Lovelace' where id = '...';
 delete from users where name = 'A. Lovelace';
@@ -237,7 +237,7 @@ delete from users where name = 'A. Lovelace';
 
 The shell has explicit transaction commands:
 
-```sql
+```camussql
 begin;
 commit;
 rollback;
@@ -245,7 +245,7 @@ rollback;
 
 It also recognizes:
 
-```sql
+```camussql
 start transaction;
 ```
 
@@ -275,7 +275,7 @@ CLI knows how to color even if it does not affect server-side SQL support.
 
 You can change the current database without leaving the shell:
 
-```sql
+```camussql
 use analytics;
 ```
 
@@ -286,7 +286,7 @@ then opens a new connection to that database.
 
 Execute a SQL script file:
 
-```sql
+```camussql
 source ./seed.sql
 ```
 

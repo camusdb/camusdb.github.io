@@ -22,7 +22,7 @@ otherwise, they return `NULL` when any argument is `NULL`.
 
 ## Examples
 
-```sql
+```camussql
 SELECT abs(year - 2000) AS delta
 FROM robots
 ORDER BY delta;

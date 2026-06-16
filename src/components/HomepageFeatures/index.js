@@ -10,7 +10,7 @@ const FeatureList = [
   {
     title: 'Serializable by default',
     description:
-      'Protect application invariants with serializable transactions and two-phase commit for cross-partition writes.',
+      'Protect application invariants with serializable transactions by default and two-phase commit for cross-partition writes.',
   },
   {
     title: 'Multi-active cluster',

@@ -19,7 +19,7 @@ CamusDB is designed around four core advantages:
 - Resilient storage across a cluster.
 - Horizontal scale through partitioned data.
 - Multi-active availability across cluster nodes.
-- Serializable transactions by default.
+- Atomic distributed transactions with committed reads and conflict detection.
 - SQL for schema design, writes, reads, indexes, and aggregation.
 
 ## Resilient Distributed Storage
@@ -56,11 +56,11 @@ For local testing, the included Docker Compose setup starts three nodes with
 three partitions. For manual deployments, nodes join with `--mode=cluster`, a
 static peer list, and an initial partition count.
 
-## Serializable Transactions
+## Transactions And Concurrency
 
-CamusDB uses serializable transactions by default. Even when transactions run
-concurrently, CamusDB is designed to preserve the same outcome you would get if
-those transactions had run one at a time.
+CamusDB gives applications serializable transactions by default, atomic writes,
+committed reads, and conflict detection without requiring them to manage replica
+divergence manually.
 
 Single-partition writes commit through the owning partition. Cross-partition
 writes use two-phase commit, so distributed updates can be coordinated across
@@ -68,14 +68,14 @@ partition boundaries.
 
 The SQL layer supports explicit transaction statements:
 
-```sql
+```camussql
 BEGIN;
 COMMIT;
 ROLLBACK;
 ```
 
-See [Serializable Transactions](/docs/serializable-transactions) for a small
-concurrency example.
+See [Transactions And Isolation](/docs/serializable-transactions) for the
+current transaction guarantees and tradeoffs.
 
 ## Familiar SQL
 

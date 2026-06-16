@@ -204,6 +204,52 @@ await tx.CommitAsync();
 With pooled endpoints, transaction-scoped commands stay pinned to the same node
 for the lifetime of the transaction.
 
+## Retry On Serializable Conflicts
+
+Serializable is CamusDB's default isolation level. `SaveChangesAsync()` or
+`CommitTransactionAsync()` can fail when a concurrent transaction wins a
+serialization conflict.
+
+Enable EF Core's execution strategy with `EnableRetryOnFailure()`:
+
+```csharp
+var options = new DbContextOptionsBuilder<AppDbContext>()
+    .UseCamusDB("Endpoint=http://localhost:5095;Database=mydb", camus =>
+    {
+        camus.EnableRetryOnFailure();
+    })
+    .Options;
+```
+
+Only the retryable CamusDB transaction errors are retried:
+
+- `CADB0502` `TransactionConflict`
+- `CADB0504` `TransactionMustRetry`
+- `CADB0505` `TransactionLifetimeExceeded`
+
+Default retry settings:
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `maxRetryCount` | `15` | Maximum retry attempts. |
+| `maxRetryDelay` | `1 s` | Maximum delay between retries. |
+| `retryDeadline` | `5 s` | Wall-clock deadline from first failure. |
+| `medianFirstRetryDelay` | `30 ms` | Median first retry delay. |
+
+You can override them:
+
+```csharp
+camus.EnableRetryOnFailure(
+    maxRetryCount: 5,
+    maxRetryDelay: TimeSpan.FromMilliseconds(500),
+    retryDeadline: TimeSpan.FromSeconds(3),
+    medianFirstRetryDelay: TimeSpan.FromMilliseconds(20));
+```
+
+The execution strategy retries the entire EF operation. If you manage explicit
+transactions manually, replay the whole transaction from the beginning instead
+of retrying only the failed statement.
+
 ## Migrations
 
 The provider includes design-time services, so standard EF tooling can discover

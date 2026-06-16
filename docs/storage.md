@@ -118,9 +118,9 @@ Write paths use persistent KV entries and explicit transaction state:
 5. Commit or roll back through [Kahuna](https://kahunakv.github.io/)'s
    transaction API.
 
-Cross-partition writes use two-phase commit. CamusDB uses serializable
-transactions by default, so applications can rely on a single serial order for
-committed transactions.
+Cross-partition writes use two-phase commit. CamusDB uses Serializable
+transactions by default, plus committed MVCC reads, conflict detection, and
+tracked write intents for atomic commit coordination.
 
 ## Scans
 

@@ -55,3 +55,14 @@
 [data-theme='dark'] .navbar__title {
   color: #f4f8ff;
 }
+
+.language-camussql .token.builtin,
+.language-camussql .token.class-name {
+  color: #0f8a74;
+  font-weight: 600;
+}
+
+[data-theme='dark'] .language-camussql .token.builtin,
+[data-theme='dark'] .language-camussql .token.class-name {
+  color: #66d9c3;
+}

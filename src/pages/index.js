@@ -18,8 +18,8 @@ const heroPillars = [
     detail: 'Raft replication keeps the cluster serving when a node drops.',
   },
   {
-    title: 'Serializable by default',
-    detail: 'Strong consistency, so your invariants always hold.',
+    title: 'Strong transactional guarantees',
+    detail: 'Serializable transactions, committed reads, and atomic writes.',
   },
 ];
 
@@ -36,8 +36,8 @@ function HomepageHeader() {
         </Heading>
         <p className={styles.subtitle}>
           Write ordinary SQL. CamusDB spreads it across a cluster that scales
-          writes, survives node failures, and keeps every transaction
-          serializable — no sharding, no eventual-consistency surprises.
+          writes, survives node failures, and runs transactions at Serializable
+          isolation by default — no sharding, no eventual-consistency surprises.
         </p>
         <div className={styles.buttons}>
           <Link className="button button--primary button--lg" to="/docs/intro">
@@ -56,7 +56,7 @@ function HomepageHeader() {
           ))}
         </div>
         <div className={styles.heroSnippet}>
-          <CodeBlock language="sql">{`CREATE TABLE orders (id OID PRIMARY KEY, sku STRING, qty INT64);
+          <CodeBlock language="camussql">{`CREATE TABLE orders (id OID PRIMARY KEY, sku STRING, qty INT64);
 
 BEGIN;
   UPDATE stock SET qty = qty - 1 WHERE sku = "A-100";
@@ -84,7 +84,7 @@ const advantages = [
       'Multiple nodes can accept client traffic while partitions route writes to their leaders.',
       'Raft consensus elects leaders per partition and replicates committed writes.',
       'Data is partitioned across the cluster instead of tied to one process.',
-      'Serializable transactions are the default, with two-phase commit for cross-partition writes.',
+      'Atomic distributed writes use two-phase commit, with Serializable as the default isolation level.',
     ],
   },
 ];
@@ -165,8 +165,8 @@ function AdvantageComparison() {
               forcing the application to repair oversold inventory later.
             </p>
             <ul>
-              <li>With strong consistency, the second transaction sees the committed change or is forced to retry.</li>
-              <li>The database protects the inventory invariant at commit time instead of leaving it to asynchronous repair.</li>
+              <li>With Serializable isolation by default, one order commits and the conflicting transaction retries.</li>
+              <li>The database protects the inventory invariant instead of leaving oversold stock to asynchronous repair.</li>
               <li>The application logic stays simpler because correctness does not depend on reading from the “right” replica.</li>
             </ul>
           </div>

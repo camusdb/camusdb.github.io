@@ -18,7 +18,7 @@ Use it when you want to answer questions like:
 
 ## Syntax
 
-```sql
+```camussql
 EXPLAIN SELECT ...
 EXPLAIN (PHYSICAL) SELECT ...
 EXPLAIN (LOGICAL) SELECT ...
@@ -98,7 +98,7 @@ These are the main node names you will see:
 
 ### Full table scan
 
-```sql
+```camussql
 EXPLAIN SELECT * FROM robots;
 ```
 
@@ -112,7 +112,7 @@ This means CamusDB did not find a better indexed access path for the query.
 
 ### Unique primary-key lookup
 
-```sql
+```camussql
 EXPLAIN
 SELECT *
 FROM robots
@@ -129,7 +129,7 @@ This is the best-case point lookup plan.
 
 ### Non-unique equality becomes a range scan
 
-```sql
+```camussql
 EXPLAIN
 SELECT *
 FROM robots
@@ -146,7 +146,7 @@ For non-unique indexes, equality is still a range of matching keys.
 
 ### Range scan plus residual filter
 
-```sql
+```camussql
 EXPLAIN
 SELECT *
 FROM robots
@@ -165,7 +165,7 @@ filter.
 
 ### Aggregate plan
 
-```sql
+```camussql
 EXPLAIN
 SELECT year, COUNT(*)
 FROM robots
@@ -181,7 +181,7 @@ physical  table-scan table=robots
 
 ### Sort elision
 
-```sql
+```camussql
 EXPLAIN
 SELECT *
 FROM robots
@@ -198,7 +198,7 @@ No `sort` node appears when the scan order already satisfies `ORDER BY`.
 
 ### LIMIT pushdown shape
 
-```sql
+```camussql
 EXPLAIN
 SELECT *
 FROM robots
@@ -216,7 +216,7 @@ CamusDB may also stop the scan early when the query shape allows safe pushdown.
 
 ### DISTINCT: streaming vs hash
 
-```sql
+```camussql
 EXPLAIN
 SELECT DISTINCT code
 FROM teams
@@ -236,7 +236,7 @@ can deduplicate adjacent rows as they stream from the scan. Otherwise the
 
 ### IN subquery rewritten to a semi-join
 
-```sql
+```camussql
 EXPLAIN
 SELECT *
 FROM robots
@@ -258,7 +258,7 @@ physical  table-scan  table=robots
 
 Example:
 
-```sql
+```camussql
 EXPLAIN (ANALYZE)
 SELECT *
 FROM robots

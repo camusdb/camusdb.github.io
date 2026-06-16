@@ -51,6 +51,7 @@ unexpected internal state, or storage-layer inconsistencies.
 | `CADB0502` | `TransactionConflict` | The transaction cannot acquire the needed lock or hits a conflicting concurrent write. |
 | `CADB0503` | `SchemaCatchingUp` | The node is more than one schema version behind the committed schema head for that database, so it temporarily rejects reads and DML until schema apply catches up. Retry on another node or retry later. |
 | `CADB0504` | `TransactionMustRetry` | The commit path exhausted internal retries after Kahuna kept returning `MustRetry`, usually during routing or leader-transition instability. Retry the whole transaction from `BEGIN`. |
+| `CADB0505` | `TransactionLifetimeExceeded` | A serializable read-write transaction stayed open longer than the configured maximum lifetime, currently one hour by default. CamusDB aborts it explicitly instead of letting a runaway transaction continue forever. Roll it back and retry from `BEGIN`. |
 | `CADB0600` | `InvalidConfig` | Startup configuration is invalid: wrong mode, invalid port, invalid schema-ack settings, malformed peer lists, invalid parser-cache values, and similar config errors. |
 
 ## Corruption And Internal-State Errors
@@ -76,6 +77,7 @@ These codes are usually retryable:
 - `CADB0502` `TransactionConflict`
 - `CADB0503` `SchemaCatchingUp`
 - `CADB0504` `TransactionMustRetry`
+- `CADB0505` `TransactionLifetimeExceeded`
 
 These codes are usually not retryable without changing the request:
 
@@ -93,6 +95,7 @@ These codes usually need operator investigation rather than blind retries:
 ## Related Pages
 
 - [HTTP API](/docs/http-api)
-- [Serializable Transactions](/docs/serializable-transactions)
+- [Transactions And Isolation](/docs/serializable-transactions)
+- [Serializable Retries](/docs/serializable-retries)
 - [Distributed Transactions And HLC](/docs/distributed-transactions)
 - [Distributed Schema Changes](/docs/distributed-schema)

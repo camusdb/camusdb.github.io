@@ -97,7 +97,7 @@ Compose setup mounts a separate volume for each node.
 - Every node can expose the database API.
 - Each partition elects its own leader.
 - Reads and writes are routed to the partition that owns the target key range.
-- Transactions use serializable isolation by default.
+- Transactions use committed MVCC reads plus atomic write coordination.
 - Cross-partition writes use two-phase commit.
 
 The current storage layout keeps all rows for a table under the same key prefix,

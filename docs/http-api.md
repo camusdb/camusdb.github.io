@@ -122,6 +122,12 @@ The HTTP table-creation model accepts `string`, `int64`, `bool`, and `id`.
 Use the SQL endpoints when possible. They exercise the same parser and executor
 used by the engine tests.
 
+Autocommit SQL requests use Serializable isolation by default. For requests
+that start an autocommit transaction, `isolationLevel` can be set to
+`"Serializable"` or `"ReadCommitted"`, and `transactionMode` can be set to
+`"ReadWrite"` or `"ReadOnly"`. These fields are ignored when the request
+resumes an existing transaction with `txnIdPT` and `txnIdCounter`.
+
 ### `POST /execute-sql-ddl`
 
 For schema-changing SQL:
@@ -142,6 +148,8 @@ For `SELECT` statements:
 {
   "databaseName": "app",
   "sql": "SELECT id, name FROM robots WHERE year >= @year ORDER BY name ASC",
+  "isolationLevel": "Serializable",
+  "transactionMode": "ReadOnly",
   "parameters": {
     "@year": {
       "type": 2,
@@ -300,9 +308,19 @@ Start a transaction:
 
 ```json
 {
-  "databaseName": "app"
+  "databaseName": "app",
+  "isolationLevel": "Serializable",
+  "transactionMode": "ReadWrite"
 }
 ```
+
+`isolationLevel` and `transactionMode` are optional. If omitted, the transaction
+starts with the server default isolation level, which is Serializable, and the
+default transaction mode, which is read-write.
+
+Use `"ReadCommitted"` only when you intentionally opt down from the default
+Serializable behavior. Use `"ReadOnly"` with `"Serializable"` for a stable
+snapshot transaction.
 
 Response:
 

@@ -12,7 +12,7 @@ to lowercase, including identifiers written with backticks.
 
 Create a table:
 
-```sql
+```camussql
 CREATE TABLE robots (
   id OID PRIMARY KEY NOT NULL,
   name STRING NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE robots (
 Inline constraints can define primary keys and unique columns directly in the
 column list:
 
-```sql
+```camussql
 CREATE TABLE app_users (
   id STRING PRIMARY KEY NOT NULL,
   email STRING UNIQUE NOT NULL,
@@ -34,7 +34,7 @@ CREATE TABLE app_users (
 
 Create a table only when it does not exist:
 
-```sql
+```camussql
 CREATE TABLE IF NOT EXISTS robots (
   id OID PRIMARY KEY NOT NULL,
   name STRING NOT NULL
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS robots (
 
 Declare a composite primary key after the column list:
 
-```sql
+```camussql
 CREATE TABLE readings (
   sensor_id STRING NOT NULL,
   ts INT64 NOT NULL,
@@ -53,7 +53,7 @@ CREATE TABLE readings (
 
 CamusDB also accepts inline index-style constraints inside `CREATE TABLE`:
 
-```sql
+```camussql
 CREATE TABLE robots (
   id OID NOT NULL,
   code STRING NOT NULL,
@@ -66,14 +66,14 @@ CREATE TABLE robots (
 
 Drop tables:
 
-```sql
+```camussql
 DROP TABLE robots;
 DROP TABLE IF EXISTS robots;
 ```
 
 Alter tables:
 
-```sql
+```camussql
 ALTER TABLE robots ADD COLUMN model STRING NULL;
 ALTER TABLE robots DROP COLUMN model;
 ALTER TABLE robots ADD PRIMARY KEY (id);
@@ -85,7 +85,7 @@ ALTER TABLE robots DROP PRIMARY KEY;
 Primary keys and unique columns create indexes. Additional indexes can be added
 with either `CREATE INDEX` or `ALTER TABLE`.
 
-```sql
+```camussql
 CREATE INDEX robots_year_idx ON robots (year DESC);
 CREATE UNIQUE INDEX robots_name_idx ON robots (name);
 
@@ -96,7 +96,7 @@ ALTER TABLE robots DROP INDEX robots_kind_year_idx;
 
 Multi-column unique indexes are supported:
 
-```sql
+```camussql
 CREATE UNIQUE INDEX robots_kind_year_uq ON robots (kind, year);
 ALTER TABLE robots ADD UNIQUE INDEX robots_code_year_uq (code, year);
 ```
@@ -105,7 +105,7 @@ ALTER TABLE robots ADD UNIQUE INDEX robots_code_year_uq (code, year);
 
 Insert one or more rows:
 
-```sql
+```camussql
 INSERT INTO robots (id, name, year)
 VALUES (GEN_ID(), "R2-D2", 1977);
 
@@ -117,14 +117,14 @@ VALUES
 
 Use `DEFAULT` to apply a column default:
 
-```sql
+```camussql
 INSERT INTO robots (id, name, year)
 VALUES (GEN_ID(), "K-2SO", DEFAULT);
 ```
 
 Object id helpers are available as function calls:
 
-```sql
+```camussql
 GEN_ID()
 STR_ID("507f1f77bcf86cd799439011")
 ```
@@ -136,7 +136,7 @@ See [Object Id Functions](/docs/functions-object-id) for details.
 Select explicit columns, all columns, qualified columns, expressions, aliases,
 or aggregate expressions:
 
-```sql
+```camussql
 SELECT id, name FROM robots;
 SELECT * FROM robots;
 SELECT r.id, r.name FROM robots r;
@@ -155,7 +155,7 @@ Supported aggregate functions are:
 
 `SELECT DISTINCT` removes duplicate result rows:
 
-```sql
+```camussql
 SELECT DISTINCT kind FROM robots ORDER BY kind;
 SELECT DISTINCT kind, year FROM robots ORDER BY kind, year;
 ```
@@ -170,7 +170,7 @@ Current limits:
 Scalar functions can be used in projections, filters, aliases, and nested
 expressions:
 
-```sql
+```camussql
 SELECT upper(trim(name)) AS display_name
 FROM robots
 WHERE abs(year - 2000) <= 5;
@@ -181,7 +181,7 @@ See [Functions](/docs/functions) for the function reference.
 Filters support comparison, boolean composition, pattern matching, and null
 checks. They also support subquery predicates:
 
-```sql
+```camussql
 SELECT id, name
 FROM robots
 WHERE year >= 1970 AND name ILIKE "r%";
@@ -218,7 +218,7 @@ Supported filter operators include `=`, `!=`, `<`, `>`, `<=`, `>=`, `AND`,
 
 Group rows by columns or expressions:
 
-```sql
+```camussql
 SELECT role, COUNT(*) AS cnt
 FROM app_users
 GROUP BY role
@@ -237,7 +237,7 @@ reference aggregate aliases, aggregate expressions, or grouped keys.
 
 Join tables with `JOIN`, `INNER JOIN`, or comma join syntax:
 
-```sql
+```camussql
 SELECT u.email, p.title
 FROM app_users u
 JOIN posts p ON p.user_id = u.id
@@ -252,7 +252,7 @@ ORDER BY r.name, ur.amount;
 
 Use derived tables in `FROM` and join them like named sources:
 
-```sql
+```camussql
 SELECT u.email, d.post_count
 FROM app_users u
 JOIN (
@@ -265,7 +265,7 @@ ORDER BY u.email;
 
 Scalar subqueries can be used in expressions:
 
-```sql
+```camussql
 SELECT id, name
 FROM robots
 WHERE year = (SELECT MAX(year) FROM robots)
@@ -274,7 +274,7 @@ ORDER BY name;
 
 Order, limit, and offset results:
 
-```sql
+```camussql
 SELECT id, name, year
 FROM robots
 WHERE year >= 1970
@@ -284,7 +284,7 @@ LIMIT 25 OFFSET 50;
 
 Force a specific index when reading:
 
-```sql
+```camussql
 SELECT id, name
 FROM robots@{FORCE_INDEX=robots_year_idx}
 WHERE year >= 1980;
@@ -292,7 +292,7 @@ WHERE year >= 1980;
 
 Inspect a plan with `EXPLAIN`:
 
-```sql
+```camussql
 EXPLAIN SELECT * FROM robots WHERE year = 2024;
 EXPLAIN (LOGICAL) SELECT * FROM robots WHERE year = 2024;
 EXPLAIN (PHYSICAL) SELECT * FROM robots WHERE year = 2024;
@@ -311,7 +311,7 @@ indexed joins, sorts, and limit pushdown, and
 
 Updates and deletes require `WHERE` clauses in SQL:
 
-```sql
+```camussql
 UPDATE robots
 SET year = 1982
 WHERE name = "T-800";
@@ -324,7 +324,7 @@ WHERE year < 1970;
 
 CamusDB supports transaction statements:
 
-```sql
+```camussql
 BEGIN;
 START TRANSACTION;
 COMMIT;
@@ -337,7 +337,7 @@ single-operation transaction automatically.
 
 ## Schema Inspection
 
-```sql
+```camussql
 SHOW TABLES;
 SHOW COLUMNS FROM robots;
 DESCRIBE robots;
@@ -352,7 +352,7 @@ SHOW INDEX FROM robots;
 
 SQL requests can pass parameter placeholders:
 
-```sql
+```camussql
 SELECT id, name FROM robots WHERE id = @id;
 UPDATE robots SET name = @name WHERE id = @id;
 ```

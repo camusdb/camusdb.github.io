@@ -19,7 +19,7 @@ plan inspection.
 Queries can project all columns, named columns, qualified columns, expressions,
 and aliases:
 
-```sql
+```camussql
 SELECT * FROM robots;
 SELECT id, name, year FROM robots;
 SELECT r.id, r.name FROM robots r;
@@ -36,7 +36,7 @@ When a query has more than one source, use qualified column references such as
 Scalar functions can be used in projections, aliases, filters, and nested
 expressions:
 
-```sql
+```camussql
 SELECT upper(trim(name)) AS display_name
 FROM robots
 WHERE abs(year - 2000) <= 5
@@ -55,7 +55,7 @@ conversion, and object id functions.
 
 CamusDB supports row-level `SELECT DISTINCT`:
 
-```sql
+```camussql
 SELECT DISTINCT role
 FROM app_users
 ORDER BY role;
@@ -85,7 +85,7 @@ See [Query Planning](/docs/query-planning) and
 `WHERE` supports comparisons, boolean composition, pattern matching, null
 checks, and boolean column predicates:
 
-```sql
+```camussql
 SELECT id, name
 FROM robots
 WHERE year >= 1970 AND name ILIKE "r%";
@@ -122,7 +122,7 @@ Supported filter operators include:
 
 CamusDB supports literal and parameterized value lists:
 
-```sql
+```camussql
 SELECT id, name
 FROM robots
 WHERE year IN (2020, 2022, 2024);
@@ -148,7 +148,7 @@ small or moderate lists on indexed columns.
 Results can be ordered by one or more expressions. `LIMIT` and `OFFSET` can use
 literal integers or placeholders.
 
-```sql
+```camussql
 SELECT id, name, year
 FROM robots
 WHERE year >= 1970
@@ -159,7 +159,7 @@ LIMIT 25 OFFSET 50;
 For grouped queries, `ORDER BY` can reference selected aggregate aliases,
 aggregate expressions, or grouped expressions:
 
-```sql
+```camussql
 SELECT role, COUNT(*) AS cnt
 FROM app_users
 GROUP BY role
@@ -175,7 +175,7 @@ ORDER BY role;
 
 CamusDB supports global aggregates and grouped aggregates:
 
-```sql
+```camussql
 SELECT COUNT(*) FROM robots;
 SELECT COUNT(year), SUM(year), AVG(year), MIN(year), MAX(year)
 FROM robots;
@@ -205,7 +205,7 @@ non-aggregate projection must appear in `GROUP BY`. A query such as
 
 `GROUP BY` accepts one or more columns or expressions:
 
-```sql
+```camussql
 SELECT role, COUNT(*) AS cnt
 FROM app_users
 GROUP BY role;
@@ -227,7 +227,7 @@ grouping and projection.
 `HAVING` filters grouped or aggregate results after aggregation. It can
 reference aggregate aliases, aggregate expressions, and grouped keys:
 
-```sql
+```camussql
 SELECT role, COUNT(*) AS cnt
 FROM app_users
 GROUP BY role
@@ -248,7 +248,7 @@ HAVING role = "admin";
 
 `HAVING` also works with global aggregate queries:
 
-```sql
+```camussql
 SELECT COUNT(*) AS total
 FROM robots
 HAVING total > 0;
@@ -262,7 +262,7 @@ grouped or aggregate rows after grouping. A `HAVING` clause requires either
 
 CamusDB supports `JOIN` and `INNER JOIN`:
 
-```sql
+```camussql
 SELECT u.email, p.title
 FROM app_users u
 JOIN posts p ON p.user_id = u.id
@@ -278,7 +278,7 @@ ORDER BY u.role;
 Join predicates can compare qualified columns from both sides. Additional
 single-table filters can stay in `WHERE`:
 
-```sql
+```camussql
 SELECT u.email, p.title
 FROM app_users u
 JOIN posts p ON p.user_id = u.id
@@ -294,7 +294,7 @@ use indexed lookups instead of scanning the whole right side.
 Comma joins are supported for compatibility. CamusDB extracts equality
 predicates from `WHERE` and treats them as inner join predicates:
 
-```sql
+```camussql
 SELECT r.name, u.amount
 FROM robots r, user_robots u
 WHERE r.id = u.robots_id
@@ -303,7 +303,7 @@ ORDER BY r.name, u.amount;
 
 Single-source predicates remain as filters:
 
-```sql
+```camussql
 SELECT r.name, u.amount
 FROM robots r, user_robots u
 WHERE r.id = u.robots_id AND r.enabled = true
@@ -317,7 +317,7 @@ the current binder behavior.
 
 Scalar subqueries can appear inside expressions, commonly in `WHERE`:
 
-```sql
+```camussql
 SELECT id, name
 FROM robots
 WHERE year = (SELECT MAX(year) FROM robots)
@@ -332,7 +332,7 @@ A scalar subquery must return one column. If it returns zero rows, CamusDB uses
 `IN` and `NOT IN` accept an uncorrelated subquery that returns exactly one
 column:
 
-```sql
+```camussql
 SELECT email
 FROM app_users
 WHERE id IN (
@@ -363,7 +363,7 @@ subqueries are not supported.
 
 `EXISTS` works with correlated and uncorrelated subqueries:
 
-```sql
+```camussql
 SELECT email
 FROM app_users
 WHERE EXISTS (
@@ -387,7 +387,7 @@ columns because only row existence matters.
 A derived table is a parenthesized `SELECT` in the `FROM` clause. It must have
 an alias:
 
-```sql
+```camussql
 SELECT post_count
 FROM (
   SELECT user_id, COUNT(*) AS post_count
@@ -400,7 +400,7 @@ ORDER BY post_count;
 
 Derived tables can be joined with base tables or other derived results:
 
-```sql
+```camussql
 SELECT u.email, d.post_count
 FROM app_users u
 JOIN (
@@ -419,7 +419,7 @@ Aliases such as `COUNT(*) AS post_count` make outer queries easier to read.
 
 For direct table scans, a query can force a specific index:
 
-```sql
+```camussql
 SELECT id, name
 FROM robots@{FORCE_INDEX=robots_year_idx}
 WHERE year >= 1980;
@@ -432,7 +432,7 @@ also benefit from indexes on right-side equality join columns.
 
 Use `EXPLAIN` to inspect the physical plan CamusDB chose:
 
-```sql
+```camussql
 EXPLAIN SELECT * FROM robots WHERE year = 2024;
 EXPLAIN (ANALYZE) SELECT * FROM robots WHERE year = 2024 LIMIT 5;
 ```
@@ -451,7 +451,7 @@ reference.
 
 SQL placeholders can be used in filters and pagination:
 
-```sql
+```camussql
 SELECT id, name
 FROM robots
 WHERE id = @id

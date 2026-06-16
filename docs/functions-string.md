@@ -26,7 +26,7 @@ own null handling.
 
 ## Examples
 
-```sql
+```camussql
 SELECT
   upper(trim(name)) AS normalized_name,
   length(name) AS name_length

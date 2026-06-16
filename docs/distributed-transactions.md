@@ -4,10 +4,9 @@ sidebar_position: 4
 
 # Distributed Transactions And HLC
 
-CamusDB uses serializable transactions by default. When a transaction touches
-data on more than one partition, the storage layer coordinates that work with
-two-phase commit (2PC) so the transaction either commits everywhere or aborts
-everywhere.
+When a transaction touches data on more than one partition, the storage layer
+coordinates that work with two-phase commit (2PC) so the transaction either
+commits everywhere or aborts everywhere.
 
 Under the hood, CamusDB relies on
 [Kahuna](https://kahunakv.github.io/) for transactional key/value execution and
@@ -24,15 +23,22 @@ you expect from local SQL transactions:
 
 - `BEGIN` / `COMMIT` spans multiple statements.
 - Writes remain atomic even when rows live on different partitions.
-- Serializable isolation prevents invalid committed states.
-- A transaction can commit only if its reads and writes still form one valid
-  serial order with other committed transactions.
+- Committed writes do not become partially visible across partitions.
+- Conflicting writes are surfaced as failures or retries instead of being
+  silently merged.
+- Serializable transactions can preserve either a stable snapshot or read-write
+  locking semantics across partitions, depending on transaction mode.
+
+That includes a lock-free serializable read-only snapshot path that can be
+resumed across requests by transaction id.
 
 In practice, that means CamusDB can safely execute work like:
 
 - insert into two different tables in one transaction
 - update rows whose keys route to different partitions
-- combine indexed point writes with range reads in one serializable unit
+- run a consistent serializable read-only report across multiple partitions
+- combine indexed point writes with range reads in one serializable read-write
+  unit
 
 ## Why 2PC Exists
 
@@ -71,16 +77,12 @@ For a write transaction, the commit path looks like this:
 This is the path exercised by CamusDB's cluster tests for cross-partition
 transactions.
 
-## Serializable Conflict Detection
-
-Serializable isolation in CamusDB is not just "commit if no one wrote the same
-row." The engine also tracks enough information to reject transactions that
-would otherwise produce anomalies.
+## Conflict Detection
 
 The current implementation relies on a combination of:
 
 - exclusive key locks for writes
-- prefix or range locks for serializable scans
+- prefix or range locks for scan protection in the relevant execution modes
 - tracked modified keys for commit-time coordination
 - transaction timestamps from HLC
 - read dependency validation and write-intent checks in Kahuna's transaction
@@ -93,11 +95,15 @@ or fail to prepare. Both cannot commit conflicting writes to the same key.
 
 ### Phantom Protection
 
-For range-style reads such as scans by table or index prefix, CamusDB acquires
-prefix locks so a concurrent transaction cannot insert a new matching row and
-silently change the result set behind an open serializable transaction.
+For range-style reads in the key-range-routed execution paths, CamusDB can hold
+shared range locks so a concurrent transaction cannot insert, change, or delete
+rows inside the protected scan range while that scan is active.
 
-This is how CamusDB prevents phantom-style anomalies for scan-based logic.
+This is how CamusDB prevents phantom-style anomalies for those scan-based
+paths, while still allowing concurrent readers to proceed.
+
+For serializable read-write transactions, the same general predicate-protection
+idea also applies to the read set they must preserve until commit.
 
 ### Read-Write Conflicts
 
@@ -192,6 +198,23 @@ Applications should be ready to retry when a transaction fails because:
 - a read dependency changed before commit
 - a concurrent write intent made the serial order invalid
 - the transaction could not prepare on every participant
+- a serializable read-write transaction exceeded its lifetime deadline
+
+Applications should also pick the right isolation mode for the job:
+
+- use the default Serializable isolation for correctness-sensitive work
+- use serializable read-only for consistent multi-statement reads without
+  lock-based write blocking
+- use Read Committed only as an explicit opt-out when fresh committed reads and
+  cheaper concurrency matter more than full serializable behavior
+
+CamusDB does not automatically replay failed serializable transactions. The
+client must restart them from the beginning when a retryable conflict or
+deadline error occurs.
+
+For single-statement autocommit serializable work, CamusDB includes a helper
+that performs bounded replay with backoff. Explicit multi-statement
+transactions still need replay from `BEGIN`.
 
 The important point is that these failures are how CamusDB preserves
 correctness. They are not partial commits.
@@ -201,10 +224,11 @@ correctness. They are not partial commits.
 This page describes the current CamusDB transaction model as implemented over
 Kahuna:
 
-- serializable transactions are the default user-facing model
 - cross-partition writes use 2PC
 - HLC timestamps provide transaction ordering across nodes
-- prefix locking is part of serializable scan protection
+- lock and intent tracking protect atomic distributed commit
+- Serializable is the default isolation level
+- Read Committed is available as an explicit opt-out
 
 CamusDB cluster mode is still alpha-quality, so distributed transaction support
 should be treated as development and testing functionality rather than a
@@ -212,7 +236,8 @@ production guarantee.
 
 ## See Also
 
-- [Serializable Transactions](/docs/serializable-transactions)
+- [Transactions And Isolation](/docs/serializable-transactions)
+- [Serializable Retries](/docs/serializable-retries)
 - [Architecture](/docs/architecture)
 - [Cluster Mode](/docs/cluster)
 - [WAL And Recovery](/docs/wal-recovery)

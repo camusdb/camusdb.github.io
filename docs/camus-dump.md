@@ -83,7 +83,7 @@ The output is a SQL stream with:
 
 Typical shape:
 
-```sql
+```camussql
 CREATE TABLE `robots` (
   `id` OID PRIMARY KEY NOT NULL,
   `name` STRING NOT NULL,
@@ -118,7 +118,7 @@ camus-cli -c "Endpoint=http://localhost:5095;Database=mydb"
 
 Then load the generated file:
 
-```sql
+```camussql
 source ./mydb.sql
 ```
 

@@ -202,6 +202,102 @@ Use `await tx.RollbackAsync()` to abort the transaction.
 
 The driver only accepts `IsolationLevel.Serializable` and
 `IsolationLevel.Unspecified`, which matches CamusDB's transaction model.
+Unspecified transactions inherit CamusDB's server default, which is
+Serializable.
+
+The current ADO.NET driver does not expose a Read Committed transaction option.
+Use SQL or the HTTP API directly if you need to opt a transaction down to Read
+Committed.
+
+## Serializable Retries
+
+Serializable is the default isolation level in CamusDB. When two serializable
+read-write transactions conflict, one transaction is aborted and the whole unit
+of work must be replayed from the beginning.
+
+The client package includes `SerializableRetryHelper` for that retry contract.
+Only these CamusDB error codes are treated as retryable:
+
+| Code | Name | Meaning |
+| --- | --- | --- |
+| `CADB0502` | `TransactionConflict` | A lock conflict aborted the transaction. |
+| `CADB0504` | `TransactionMustRetry` | A transient routing or leader-transition condition exhausted the commit retry budget. |
+| `CADB0505` | `TransactionLifetimeExceeded` | A serializable read-write transaction exceeded the server lifetime cap. |
+
+Use `SerializableRetryHelper.IsRetryable(...)` when you own the retry loop:
+
+```csharp
+catch (CamusException ex) when (SerializableRetryHelper.IsRetryable(ex))
+{
+    // Replay the whole transaction from the beginning.
+}
+```
+
+For single-statement autocommit work, use
+`SerializableRetryHelper.ExecuteAutocommitAsync(...)`:
+
+```csharp
+await SerializableRetryHelper.ExecuteAutocommitAsync(async ct =>
+{
+    CamusTransaction tx = await connection.BeginTransactionAsync(ct);
+    try
+    {
+        await using CamusCommand update = connection.CreateCamusCommand("""
+            UPDATE robots SET price = @price WHERE name = @name
+            """);
+
+        update.Transaction = tx;
+        update.Parameters.Add("@price", ColumnType.Float64, 99.0);
+        update.Parameters.Add("@name", ColumnType.String, "T-800");
+
+        await update.ExecuteNonQueryAsync(ct);
+        await tx.CommitAsync(ct);
+    }
+    catch
+    {
+        await tx.RollbackAsync(ct);
+        throw;
+    }
+}, maxAttempts: 5, cancellationToken);
+```
+
+For explicit multi-statement transactions, do not retry only the failed
+statement. Start a new transaction and rerun every read and write in the unit:
+
+```csharp
+const int MaxAttempts = 5;
+
+for (int attempt = 1; ; attempt++)
+{
+    CamusTransaction tx = await connection.BeginTransactionAsync();
+    try
+    {
+        long balance = await ReadBalance(tx, accountId);
+        if (balance < amount)
+            throw new InvalidOperationException("Insufficient funds");
+
+        await Debit(tx, accountId, balance - amount);
+        await tx.CommitAsync();
+        break;
+    }
+    catch (CamusException ex) when (SerializableRetryHelper.IsRetryable(ex))
+    {
+        await tx.RollbackAsync();
+        if (attempt >= MaxAttempts)
+            throw;
+
+        await Task.Delay(20 * (1 << attempt));
+    }
+    catch
+    {
+        await tx.RollbackAsync();
+        throw;
+    }
+}
+```
+
+The helper's default backoff is bounded exponential delay with jitter:
+`min(20 ms * 2^attempt, 400 ms)` plus or minus 25 percent.
 
 ## ADO.NET Notes
 

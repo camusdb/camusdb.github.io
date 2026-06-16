@@ -42,7 +42,7 @@ CamusDB tries to turn predicates into ordered KV access whenever it can.
 
 Equality on a unique index becomes a point lookup:
 
-```sql
+```camussql
 SELECT *
 FROM robots
 WHERE id = "507f1f77bcf86cd799439011";
@@ -56,7 +56,7 @@ the planner fetch at most one row directly.
 Equality on a non-unique index becomes a bounded range scan rather than a
 single lookup:
 
-```sql
+```camussql
 SELECT *
 FROM robots
 WHERE year = 2024;
@@ -69,7 +69,7 @@ entries for `2024`.
 
 Range predicates can also drive index scans:
 
-```sql
+```camussql
 SELECT *
 FROM robots
 WHERE year >= 2020 AND year < 2025;
@@ -83,7 +83,7 @@ WHERE year BETWEEN 2020 AND 2024;
 
 Indexed `IN (...)` predicates can be planned as repeated index probes:
 
-```sql
+```camussql
 SELECT *
 FROM robots
 WHERE id IN ("id1", "id2", "id3");
@@ -101,7 +101,7 @@ is small or moderately sized.
 If an index covers only part of the predicate, CamusDB scans with the index and
 applies the remaining filter afterward:
 
-```sql
+```camussql
 SELECT *
 FROM robots
 WHERE year >= 2020 AND name = "R2";
@@ -117,7 +117,7 @@ column order from left to right.
 
 For an index on `(kind, year)`:
 
-```sql
+```camussql
 SELECT *
 FROM robots
 WHERE kind = "service" AND year >= 2020;
@@ -128,7 +128,7 @@ CamusDB can use the equality prefix on `kind` and the range on `year`.
 If a query skips the leftmost indexed column, the planner may not be able to
 use that composite index effectively:
 
-```sql
+```camussql
 SELECT *
 FROM robots
 WHERE year >= 2020;
@@ -156,7 +156,7 @@ and most operator ordering still come primarily from deterministic rules.
 If an index already yields rows in the order required by `ORDER BY`, CamusDB
 can skip a separate in-memory sort.
 
-```sql
+```camussql
 SELECT *
 FROM robots
 ORDER BY year;
@@ -176,7 +176,7 @@ Cases that usually require a real sort:
 When a query shape is simple enough, CamusDB can stop the underlying scan early
 instead of reading the whole input first.
 
-```sql
+```camussql
 SELECT *
 FROM robots
 ORDER BY year
@@ -193,7 +193,7 @@ This works best when:
 
 CamusDB supports `JOIN`, `INNER JOIN`, and comma joins.
 
-```sql
+```camussql
 SELECT u.email, p.title
 FROM app_users u
 JOIN posts p ON p.user_id = u.id;
@@ -204,7 +204,7 @@ nested-loop join instead of scanning the entire right side for each left row.
 
 This means join-friendly indexing matters. For a join such as:
 
-```sql
+```camussql
 SELECT u.email, p.title
 FROM app_users u
 JOIN posts p ON p.user_id = u.id;
@@ -256,7 +256,7 @@ CamusDB can plan:
 
 Examples:
 
-```sql
+```camussql
 SELECT u.email, d.post_count
 FROM app_users u
 JOIN (
@@ -277,7 +277,7 @@ then plan the outer predicate around that result.
 
 When you know a specific index should be used, you can force it:
 
-```sql
+```camussql
 SELECT id, name
 FROM robots@{FORCE_INDEX=robots_year_idx}
 WHERE year >= 1980;
@@ -322,7 +322,7 @@ path.
 
 Use `EXPLAIN` to see what the planner chose:
 
-```sql
+```camussql
 EXPLAIN SELECT * FROM robots WHERE year = 2024;
 EXPLAIN (ANALYZE) SELECT * FROM robots WHERE year = 2024 LIMIT 5;
 ```

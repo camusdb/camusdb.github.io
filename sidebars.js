@@ -57,7 +57,12 @@ const sidebars = {
       label: 'Distributed Operation',
       collapsed: false,
       items: [
-        'serializable-transactions',
+        {
+          type: 'doc',
+          id: 'serializable-transactions',
+          label: 'Transactions And Isolation',
+        },
+        'serializable-retries',
         'distributed-transactions',
         'multi-active-availability',
         'cluster',
@@ -70,10 +75,19 @@ const sidebars = {
       collapsed: false,
       items: [
         'architecture',
-        'storage',
-        'wal-recovery',
-        'distributed-schema',
-        'query-planner-internals',
+        {
+          type: 'category',
+          label: 'Internals',
+          collapsed: false,
+          items: [
+            'storage',
+            'wal-recovery',
+            'distributed-schema',
+            'query-planning',
+            'query-planner-internals',
+            'transactions-locking-internals',
+          ],
+        },
       ],
     },
     {
@@ -82,6 +96,7 @@ const sidebars = {
       collapsed: false,
       items: [
         'camus-cli',
+        'camus-dump',
         {
           type: 'category',
           label: '.NET',
@@ -91,7 +106,6 @@ const sidebars = {
             'ef-core',
           ],
         },
-        'camus-dump',
         'error-codes',
         'http-api',
       ],

@@ -8,7 +8,7 @@ CamusDB scalar functions can be used anywhere a scalar expression is accepted,
 including select lists, aliases, filters, nested expressions, and grouped query
 expressions.
 
-```sql
+```camussql
 SELECT upper(trim(name)) AS display_name
 FROM robots
 WHERE abs(year - 2000) <= 5;
@@ -38,7 +38,7 @@ value on each evaluation.
 
 String literals in CamusDB SQL are written with double quotes:
 
-```sql
+```camussql
 SELECT concat("robot-", to_string(year)) AS label
 FROM robots;
 ```

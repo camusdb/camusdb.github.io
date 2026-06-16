@@ -15,7 +15,7 @@ primary keys, inserts, filters, and parameterized queries.
 
 ## Examples
 
-```sql
+```camussql
 INSERT INTO robots (id, name, year)
 VALUES (gen_id(), "R2-D2", 1977);
 

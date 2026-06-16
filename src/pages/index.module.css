@@ -101,6 +101,8 @@
   max-width: 860px;
   margin: 1.5rem auto 0;
   text-align: left;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .heroSnippet pre {
@@ -115,7 +117,19 @@
   }
 
   .heroSnippet {
-    display: none;
+    margin-top: 1.25rem;
+  }
+
+  .heroSnippet pre {
+    font-size: 0.74rem;
+  }
+
+  .heroSnippet :global(pre) {
+    min-width: 0;
+  }
+
+  .heroSnippet :global(code) {
+    white-space: pre;
   }
 }
 

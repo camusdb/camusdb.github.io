@@ -44,7 +44,7 @@ These are the available keys in `Config/config.yml` today:
 | `peers` | empty list | Static Raft peer list in `host:port` form. |
 | `http_peers` | empty list | Per-peer HTTP addresses in `host:httpPort` form, parallel to `peers`. |
 | `schema_ack_wait_timeout_ms` | `30000` | Cluster DDL ack wait timeout in milliseconds. |
-| `schema_ack_live_node_lease_ms` | `-1` | Cluster DDL live-node lease in milliseconds, or `-1` for infinite. |
+| `schema_ack_live_node_lease_ms` | `30000` | Cluster DDL live-node lease in milliseconds, or `-1` for infinite. |
 | `stats_flush_interval_ms` | `5000` | Background advisory table-statistics flush interval in milliseconds. |
 | `sql_parser_cache_ttl_seconds` | `300` | Sliding TTL for the SQL parser AST cache; `0` disables the cache. |
 | `sql_parser_cache_max_entries` | `2048` | Maximum cached SQL texts; `0` means unbounded. |
@@ -108,6 +108,7 @@ mode:
     conservatively (`-1`) or uses a finite liveness window for follower
     reachability.
   - `-1` means infinite lease.
+  - If omitted, the current code uses `30000`.
 
 Most users should keep the defaults unless they are testing cluster DDL behavior
 or diagnosing slow convergence.
@@ -143,6 +144,43 @@ These settings control the SQL parser AST cache:
 
 This cache affects parse overhead, not SQL semantics.
 
+## Environment Variables
+
+### `CAMUS_KEY_RANGE_SHARDING`
+
+Set `CAMUS_KEY_RANGE_SHARDING=1` or `CAMUS_KEY_RANGE_SHARDING=true` to opt table
+row spaces and eligible secondary index spaces into key-range routing.
+
+This is not a YAML key today. It is read from the process environment.
+
+Operational notes:
+
+- `initial_partitions` must be at least `2` for key-range routing to have an
+  effect.
+- With a single partition, enabling the variable is safe but effectively a
+  no-op.
+- The server logs a warning when the variable is enabled and
+  `initial_partitions < 2`.
+
+## Transaction Tunables
+
+The current source also defines these process-wide transaction settings in
+`CamusDBConfig`. They are not exposed as `config.yml` keys in the current
+loader, but they explain the runtime defaults documented in the transaction
+pages.
+
+| Setting | Current value | Purpose |
+| --- | --- | --- |
+| `DefaultIsolationLevel` | `Serializable` | Isolation level used when a transaction does not request another level. |
+| `RangeLockExpiresMs` | `30000` | TTL granted to each serializable read-write range lock before heartbeat renewal. |
+| `RangeLockHeartbeatIntervalMs` | `10000` | How often live serializable read-write range locks are renewed. |
+| `MaxSerializableTransactionLifetimeMs` | `3600000` | One-hour hard lifetime cap for serializable read-write transactions. |
+| `LockEscalationThreshold` | `50` | Number of point locks per bucket before escalation to a shared whole-bucket lock. |
+
+Use SQL or API transaction options to opt an individual transaction down to
+`ReadCommitted`; do not add these setting names to `config.yml` unless the
+loader later exposes them.
+
 ## Validation Rules
 
 CamusDB validates config on startup and rejects invalid values early.
@@ -169,6 +207,12 @@ stats_flush_interval_ms: 5000
 sql_parser_cache_ttl_seconds: 300
 sql_parser_cache_max_entries: 2048
 sql_parser_cache_sweep_seconds: 60
+```
+
+Optional key-range routing for testing:
+
+```bash
+CAMUS_KEY_RANGE_SHARDING=true dotnet run --project CamusDB
 ```
 
 Standalone mode is the default and the simplest option for tutorials, local
@@ -246,6 +290,9 @@ Current behavior matters here:
 - `stats_flush_interval_ms` and the SQL parser cache settings are applied
   process-wide before the engine starts.
 - `data_dir` is YAML-driven in the current source tree.
+- `CAMUS_KEY_RANGE_SHARDING` is environment-driven.
+- The transaction tunables listed above are current `CamusDBConfig` defaults,
+  but are not YAML-backed in the current loader.
 
 ## Related Pages
 
