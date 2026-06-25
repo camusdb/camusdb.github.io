@@ -50,6 +50,9 @@ Use an explicit connection string with `-c` when your node or database differs:
 camus-dump -c "Endpoint=http://localhost:5095;Database=northwind"
 ```
 
+The target database must already exist. `camus-dump` reads from an existing
+database; it does not create one.
+
 ## Command Line Options
 
 Current options from source:
@@ -114,6 +117,13 @@ through `camus-cli`:
 
 ```bash
 camus-cli -c "Endpoint=http://localhost:5095;Database=mydb"
+```
+
+Create the destination database first if it does not already exist:
+
+```camussql
+CREATE DATABASE IF NOT EXISTS mydb;
+use mydb;
 ```
 
 Then load the generated file:

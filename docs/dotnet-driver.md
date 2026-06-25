@@ -61,6 +61,16 @@ await connection.OpenAsync();
 
 `ChangeDatabase("otherdb")` updates the target database on the connection.
 
+Opening a connection does not create the database. Create databases explicitly
+before running table DDL, DML, or queries:
+
+```csharp
+await using CamusCommand createDb = connection.CreateCamusCommand(
+    "CREATE DATABASE IF NOT EXISTS test");
+
+await createDb.ExecuteDDLAsync();
+```
+
 ## Ping
 
 Use a ping command to verify connectivity:

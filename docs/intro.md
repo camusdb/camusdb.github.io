@@ -11,8 +11,9 @@ CamusDB is alpha-quality software. Interfaces and storage formats may change
 between versions, and it should not be used in production.
 
 This tutorial uses `camus-cli`, the interactive SQL shell. It walks through the
-basic workflow against a running CamusDB node or cluster: create a table, insert
-rows, query data, add an index, and update or delete rows.
+basic workflow against a running CamusDB node or cluster: create a database,
+create a table, insert rows, query data, add an index, and update or delete
+rows.
 
 For a higher-level overview of why CamusDB is built as a distributed NewSQL
 database, start with [Why CamusDB?](/docs/why-camusdb).
@@ -38,12 +39,26 @@ You should see an interactive prompt:
 camus>
 ```
 
+## Create A Database
+
+Databases must be created explicitly before use. Create a tutorial database,
+then switch the shell to it:
+
+```camussql
+CREATE DATABASE IF NOT EXISTS tutorial;
+use tutorial;
+```
+
+If you already started the shell with `camus-cli tutorial`, you still need the
+`CREATE DATABASE IF NOT EXISTS tutorial;` statement the first time that database
+name is used.
+
 ## Create A Table
 
 Create a table for robot records:
 
 ```camussql
-CREATE TABLE IF NOT EXISTS robots (
+CREATE TABLE robots (
   id OID PRIMARY KEY NOT NULL,
   name STRING NOT NULL,
   kind STRING NOT NULL,
@@ -154,12 +169,21 @@ Inspect indexes:
 SHOW INDEXES FROM robots;
 ```
 
+## Rename Schema Objects
+
+Tables and columns can be renamed without rewriting row data:
+
+```camussql
+ALTER TABLE robots RENAME COLUMN kind TO category;
+ALTER TABLE robots RENAME TO machines;
+```
+
 ## Update Rows
 
 SQL updates require a `WHERE` clause.
 
 ```camussql
-UPDATE robots
+UPDATE machines
 SET year = 1982
 WHERE name = "T-800";
 ```
@@ -168,7 +192,7 @@ Confirm the change:
 
 ```camussql
 SELECT name, year
-FROM robots
+FROM machines
 WHERE name = "T-800";
 ```
 
@@ -177,7 +201,7 @@ WHERE name = "T-800";
 SQL deletes also require a `WHERE` clause.
 
 ```camussql
-DELETE FROM robots
+DELETE FROM machines
 WHERE name = "K-2SO";
 ```
 
@@ -185,12 +209,16 @@ WHERE name = "K-2SO";
 
 | SQL type | Notes |
 | --- | --- |
-| `STRING` | Text values. |
+| `OID` | Native object id values. |
 | `INT64` | Signed 64-bit integers. |
 | `FLOAT64` | Double-precision floating point values. |
+| `FLOAT32` | Single-precision floating point values. |
 | `BOOL` | Boolean values. |
-| `OID` | 24-character object id values. |
+| `STRING`, `STRING(N)` | Text values, optionally with a maximum length. |
+| `DATE`, `DATETIME` | Calendar dates and UTC instants. |
+| `BYTES` | Opaque byte strings. |
+| `ARRAY(T)` | Ordered lists of scalar values. |
 
-Continue with the SQL reference for the full statement list and
-[Query Features](/docs/query-features) for joins, grouping, subqueries, and derived
-tables.
+Continue with the [SQL overview](/docs/sql), [Data Types](/docs/data-types),
+[Tables And Schema](/docs/sql-schema), and [Query Features](/docs/query-features)
+for joins, grouping, subqueries, and derived tables.

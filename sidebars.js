@@ -20,6 +20,7 @@ const sidebars = {
       collapsed: false,
       items: [
         'intro',
+        'databases',
         'why-camusdb',
       ],
     },
@@ -29,6 +30,11 @@ const sidebars = {
       collapsed: false,
       items: [
         'sql',
+        'sql-schema',
+        'data-types',
+        'sql-indexes',
+        'sql-writes',
+        'sql-queries',
         'query-features',
         'query-planning',
         {
@@ -36,6 +42,9 @@ const sidebars = {
           id: 'explain',
           label: 'Explaining Queries And Commands',
         },
+        'sql-transactions',
+        'sql-inspection',
+        'sql-parameters',
         {
           type: 'category',
           label: 'Functions',

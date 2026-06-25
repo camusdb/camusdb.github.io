@@ -128,9 +128,9 @@ await using var ctx = new AppDbContext(options);
 await ctx.Database.EnsureCreatedAsync();
 ```
 
-The provider treats databases as logical containers and always reports the
-server as existing. `EnsureCreated()` builds `CREATE TABLE` statements from the
-model and continues safely if a table already exists.
+The target CamusDB database must already exist. `EnsureCreated()` builds
+`CREATE TABLE` statements from the model and continues safely if a table already
+exists; it does not create or drop the database container itself.
 
 ## Basic CRUD
 
@@ -346,9 +346,8 @@ Unsupported or restricted operations include:
 - no foreign key constraints
 - no computed columns
 - no `ALTER COLUMN`
-- no `RENAME COLUMN`
-- no `RENAME TABLE`
-- no `RENAME INDEX`
+- no rename table/column/index operations through EF migrations; use SQL DDL
+  directly for `ALTER TABLE ... RENAME ...`
 - no check constraints
 - no sequences
 - no add/drop primary key through migrations

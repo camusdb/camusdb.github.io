@@ -51,6 +51,13 @@ From the current source code, the default connection string is:
 Endpoint=http://localhost:5095;Database=test
 ```
 
+The database named in the connection string must already exist before you run
+table DDL, DML, or queries against it. You can create it from the shell:
+
+```camussql
+CREATE DATABASE IF NOT EXISTS test;
+```
+
 Open a different database with the positional database argument:
 
 ```bash
@@ -215,6 +222,12 @@ describe users;
 DDL includes:
 
 ```camussql
+create database app;
+create database if not exists app;
+show databases;
+rename database app to app_prod;
+drop database if exists app_prod;
+
 create table users (
   id oid primary key not null,
   name string not null
@@ -222,6 +235,8 @@ create table users (
 
 create index users_name_idx on users (name);
 alter table users add column active bool default (true);
+alter table users rename column name to display_name;
+alter table users rename to app_users;
 drop table users;
 ```
 
@@ -280,7 +295,8 @@ use analytics;
 ```
 
 This rewrites the active connection string to replace the `Database=...` part,
-then opens a new connection to that database.
+then opens a new connection to that database. The target database must already
+exist; `use` does not create it.
 
 ## Source Files
 

@@ -33,19 +33,26 @@ For the lower-level backend details, see
 [Kahuna's storage overview](https://kahunakv.github.io/docs/storage/overview/).
 For the recovery path, see [WAL And Recovery](/docs/wal-recovery).
 
-## Database Open
+## Database Create And Open
 
-When a database is opened in standalone mode, CamusDB creates per-database
-storage directories:
+Databases must be created explicitly before use. At creation time, CamusDB
+allocates an immutable database id and registers the name-to-id mapping.
+
+When a database is opened in standalone mode, CamusDB uses the id-based storage
+directories created for that database:
 
 ```text
-{data_dir}/{database}/kv
-{data_dir}/{database}/wal
+{data_dir}/{database_id}/kv
+{data_dir}/{database_id}/wal
 ```
 
 It then starts an embedded [Kahuna](https://kahunakv.github.io/) node, waits for
 the local partition leader, flushes recovered WAL state, and loads schema
 metadata from KV storage.
+
+The human-readable database name is not used as the storage directory. Renaming
+a database updates the registry binding but leaves the id, directories, table
+ids, row keys, and index keys unchanged.
 
 In cluster mode, CamusDB uses a process-level shared
 [Kahuna](https://kahunakv.github.io/) node. The cluster node is started during
@@ -64,8 +71,8 @@ data on the expected partition.
 | Row | `{tableId}:r/{rowId}` | Serialized row bytes. |
 | Unique index entry | `{tableId}:i:{indexId}/{encodedKey}` | Row id as UTF-8 text. |
 | Non-unique index entry | `{tableId}:i:{indexId}/{encodedKey}{rowId}` | Row id as UTF-8 text. |
-| Schema metadata | `{database}/meta/schema` | Serialized table schema map. |
-| System metadata | `{database}/meta/system` | Serialized system schema. |
+| Schema metadata | `{databaseId}/meta/schema` | Serialized table schema map. |
+| System metadata | `{databaseId}/meta/system` | Serialized system schema. |
 
 Non-unique index keys append the row id directly after the encoded key. The row
 id has a fixed 24-character representation, so CamusDB can split it back out
@@ -87,8 +94,13 @@ schema history attached to the table. Column values are encoded by type:
 | `OID` | 12-byte object id. |
 | `INT64` | 8-byte signed integer. |
 | `FLOAT64` | 8-byte double. |
+| `FLOAT32` | 4-byte single-precision value, exposed through the common numeric value path. |
 | `STRING` | Length-prefixed UTF-16 string. |
 | `BOOL` | Boolean marker byte. |
+| `DATE` | UTC ticks truncated to midnight. |
+| `DATETIME` | UTC ticks. |
+| `BYTES` | Length-prefixed byte payload. |
+| `ARRAY(T)` | Element type plus an ordered sequence of encoded element values. |
 | `NULL` | Null marker byte. |
 
 ## Index Encoding
@@ -98,13 +110,18 @@ order-preserving encoder for composite index values:
 
 - `NULL` sorts before present values.
 - `INT64` flips the sign bit and stores fixed-width hexadecimal text.
-- `FLOAT64` applies an order-preserving transform to IEEE-754 bits.
+- `FLOAT64` and `FLOAT32` apply order-preserving transforms to IEEE-754 bits.
 - `BOOL` stores `0` or `1`.
+- `DATE` and `DATETIME` sort by their UTC tick values.
+- `BYTES` values use an order-preserving byte encoding.
 - `STRING` and `OID` values use terminators and escaping so prefixes sort
   correctly.
 
 This lets CamusDB scan index keys in lexicographic KV order and get SQL-order
 results for the indexed columns.
+
+All scalar column types are indexable. `ARRAY(T)` columns are stored in rows,
+but they cannot be used in primary keys or secondary indexes.
 
 ## Writes And Locks
 

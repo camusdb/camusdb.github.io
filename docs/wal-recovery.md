@@ -62,12 +62,13 @@ accepted for that partition.
    queues the resulting key/value write.
 6. CamusDB flushes those queued writes before loading schema metadata.
 
-That last step is important for standalone databases. When CamusDB opens a
-database, it creates:
+That last step is important for standalone databases. Databases are created
+explicitly, assigned an immutable database id, and opened from id-based storage
+paths:
 
 ```text
-{data_dir}/{database}/kv
-{data_dir}/{database}/wal
+{data_dir}/{database_id}/kv
+{data_dir}/{database_id}/wal
 ```
 
 It starts the embedded [Kahuna](https://kahunakv.github.io/) node, waits for the

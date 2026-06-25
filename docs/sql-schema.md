@@ -1,0 +1,141 @@
+---
+sidebar_position: 2.1
+---
+
+# Tables And Schema
+
+Table DDL runs inside an existing database. Create or select the database first,
+then create tables, alter columns, rename schema objects, or drop tables.
+
+## Create Tables
+
+```camussql
+CREATE TABLE robots (
+  id OID PRIMARY KEY NOT NULL,
+  name STRING NOT NULL,
+  year INT64 DEFAULT (2024),
+  active BOOL DEFAULT (true)
+);
+```
+
+Create a table only when it does not exist:
+
+```camussql
+CREATE TABLE IF NOT EXISTS robots (
+  id OID PRIMARY KEY NOT NULL,
+  name STRING NOT NULL
+);
+```
+
+Inline constraints can define primary keys and unique columns directly in the
+column list:
+
+```camussql
+CREATE TABLE app_users (
+  id STRING PRIMARY KEY NOT NULL,
+  email STRING UNIQUE NOT NULL,
+  display_name STRING NOT NULL
+);
+```
+
+Declare a composite primary key after the column list:
+
+```camussql
+CREATE TABLE readings (
+  sensor_id STRING NOT NULL,
+  ts INT64 NOT NULL,
+  value FLOAT64 NOT NULL
+) PRIMARY KEY (sensor_id ASC, ts DESC);
+```
+
+CamusDB also accepts inline index-style constraints inside `CREATE TABLE`:
+
+```camussql
+CREATE TABLE robots (
+  id OID NOT NULL,
+  code STRING NOT NULL,
+  name STRING,
+  PRIMARY KEY (id),
+  UNIQUE KEY code_uk (code),
+  KEY name_idx (name)
+);
+```
+
+## Column Types
+
+| SQL type | Notes |
+| --- | --- |
+| `OID` | Native object id values. |
+| `INT64` | Signed 64-bit integers. |
+| `FLOAT64` | Double-precision floating point values. |
+| `FLOAT32` | Single-precision floating point values. |
+| `BOOL` | Boolean values. |
+| `STRING`, `STRING(N)` | Text values, optionally with a maximum length. |
+| `DATE` | Calendar dates without time. |
+| `DATETIME` | UTC instants. |
+| `BYTES` | Opaque byte strings. |
+| `ARRAY(T)` | Ordered lists of scalar values. Arrays are not indexable. |
+
+Common aliases include `INT` / `INTEGER` for `INT64`, `REAL` for `FLOAT32`,
+`TIMESTAMP` for `DATETIME`, `BLOB` for `BYTES`, `BOOLEAN` for `BOOL`, and
+`OBJECT_ID` for `OID`.
+
+See [Data Types](/docs/data-types) for length limits, literal formats, casts,
+HTTP JSON values, and array rules.
+
+## Alter Tables
+
+Add or drop columns:
+
+```camussql
+ALTER TABLE robots ADD COLUMN model STRING NULL;
+ALTER TABLE robots DROP COLUMN model;
+```
+
+Add or drop a primary key:
+
+```camussql
+ALTER TABLE robots ADD PRIMARY KEY (id);
+ALTER TABLE robots DROP PRIMARY KEY;
+```
+
+## Rename Tables
+
+```camussql
+ALTER TABLE robots RENAME TO machines;
+```
+
+After the rename, the old table name is no longer valid and the new table name
+resolves to the same table data. Row and index data survive the rename because
+the storage identity is not the table display name.
+
+Renaming to an existing table name fails with `TableAlreadyExists`. Renaming a
+missing table fails with `TableDoesntExist`.
+
+## Rename Columns
+
+```camussql
+ALTER TABLE machines RENAME COLUMN name TO display_name;
+```
+
+Column rename is metadata-only for stored rows. Existing row values remain
+available under the new column name, and query results no longer include the old
+column name.
+
+Renaming a missing column fails with `UnknownColumn`. Renaming to an existing
+column name fails with `DuplicateColumn`.
+
+## Drop Tables
+
+```camussql
+DROP TABLE robots;
+DROP TABLE IF EXISTS robots;
+```
+
+## Related Pages
+
+- [Databases](/docs/databases)
+- [Data Types](/docs/data-types)
+- [Indexes](/docs/sql-indexes)
+- [Schema Inspection](/docs/sql-inspection)
+- [Error Codes](/docs/error-codes)

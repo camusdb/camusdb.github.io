@@ -32,18 +32,21 @@ unexpected internal state, or storage-layer inconsistencies.
 
 | Code | Name | When it is generated |
 | --- | --- | --- |
-| `CADB0010` | `DatabaseDoesntExist` | Reserved for operations that target a database name that does not exist. It is defined in the core error list but is not commonly surfaced by the current command path. |
-| `CADB0011` | `TableDoesntExist` | A query, DML statement, or schema change references a table that does not exist, or the table name is empty. |
-| `CADB0012` | `DatabaseAlreadyExists` | `CREATE DATABASE` targets an existing database, or a reserved database name is used. |
-| `CADB0013` | `TableAlreadyExists` | `CREATE TABLE` tries to create a table name that already exists. |
+| `CADB0010` | `DatabaseDoesntExist` | An operation targets a database name that has not been explicitly created, or a name that was dropped or renamed away. |
+| `CADB0011` | `TableDoesntExist` | A query, DML statement, schema change, or table rename references a table that does not exist, or the table name is empty. |
+| `CADB0012` | `DatabaseAlreadyExists` | `CREATE DATABASE` targets an existing database, or `RENAME DATABASE ... TO ...` targets a name that is already registered. |
+| `CADB0013` | `TableAlreadyExists` | `CREATE TABLE` tries to create a table name that already exists, or `ALTER TABLE ... RENAME TO ...` targets an existing table name. |
 | `CADB0016` | `IndexDoesntExist` | Reserved for index lookups or DDL against an index that does not exist. It is defined but not commonly thrown by the current user-facing path. |
+| `CADB0018` | `DatabaseNameReserved` | `CREATE DATABASE` or `RENAME DATABASE` uses a reserved name such as `_system` or `information_schema`. |
+| `CADB0019` | `DatabaseCreationIncomplete` | Standalone mode found a `creating.lock` sentinel without a completed database directory, usually after a crash during database creation. Drop and recreate the database. |
 | `CADB0300` | `DuplicateUniqueKeyValue` | An insert, update, or index backfill would violate a unique index or unique key. |
 | `CADB0301` | `NotNullViolation` | An insert or update tries to store `NULL` into a `NOT NULL` column. |
-| `CADB0400` | `InvalidInput` | The request shape is invalid: missing names, invalid DDL/DML parameters, malformed query structure, unsupported function arguments, invalid casts, duplicate aliases, invalid `GROUP BY` / `HAVING` / `DISTINCT` combinations, and similar user mistakes. |
+| `CADB0302` | `ValueTooLong` | An insert, update, or cast tries to store a `STRING` or `BYTES` value longer than the column's configured or default maximum length. |
+| `CADB0400` | `InvalidInput` | The request shape is invalid: missing names, invalid DDL/DML parameters, malformed query structure, unsupported function arguments, invalid casts, duplicate aliases, invalid index rename inputs, invalid `GROUP BY` / `HAVING` / `DISTINCT` combinations, and similar user mistakes. |
 | `CADB0401` | `UnknownType` | CamusDB is asked to encode, decode, cast, or evaluate a type it does not understand in that context. |
 | `CADB0402` | `DuplicatePrimaryKey` | Reserved for duplicate primary-key violations. The current storage path usually reports uniqueness failures as `CADB0300`. |
-| `CADB0403` | `DuplicateColumn` | A `CREATE TABLE` or `ALTER TABLE` introduces the same column name more than once. |
-| `CADB0404` | `UnknownColumn` | A statement references a column name that is not present or not currently visible in the schema state. |
+| `CADB0403` | `DuplicateColumn` | A `CREATE TABLE` or `ALTER TABLE` introduces the same column name more than once, or a column rename targets an existing column name. |
+| `CADB0404` | `UnknownColumn` | A statement references or renames a column name that is not present or not currently visible in the schema state. |
 | `CADB0405` | `UnknownKey` | Query planning or scanning expected a known row or index key shape but received a key it could not map correctly. This is uncommon for ordinary SQL and usually points to an internal query/storage mismatch. |
 | `CADB0406` | `SqlSyntaxError` | The SQL parser cannot parse the statement text. |
 | `CADB0407` | `InvalidAstStmt` | The parser succeeded, but the resulting AST shape is invalid, unsupported, or semantically unusable for the requested executor path. |
@@ -52,7 +55,7 @@ unexpected internal state, or storage-layer inconsistencies.
 | `CADB0503` | `SchemaCatchingUp` | The node is more than one schema version behind the committed schema head for that database, so it temporarily rejects reads and DML until schema apply catches up. Retry on another node or retry later. |
 | `CADB0504` | `TransactionMustRetry` | The commit path exhausted internal retries after Kahuna kept returning `MustRetry`, usually during routing or leader-transition instability. Retry the whole transaction from `BEGIN`. |
 | `CADB0505` | `TransactionLifetimeExceeded` | A serializable read-write transaction stayed open longer than the configured maximum lifetime, currently one hour by default. CamusDB aborts it explicitly instead of letting a runaway transaction continue forever. Roll it back and retry from `BEGIN`. |
-| `CADB0600` | `InvalidConfig` | Startup configuration is invalid: wrong mode, invalid port, invalid schema-ack settings, malformed peer lists, invalid parser-cache values, and similar config errors. |
+| `CADB0600` | `InvalidConfig` | Startup configuration is invalid: wrong mode, invalid listener or Raft port, malformed peer lists, invalid schema-ack settings, invalid transaction/locking settings, invalid parser-cache values, or unsupported `kahuna` options. |
 
 ## Corruption And Internal-State Errors
 
@@ -61,7 +64,7 @@ unexpected engine state rather than a normal application mistake.
 
 | Code | Name | When it is generated |
 | --- | --- | --- |
-| `CADB0014` | `SystemSpaceCorrupt` | CamusDB cannot decode or trust internal metadata, row payloads, schema blobs, index metadata, or other persisted system structures. |
+| `CADB0014` | `SystemSpaceCorrupt` | CamusDB cannot decode or trust internal metadata, row payloads, schema blobs, index metadata, or other persisted system structures. It can also indicate a missing or incomplete standalone database id directory without a recoverable create sentinel. |
 | `CADB0015` | `TableCorrupt` | Reserved for table-level corruption detection. It is defined in the core list but is not commonly surfaced by the current code path. |
 | `CADB0017` | `InvalidIndexLayout` | Reserved for invalid persisted index layout or index metadata shape. It is defined but not commonly surfaced by the current runtime path. |
 | `CADB00297` | `InvalidPageOffset` | Reserved for invalid low-level page offsets in storage structures. Not commonly surfaced by the current KV-backed runtime path. |
@@ -81,11 +84,15 @@ These codes are usually retryable:
 
 These codes are usually not retryable without changing the request:
 
+- `CADB0010` `DatabaseDoesntExist`
+- `CADB0012` `DatabaseAlreadyExists`
+- `CADB0018` `DatabaseNameReserved`
 - `CADB0400` `InvalidInput`
 - `CADB0404` `UnknownColumn`
 - `CADB0406` `SqlSyntaxError`
 - `CADB0300` `DuplicateUniqueKeyValue`
 - `CADB0301` `NotNullViolation`
+- `CADB0302` `ValueTooLong`
 
 These codes usually need operator investigation rather than blind retries:
 

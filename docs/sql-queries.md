@@ -1,0 +1,116 @@
+---
+sidebar_position: 2.4
+---
+
+# Querying Data
+
+Use `SELECT` for projections, filters, grouping, ordering, and pagination.
+
+## Select Lists
+
+Select explicit columns, all columns, qualified columns, expressions, aliases,
+or aggregate expressions:
+
+```camussql
+SELECT id, name FROM robots;
+SELECT * FROM robots;
+SELECT r.id, r.name FROM robots r;
+SELECT year + 100 AS display_year FROM robots;
+SELECT SUM(year) AS total_year FROM robots;
+SELECT DISTINCT kind FROM robots ORDER BY kind;
+```
+
+Supported aggregate functions are:
+
+- `COUNT(*)` and `COUNT(column)`
+- `SUM(column)`
+- `AVG(column)`
+- `MIN(column)`
+- `MAX(column)`
+
+## DISTINCT
+
+```camussql
+SELECT DISTINCT kind FROM robots ORDER BY kind;
+SELECT DISTINCT kind, year FROM robots ORDER BY kind, year;
+```
+
+Current limits:
+
+- `COUNT(DISTINCT column)` is not supported.
+- `SELECT DISTINCT` cannot be combined with `GROUP BY`.
+- `SELECT DISTINCT` cannot wrap aggregate projections such as
+  `SELECT DISTINCT COUNT(*) ...`.
+
+## Filters
+
+```camussql
+SELECT id, name
+FROM robots
+WHERE year >= 1970 AND name ILIKE "r%";
+
+SELECT *
+FROM robots
+WHERE year IS NULL OR name LIKE "%D2";
+
+SELECT year
+FROM robots
+WHERE year BETWEEN 2001 AND 2004;
+```
+
+Supported filter operators include `=`, `!=`, `<`, `>`, `<=`, `>=`, `AND`,
+`OR`, `LIKE`, `ILIKE`, `BETWEEN ... AND ...`, `IS NULL`, `IS NOT NULL`,
+`IN (...)`, `NOT IN (...)`, `IN (SELECT ...)`, `NOT IN (SELECT ...)`, and
+`EXISTS (SELECT ...)`.
+
+## Subquery Predicates
+
+```camussql
+SELECT email
+FROM app_users
+WHERE id IN (SELECT user_id FROM posts WHERE published = true);
+
+SELECT id
+FROM robots
+WHERE id NOT IN (SELECT robots_id FROM blocked_robots);
+```
+
+## Grouping
+
+```camussql
+SELECT role, COUNT(*) AS cnt
+FROM app_users
+GROUP BY role
+HAVING cnt > 1
+ORDER BY cnt, role;
+```
+
+Non-aggregate projections must appear in `GROUP BY`. `HAVING` filters grouped
+or aggregate results after aggregation and can reference aggregate aliases,
+aggregate expressions, or grouped keys.
+
+## Ordering And Pagination
+
+```camussql
+SELECT id, name, year
+FROM robots
+WHERE year >= 1970
+ORDER BY year DESC, name ASC
+LIMIT 25 OFFSET 50;
+```
+
+## Table Hints
+
+Force a specific index when reading:
+
+```camussql
+SELECT id, name
+FROM robots@{FORCE_INDEX=robots_year_idx}
+WHERE year >= 1980;
+```
+
+## Advanced Queries
+
+See [Query Features](/docs/query-features) for joins, comma joins, scalar
+subqueries, `IN`/`NOT IN` subqueries, `EXISTS`, derived tables, and planner
+notes.

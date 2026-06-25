@@ -56,7 +56,10 @@ function HomepageHeader() {
           ))}
         </div>
         <div className={styles.heroSnippet}>
-          <CodeBlock language="camussql">{`CREATE TABLE orders (id OID PRIMARY KEY, sku STRING, qty INT64);
+          <CodeBlock language="camussql">{`CREATE DATABASE IF NOT EXISTS shop;
+use shop;
+
+CREATE TABLE orders (id OID PRIMARY KEY, sku STRING, qty INT64);
 
 BEGIN;
   UPDATE stock SET qty = qty - 1 WHERE sku = "A-100";

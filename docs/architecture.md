@@ -110,6 +110,11 @@ The catalog stores database, table, column, index, and constraint descriptors.
 Rows include a schema version so CamusDB can decode stored values against the
 schema layout that created them.
 
+Databases are registered explicitly before use. Each database name resolves to
+an immutable internal id; storage keys and standalone data directories use that
+id rather than the display name. `RENAME DATABASE` updates the registry binding
+without moving row, index, schema, or statistics data.
+
 Schema metadata is persisted through the same key/value storage layer as user
 data. In cluster mode, schema changes are replicated and recovered through the
 distributed storage path, so catalog state follows the same durability model as

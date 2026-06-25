@@ -100,6 +100,10 @@ const config = {
                 to: '/docs/why-camusdb',
               },
               {
+                label: 'Databases',
+                to: '/docs/databases',
+              },
+              {
                 label: 'camus-cli',
                 to: '/docs/camus-cli',
               },

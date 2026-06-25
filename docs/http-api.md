@@ -35,16 +35,38 @@ is generated.
 Rows, filters, inserts, updates, defaults, and SQL parameters use `ColumnValue`
 objects:
 
-`ColumnType` is serialized as its numeric enum value: `0` null, `1` id, `2`
-int64, `3` string, `4` bool, and `5` float64.
+`ColumnType` is serialized as its numeric enum value:
+
+| Value | Type |
+| --- | --- |
+| `0` | null |
+| `1` | id / object id |
+| `2` | int64 |
+| `3` | string |
+| `4` | bool |
+| `5` | float64 |
+| `6` | float32 |
+| `7` | bytes |
+| `8` | date |
+| `9` | datetime |
+| `10` | array |
 
 ```json
 { "type": 3, "strValue": "R2-D2", "longValue": 0, "floatValue": 0, "boolValue": false }
 { "type": 2, "strValue": null, "longValue": 1977, "floatValue": 0, "boolValue": false }
 { "type": 5, "strValue": null, "longValue": 0, "floatValue": 12.5, "boolValue": false }
+{ "type": 6, "strValue": null, "longValue": 0, "floatValue": 12.5, "boolValue": false }
 { "type": 4, "strValue": null, "longValue": 0, "floatValue": 0, "boolValue": true }
 { "type": 1, "strValue": "507f1f77bcf86cd799439011", "longValue": 0, "floatValue": 0, "boolValue": false }
+{ "type": 7, "bytesValue": "3q2+7w==", "longValue": 0, "floatValue": 0, "boolValue": false }
+{ "type": 8, "longValue": 639039456000000000, "isoValue": "2026-03-15" }
+{ "type": 9, "longValue": 639039888000000000, "isoValue": "2026-03-15T12:00:00.0000000Z" }
+{ "type": 10, "arrayElementType": 2, "arrayValues": [{ "type": 2, "longValue": 42 }] }
 ```
+
+For bytes, SQL literals use `0x` hexadecimal while JSON uses base64 in
+`bytesValue`. For date and datetime values, responses include `isoValue`; the
+stored value is represented by UTC ticks in `longValue`.
 
 ## Health
 
@@ -61,6 +83,9 @@ Returns server status and UTC time.
 
 ## Databases
 
+Databases must be created explicitly before table DDL, DML, or queries can use
+their name.
+
 ### `POST /create-db`
 
 ```json
@@ -75,6 +100,22 @@ Returns server status and UTC time.
 ```json
 {
   "databaseName": "app"
+}
+```
+
+The direct endpoint drops an existing database. For idempotent drops, use SQL:
+
+```json
+{
+  "sql": "DROP DATABASE IF EXISTS app"
+}
+```
+
+Database rename is also exposed through SQL:
+
+```json
+{
+  "sql": "RENAME DATABASE app TO app_prod"
 }
 ```
 
@@ -97,7 +138,9 @@ Returns server status and UTC time.
   "ifNotExists": true,
   "columns": [
     { "name": "id", "type": "id", "notNull": true, "defaultValue": null },
-    { "name": "name", "type": "string", "notNull": true, "defaultValue": null },
+    { "name": "name", "type": "string", "maxLength": 64, "notNull": true, "defaultValue": null },
+    { "name": "payload", "type": "bytes", "notNull": false, "defaultValue": null },
+    { "name": "tags", "type": "array", "arrayElementType": "string", "notNull": false, "defaultValue": null },
     {
       "name": "year",
       "type": "int64",
@@ -114,8 +157,12 @@ Returns server status and UTC time.
 }
 ```
 
-The HTTP table-creation model accepts `string`, `int64`, `bool`, and `id`.
-`FLOAT64` is available in SQL.
+The HTTP table-creation model accepts `id`, `int64`, `float64`, `float32`,
+`bool`, `string`, `date`, `datetime`, `bytes`, and `array`. Use `maxLength`
+for `string` and `bytes` limits, and `arrayElementType` for array columns.
+
+See [Data Types](/docs/data-types) for the SQL names, aliases, literal formats,
+and JSON value rules.
 
 ## SQL Execution
 
@@ -136,6 +183,15 @@ For schema-changing SQL:
 {
   "databaseName": "app",
   "sql": "CREATE TABLE IF NOT EXISTS robots (id OID PRIMARY KEY NOT NULL, name STRING NOT NULL, year INT64)",
+  "parameters": null
+}
+```
+
+Server-level database statements can omit `databaseName`:
+
+```json
+{
+  "sql": "CREATE DATABASE IF NOT EXISTS app",
   "parameters": null
 }
 ```
