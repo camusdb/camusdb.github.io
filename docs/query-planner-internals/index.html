@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Query Planner Internals | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/query-planner-internals/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Query Planner Internals | CamusDB"><meta data-rh="true" name="description" content="This page is the internal companion to the user-facing"><meta data-rh="true" property="og:description" content="This page is the internal companion to the user-facing"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/query-planner-internals/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planner-internals/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planner-internals/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Query Planner Internals","item":"https://camusdb.github.io/docs/query-planner-internals"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.ab2d20e0.css">
-<script src="/assets/js/runtime~main.33da5b50.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.b9e04f9a.js" defer="defer"></script>
 <script src="/assets/js/main.c6fbb899.js" defer="defer"></script>
 </head>
 <body>
@@ -26,11 +26,12 @@ declarative SQL query into a concrete execution plan:</p>
 <li class="">Which scan to use.</li>
 <li class="">Which predicates can be absorbed into scan bounds.</li>
 <li class="">Whether a sort can be skipped.</li>
-<li class="">How joins should probe the right side.</li>
+<li class="">Which join algorithm should be used.</li>
 <li class="">Where aggregation, <code>HAVING</code>, projection, <code>DISTINCT</code>, and limit stages belong.</li>
 </ul>
-<p>CamusDB is still primarily heuristic-driven. A small cost model exists, but it
-currently annotates plans and influences only a narrow scan-choice decision.</p>
+<p>CamusDB is still primarily heuristic-driven. A small cost model exists; it
+annotates plans, influences a narrow scan-choice decision, and helps choose
+between indexed nested-loop, hash, and merge join algorithms.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="pipeline">Pipeline<a href="#pipeline" class="hash-link" aria-label="Direct link to Pipeline" title="Direct link to Pipeline" translate="no">​</a></h2>
 <p>Every <code>SELECT</code> follows this high-level pipeline:</p>
 <ol>
@@ -153,16 +154,31 @@ the scan so the KV read can stop early.</p>
 <li class="">Optional join-order reordering.</li>
 <li class="">Predicate pushdown for single-source predicates.</li>
 <li class="">Separation of post-join predicates from scan-local predicates.</li>
-<li class="">Building either <code>NestedLoopJoinNode</code> or <code>IndexNestedLoopJoinNode</code>.</li>
+<li class="">Building <code>NestedLoopJoinNode</code>, <code>IndexNestedLoopJoinNode</code>, <code>HashJoinNode</code>, or
+<code>MergeJoinNode</code>.</li>
 <li class="">Building <code>SemiJoinNode</code> variants for eligible indexed <code>IN</code> / <code>NOT IN</code>
 subqueries.</li>
 <li class="">Representing derived tables as <code>DerivedTableScanNode</code>.</li>
 </ul>
-<p>If the right-side join key has an index, CamusDB can use indexed join probing
-instead of scanning the full right side repeatedly.</p>
+<p>For inner equi-joins, the planner extracts join-key pairs even when no index is
+available. That enables hash and merge joins in addition to indexed nested-loop
+joins.</p>
+<p>The main selection rules are:</p>
+<ul>
+<li class="">If the right-side join key has a good index and repeated probes are estimated
+cheaper, use <code>IndexNestedLoopJoinNode</code>.</li>
+<li class="">If both sides can be read in join-key order and the outer side is large
+enough, use <code>MergeJoinNode</code>.</li>
+<li class="">If an equi-join is cheaper as a build/probe plan, or the right side has no
+usable join-key index, use <code>HashJoinNode</code>.</li>
+<li class="">If the join is not eligible for those shapes, use <code>NestedLoopJoinNode</code>.</li>
+</ul>
+<p>Hash join builds an in-memory hash table from the estimated smaller side and
+probes it with the other side. Merge join streams ordered inputs and buffers
+only the current equal-key run when both sides are ordered.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="physical-plan-nodes">Physical Plan Nodes<a href="#physical-plan-nodes" class="hash-link" aria-label="Direct link to Physical Plan Nodes" title="Direct link to Physical Plan Nodes" translate="no">​</a></h2>
 <p>Common node types include:</p>
-<table><thead><tr><th>Node</th><th>Meaning</th></tr></thead><tbody><tr><td><code>TableScanNode</code></td><td>Full table or forced index scan.</td></tr><tr><td><code>IndexLookupNode</code></td><td>Unique-index point lookup.</td></tr><tr><td><code>IndexRangeScanNode</code></td><td>Bounded or unbounded index range.</td></tr><tr><td><code>FilterNode</code></td><td>Residual predicate.</td></tr><tr><td><code>AggregateNode</code></td><td>Aggregate/grouping stage.</td></tr><tr><td><code>HavingFilterNode</code></td><td>Post-aggregate filter.</td></tr><tr><td><code>SortNode</code></td><td>In-memory sort.</td></tr><tr><td><code>ProjectNode</code></td><td>Projection and alias shaping.</td></tr><tr><td><code>DistinctNode</code></td><td>Duplicate elimination.</td></tr><tr><td><code>LimitNode</code></td><td>Limit/offset stage.</td></tr><tr><td><code>SemiJoinNode</code></td><td>Indexed <code>IN</code> / <code>NOT IN</code> subquery rewrite.</td></tr><tr><td><code>NestedLoopJoinNode</code></td><td>Join without indexed right-side probe.</td></tr><tr><td><code>IndexNestedLoopJoinNode</code></td><td>Join with indexed right-side probe.</td></tr><tr><td><code>DerivedTableScanNode</code></td><td>Scan of a derived table source.</td></tr></tbody></table>
+<table><thead><tr><th>Node</th><th>Meaning</th></tr></thead><tbody><tr><td><code>TableScanNode</code></td><td>Full table or forced index scan.</td></tr><tr><td><code>IndexLookupNode</code></td><td>Unique-index point lookup.</td></tr><tr><td><code>IndexRangeScanNode</code></td><td>Bounded or unbounded index range.</td></tr><tr><td><code>FilterNode</code></td><td>Residual predicate.</td></tr><tr><td><code>AggregateNode</code></td><td>Aggregate/grouping stage.</td></tr><tr><td><code>HavingFilterNode</code></td><td>Post-aggregate filter.</td></tr><tr><td><code>SortNode</code></td><td>In-memory sort.</td></tr><tr><td><code>ProjectNode</code></td><td>Projection and alias shaping.</td></tr><tr><td><code>DistinctNode</code></td><td>Duplicate elimination.</td></tr><tr><td><code>LimitNode</code></td><td>Limit/offset stage.</td></tr><tr><td><code>SemiJoinNode</code></td><td>Indexed <code>IN</code> / <code>NOT IN</code> subquery rewrite.</td></tr><tr><td><code>NestedLoopJoinNode</code></td><td>Join without indexed right-side probe.</td></tr><tr><td><code>IndexNestedLoopJoinNode</code></td><td>Join with indexed right-side probe.</td></tr><tr><td><code>HashJoinNode</code></td><td>Inner equi-join using an in-memory hash table.</td></tr><tr><td><code>MergeJoinNode</code></td><td>Inner equi-join over ordered inputs.</td></tr><tr><td><code>DerivedTableScanNode</code></td><td>Scan of a derived table source.</td></tr></tbody></table>
 <p><code>QueryPlan</code> also carries a flattened <code>Steps</code> view for the linear executor. The
 tree and linear list reference the same node instances.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="execution">Execution<a href="#execution" class="hash-link" aria-label="Direct link to Execution" title="Direct link to Execution" translate="no">​</a></h2>
@@ -187,6 +203,13 @@ inline filters, and honor scan row limits.</p>
 <li class="">Derived tables materialize the inner query once.</li>
 <li class="">Nested loop joins merge left and right rows and evaluate <code>ON</code>.</li>
 <li class="">Indexed nested loops probe the right-side index per outer row.</li>
+<li class="">Hash joins materialize the build side into an in-memory hash table keyed by
+the equi-join columns, then stream and probe the other side. If the build
+side exceeds <code>HashJoinMaxBuildRows</code>, execution falls back to nested-loop
+behavior for that query.</li>
+<li class="">Merge joins advance ordered left and right inputs together. When both sides
+are already ordered by the join key, they stream; otherwise the unordered
+side may be materialized and sorted first.</li>
 </ul>
 <p>The merged result then passes through the shared post-scan pipeline.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="explain-internals">EXPLAIN Internals<a href="#explain-internals" class="hash-link" aria-label="Direct link to EXPLAIN Internals" title="Direct link to EXPLAIN Internals" translate="no">​</a></h2>
@@ -222,7 +245,8 @@ annotations are exposed through <code>EXPLAIN</code>, and the planner can use th
 small set of decisions, especially choosing a full scan over an unselective
 index range and comparing <code>IN (...)</code> probe plans against wider scans.</p>
 <p>This is still intentionally narrow. CamusDB does not yet use a broad
-cost-based search across all join orders and operator alternatives.</p>
+cost-based search across all join orders and operator alternatives, but join
+algorithm selection can compare indexed nested-loop, hash, and merge shapes.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="optimizations-present-today">Optimizations Present Today<a href="#optimizations-present-today" class="hash-link" aria-label="Direct link to Optimizations Present Today" title="Direct link to Optimizations Present Today" translate="no">​</a></h2>
 <p>The planner already includes several concrete passes:</p>
 <ul>
@@ -233,6 +257,7 @@ cost-based search across all join orders and operator alternatives.</p>
 <li class="">Join predicate pushdown.</li>
 <li class="">Heuristic join reordering.</li>
 <li class="">Small cost-based veto for low-selectivity index range scans.</li>
+<li class="">Cost-assisted join algorithm selection for eligible equi-joins.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="cost-model-status">Cost Model Status<a href="#cost-model-status" class="hash-link" aria-label="Direct link to Cost Model Status" title="Direct link to Cost Model Status" translate="no">​</a></h2>
 <p>The cost model is intentionally narrow today.</p>
@@ -240,6 +265,7 @@ cost-based search across all join orders and operator alternatives.</p>
 <ol>
 <li class="">Annotates plan nodes with estimated cardinality and cost.</li>
 <li class="">Replaces some low-value index range scans with full table scans.</li>
+<li class="">Helps choose between indexed nested-loop, hash, and merge joins.</li>
 </ol>
 <p>What it does not yet do:</p>
 <ul>
