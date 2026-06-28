@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Storage | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/storage/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Storage | CamusDB"><meta data-rh="true" name="description" content="CamusDB stores relational data on top of a distributed key/value layer provided"><meta data-rh="true" property="og:description" content="CamusDB stores relational data on top of a distributed key/value layer provided"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/storage/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/storage/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/storage/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Storage","item":"https://camusdb.github.io/docs/storage"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.ab2d20e0.css">
-<script src="/assets/js/runtime~main.13a1a721.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.bc45e935.js" defer="defer"></script>
 <script src="/assets/js/main.55c6e1e6.js" defer="defer"></script>
 </head>
 <body>
@@ -66,30 +66,51 @@ write-ahead-log backend. <code>wal_sync_writes: true</code> keeps acknowledged d
 writes on the safer path; disabling it is useful only for benchmarks or tests
 where crash durability is not being evaluated.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="database-create-and-open">Database Create And Open<a href="#database-create-and-open" class="hash-link" aria-label="Direct link to Database Create And Open" title="Direct link to Database Create And Open" translate="no">​</a></h2>
-<p>Databases must be created explicitly before use. At creation time, CamusDB
-allocates a stable opaque database id and registers the name-to-id mapping.</p>
-<p>When a database is opened in standalone mode, CamusDB uses the id-based storage
-directories created for that database:</p>
-<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">{data_dir}/{database_id}/kv</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">{data_dir}/{database_id}/wal</span><br></div></code></pre></div></div>
-<p>It then starts an embedded <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> node, waits for
-the local partition leader, flushes recovered WAL state, and loads schema
-metadata from KV storage.</p>
-<p>The human-readable database name is not used as the storage directory. Renaming
-a database updates the registry binding but leaves the storage id, directories,
-table ids, row keys, and index keys unchanged.</p>
-<p>In cluster mode, CamusDB uses a process-level shared
-<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> node. The cluster node is started during
-server startup, then all opened databases share that distributed storage layer.
-WAL replay and flush happen at node startup so recovered committed entries are
-available before database metadata is used.</p>
+<p>Databases must be created explicitly before use. <code>CREATE DATABASE</code> allocates a
+stable opaque database id and stores the name-to-id mapping in CamusDB&#x27;s
+registry. <code>CREATE DATABASE IF NOT EXISTS</code> returns the existing database when the
+name is already registered.</p>
+<p>Both standalone and cluster modes use a single process-level
+<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> node. Creating a database does not create
+a separate storage engine, RocksDB instance, WAL, or per-database directory.
+Instead, every database is isolated inside the shared KV space by its database
+id.</p>
+<p>Opening a database is a metadata operation:</p>
+<ol>
+<li class="">CamusDB resolves the requested name through the registry.</li>
+<li class="">It loads the database&#x27;s schema metadata from the shared KV store.</li>
+<li class="">It registers schema-replication callbacks so future DDL changes are applied
+after Raft commit.</li>
+<li class="">Tables are opened lazily when statements first touch them.</li>
+</ol>
+<p>Startup recovery happens at the shared storage-node level. <a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a>
+restores committed WAL entries, <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> makes the
+materialized KV state available, and then CamusDB opens database metadata from
+that recovered state.</p>
+<p>Renaming a database updates only the registry entry. The database id is
+preserved, so existing table ids, row keys, index keys, statistics keys, and
+schema metadata remain in the same keyspaces. Dropping a database unregisters
+the name, drains in-flight operations on the descriptor, and purges the
+database-id keyspaces from the shared KV store. Raft schema-log history is
+append-only and is not rewritten by a drop.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="key-layout">Key Layout<a href="#key-layout" class="hash-link" aria-label="Direct link to Key Layout" title="Direct link to Key Layout" translate="no">​</a></h2>
-<p>Rows and indexes are stored under table-specific prefixes. The table prefix is
-important because it lets the underlying routing layer consistently place table
-data on the expected partition.</p>
-<table><thead><tr><th>Object</th><th>Key shape</th><th>Value</th></tr></thead><tbody><tr><td>Row</td><td><code>{tableId}:r/{rowId}</code></td><td>Serialized row bytes.</td></tr><tr><td>Unique index entry</td><td><code>{tableId}:i:{indexId}/{encodedKey}</code></td><td>Row id as UTF-8 text.</td></tr><tr><td>Non-unique index entry</td><td><code>{tableId}:i:{indexId}/{encodedKey}{rowId}</code></td><td>Row id as UTF-8 text.</td></tr><tr><td>Schema metadata</td><td><code>{databaseId}/meta/schema</code></td><td>Serialized table schema map.</td></tr><tr><td>System metadata</td><td><code>{databaseId}/meta/system</code></td><td>Serialized system schema.</td></tr></tbody></table>
+<p>Rows, indexes, schema metadata, statistics, and registry records are stored as
+key/value entries in the shared <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> keyspace.
+User data keys include the opaque database id first, so two databases can use
+the same table names without sharing storage keys.</p>
+<table><thead><tr><th>Object</th><th>Key shape</th><th>Value</th></tr></thead><tbody><tr><td>Database registry entry</td><td><code>_system/dbregistry/db:{databaseName}</code></td><td>Database id, normalized name, and creation time.</td></tr><tr><td>Database id sequence</td><td><code>_system/dbregistry/seq</code></td><td>Monotonic sequence used to allocate database ids.</td></tr><tr><td>System metadata</td><td><code>{databaseId}/meta/system</code></td><td>Internal database metadata.</td></tr><tr><td>Schema version</td><td><code>{databaseId}/meta/version</code></td><td>Current applied schema version.</td></tr><tr><td>Table schema</td><td><code>{databaseId}/meta/table:{tableId}</code></td><td>Serialized schema for one table.</td></tr><tr><td>Table schema history</td><td><code>{databaseId}/meta/history:{tableId}:{version}</code></td><td>Historical table schema version used to decode older rows.</td></tr><tr><td>DDL coordinator state</td><td><code>{databaseId}/meta/coordinator:{tableId}~{element}</code></td><td>State for multi-step schema changes such as index backfill.</td></tr><tr><td>Table statistics</td><td><code>{databaseId}:stats:{tableId}</code></td><td>Persisted planner statistics for the table.</td></tr><tr><td>Row</td><td><code>{databaseId}:{tableId}:r/{rowId}</code></td><td>Serialized row bytes.</td></tr><tr><td>Unique index entry</td><td><code>{databaseId}:{tableId}:i:{indexName}/{encodedKey}</code></td><td>Row id as UTF-8 text.</td></tr><tr><td>Non-unique index entry</td><td><code>{databaseId}:{tableId}:i:{indexName}/{encodedKey}{rowId}</code></td><td>Row id as UTF-8 text.</td></tr></tbody></table>
+<p>The slash placement is intentional. Row keys share the bucket
+<code>{databaseId}:{tableId}:r</code>, and index keys share the bucket
+<code>{databaseId}:{tableId}:i:{indexName}</code>. That keeps scans, writes, and range
+locks aligned on the same routed keyspace. Metadata keys use the single
+<code>{databaseId}/meta</code> bucket so database metadata can be loaded and purged as a
+coherent group.</p>
 <p>Non-unique index keys append the row id directly after the encoded key. The row
 id has a fixed 24-character representation, so CamusDB can split it back out
 while preserving sortable index keys.</p>
+<p>Indexes use the schema-visible index name in the storage keyspace. Internally,
+tables and columns also have stable ids, so renaming tables or columns does not
+require rewriting existing row or index data.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="row-values">Row Values<a href="#row-values" class="hash-link" aria-label="Direct link to Row Values" title="Direct link to Row Values" translate="no">​</a></h2>
 <p>Each row is stored as a compact binary value. The row payload includes:</p>
 <ul>
@@ -133,16 +154,17 @@ transactions by default, plus committed MVCC reads, conflict detection, and
 tracked write intents for atomic commit coordination.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="scans">Scans<a href="#scans" class="hash-link" aria-label="Direct link to Scans" title="Direct link to Scans" translate="no">​</a></h2>
 <p>Full table scans read the row bucket prefix:</p>
-<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">{tableId}:r</span><br></div></code></pre></div></div>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">{databaseId}:{tableId}:r</span><br></div></code></pre></div></div>
 <p>Index scans read the index bucket prefix:</p>
-<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">{tableId}:i:{indexId}</span><br></div></code></pre></div></div>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">{databaseId}:{tableId}:i:{indexName}</span><br></div></code></pre></div></div>
 <p>Because row ids and encoded index keys preserve sort order, CamusDB can stream
 rows or index entries from KV storage in deterministic order before applying
 query filtering, projection, sorting, limits, and aggregation.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="standalone-vs-cluster-mode">Standalone vs Cluster Mode<a href="#standalone-vs-cluster-mode" class="hash-link" aria-label="Direct link to Standalone vs Cluster Mode" title="Direct link to Standalone vs Cluster Mode" translate="no">​</a></h2>
-<p>Standalone mode creates a local embedded <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a>
-node for each opened database. This is the simplest setup for tutorials and
-local development.</p>
+<p>Standalone mode creates one embedded <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> node
+for the CamusDB process. All databases share that local node and are separated
+by database-id key prefixes. This is the simplest setup for tutorials and local
+development.</p>
 <p>Cluster mode creates one process-level shared storage node and wires it to real
 inter-node communication and static discovery. Data is partitioned across Raft
 partitions, and each partition elects its own leader through

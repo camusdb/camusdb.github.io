@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Databases | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/databases/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Databases | CamusDB"><meta data-rh="true" name="description" content="Databases in CamusDB must be created explicitly before use. Opening, querying,"><meta data-rh="true" property="og:description" content="Databases in CamusDB must be created explicitly before use. Opening, querying,"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/databases/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/databases/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/databases/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Databases","item":"https://camusdb.github.io/docs/databases"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.ab2d20e0.css">
-<script src="/assets/js/runtime~main.13a1a721.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.bc45e935.js" defer="defer"></script>
 <script src="/assets/js/main.55c6e1e6.js" defer="defer"></script>
 </head>
 <body>
@@ -29,16 +29,16 @@ open database context.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="drop-a-database">Drop A Database<a href="#drop-a-database" class="hash-link" aria-label="Direct link to Drop A Database" title="Direct link to Drop A Database" translate="no">​</a></h2>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">DROP</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">DATABASE</span><span class="token plain"> app</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">DROP</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">DATABASE</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">IF</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">EXISTS</span><span class="token plain"> app</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
 <p><code>DROP DATABASE</code> removes the registry entry for the database name.</p>
-<p>In standalone mode, CamusDB also disposes the per-database embedded storage node
-and deletes that database&#x27;s id-based directory. In cluster mode, CamusDB purges
-the database&#x27;s metadata, table row, index, and statistics keyspaces from the
-shared distributed storage layer.</p>
+<p>CamusDB then drains in-flight operations for the database descriptor and purges
+that database&#x27;s metadata, table row, index, and statistics keyspaces from the
+shared storage layer. Both standalone and cluster modes use a shared storage
+node; a drop does not remove a separate per-database RocksDB or WAL directory.</p>
 <p><code>DROP DATABASE IF EXISTS</code> is a no-op when the database name is absent.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="rename-a-database">Rename A Database<a href="#rename-a-database" class="hash-link" aria-label="Direct link to Rename A Database" title="Direct link to Rename A Database" translate="no">​</a></h2>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">RENAME</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">DATABASE</span><span class="token plain"> app </span><span class="token keyword" style="color:#00009f">TO</span><span class="token plain"> app_prod</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
 <p>Renaming changes only the registry binding from name to internal storage id.
-The storage id, table ids, row keys, index keys, and storage directory remain
-the same.</p>
+The storage id, table ids, row keys, index keys, and statistics keys remain the
+same.</p>
 <p>Important behavior:</p>
 <ul>
 <li class="">opening the old name fails after the rename completes</li>
@@ -54,10 +54,10 @@ allocated from a persistent monotonic sequence, encoded as a short base62
 string, and is not reused after <code>DROP DATABASE</code>.</p>
 <p>The id is an internal storage identity, not a SQL value and not an ObjectId.
 Applications should address databases by name.</p>
-<p>In standalone mode, the database directory is:</p>
-<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">{data_dir}/{database_id}/</span><br></div></code></pre></div></div>
 <p>The human-readable name is stored in the database registry, but the registry
-entry points at the stable storage id.</p>
+entry points at the stable storage id. Database data lives in the shared
+<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> keyspace under keys that begin with that
+database id.</p>
 <p>Using ids instead of names means a rename does not move data and does not
 rewrite table or index keys.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="reserved-names">Reserved Names<a href="#reserved-names" class="hash-link" aria-label="Direct link to Reserved Names" title="Direct link to Reserved Names" translate="no">​</a></h2>
