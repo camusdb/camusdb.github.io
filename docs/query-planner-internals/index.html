@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Query Planner Internals | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/query-planner-internals/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Query Planner Internals | CamusDB"><meta data-rh="true" name="description" content="This page is the internal companion to the user-facing"><meta data-rh="true" property="og:description" content="This page is the internal companion to the user-facing"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/query-planner-internals/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planner-internals/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planner-internals/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Query Planner Internals","item":"https://camusdb.github.io/docs/query-planner-internals"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.ab2d20e0.css">
-<script src="/assets/js/runtime~main.bc45e935.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.06e53076.js" defer="defer"></script>
 <script src="/assets/js/main.55c6e1e6.js" defer="defer"></script>
 </head>
 <body>
@@ -29,9 +29,20 @@ declarative SQL query into a concrete execution plan:</p>
 <li class="">Which join algorithm should be used.</li>
 <li class="">Where aggregation, <code>HAVING</code>, projection, <code>DISTINCT</code>, and limit stages belong.</li>
 </ul>
-<p>CamusDB is still primarily heuristic-driven. A small cost model exists; it
-annotates plans, influences a narrow scan-choice decision, and helps choose
-between indexed nested-loop, hash, and merge join algorithms.</p>
+<p>CamusDB has a rule-based planner plus a cost-based optimizer stack. The cost
+model annotates plans, drives some decisions unconditionally, and can take over
+broader access-path and join-order search when the corresponding config flags
+are enabled.</p>
+<p>The optimizer stack is:</p>
+<ol>
+<li class="">Table statistics from live DML and <code>ANALYZE</code>.</li>
+<li class="">Cardinality estimation from row counts, histograms, distinct counts, and
+min/max bounds.</li>
+<li class="">A weighted cost model for KV lookups, range entries, primary-row fetches,
+in-memory work, and network cost.</li>
+<li class="">Plan search for access paths and join order when the cost-based flags are
+enabled.</li>
+</ol>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="pipeline">Pipeline<a href="#pipeline" class="hash-link" aria-label="Direct link to Pipeline" title="Direct link to Pipeline" translate="no">​</a></h2>
 <p>Every <code>SELECT</code> follows this high-level pipeline:</p>
 <ol>
@@ -117,7 +128,8 @@ execution.</p>
 <li class="">Column-to-column comparisons.</li>
 <li class="">Residual conjuncts.</li>
 </ul>
-<p><code>IndexScanSelector</code> then scores usable indexes using heuristic rules such as:</p>
+<p><code>IndexScanSelector</code> can operate in two modes. The default mode scores usable
+indexes with heuristic rules such as:</p>
 <ul>
 <li class="">Unique full equality beats everything else.</li>
 <li class="">Non-unique equality and equality-prefix matches are strong candidates.</li>
@@ -125,6 +137,11 @@ execution.</p>
 <li class="">Matching <code>ORDER BY</code> prefixes can win even without a filtering predicate.</li>
 <li class="">Indexed <code>IN (...)</code> lists can compete with range scans and full scans.</li>
 </ul>
+<p>When <code>cost_based_access_path_enabled</code> is enabled and table statistics are
+available, the planner instead enumerates every viable scan candidate plus the
+full-scan baseline, estimates each candidate&#x27;s cost, and keeps the cheapest.
+<code>UPDATE</code> and <code>DELETE</code> locate scans keep the heuristic path to avoid widening
+exclusive lock ranges unexpectedly.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="2-filter-absorption">2. Filter absorption<a href="#2-filter-absorption" class="hash-link" aria-label="Direct link to 2. Filter absorption" title="Direct link to 2. Filter absorption" translate="no">​</a></h3>
 <p>Once scan bounds are chosen, comparisons already implied by the scan are
 removed from the runtime filter. The remaining predicate becomes the residual
@@ -132,7 +149,7 @@ execution filter.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="3-sort-elision">3. Sort elision<a href="#3-sort-elision" class="hash-link" aria-label="Direct link to 3. Sort elision" title="Direct link to 3. Sort elision" translate="no">​</a></h3>
 <p>If the chosen scan already produces rows in the requested order, the planner
 sets <code>OutputOrdering</code> and skips the explicit <code>SortNode</code>.</p>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="3b-distinct-strategy">3b. DISTINCT strategy<a href="#3b-distinct-strategy" class="hash-link" aria-label="Direct link to 3b. DISTINCT strategy" title="Direct link to 3b. DISTINCT strategy" translate="no">​</a></h3>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="3b-distinct-strategy">3b. DISTINCT strategy<a href="#3b-distinct-strategy" class="hash-link" aria-label="Direct link to 3b. DISTINCT strategy" title="Direct link to 3b. DISTINCT strategy" translate="no"> ​</a></h3>
 <p>For <code>SELECT DISTINCT</code>, the planner decides between:</p>
 <ul>
 <li class=""><code>DistinctNode</code> in streaming mode when the projected columns are simple
@@ -234,19 +251,33 @@ the query to populate counters such as:</p>
 </ul>
 <p><code>EXPLAIN (ANALYZE)</code> is currently limited to non-join queries.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="statistics-and-costing">Statistics And Costing<a href="#statistics-and-costing" class="hash-link" aria-label="Direct link to Statistics And Costing" title="Direct link to Statistics And Costing" translate="no">​</a></h2>
-<p><code>StatisticsManager</code> keeps lightweight advisory table statistics in Kahuna:</p>
+<p><code>StatisticsManager</code> keeps advisory table statistics in Kahuna:</p>
 <ul>
 <li class="">Row count per table.</li>
 <li class="">Per-index entry counts.</li>
 <li class="">Running min/max bounds for indexed columns.</li>
+<li class="">Equi-depth histograms built by <code>ANALYZE</code>.</li>
+<li class="">Distinct-value counts for columns and composite index prefixes built by
+<code>ANALYZE</code>.</li>
 </ul>
+<p><code>ANALYZE TABLE &lt;name&gt;</code> scans the table, or samples the configured number of
+rows for larger tables, then rebuilds histograms and distinct-value counts in a
+single pass. DML-maintained row counts, index counts, and min/max bounds remain
+advisory; missing statistics fall back to defaults instead of failing queries.</p>
 <p><code>CostEstimator</code> annotates plan nodes with estimated cardinality and cost. Those
-annotations are exposed through <code>EXPLAIN</code>, and the planner can use them for a
-small set of decisions, especially choosing a full scan over an unselective
-index range and comparing <code>IN (...)</code> probe plans against wider scans.</p>
-<p>This is still intentionally narrow. CamusDB does not yet use a broad
-cost-based search across all join orders and operator alternatives, but join
-algorithm selection can compare indexed nested-loop, hash, and merge shapes.</p>
+annotations are exposed through <code>EXPLAIN</code>, and the planner consumes them for:</p>
+<ul>
+<li class="">Broad index-range versus full-scan decisions.</li>
+<li class="">Indexed <code>IN (...)</code> seek plans versus wider scans.</li>
+<li class="">Join algorithm selection among indexed nested-loop, hash, and merge.</li>
+<li class="">Cost-based access-path enumeration when
+<code>cost_based_access_path_enabled</code> is on.</li>
+<li class="">Cost-based join-order enumeration when <code>cost_based_join_order_enabled</code> is on.</li>
+</ul>
+<p>The cost is a weighted sum of KV point lookups, range entries, row fetches
+after index hits, in-memory rows, and <code>NetworkFactor</code>. <code>NetworkFactor</code> is based
+on estimated remote rows, row width, and the configured cluster partition count;
+it is zero for single-node or unsharded plans.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="optimizations-present-today">Optimizations Present Today<a href="#optimizations-present-today" class="hash-link" aria-label="Direct link to Optimizations Present Today" title="Direct link to Optimizations Present Today" translate="no">​</a></h2>
 <p>The planner already includes several concrete passes:</p>
 <ul>
@@ -256,26 +287,27 @@ algorithm selection can compare indexed nested-loop, hash, and merge shapes.</p>
 <li class="">Filter absorption from scan bounds.</li>
 <li class="">Join predicate pushdown.</li>
 <li class="">Heuristic join reordering.</li>
-<li class="">Small cost-based veto for low-selectivity index range scans.</li>
+<li class="">Cost-based veto for low-selectivity index range scans.</li>
 <li class="">Cost-assisted join algorithm selection for eligible equi-joins.</li>
+<li class="">Cost-based access-path enumeration behind
+<code>cost_based_access_path_enabled</code>.</li>
+<li class="">Cost-based join-order enumeration behind <code>cost_based_join_order_enabled</code>.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="cost-model-status">Cost Model Status<a href="#cost-model-status" class="hash-link" aria-label="Direct link to Cost Model Status" title="Direct link to Cost Model Status" translate="no">​</a></h2>
-<p>The cost model is intentionally narrow today.</p>
-<p>It does two things:</p>
+<p>The cost model is implemented and used in layers:</p>
 <ol>
-<li class="">Annotates plan nodes with estimated cardinality and cost.</li>
-<li class="">Replaces some low-value index range scans with full table scans.</li>
-<li class="">Helps choose between indexed nested-loop, hash, and merge joins.</li>
+<li class="">Always-on: annotate plan nodes with estimated cardinality and cost.</li>
+<li class="">Always-on: replace low-value index range scans with full scans when the
+estimate crosses the breakeven point.</li>
+<li class="">Always-on: compare indexed nested-loop, hash, and merge join shapes for
+eligible equi-joins.</li>
+<li class="">Opt-in: enumerate and cost all viable table access paths.</li>
+<li class="">Opt-in: enumerate and cost connected left-deep inner-join orders.</li>
 </ol>
-<p>What it does not yet do:</p>
-<ul>
-<li class="">Full cost-based join ordering.</li>
-<li class="">Broad index-choice enumeration.</li>
-<li class="">Mature distributed execution costing.</li>
-<li class="">Reliable join estimates across the whole tree.</li>
-</ul>
-<p>So the correct mental model is still: heuristics choose most of the plan, and
-the cost model refines one part of scan selection.</p>
+<p>Current limitations are intentional boundaries around the search space, not the
+absence of a cost model. Join-order enumeration is left-deep, capped for very
+wide joins, and falls back for shapes it cannot safely reorder. The DP does not
+yet preserve multiple &quot;interesting order&quot; alternatives for the same table set.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="distributed-ready-metadata">Distributed-Ready Metadata<a href="#distributed-ready-metadata" class="hash-link" aria-label="Direct link to Distributed-Ready Metadata" title="Direct link to Distributed-Ready Metadata" translate="no">​</a></h2>
 <p>Even though execution is not yet a full distributed query engine, physical plan
 nodes carry metadata for future distributed planning:</p>
@@ -283,7 +315,7 @@ nodes carry metadata for future distributed planning:</p>
 <li class=""><code>OutputOrdering</code></li>
 <li class=""><code>EstimatedCardinality</code></li>
 <li class=""><code>Cost</code></li>
-<li class=""><code>PartitionLocality</code></li>
+<li class=""><code>DataDistribution</code></li>
 <li class=""><code>CanDecomposeToLocalPlusMerge</code></li>
 </ul>
 <p>This is why the planner can already talk about sort elision, local-vs-merge
@@ -294,9 +326,10 @@ executor yet.</p>
 <ul>
 <li class=""><code>EXPLAIN (ANALYZE)</code> for joins is missing.</li>
 <li class=""><code>EXPLAIN (LOGICAL)</code> is mostly cosmetic today.</li>
-<li class="">Join costs are still rough.</li>
 <li class="">Descending-order exploitation is limited.</li>
-<li class="">The planner is not yet a broad cost-based optimizer.</li>
+<li class="">Cost-based access-path and join-order search are opt-in.</li>
+<li class="">The join-order DP is left-deep and does not yet keep multiple interesting
+order/distribution alternatives per subset.</li>
 </ul>
 <p>These are the main boundaries for future planner work.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="related-pages">Related Pages<a href="#related-pages" class="hash-link" aria-label="Direct link to Related Pages" title="Direct link to Related Pages" translate="no">​</a></h2>
