@@ -23,6 +23,12 @@ CamusDB has two related persistence paths:
 | Raft WAL | [Kommander](https://kahunakv.github.io/kommander.github.io/) | Stores proposed, committed, rolled-back, and checkpointed Raft log entries per partition. |
 | KV persistence | [Kahuna](https://kahunakv.github.io/) | Stores the materialized key/value state produced by committed log entries. |
 
+The default persistent path uses RocksDB for both pieces: [Kommander](https://kahunakv.github.io/kommander.github.io/)
+stores partition WAL entries through its RocksDB WAL adapter, and
+[Kahuna](https://kahunakv.github.io/) stores materialized KV state through its
+RocksDB backend. SQLite is also available as an embedded durable backend when a
+deployment chooses it explicitly.
+
 The distinction matters. The Raft WAL is the source of recovery ordering: it
 knows which operations were committed and in what order. KV persistence is the
 current durable materialization of those committed operations. If KV persistence
@@ -62,25 +68,17 @@ accepted for that partition.
    queues the resulting key/value write.
 6. CamusDB flushes those queued writes before loading schema metadata.
 
-That last step is important for standalone databases. Databases are created
-explicitly, assigned an immutable database id, and opened from id-based storage
-paths:
+That last step is important because databases share the same storage node.
+Databases are created explicitly and assigned stable opaque database ids; their
+schema, row, index, and statistics entries are separated by database-id key
+prefixes in the shared KV space.
 
-```text
-{data_dir}/{database_id}/kv
-{data_dir}/{database_id}/wal
-```
-
-It starts the embedded [Kahuna](https://kahunakv.github.io/) node, waits for the
-local partition leader, then flushes recovered dirty writes before reading
-schema keys from storage. This keeps catalog recovery deterministic: schema,
-system metadata, row data, and index data are all read after WAL replay has
-settled into the KV backend.
-
-In cluster mode, the same idea applies at process level. CamusDB starts a
-shared [Kahuna](https://kahunakv.github.io/) node with a KV path and a WAL path
-under the configured `data_dir`, then partitions recover before they serve
-normal replicated work.
+In both standalone and cluster mode, CamusDB starts a shared
+[Kahuna](https://kahunakv.github.io/) node with a KV path and a WAL path under
+the configured `data_dir`. Partitions recover before normal work is served, and
+database metadata is loaded from the recovered KV state. This keeps catalog
+recovery deterministic: schema, system metadata, row data, and index data are
+all read after WAL replay has settled into the KV backend.
 
 ## Failure Behavior
 
@@ -121,6 +119,9 @@ serving through one primary storage process. CamusDB separates those concerns:
 - Raft partitions provide ordered, replicated commit history.
 - WAL restore rebuilds committed state after failures.
 - KV persistence stores the current materialized state for fast reads.
+- RocksDB provides mature local persistence for both KV data and the default
+  WAL adapter, so CamusDB does not implement its own storage engine from
+  scratch.
 - Checkpoints let the system keep recovery bounded over time.
 - Multi-active CamusDB nodes can accept client traffic while partition leaders
   still serialize writes safely.

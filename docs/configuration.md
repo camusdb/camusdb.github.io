@@ -67,6 +67,8 @@ The remaining YAML settings do not currently have command-line flags:
 | `lock_wait_deadline_ms` | `500` | Per-operation Serializable conflict wait cap. |
 | `key_range_sharding` | `false` | Opt tables and eligible indexes into Kahuna key-range routing. |
 | `stats_flush_interval_ms` | `5000` | Advisory table-statistics flush interval. |
+| `cost_based_access_path_enabled` | `false` | Enable cost-based selection among viable table/index access paths. |
+| `cost_based_join_order_enabled` | `false` | Enable cost-based left-deep join-order enumeration for eligible joins. |
 | `sql_parser_cache_ttl_seconds` | `300` | Sliding TTL for cached SQL ASTs; `0` disables the parser cache. |
 | `sql_parser_cache_max_entries` | `2048` | Maximum cached SQL texts; `0` means unbounded. |
 | `sql_parser_cache_sweep_seconds` | `60` | Background sweep interval for expired parser-cache entries. |
@@ -209,8 +211,8 @@ Operational notes:
 
 ## Table Statistics
 
-CamusDB updates advisory row-count statistics in memory on DML and flushes them
-to durable storage on a schedule.
+CamusDB updates advisory row-count, index-count, and min/max statistics in
+memory on DML and flushes them to durable storage on a schedule.
 
 ```yaml
 stats_flush_interval_ms: 5000
@@ -223,6 +225,32 @@ Values:
 - `-1`: disable automatic flush; persist on explicit flush or close only.
 
 This affects planner statistics durability, not SQL correctness.
+
+`ANALYZE TABLE <name>` builds richer statistics used by the cost-based
+optimizer, including equi-depth histograms and distinct-value counts.
+
+## Cost-Based Optimizer
+
+The optimizer can use statistics to compare access paths, join algorithms, and
+eligible join orders.
+
+```yaml
+cost_based_access_path_enabled: false
+cost_based_join_order_enabled: false
+```
+
+Values:
+
+- `cost_based_access_path_enabled`: when `true`, CamusDB enumerates viable
+  table/index access paths and chooses the cheapest estimated path. When
+  `false`, it uses the stable heuristic index selector with the existing
+  cost-based broad-range veto.
+- `cost_based_join_order_enabled`: when `true`, CamusDB uses a System-R-style
+  dynamic program to choose a cheaper connected left-deep order for eligible
+  inner joins. When `false`, it uses the heuristic join order.
+
+Both flags default to `false`. Missing statistics or unsupported query shapes
+fall back to the heuristic planner.
 
 ## SQL Parser Cache
 
@@ -250,13 +278,15 @@ This cache affects parse overhead, not SQL semantics.
 The `kahuna` section is an allow-listed passthrough to embedded
 [Kahuna](https://kahunakv.github.io/) options used by both standalone and
 cluster nodes. Omit the section, or omit individual keys, to keep CamusDB's
-mode-specific baseline.
+mode-specific baseline. Standalone persistent storage uses RocksDB by default;
+for cluster deployments, set the storage keys explicitly so every node uses the
+same durable backend.
 
 ```yaml
 kahuna:
-  storage: sqlite
+  storage: rocksdb
   storage_revision: v1
-  wal_storage: sqlite
+  wal_storage: rocksdb
   wal_revision: v1
   wal_sync_writes: true
   default_transaction_timeout_ms: 5000
@@ -276,7 +306,10 @@ kahuna:
   compact_every_operations: 1000
 ```
 
-Allowed storage backends are `memory`, `sqlite`, and `rocksdb`.
+Allowed storage backends are `rocksdb`, `sqlite`, and `memory`. Use `rocksdb`
+for the default durable path, `sqlite` when you specifically want SQLite-backed
+embedded files, and `memory` only for development and tests because data is lost
+on restart.
 
 Unknown `kahuna` keys are rejected at startup. Numeric worker, timeout, actor,
 and compaction settings must be greater than `0`; when both election timeout
@@ -301,6 +334,8 @@ Important validation rules:
   `range_lock_expires_ms` when expiry is enabled
 - `lock_escalation_threshold` and `lock_wait_deadline_ms` must be `> 0`
 - `stats_flush_interval_ms` must be `>= 0` or `-1`
+- `cost_based_access_path_enabled` and `cost_based_join_order_enabled` are
+  booleans
 - `sql_parser_cache_ttl_seconds` and `sql_parser_cache_max_entries` must be
   `>= 0`
 - `sql_parser_cache_sweep_seconds` must be `> 0`
@@ -315,12 +350,14 @@ mode: standalone
 http_port: 5095
 default_isolation_level: serializable
 stats_flush_interval_ms: 5000
+cost_based_access_path_enabled: true
+cost_based_join_order_enabled: true
 sql_parser_cache_ttl_seconds: 300
 sql_parser_cache_max_entries: 2048
 sql_parser_cache_sweep_seconds: 60
 kahuna:
-  storage: sqlite
-  wal_storage: sqlite
+  storage: rocksdb
+  wal_storage: rocksdb
 ```
 
 Start with the YAML values:
@@ -357,9 +394,11 @@ http_peers:
 schema_ack_wait_timeout_ms: 30000
 schema_ack_live_node_lease_ms: 30000
 key_range_sharding: true
+cost_based_access_path_enabled: true
+cost_based_join_order_enabled: true
 kahuna:
-  storage: sqlite
-  wal_storage: sqlite
+  storage: rocksdb
+  wal_storage: rocksdb
   start_election_timeout_ms: 2000
   end_election_timeout_ms: 4000
 ```

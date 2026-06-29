@@ -41,10 +41,10 @@ DROP DATABASE IF EXISTS app;
 
 `DROP DATABASE` removes the registry entry for the database name.
 
-In standalone mode, CamusDB also disposes the per-database embedded storage node
-and deletes that database's id-based directory. In cluster mode, CamusDB purges
-the database's metadata, table row, index, and statistics keyspaces from the
-shared distributed storage layer.
+CamusDB then drains in-flight operations for the database descriptor and purges
+that database's metadata, table row, index, and statistics keyspaces from the
+shared storage layer. Both standalone and cluster modes use a shared storage
+node; a drop does not remove a separate per-database RocksDB or WAL directory.
 
 `DROP DATABASE IF EXISTS` is a no-op when the database name is absent.
 
@@ -54,32 +54,32 @@ shared distributed storage layer.
 RENAME DATABASE app TO app_prod;
 ```
 
-Renaming changes only the registry binding from name to internal id. The
-database id, table ids, row keys, index keys, and storage directory remain the
+Renaming changes only the registry binding from name to internal storage id.
+The storage id, table ids, row keys, index keys, and statistics keys remain the
 same.
 
 Important behavior:
 
 - opening the old name fails after the rename completes
-- opening the new name resolves to the same database id
+- opening the new name resolves to the same storage id
 - in-flight work can continue because the human-readable name is not part of
   row or index storage keys
 - renaming to an existing name fails
 - reserved names cannot be used as rename targets
 
-## Immutable Database Ids
+## Stable Storage Identity
 
-Every database receives an immutable 24-character object id when it is created.
-CamusDB uses that id as the durable storage identity.
+Every database receives a stable opaque storage id when it is created. The id is
+allocated from a persistent monotonic sequence, encoded as a short base62
+string, and is not reused after `DROP DATABASE`.
 
-In standalone mode, the database directory is:
+The id is an internal storage identity, not a SQL value and not an ObjectId.
+Applications should address databases by name.
 
-```text
-{data_dir}/{database_id}/
-```
-
-The human-readable name is stored in the database registry and in a diagnostic
-`name.txt` file, but the registry is the source of truth.
+The human-readable name is stored in the database registry, but the registry
+entry points at the stable storage id. Database data lives in the shared
+[Kahuna](https://kahunakv.github.io/) keyspace under keys that begin with that
+database id.
 
 Using ids instead of names means a rename does not move data and does not
 rewrite table or index keys.

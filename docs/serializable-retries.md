@@ -31,6 +31,10 @@ The main retryable transaction codes are:
 `CADB0503` `SchemaCatchingUp` is also commonly retryable, but it usually means
 the node should catch up or the client should retry on another node.
 
+`CADB0506` `TransactionMutationLimitExceeded` is not retryable. It means the
+transaction is larger than the mutation budget, so the workload must be split
+into smaller transactions.
+
 See [Error Codes](/docs/error-codes) for the full list.
 
 ## Two Retry Patterns
@@ -103,5 +107,6 @@ serializable read-write.
 ## Related Pages
 
 - [Transactions And Isolation](/docs/serializable-transactions)
+- [Transaction Limits](/docs/transaction-limits)
 - [Distributed Transactions And HLC](/docs/distributed-transactions)
 - [Error Codes](/docs/error-codes)

@@ -6,8 +6,8 @@ sidebar_position: 3.1
 
 CamusDB accepts declarative SQL, then chooses a physical execution plan for the
 query. That plan decides whether CamusDB should scan a table, probe an index,
-use an index range, sort results in memory, aggregate rows, or join sources
-with indexed lookups.
+use an index range, sort results in memory, aggregate rows, or choose a join
+algorithm.
 
 For users, the important question is not "how is the planner implemented?" but
 "what can CamusDB do for my query, and how do I help it choose a good plan?"
@@ -26,13 +26,29 @@ Today CamusDB can plan:
 - Grouped and global aggregates.
 - Streaming `DISTINCT` on compatible indexed `NOT NULL` projections.
 - Inner joins and comma joins.
+- Hash joins for equi-joins, including equi-joins without a usable right-side
+  index.
+- Merge joins when both sides can be read in join-key order.
 - Indexed nested-loop joins when the right-side join key is indexed.
 - Semi/anti-join rewrites for eligible indexed `IN` and `NOT IN` subqueries.
 - Derived tables, scalar subqueries, `IN`, `NOT IN`, and `EXISTS`.
 - Explicit index forcing with `@{FORCE_INDEX=...}`.
 
-CamusDB is still heuristic-first. It has a small statistics-backed cost model,
-but planning is not yet a fully cost-based optimizer.
+CamusDB has a statistics-backed cost-based optimizer layered on top of the
+rule-based planner. Cost estimates are always exposed through `EXPLAIN`, and
+some choices, such as broad range-scan vetoes and join algorithm selection, use
+costing automatically. The two broad search passes are opt-in configuration
+flags:
+
+- `cost_based_access_path_enabled`: enumerate viable index/table access paths
+  for each table and pick the cheapest.
+- `cost_based_join_order_enabled`: enumerate left-deep join orders with a
+  System-R-style dynamic program and pick the cheapest connected plan.
+
+Both flags default to `false`. With the flags off, CamusDB keeps the stable
+heuristic plan shape. With the flags on and statistics available, the same SQL
+statement may choose a different index, full scan, join algorithm, or join
+order because the optimizer has found a lower-cost plan.
 
 ## How Scan Choice Works
 
@@ -134,22 +150,60 @@ FROM robots
 WHERE year >= 2020;
 ```
 
-## Statistics And Cost-Based Scan Choice
+## Statistics And The Cost-Based Optimizer
 
-CamusDB keeps lightweight advisory statistics from live writes. The planner can
-use them to estimate:
+CamusDB keeps lightweight advisory statistics from live writes and richer
+statistics from `ANALYZE`. The planner can use them to estimate:
 
 - Table row count.
 - Per-index entry count.
 - Per-column min/max bounds for indexed columns.
+- Per-column histograms.
+- Distinct-value counts for columns and composite index prefixes.
 
-These estimates currently help with a narrow but useful decision: when an index
-range is so broad that a full table scan is likely cheaper, CamusDB can choose
-the full scan instead. Statistics also feed the `estimated_rows` and
-`estimated_cost` columns in `EXPLAIN`.
+Run `ANALYZE` after loading or materially changing data when you want the
+optimizer to make better selectivity and join-cardinality estimates:
 
-This is not a full cost-based optimizer yet. Index selection, join strategy,
-and most operator ordering still come primarily from deterministic rules.
+```camussql
+ANALYZE TABLE robots;
+```
+
+The cost model uses these estimates to populate `estimated_rows` and
+`estimated_cost` in `EXPLAIN`. It also feeds:
+
+- Range-scan versus full-table-scan decisions.
+- Indexed `IN (...)` probe plans versus wider scans.
+- Join algorithm selection among indexed nested-loop, hash join, and merge
+  join.
+- Cost-based access-path selection when `cost_based_access_path_enabled` is on.
+- Cost-based join-order enumeration when `cost_based_join_order_enabled` is on.
+
+The optimizer degrades safely. Missing or stale statistics do not make a query
+incorrect; CamusDB falls back to defaults or to the heuristic planner when it
+cannot cost a plan reliably.
+
+### Cost-Based Access Paths
+
+With `cost_based_access_path_enabled: true`, CamusDB considers every viable
+access path for a single table, including usable indexes and the full-scan
+baseline. It estimates the cost of each candidate and keeps the cheapest.
+
+This matters when more than one index could satisfy a predicate. A rule-based
+planner may prefer the longest equality prefix, while the cost-based planner
+can prefer a different index or even a full scan if statistics show it will
+touch less data overall.
+
+### Cost-Based Join Order
+
+With `cost_based_join_order_enabled: true`, CamusDB can reorder eligible inner
+joins by cost instead of relying only on declaration order or simple
+selectivity heuristics.
+
+The join enumerator searches connected left-deep join orders and uses table
+statistics, filter selectivity, join-key distinct counts, and join algorithm
+costs to pick a cheaper tree. It falls back to the heuristic planner for joins
+outside its current search envelope, such as very wide joins or shapes it
+cannot safely reorder.
 
 ## Ordering And Sort Elision
 
@@ -191,7 +245,15 @@ This works best when:
 
 ## Joins
 
-CamusDB supports `JOIN`, `INNER JOIN`, and comma joins.
+CamusDB supports `JOIN`, `INNER JOIN`, and comma joins. For inner equi-joins,
+the planner can choose among several physical join algorithms:
+
+| Join plan | When it is useful |
+| --- | --- |
+| `index-nested-loop-join` | The right side has an index on the join key and the left side is small enough that per-row index probes are a good fit. |
+| `hash-join` | The join is an equality join and scanning/building a hash table is cheaper than repeated right-side probes, or the right side has no usable join-key index. |
+| `merge-join` | Both sides can be read in join-key order, usually through compatible indexes, so CamusDB can stream both sides together. |
+| `nested-loop-join` | Fallback for joins that are not eligible for indexed, hash, or merge execution. |
 
 ```camussql
 SELECT u.email, p.title
@@ -201,6 +263,8 @@ JOIN posts p ON p.user_id = u.id;
 
 If the right side has an index on the join key, CamusDB can use an indexed
 nested-loop join instead of scanning the entire right side for each left row.
+For larger equality joins, the planner may choose a hash join or merge join
+instead when estimates indicate that shape is cheaper.
 
 This means join-friendly indexing matters. For a join such as:
 
@@ -212,6 +276,16 @@ JOIN posts p ON p.user_id = u.id;
 
 an index on `posts(user_id)` is far more useful than an unrelated index on
 `posts(title)`.
+
+Hash joins materialize the estimated smaller side into an in-memory hash table
+and stream the other side as probes. If the build side exceeds the configured
+hash-join build limit, execution falls back to nested-loop behavior for that
+query.
+
+Merge joins require equality join keys. When both inputs can be produced in
+join-key order, CamusDB advances both streams together and buffers only the
+current equal-key run. This is especially useful for larger joins where both
+tables have compatible indexes on the join columns.
 
 ## IN And NOT IN Subquery Rewrites
 
@@ -294,7 +368,15 @@ To get better plans consistently:
 - Index columns used in equality predicates, range predicates, and join keys.
 - Put the most selective columns first in composite indexes when queries follow
   that left-to-right shape.
+- For large equi-joins, index both join keys when you want merge join to be
+  available.
 - Add indexes that match common `ORDER BY` prefixes when sorted reads matter.
+- Run `ANALYZE TABLE <name>` after bulk loads or major data distribution
+  changes.
+- Enable `cost_based_access_path_enabled` when you want CamusDB to compare all
+  viable indexes by estimated cost.
+- Enable `cost_based_join_order_enabled` when you want CamusDB to search
+  left-deep inner-join orders by estimated cost.
 - Use qualified names in joins so predicates are unambiguous.
 - Use `EXPLAIN` to verify whether CamusDB chose a table scan, index lookup,
   range scan, join scan, or extra sort.
@@ -303,13 +385,14 @@ To get better plans consistently:
 
 The planner is improving, but there are still important limits:
 
-- Planning is mostly heuristic-driven, not fully cost-based.
+- Broad cost-based access-path and join-order search are opt-in and depend on
+  useful statistics.
 - Join planning exists, but `EXPLAIN (ANALYZE)` for joins is not supported yet.
 - `(LOGICAL)` `EXPLAIN` currently labels the same physical tree rather than
   rendering a separate logical-plan view.
 - Descending-order satisfaction from indexes is limited.
-- Join cost estimates are not yet strong enough to drive broad join
-  reordering decisions.
+- Cost-based join-order enumeration is left-deep, capped for very wide joins,
+  and currently applies to reorderable inner-join shapes.
 - `NOT IN (...)` value lists remain filter-driven rather than using a dedicated
   index-probe plan shape.
 - `COUNT(DISTINCT ...)` is not supported.

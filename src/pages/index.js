@@ -56,8 +56,8 @@ function HomepageHeader() {
           ))}
         </div>
         <div className={styles.heroSnippet}>
-          <CodeBlock language="camussql">{`CREATE DATABASE IF NOT EXISTS shop;
-use shop;
+          <CodeBlock language="camussql">{`CREATE DATABASE shop;
+USE shop;
 
 CREATE TABLE orders (id OID PRIMARY KEY, sku STRING, qty INT64);
 

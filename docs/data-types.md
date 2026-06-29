@@ -17,8 +17,8 @@ indexes, casts, defaults, and JSON values.
 | `FLOAT64` | IEEE-754 double | Yes | Also accepted as `DOUBLE` in `CAST`. |
 | `FLOAT32` | IEEE-754 single | Yes | Also accepted as `REAL`. Values are stored and compared at single precision. |
 | `BOOL` | Boolean | Yes | Also accepted as `BOOLEAN`. |
-| `STRING` | UTF-16 text | Yes | Uses the default string length limit. |
-| `STRING(N)` | UTF-16 text, max `N` characters | Yes | `N` must be a positive integer. |
+| `STRING` | UTF-16 text | Yes | Uses the default string length limit. Also accepted as `CHAR`, `VARCHAR`, or `TEXT`. |
+| `STRING(N)` | UTF-16 text, max `N` characters | Yes | `N` must be a positive integer. `CHAR(N)` and `VARCHAR(N)` use the same bound. |
 | `DATE` | Calendar date without time | Yes | Stored as UTC ticks truncated to midnight. |
 | `DATETIME` | UTC instant | Yes | Also accepted as `TIMESTAMP`. |
 | `BYTES` | Opaque byte string | Yes | Also accepted as `BLOB`. |
@@ -44,6 +44,7 @@ CREATE TABLE events (
 | `REAL` | `FLOAT32` |
 | `TIMESTAMP` | `DATETIME` |
 | `BLOB` | `BYTES` |
+| `CHAR`, `VARCHAR`, `TEXT` | `STRING` |
 | `OBJECT_ID` | `OID` |
 | `BOOLEAN` | `BOOL` |
 
@@ -127,13 +128,36 @@ FROM events;
 See [Conversion Functions](/docs/functions-conversion) for the matching
 `to_*` functions.
 
+## Temporal Functions
+
+Date/time functions return typed temporal values, not strings:
+
+| Function | Return type |
+| --- | --- |
+| `NOW()`, `CURRENT_TIMESTAMP()` | `DATETIME` |
+| `CURRENT_DATE()` | `DATE` |
+| `DATE_ADD(temporal, amount, unit)` | `DATETIME` |
+| `DATE_TRUNC(unit, temporal)` | `DATETIME` |
+| `FROM_UNIXTIME(seconds)` | `DATETIME` |
+| `DATE_DIFF(start, end, unit)` | `INT64` |
+| `DATE_PART(unit, temporal)` | `INT64` |
+| `UNIX_TIMESTAMP([temporal])` | `INT64` |
+
+Functions that accept temporal input can use `DATE` and `DATETIME` columns
+directly. For example, `created_at < NOW()` compares two `DATETIME` values, and
+`INSERT INTO events (created_at) VALUES (NOW())` stores a typed datetime value
+without a cast.
+
+See [Date/Time Functions](/docs/functions-datetime) for units, parsing rules,
+and examples.
+
 ## Reserved Type Keywords
 
 These SQL type names and aliases are reserved:
 
 ```text
-oid object_id int int64 integer string bool boolean float32 float64 real
-date datetime timestamp bytes blob array
+oid object_id int int64 integer string char varchar text bool boolean
+float32 float64 real date datetime timestamp bytes blob array
 ```
 
 Only the exact keyword is reserved. Identifiers that merely start with a type

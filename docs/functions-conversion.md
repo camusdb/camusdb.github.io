@@ -38,7 +38,7 @@ FROM robots;
 
 | Target | Result Type |
 | --- | --- |
-| `string` | `STRING` |
+| `string`, `char`, `varchar`, `text` | `STRING` |
 | `int`, `int64`, `integer` | `INT64` |
 | `float64`, `double` | `FLOAT64` |
 | `float32`, `real` | `FLOAT32` |

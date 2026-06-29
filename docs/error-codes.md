@@ -55,6 +55,7 @@ unexpected internal state, or storage-layer inconsistencies.
 | `CADB0503` | `SchemaCatchingUp` | The node is more than one schema version behind the committed schema head for that database, so it temporarily rejects reads and DML until schema apply catches up. Retry on another node or retry later. |
 | `CADB0504` | `TransactionMustRetry` | The commit path exhausted internal retries after Kahuna kept returning `MustRetry`, usually during routing or leader-transition instability. Retry the whole transaction from `BEGIN`. |
 | `CADB0505` | `TransactionLifetimeExceeded` | A serializable read-write transaction stayed open longer than the configured maximum lifetime, currently one hour by default. CamusDB aborts it explicitly instead of letting a runaway transaction continue forever. Roll it back and retry from `BEGIN`. |
+| `CADB0506` | `TransactionMutationLimitExceeded` | A read-write transaction would exceed the maximum mutation count, currently 20,000 row/index mutations by default. Split the work into smaller transactions; retrying the same transaction will fail again. |
 | `CADB0600` | `InvalidConfig` | Startup configuration is invalid: wrong mode, invalid listener or Raft port, malformed peer lists, invalid schema-ack settings, invalid transaction/locking settings, invalid parser-cache values, or unsupported `kahuna` options. |
 
 ## Corruption And Internal-State Errors
@@ -93,6 +94,7 @@ These codes are usually not retryable without changing the request:
 - `CADB0300` `DuplicateUniqueKeyValue`
 - `CADB0301` `NotNullViolation`
 - `CADB0302` `ValueTooLong`
+- `CADB0506` `TransactionMutationLimitExceeded`
 
 These codes usually need operator investigation rather than blind retries:
 
@@ -103,6 +105,7 @@ These codes usually need operator investigation rather than blind retries:
 
 - [HTTP API](/docs/http-api)
 - [Transactions And Isolation](/docs/serializable-transactions)
+- [Transaction Limits](/docs/transaction-limits)
 - [Serializable Retries](/docs/serializable-retries)
 - [Distributed Transactions And HLC](/docs/distributed-transactions)
 - [Distributed Schema Changes](/docs/distributed-schema)

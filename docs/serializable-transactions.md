@@ -85,6 +85,11 @@ default cap is one hour. If a transaction outlives that cap, a later operation
 or commit fails with `TransactionLifetimeExceeded` instead of silently
 continuing without protection.
 
+Read-write transactions also have a mutation count limit. The default is 20,000
+row/index mutations per transaction. If a transaction would exceed that budget,
+CamusDB fails it with `TransactionMutationLimitExceeded`; split the workload
+into smaller transactions instead of retrying the same batch.
+
 ## How To Select Isolation
 
 Serializable is the default, so most transactions do not need an isolation
@@ -197,6 +202,10 @@ Applications should be ready to retry transactions that fail because of:
 - temporary schema catch-up fencing on a lagging node
 - serializable read-write lifetime expiration
 
+`TransactionMutationLimitExceeded` is different: it means the transaction is too
+large, not that it lost a serialization race. The fix is to reduce the batch
+size.
+
 CamusDB does not automatically replay aborted explicit multi-statement
 transactions for you. If a serializable read-write transaction fails on conflict
 or deadline, the client must restart it from `BEGIN`.
@@ -205,6 +214,8 @@ For single-statement autocommit serializable work, CamusDB includes a retry
 helper that replays retryable work with backoff.
 
 See [Serializable Retries](/docs/serializable-retries) for the retry contract.
+See [Transaction Limits](/docs/transaction-limits) for mutation and lifetime
+limits.
 
 ## Locks You Should Care About
 

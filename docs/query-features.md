@@ -287,7 +287,13 @@ ORDER BY u.email, p.title;
 ```
 
 When the right side has an index on the equality join column, the planner can
-use indexed lookups instead of scanning the whole right side.
+use indexed lookups instead of scanning the whole right side. For larger
+equality joins, CamusDB can also choose a hash join or merge join:
+
+- Hash join builds an in-memory hash table from the estimated smaller side and
+  probes it with the other side.
+- Merge join streams both sides in join-key order when compatible indexes make
+  that ordering available.
 
 ## Comma Joins
 

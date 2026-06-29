@@ -71,6 +71,7 @@ const sidebars = {
           id: 'serializable-transactions',
           label: 'Transactions And Isolation',
         },
+        'transaction-limits',
         'serializable-retries',
         'distributed-transactions',
         'multi-active-availability',

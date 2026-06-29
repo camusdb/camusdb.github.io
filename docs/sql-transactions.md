@@ -40,6 +40,7 @@ Read Committed is available as an explicit opt-out:
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 ```
 
-See [Transactions And Isolation](/docs/serializable-transactions) and
-[Serializable Retries](/docs/serializable-retries) for guarantees and retry
-guidance.
+See [Transactions And Isolation](/docs/serializable-transactions),
+[Transaction Limits](/docs/transaction-limits), and
+[Serializable Retries](/docs/serializable-retries) for guarantees, limits, and
+retry guidance.

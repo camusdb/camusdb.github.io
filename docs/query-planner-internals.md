@@ -19,11 +19,23 @@ declarative SQL query into a concrete execution plan:
 - Which scan to use.
 - Which predicates can be absorbed into scan bounds.
 - Whether a sort can be skipped.
-- How joins should probe the right side.
+- Which join algorithm should be used.
 - Where aggregation, `HAVING`, projection, `DISTINCT`, and limit stages belong.
 
-CamusDB is still primarily heuristic-driven. A small cost model exists, but it
-currently annotates plans and influences only a narrow scan-choice decision.
+CamusDB has a rule-based planner plus a cost-based optimizer stack. The cost
+model annotates plans, drives some decisions unconditionally, and can take over
+broader access-path and join-order search when the corresponding config flags
+are enabled.
+
+The optimizer stack is:
+
+1. Table statistics from live DML and `ANALYZE`.
+2. Cardinality estimation from row counts, histograms, distinct counts, and
+   min/max bounds.
+3. A weighted cost model for KV lookups, range entries, primary-row fetches,
+   in-memory work, and network cost.
+4. Plan search for access paths and join order when the cost-based flags are
+   enabled.
 
 ## Pipeline
 
@@ -136,13 +148,20 @@ It analyzes the predicate and tries to choose:
 - Column-to-column comparisons.
 - Residual conjuncts.
 
-`IndexScanSelector` then scores usable indexes using heuristic rules such as:
+`IndexScanSelector` can operate in two modes. The default mode scores usable
+indexes with heuristic rules such as:
 
 - Unique full equality beats everything else.
 - Non-unique equality and equality-prefix matches are strong candidates.
 - Equality prefix plus next-column range can drive composite range scans.
 - Matching `ORDER BY` prefixes can win even without a filtering predicate.
 - Indexed `IN (...)` lists can compete with range scans and full scans.
+
+When `cost_based_access_path_enabled` is enabled and table statistics are
+available, the planner instead enumerates every viable scan candidate plus the
+full-scan baseline, estimates each candidate's cost, and keeps the cheapest.
+`UPDATE` and `DELETE` locate scans keep the heuristic path to avoid widening
+exclusive lock ranges unexpectedly.
 
 ### 2. Filter absorption
 
@@ -190,13 +209,29 @@ Its work includes:
 - Optional join-order reordering.
 - Predicate pushdown for single-source predicates.
 - Separation of post-join predicates from scan-local predicates.
-- Building either `NestedLoopJoinNode` or `IndexNestedLoopJoinNode`.
+- Building `NestedLoopJoinNode`, `IndexNestedLoopJoinNode`, `HashJoinNode`, or
+  `MergeJoinNode`.
 - Building `SemiJoinNode` variants for eligible indexed `IN` / `NOT IN`
   subqueries.
 - Representing derived tables as `DerivedTableScanNode`.
 
-If the right-side join key has an index, CamusDB can use indexed join probing
-instead of scanning the full right side repeatedly.
+For inner equi-joins, the planner extracts join-key pairs even when no index is
+available. That enables hash and merge joins in addition to indexed nested-loop
+joins.
+
+The main selection rules are:
+
+- If the right-side join key has a good index and repeated probes are estimated
+  cheaper, use `IndexNestedLoopJoinNode`.
+- If both sides can be read in join-key order and the outer side is large
+  enough, use `MergeJoinNode`.
+- If an equi-join is cheaper as a build/probe plan, or the right side has no
+  usable join-key index, use `HashJoinNode`.
+- If the join is not eligible for those shapes, use `NestedLoopJoinNode`.
+
+Hash join builds an in-memory hash table from the estimated smaller side and
+probes it with the other side. Merge join streams ordered inputs and buffers
+only the current equal-key run when both sides are ordered.
 
 ## Physical Plan Nodes
 
@@ -217,6 +252,8 @@ Common node types include:
 | `SemiJoinNode` | Indexed `IN` / `NOT IN` subquery rewrite. |
 | `NestedLoopJoinNode` | Join without indexed right-side probe. |
 | `IndexNestedLoopJoinNode` | Join with indexed right-side probe. |
+| `HashJoinNode` | Inner equi-join using an in-memory hash table. |
+| `MergeJoinNode` | Inner equi-join over ordered inputs. |
 | `DerivedTableScanNode` | Scan of a derived table source. |
 
 `QueryPlan` also carries a flattened `Steps` view for the linear executor. The
@@ -249,6 +286,13 @@ Other stages include:
 - Derived tables materialize the inner query once.
 - Nested loop joins merge left and right rows and evaluate `ON`.
 - Indexed nested loops probe the right-side index per outer row.
+- Hash joins materialize the build side into an in-memory hash table keyed by
+  the equi-join columns, then stream and probe the other side. If the build
+  side exceeds `HashJoinMaxBuildRows`, execution falls back to nested-loop
+  behavior for that query.
+- Merge joins advance ordered left and right inputs together. When both sides
+  are already ordered by the join key, they stream; otherwise the unordered
+  side may be materialized and sorted first.
 
 The merged result then passes through the shared post-scan pipeline.
 
@@ -279,19 +323,34 @@ the query to populate counters such as:
 
 ## Statistics And Costing
 
-`StatisticsManager` keeps lightweight advisory table statistics in Kahuna:
+`StatisticsManager` keeps advisory table statistics in Kahuna:
 
 - Row count per table.
 - Per-index entry counts.
 - Running min/max bounds for indexed columns.
+- Equi-depth histograms built by `ANALYZE`.
+- Distinct-value counts for columns and composite index prefixes built by
+  `ANALYZE`.
+
+`ANALYZE TABLE <name>` scans the table, or samples the configured number of
+rows for larger tables, then rebuilds histograms and distinct-value counts in a
+single pass. DML-maintained row counts, index counts, and min/max bounds remain
+advisory; missing statistics fall back to defaults instead of failing queries.
 
 `CostEstimator` annotates plan nodes with estimated cardinality and cost. Those
-annotations are exposed through `EXPLAIN`, and the planner can use them for a
-small set of decisions, especially choosing a full scan over an unselective
-index range and comparing `IN (...)` probe plans against wider scans.
+annotations are exposed through `EXPLAIN`, and the planner consumes them for:
 
-This is still intentionally narrow. CamusDB does not yet use a broad
-cost-based search across all join orders and operator alternatives.
+- Broad index-range versus full-scan decisions.
+- Indexed `IN (...)` seek plans versus wider scans.
+- Join algorithm selection among indexed nested-loop, hash, and merge.
+- Cost-based access-path enumeration when
+  `cost_based_access_path_enabled` is on.
+- Cost-based join-order enumeration when `cost_based_join_order_enabled` is on.
+
+The cost is a weighted sum of KV point lookups, range entries, row fetches
+after index hits, in-memory rows, and `NetworkFactor`. `NetworkFactor` is based
+on estimated remote rows, row width, and the configured cluster partition count;
+it is zero for single-node or unsharded plans.
 
 ## Optimizations Present Today
 
@@ -303,26 +362,28 @@ The planner already includes several concrete passes:
 - Filter absorption from scan bounds.
 - Join predicate pushdown.
 - Heuristic join reordering.
-- Small cost-based veto for low-selectivity index range scans.
+- Cost-based veto for low-selectivity index range scans.
+- Cost-assisted join algorithm selection for eligible equi-joins.
+- Cost-based access-path enumeration behind
+  `cost_based_access_path_enabled`.
+- Cost-based join-order enumeration behind `cost_based_join_order_enabled`.
 
 ## Cost Model Status
 
-The cost model is intentionally narrow today.
+The cost model is implemented and used in layers:
 
-It does two things:
+1. Always-on: annotate plan nodes with estimated cardinality and cost.
+2. Always-on: replace low-value index range scans with full scans when the
+   estimate crosses the breakeven point.
+3. Always-on: compare indexed nested-loop, hash, and merge join shapes for
+   eligible equi-joins.
+4. Opt-in: enumerate and cost all viable table access paths.
+5. Opt-in: enumerate and cost connected left-deep inner-join orders.
 
-1. Annotates plan nodes with estimated cardinality and cost.
-2. Replaces some low-value index range scans with full table scans.
-
-What it does not yet do:
-
-- Full cost-based join ordering.
-- Broad index-choice enumeration.
-- Mature distributed execution costing.
-- Reliable join estimates across the whole tree.
-
-So the correct mental model is still: heuristics choose most of the plan, and
-the cost model refines one part of scan selection.
+Current limitations are intentional boundaries around the search space, not the
+absence of a cost model. Join-order enumeration is left-deep, capped for very
+wide joins, and falls back for shapes it cannot safely reorder. The DP does not
+yet preserve multiple "interesting order" alternatives for the same table set.
 
 ## Distributed-Ready Metadata
 
@@ -332,7 +393,7 @@ nodes carry metadata for future distributed planning:
 - `OutputOrdering`
 - `EstimatedCardinality`
 - `Cost`
-- `PartitionLocality`
+- `DataDistribution`
 - `CanDecomposeToLocalPlusMerge`
 
 This is why the planner can already talk about sort elision, local-vs-merge
@@ -345,9 +406,10 @@ Important current limitations from the source design:
 
 - `EXPLAIN (ANALYZE)` for joins is missing.
 - `EXPLAIN (LOGICAL)` is mostly cosmetic today.
-- Join costs are still rough.
 - Descending-order exploitation is limited.
-- The planner is not yet a broad cost-based optimizer.
+- Cost-based access-path and join-order search are opt-in.
+- The join-order DP is left-deep and does not yet keep multiple interesting
+  order/distribution alternatives per subset.
 
 These are the main boundaries for future planner work.
 

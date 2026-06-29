@@ -70,15 +70,15 @@ CREATE TABLE robots (
 | `FLOAT64` | Double-precision floating point values. |
 | `FLOAT32` | Single-precision floating point values. |
 | `BOOL` | Boolean values. |
-| `STRING`, `STRING(N)` | Text values, optionally with a maximum length. |
+| `STRING`, `STRING(N)` | Text values, optionally with a maximum length. Also accepted as `CHAR`, `VARCHAR`, or `TEXT`. |
 | `DATE` | Calendar dates without time. |
 | `DATETIME` | UTC instants. |
 | `BYTES` | Opaque byte strings. |
 | `ARRAY(T)` | Ordered lists of scalar values. Arrays are not indexable. |
 
 Common aliases include `INT` / `INTEGER` for `INT64`, `REAL` for `FLOAT32`,
-`TIMESTAMP` for `DATETIME`, `BLOB` for `BYTES`, `BOOLEAN` for `BOOL`, and
-`OBJECT_ID` for `OID`.
+`TIMESTAMP` for `DATETIME`, `BLOB` for `BYTES`, `CHAR` / `VARCHAR` / `TEXT`
+for `STRING`, `BOOLEAN` for `BOOL`, and `OBJECT_ID` for `OID`.
 
 See [Data Types](/docs/data-types) for length limits, literal formats, casts,
 HTTP JSON values, and array rules.

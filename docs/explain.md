@@ -13,7 +13,8 @@ Use it when you want to answer questions like:
 - Did CamusDB use my index?
 - Is this query scanning the full table?
 - Did `ORDER BY` require an explicit sort?
-- Is a join using indexed lookups or a broader nested loop?
+- Is a join using indexed lookups, hash join, merge join, or a broader nested
+  loop?
 - How many KV lookups or scan entries did `EXPLAIN (ANALYZE)` observe?
 
 ## Syntax
@@ -57,7 +58,15 @@ Behavior:
 
 These estimates come from CamusDB's lightweight planner statistics when they
 exist. Different deployments can produce different numbers depending on current
-row counts and observed indexed-column bounds.
+row counts, observed indexed-column bounds, histograms, and distinct-value
+counts collected by `ANALYZE`.
+
+`estimated_rows` and `estimated_cost` are the same values used by CamusDB's
+cost-based optimizer. With the default rule-based search path, they explain the
+plan that the heuristic planner selected. When
+`cost_based_access_path_enabled` or `cost_based_join_order_enabled` is enabled,
+they also help explain why the optimizer chose one index, full scan, join
+algorithm, or join order over another.
 
 ### EXPLAIN ANALYZE
 
@@ -92,7 +101,34 @@ These are the main node names you will see:
 | `null-aware-anti-join` | `NOT IN` rewrite that preserves SQL null semantics. |
 | `nested-loop-join` | Join without a usable right-side index. |
 | `index-nested-loop-join` | Join that probes the right side through an index. |
+| `hash-join` | Inner equi-join using an in-memory hash table. |
+| `merge-join` | Inner equi-join that streams ordered inputs by join key. |
 | `derived-table-scan` | Scan of a derived table from `FROM (SELECT ...) alias`. |
+
+## Cost-Based Optimizer Notes
+
+The plan shown by `EXPLAIN` reflects the active optimizer configuration.
+CamusDB always annotates planned nodes with estimated row counts and costs when
+it can. The broader search passes are opt-in:
+
+```yaml
+cost_based_access_path_enabled: true
+cost_based_join_order_enabled: true
+```
+
+For best results, collect statistics first:
+
+```camussql
+ANALYZE TABLE robots;
+```
+
+With cost-based access paths enabled, a query may choose a different index or a
+full table scan than the rule-based planner would have chosen. With cost-based
+join ordering enabled, an eligible inner join may be reordered so a more
+selective table is joined earlier or a cheaper indexed probe path is used.
+
+If statistics are missing or a query shape is outside the current CBO search
+envelope, CamusDB falls back to the rule-based plan.
 
 ## Reading Common Plans
 
@@ -252,6 +288,49 @@ physical  table-scan  table=robots
 
 `NOT IN` can similarly appear as `anti-join` or `null-aware-anti-join`.
 
+### Hash join
+
+```camussql
+EXPLAIN
+SELECT o.name, li.product
+FROM orders o
+JOIN line_items li ON li.order_id = o.id;
+```
+
+Typical output shape:
+
+```text
+physical  hash-join   on=o.id=order_id, build=li
+physical  table-scan  table=orders
+physical  table-scan  table=line_items
+```
+
+`build=li` means `line_items` is materialized into the in-memory hash table.
+The other side streams as probes. CamusDB usually chooses the smaller estimated
+side as the build side. If the build side grows past the configured hash-join
+build limit, execution falls back to nested-loop behavior for that query.
+
+### Merge join
+
+```camussql
+EXPLAIN
+SELECT o.name, li.product
+FROM orders o
+JOIN line_items li ON li.order_id = o.ext_key;
+```
+
+Typical output shape:
+
+```text
+physical  merge-join  on=o.ext_key=order_id
+physical  table-scan  table=orders, forced-index=orders_ext_key_idx
+physical  table-scan  table=line_items, forced-index=li_order_id_idx
+```
+
+Merge join appears for inner equality joins when both sides can be read in
+join-key order. The executor advances both inputs together and buffers only the
+current equal-key run.
+
 ## EXPLAIN ANALYZE
 
 `EXPLAIN (ANALYZE)` runs the query and adds actual counters.
@@ -293,6 +372,7 @@ Good questions to ask:
 - Did a non-unique equality use `index-range-scan`?
 - Is an unexpected `sort` node present?
 - Did a join use `index-nested-loop-join`?
+- Did a larger equality join use `hash-join` or `merge-join`?
 - Are `rows_read` and `kv_scan_entries` much larger than expected?
 
 If the plan is not what you want, the usual fixes are:
@@ -300,6 +380,8 @@ If the plan is not what you want, the usual fixes are:
 - Add or adjust an index.
 - Reorder composite index columns to match query predicates.
 - Add a join-key index on the right-hand table.
+- Add compatible indexes on both join keys when you want merge join to be
+  available for larger joins.
 - Simplify the query shape.
 - Use `@{FORCE_INDEX=...}` temporarily to confirm whether a specific index helps.
 
