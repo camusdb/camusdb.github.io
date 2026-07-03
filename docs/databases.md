@@ -23,14 +23,36 @@ CREATE DATABASE IF NOT EXISTS app;
 After creation, connect to that database with `camus-cli app`, `use app;`, a
 driver connection string, or an HTTP request whose `databaseName` is `app`.
 
+## Branch A Database
+
+```camussql
+CREATE DATABASE feature_checkout BRANCH FROM app;
+```
+
+Database branching creates an isolated point-in-time clone of an existing
+database. The branch starts from the source database's schema and data view, but
+writes and DDL in the branch stay private to that branch.
+
+Use branches to test features, rehearse migrations, or reproduce issues against
+production-like data without affecting the base database. See
+[Database Branching](/docs/database-branching) for the full workflow and
+operational notes.
+
 ## List Databases
 
 ```camussql
 SHOW DATABASES;
+SHOW BRANCHES FROM app;
+SHOW ANCESTORS FROM feature_checkout;
 ```
 
 `SHOW DATABASES` is a server-level statement. It does not require an already
 open database context.
+
+Use `SHOW BRANCHES FROM <database>` to list every descendant branch of a
+database. Use `SHOW ANCESTORS FROM <database>` to inspect the parent chain of a
+branch. See [Database Branching](/docs/database-branching#inspect-branches) for
+column details.
 
 ## Drop A Database
 
@@ -102,11 +124,13 @@ Creating or renaming a database to either name returns `DatabaseNameReserved`.
 | `CADB0010` | `DatabaseDoesntExist` | Opening, querying, dropping, renaming, or running table DDL against an unknown database. |
 | `CADB0012` | `DatabaseAlreadyExists` | `CREATE DATABASE` targets an existing name, or `RENAME DATABASE ... TO ...` targets an existing name. |
 | `CADB0018` | `DatabaseNameReserved` | `CREATE DATABASE` or `RENAME DATABASE` uses `_system` or `information_schema`. |
-| `CADB0019` | `DatabaseCreationIncomplete` | Standalone recovery found a partially initialized database directory after a crash during create. Drop and recreate the database. |
+| `CADB0019` | `DatabaseCreationIncomplete` | Reserved for an incomplete database-create recovery condition from older standalone storage layouts. It is not expected on the current shared-storage create path. |
+| `CADB0508` | `DatabaseHasLiveDescendants` | `DROP DATABASE` targets a database that still has live branch descendants. Drop descendant branches first. |
 
 ## Related Pages
 
 - [Tutorial](/docs/intro)
+- [Database Branching](/docs/database-branching)
 - [SQL](/docs/sql)
 - [HTTP API](/docs/http-api)
 - [Error Codes](/docs/error-codes)

@@ -291,7 +291,8 @@ use indexed lookups instead of scanning the whole right side. For larger
 equality joins, CamusDB can also choose a hash join or merge join:
 
 - Hash join builds an in-memory hash table from the estimated smaller side and
-  probes it with the other side.
+  probes it with the other side. When spill is enabled, oversized hash joins can
+  partition intermediate rows to disk instead of growing memory without bound.
 - Merge join streams both sides in join-key order when compatible indexes make
   that ordering available.
 

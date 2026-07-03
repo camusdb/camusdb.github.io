@@ -45,7 +45,7 @@ per-node cluster settings; YAML is better for stable node configuration.
 | `raft_node_id` | `--raft-nodeid` | `1` | Numeric Raft node id. Must be greater than `0`. |
 | `raft_host` | `--raft-host` | `localhost` | Host address used for Raft communication. |
 | `raft_port` | `--raft-port` | `7070` | Port used for Raft gRPC traffic. |
-| `initial_partitions` | `--initial-cluster-partitions` | `1` | Number of Raft partitions to initialize. |
+| `initial_partitions` | `--initial-cluster-partitions` | `3` | Number of Raft partitions to initialize. |
 | `peers` | `--initial-cluster` | empty list | Static Raft peer list in `host:port` form. |
 | `http_peers` | `--http-peers` | empty list | Per-peer HTTP addresses, parallel to `peers`. |
 | `schema_ack_wait_timeout_ms` | `--schema-ack-wait-timeout-ms` | `30000` | DDL schema-ack wait timeout in milliseconds. |
@@ -69,9 +69,15 @@ The remaining YAML settings do not currently have command-line flags:
 | `stats_flush_interval_ms` | `5000` | Advisory table-statistics flush interval. |
 | `cost_based_access_path_enabled` | `false` | Enable cost-based selection among viable table/index access paths. |
 | `cost_based_join_order_enabled` | `false` | Enable cost-based left-deep join-order enumeration for eligible joins. |
+| `plan_cache_enabled` | `false` | Enable the per-process query plan cache. |
+| `plan_cache_max_entries` | `512` | Maximum plan-cache entries; `0` effectively disables caching. |
 | `sql_parser_cache_ttl_seconds` | `300` | Sliding TTL for cached SQL ASTs; `0` disables the parser cache. |
 | `sql_parser_cache_max_entries` | `2048` | Maximum cached SQL texts; `0` means unbounded. |
 | `sql_parser_cache_sweep_seconds` | `60` | Background sweep interval for expired parser-cache entries. |
+| `max_identifier_length` | `64` | Maximum length for database, table, column, and index names; `<= 0` disables the limit. |
+| `max_columns_per_table` | `512` | Maximum user-declared columns per table; `<= 0` disables the limit. |
+| `max_indexes_per_table` | `64` | Maximum user-visible secondary indexes per table; `<= 0` disables the limit. |
+| `max_tables_per_database` | `10000` | Maximum tables per database; `<= 0` disables the limit. |
 | `kahuna` | empty mapping | Allow-listed storage and Raft engine overrides. |
 
 Cluster mode is active when either `mode: cluster` is set or `peers` contains
@@ -83,14 +89,11 @@ at least one entry.
 
 `data_dir` controls where CamusDB stores persistent state.
 
-- In standalone mode, explicitly created databases use storage under this base
-  path.
-- In cluster mode, process-level KV and WAL paths are created under this base
-  path.
-
-Databases must be created explicitly. In standalone mode, each database is
-stored under an immutable id directory inside `data_dir`; renaming the database
-does not rename or move that directory.
+Both standalone and cluster mode use a shared storage node. The KV backend, WAL
+backend, [query spill files](/docs/spill-to-disk), and other process-level
+durable/runtime files are created under this base path. Databases are separated
+by stable database-id key prefixes in the shared keyspace, not by per-database
+directories.
 
 Use persistent storage here if you expect data to survive restarts.
 
@@ -237,6 +240,8 @@ eligible join orders.
 ```yaml
 cost_based_access_path_enabled: false
 cost_based_join_order_enabled: false
+plan_cache_enabled: false
+plan_cache_max_entries: 512
 ```
 
 Values:
@@ -251,6 +256,31 @@ Values:
 
 Both flags default to `false`. Missing statistics or unsupported query shapes
 fall back to the heuristic planner.
+
+The plan cache is also opt-in:
+
+- `plan_cache_enabled`: when `true`, CamusDB can reuse a cached optimization
+  decision for the same query shape and compatible schema versions.
+- `plan_cache_max_entries`: maximum number of cached plan entries. Set to `0`
+  to keep caching effectively disabled even if `plan_cache_enabled` is `true`.
+
+The cache is per process and does not change query correctness. It may preserve
+an older access-path choice until schema changes invalidate the cached entry or
+the process restarts.
+
+## Schema Limits
+
+These settings bound schema growth and identifier sizes:
+
+```yaml
+max_identifier_length: 64
+max_columns_per_table: 512
+max_indexes_per_table: 64
+max_tables_per_database: 10000
+```
+
+Set a value to `<= 0` to disable that specific limit. Exceeding one of these
+limits returns `SchemaLimitExceeded`.
 
 ## SQL Parser Cache
 
@@ -336,6 +366,10 @@ Important validation rules:
 - `stats_flush_interval_ms` must be `>= 0` or `-1`
 - `cost_based_access_path_enabled` and `cost_based_join_order_enabled` are
   booleans
+- `plan_cache_enabled` is boolean
+- `max_identifier_length`, `max_columns_per_table`,
+  `max_indexes_per_table`, and `max_tables_per_database` use `<= 0` to disable
+  the corresponding limit
 - `sql_parser_cache_ttl_seconds` and `sql_parser_cache_max_entries` must be
   `>= 0`
 - `sql_parser_cache_sweep_seconds` must be `> 0`
@@ -352,6 +386,8 @@ default_isolation_level: serializable
 stats_flush_interval_ms: 5000
 cost_based_access_path_enabled: true
 cost_based_join_order_enabled: true
+plan_cache_enabled: true
+plan_cache_max_entries: 512
 sql_parser_cache_ttl_seconds: 300
 sql_parser_cache_max_entries: 2048
 sql_parser_cache_sweep_seconds: 60
@@ -396,6 +432,8 @@ schema_ack_live_node_lease_ms: 30000
 key_range_sharding: true
 cost_based_access_path_enabled: true
 cost_based_join_order_enabled: true
+plan_cache_enabled: true
+plan_cache_max_entries: 512
 kahuna:
   storage: rocksdb
   wal_storage: rocksdb

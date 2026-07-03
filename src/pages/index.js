@@ -21,23 +21,52 @@ const heroPillars = [
     title: 'Strong transactional guarantees',
     detail: 'Serializable transactions, committed reads, and atomic writes.',
   },
+  {
+    title: 'Copy-on-write database branches',
+    detail: 'Clone a base database for testing and issue reproduction.',
+  },
 ];
 
-function HomepageHeader() {
-  const logoUrl = useBaseUrl('/img/camusdb-logo-mark.png');
+function DataBeam({className}) {
+  return (
+    <div className={clsx(styles.dataBeam, className)} aria-hidden="true">
+      <b />
+      <span />
+      <i />
+    </div>
+  );
+}
 
+function PyramidNetwork({className}) {
+  const pyramidUrl = useBaseUrl('/img/pyramid.png');
+
+  return (
+    <div className={clsx(styles.pyramidNetwork, className)} role="img" aria-label="Three database pyramids exchanging data streams">
+      <div className={styles.networkGrid} aria-hidden="true" />
+      <DataBeam className={styles.dataBeamLeft} />
+      <DataBeam className={styles.dataBeamRight} />
+      <DataBeam className={styles.dataBeamBase} />
+      <img className={clsx(styles.pyramidNode, styles.pyramidTop)} src={pyramidUrl} alt="" aria-hidden="true" />
+      <img className={clsx(styles.pyramidNode, styles.pyramidLeft)} src={pyramidUrl} alt="" aria-hidden="true" />
+      <img className={clsx(styles.pyramidNode, styles.pyramidRight)} src={pyramidUrl} alt="" aria-hidden="true" />
+    </div>
+  );
+}
+
+function HomepageHeader() {
   return (
     <header className={clsx('hero', styles.heroBanner)}>
       <div className="container">
         <p className={styles.eyebrow}>Open-source distributed SQL database</p>
-        <img className={styles.heroLogo} src={logoUrl} alt="CamusDB logo" />
+        <PyramidNetwork className={styles.heroNetwork} />
         <Heading as="h1" className={styles.title}>
           The SQL database that scales itself
         </Heading>
         <p className={styles.subtitle}>
           Write ordinary SQL. CamusDB spreads it across a cluster that scales
           writes, survives node failures, and runs transactions at Serializable
-          isolation by default — no sharding, no eventual-consistency surprises.
+          isolation by default. Branch a database for feature work or issue
+          reproduction without touching the source.
         </p>
         <div className={styles.buttons}>
           <Link className="button button--primary button--lg" to="/docs/intro">
@@ -60,6 +89,9 @@ function HomepageHeader() {
 USE shop;
 
 CREATE TABLE orders (id OID PRIMARY KEY, sku STRING, qty INT64);
+
+CREATE DATABASE checkout_repro BRANCH FROM shop;
+USE checkout_repro;
 
 BEGIN;
   UPDATE stock SET qty = qty - 1 WHERE sku = "A-100";
@@ -112,6 +144,54 @@ const consistencyComparison = [
     ],
   },
 ];
+
+const branchingUseCases = [
+  'Develop features against a realistic database clone without coordinating shared fixtures.',
+  'Reproduce production-only bugs in an isolated branch while the source keeps serving traffic.',
+  'Run migration rehearsals and destructive tests, then drop the branch when the run is done.',
+];
+
+function BranchingWorkflow() {
+  return (
+    <section className={styles.branching}>
+      <div className="container">
+        <div className={styles.branchingGrid}>
+          <div className={styles.branchingCopy}>
+            <p className={styles.eyebrow}>Database branching</p>
+            <Heading as="h2">Clone real data for confident development</Heading>
+            <p>
+              CamusDB can create an isolated point-in-time branch of a base
+              database. The branch reads the source snapshot until it diverges,
+              while its writes, deletes, and schema changes stay private.
+            </p>
+            <ul>
+              {branchingUseCases.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+            <Link className="button button--secondary" to="/docs/database-branching">
+              Read the branching guide
+            </Link>
+          </div>
+          <div className={styles.branchingSnippet}>
+            <CodeBlock language="camussql">{`CREATE DATABASE prod;
+USE prod;
+
+-- Create an instant copy-on-write branch.
+CREATE DATABASE feature_checkout BRANCH FROM prod;
+USE feature_checkout;
+
+ALTER TABLE orders ADD COLUMN audit_note STRING;
+UPDATE orders SET audit_note = "repro case";
+
+-- prod is unchanged.
+DROP DATABASE feature_checkout;`}</CodeBlock>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function AdvantageComparison() {
   return (
@@ -188,6 +268,7 @@ export default function Home() {
       <HomepageHeader />
       <main>
         <HomepageFeatures />
+        <BranchingWorkflow />
         <AdvantageComparison />
       </main>
     </Layout>

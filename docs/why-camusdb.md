@@ -14,13 +14,15 @@ production workloads yet.
 
 ## Why Use CamusDB?
 
-CamusDB is designed around four core advantages:
+CamusDB is designed around several core advantages:
 
-- Resilient storage across a cluster.
-- Horizontal scale through partitioned data.
-- Multi-active availability across cluster nodes.
-- Atomic distributed transactions with committed reads and conflict detection.
-- SQL for schema design, writes, reads, indexes, and aggregation.
+- Resilient storage across a cluster
+- Horizontal scale through partitioned data
+- Multi-active availability across cluster nodes
+- Atomic distributed transactions with committed reads and conflict detection
+- Copy-on-write database branching for development, testing, and issue
+  reproduction
+- Transactional SQL for schema design, writes, reads, indexes, and aggregation
 
 ## Resilient Distributed Storage
 
@@ -77,6 +79,22 @@ ROLLBACK;
 See [Transactions And Isolation](/docs/serializable-transactions) for the
 current transaction guarantees and tradeoffs.
 
+## Database Branching
+
+CamusDB can create an isolated point-in-time branch of an existing database:
+
+```camussql
+CREATE DATABASE feature_checkout BRANCH FROM prod;
+```
+
+The branch shares the source database's data snapshot until it diverges. Reads
+can fall through to the source snapshot, while writes, deletes, and schema
+changes stay private to the branch.
+
+This gives developers production-like data for feature work, migration
+rehearsals, and hard-to-reproduce issue debugging without writing to the base
+database. See [Database Branching](/docs/database-branching).
+
 ## Familiar SQL
 
 CamusDB keeps the application-facing model simple: define tables, add indexes,
@@ -120,4 +138,4 @@ CamusDB is early-stage. The current design already includes cluster mode,
 partition routing, leader election, replicated storage, SQL execution, and
 distributed transaction coordination. Areas such as operational tooling,
 production hardening, and richer multi-region controls are still part of the
-project’s evolution.
+project's evolution.

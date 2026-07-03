@@ -15,6 +15,7 @@ are normalized to lowercase.
 | Area | Page |
 | --- | --- |
 | Database lifecycle | [Databases](/docs/databases) |
+| Database branching | [Database Branching](/docs/database-branching) |
 | Tables, columns, and schema changes | [Tables And Schema](/docs/sql-schema) |
 | Column types and literal formats | [Data Types](/docs/data-types) |
 | Indexes and index DDL | [Indexes](/docs/sql-indexes) |

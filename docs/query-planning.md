@@ -279,8 +279,9 @@ an index on `posts(user_id)` is far more useful than an unrelated index on
 
 Hash joins materialize the estimated smaller side into an in-memory hash table
 and stream the other side as probes. If the build side exceeds the configured
-hash-join build limit, execution falls back to nested-loop behavior for that
-query.
+hash-join build limit, CamusDB can use [spill to disk](/docs/spill-to-disk)
+to partition the join and keep memory bounded. If spill is disabled, execution
+falls back to nested-loop behavior for that query.
 
 Merge joins require equality join keys. When both inputs can be produced in
 join-key order, CamusDB advances both streams together and buffers only the

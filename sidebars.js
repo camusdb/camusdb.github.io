@@ -21,6 +21,7 @@ const sidebars = {
       items: [
         'intro',
         'databases',
+        'database-branching',
         'why-camusdb',
       ],
     },
@@ -95,6 +96,7 @@ const sidebars = {
             'distributed-schema',
             'query-planning',
             'query-planner-internals',
+            'spill-to-disk',
             'transactions-locking-internals',
           ],
         },

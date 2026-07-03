@@ -288,8 +288,10 @@ Other stages include:
 - Indexed nested loops probe the right-side index per outer row.
 - Hash joins materialize the build side into an in-memory hash table keyed by
   the equi-join columns, then stream and probe the other side. If the build
-  side exceeds `HashJoinMaxBuildRows`, execution falls back to nested-loop
-  behavior for that query.
+  side exceeds `HashJoinMaxBuildRows` and spill is enabled,
+  `GraceHashJoinAsync` partitions both inputs into spill files and joins one
+  partition at a time. If spill is disabled, execution falls back to
+  nested-loop behavior for that query.
 - Merge joins advance ordered left and right inputs together. When both sides
   are already ordered by the join key, they stream; otherwise the unordered
   side may be materialized and sorted first.

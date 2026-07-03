@@ -17,15 +17,18 @@ const FeatureList = [
     description:
       'Send traffic to multiple nodes while Raft-backed partitions elect leaders and replicate committed writes.',
   },
+  {
+    title: 'Branch databases instantly',
+    description:
+      'Clone a base database for feature work, migration tests, and production issue repros without writing to the source.',
+  },
 ];
 
 function Feature({title, description}) {
   return (
-    <div className="col col--4">
-      <div className={styles.feature}>
-        <Heading as="h3">{title}</Heading>
-        <p>{description}</p>
-      </div>
+    <div className={styles.feature}>
+      <Heading as="h3">{title}</Heading>
+      <p>{description}</p>
     </div>
   );
 }
@@ -34,7 +37,7 @@ export default function HomepageFeatures() {
   return (
     <section className={styles.features}>
       <div className="container">
-        <div className="row">
+        <div className={styles.featureGrid}>
           {FeatureList.map((props) => (
             <Feature key={props.title} {...props} />
           ))}

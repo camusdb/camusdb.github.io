@@ -308,7 +308,9 @@ physical  table-scan  table=line_items
 `build=li` means `line_items` is materialized into the in-memory hash table.
 The other side streams as probes. CamusDB usually chooses the smaller estimated
 side as the build side. If the build side grows past the configured hash-join
-build limit, execution falls back to nested-loop behavior for that query.
+build limit, CamusDB can use [spill to disk](/docs/spill-to-disk) to partition
+the join and keep memory bounded. If spill is disabled, execution falls back to
+nested-loop behavior for that query.
 
 ### Merge join
 
