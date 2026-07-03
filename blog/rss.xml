@@ -4,17 +4,21 @@
         <title>CamusDB Blog</title>
         <link>https://camusdb.github.io/blog/</link>
         <description>CamusDB Blog</description>
-        <lastBuildDate>Sat, 14 Jan 2023 00:00:00 GMT</lastBuildDate>
+        <lastBuildDate>Fri, 03 Jul 2026 00:00:00 GMT</lastBuildDate>
         <docs>https://validator.w3.org/feed/docs/rss2.html</docs>
         <generator>https://github.com/jpmonette/feed</generator>
         <language>en</language>
         <item>
-            <title><![CDATA[Welcome]]></title>
+            <title><![CDATA[Why CamusDB Exists]]></title>
             <link>https://camusdb.github.io/blog/welcome/</link>
             <guid>https://camusdb.github.io/blog/welcome/</guid>
-            <pubDate>Sat, 14 Jan 2023 00:00:00 GMT</pubDate>
-            <description><![CDATA[For many years I worked with Google Spanner, and somewhere along the way I fell in love with distributed SQL databases.]]></description>
-            <content:encoded><![CDATA[<p>For many years I worked with Google Spanner, and somewhere along the way I fell in love with distributed SQL databases.</p>
+            <pubDate>Fri, 03 Jul 2026 00:00:00 GMT</pubDate>
+            <description><![CDATA[Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away.]]></description>
+            <content:encoded><![CDATA[<blockquote>
+<p>Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away.</p>
+<p>— Antoine de Saint-Exupéry</p>
+</blockquote>
+<p>For many years I worked with Google Spanner, and somewhere along the way I fell in love with distributed SQL databases.</p>
 <p>That may sound a little too dramatic for a database, but honestly, it is true.</p>
 <p>In the video game industry, databases are not just boring infrastructure sitting in the background. They are a critical part of the player experience. Games need to handle spikes, global traffic, competitive systems, economies, inventories, matchmaking, leaderboards, live events, rewards, and a lot of things that must work correctly even when thousands or millions of players are active.</p>
 <p>That is where distributed SQL really clicked for me.</p>
@@ -34,8 +38,8 @@
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="camusdb-did-not-appear-out-of-nowhere">CamusDB did not appear out of nowhere<a href="https://camusdb.github.io/blog/welcome/#camusdb-did-not-appear-out-of-nowhere" class="hash-link" aria-label="Direct link to CamusDB did not appear out of nowhere" title="Direct link to CamusDB did not appear out of nowhere" translate="no">​</a></h2>
 <p>CamusDB is not the first piece of this puzzle.</p>
 <p>For years I have been building the lower-level infrastructure needed to make something like this possible.</p>
-<p>The first big piece is Kahuna, a distributed key/value and locking layer. Kahuna provides the coordination and transactional primitives that CamusDB uses as its foundation.</p>
-<p>Then there is Kommander, the Raft library used to build the replicated consensus layer. Raft is one of those things that looks simple when you read the paper, but once you start implementing it and testing failure scenarios, you realize how many details matter.</p>
+<p>The first big piece is <a href="https://github.com/kahunakv/kahuna" target="_blank" rel="noopener noreferrer" class="">Kahuna</a>, a distributed key/value and locking layer. Kahuna provides the coordination and transactional primitives that CamusDB uses as its foundation.</p>
+<p>Then there is <a href="https://github.com/kahunakv/kommander" target="_blank" rel="noopener noreferrer" class="">Kommander</a>, the Raft library used to build the replicated consensus layer. Raft is one of those things that looks simple when you read the paper, but once you start implementing it and testing failure scenarios, you realize how many details matter.</p>
 <p>CamusDB sits on top of all of that work.</p>
 <p>So in many ways, CamusDB is the result of years of building the pieces underneath it: distributed coordination, locks, key/value storage, replication, consensus, transactions, and all the boring but necessary machinery that makes a database possible.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-build-my-own-database">Why build my own database?<a href="https://camusdb.github.io/blog/welcome/#why-build-my-own-database" class="hash-link" aria-label="Direct link to Why build my own database?" title="Direct link to Why build my own database?" translate="no">​</a></h2>
