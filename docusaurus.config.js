@@ -79,6 +79,11 @@ const config = {
             label: 'Docs',
           },
           {
+            to: '/blog',
+            label: 'Blog',
+            position: 'left',
+          },
+          {
             href: 'https://github.com/camusdb/camusdb',
             label: 'GitHub',
             position: 'right',

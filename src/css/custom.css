@@ -56,6 +56,36 @@
   color: #f4f8ff;
 }
 
+.markdown blockquote {
+  background: rgba(45, 112, 240, 0.06);
+  border-left: 4px solid var(--ifm-color-primary);
+  border-radius: 0 6px 6px 0;
+  color: var(--ifm-heading-color);
+  font-size: 1.08rem;
+  font-style: italic;
+  margin: 0 0 2rem;
+  padding: 1rem 1.25rem;
+}
+
+.markdown blockquote p {
+  margin-bottom: 0.5rem;
+}
+
+.markdown blockquote p:last-child {
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.95rem;
+  font-style: normal;
+  margin-bottom: 0;
+}
+
+[data-theme='dark'] .markdown blockquote {
+  background: rgba(78, 151, 249, 0.12);
+}
+
+[data-theme='dark'] .markdown blockquote p:last-child {
+  color: var(--ifm-color-emphasis-600);
+}
+
 .language-camussql .token.builtin,
 .language-camussql .token.class-name {
   color: #0f8a74;
