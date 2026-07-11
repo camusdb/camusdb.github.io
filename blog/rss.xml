@@ -4,10 +4,210 @@
         <title>CamusDB Blog</title>
         <link>https://camusdb.github.io/blog/</link>
         <description>CamusDB Blog</description>
-        <lastBuildDate>Fri, 03 Jul 2026 00:00:00 GMT</lastBuildDate>
+        <lastBuildDate>Sat, 11 Jul 2026 00:00:00 GMT</lastBuildDate>
         <docs>https://validator.w3.org/feed/docs/rss2.html</docs>
         <generator>https://github.com/jpmonette/feed</generator>
         <language>en</language>
+        <item>
+            <title><![CDATA[Teaching CamusDB To Choose Better Query Plans]]></title>
+            <link>https://camusdb.github.io/blog/dynamic-programming-query-optimizer/</link>
+            <guid>https://camusdb.github.io/blog/dynamic-programming-query-optimizer/</guid>
+            <pubDate>Sat, 11 Jul 2026 00:00:00 GMT</pubDate>
+            <description><![CDATA[One of the most interesting parts of building CamusDB is the query optimizer.]]></description>
+            <content:encoded><![CDATA[<p>One of the most interesting parts of building CamusDB is the query optimizer.
+It might also be one of the most complex pieces of machinery in the whole
+database.</p>
+<p>At first, a query optimizer sounds simple: receive a SQL query and decide how
+to run it. But the more features a database supports, the harder that decision
+becomes. A query can use a table scan, an index lookup, an index range scan, a
+hash join, a merge join, a nested loop join, a sort, an aggregate, a derived
+table, or a subquery. Each option can be correct, but not every option is fast.</p>
+<p>The optimizer's job is to choose a good plan before the query runs.</p>
+<p>That is a difficult job because SQL is declarative. When a user writes:</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">SELECT</span><span class="token plain"> u</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">email</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> p</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">title</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> c</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">body</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> users u</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">JOIN</span><span class="token plain"> posts p </span><span class="token keyword" style="color:#00009f">ON</span><span class="token plain"> p</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">user_id </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> u</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">id</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">JOIN</span><span class="token plain"> comments c </span><span class="token keyword" style="color:#00009f">ON</span><span class="token plain"> c</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">post_id </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> p</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">id</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">WHERE</span><span class="token plain"> u</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">active </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">true</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
+<p>they are not saying:</p>
+<ol>
+<li class="">Read <code>users</code> first.</li>
+<li class="">Then join <code>posts</code>.</li>
+<li class="">Then join <code>comments</code>.</li>
+</ol>
+<p>They are saying what result they want. The database must decide the how.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-join-order-matters">Why Join Order Matters<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#why-join-order-matters" class="hash-link" aria-label="Direct link to Why Join Order Matters" title="Direct link to Why Join Order Matters" translate="no">​</a></h2>
+<p>For small queries, the difference may not look important. For larger tables, it
+can be huge.</p>
+<p>Imagine this:</p>
+<ul>
+<li class=""><code>users</code> has many rows, but only a few are active.</li>
+<li class=""><code>posts</code> has many rows for each user.</li>
+<li class=""><code>comments</code> has many rows for each post.</li>
+</ul>
+<p>If CamusDB starts with all comments, then joins posts, then joins users, it may
+touch a lot of data before discovering that most rows do not match
+<code>u.active = true</code>.</p>
+<p>If it starts with the filtered active users, it may reduce the problem much
+earlier. The final result is the same, but the amount of work can be very
+different.</p>
+<p>This is where the optimizer becomes more than a parser or a set of simple
+rules. It has to reason about cost.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-search-space-grows-fast">The Search Space Grows Fast<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#the-search-space-grows-fast" class="hash-link" aria-label="Direct link to The Search Space Grows Fast" title="Direct link to The Search Space Grows Fast" translate="no">​</a></h2>
+<p>The hard part is that join order has many possibilities.</p>
+<p>With two tables, there are only a few choices. With three tables, there are
+more. With five, six, or seven tables, the number of possible orders grows very
+quickly.</p>
+<p>A naive optimizer could try every possible order, estimate the cost of each
+one, and pick the cheapest. That works for tiny cases, but it does not scale
+well. The optimizer itself would become too slow.</p>
+<p>This is a classic database problem. CamusDB now uses a System-R-style dynamic
+programming approach for eligible inner joins when cost-based join ordering is
+enabled.</p>
+<p>The idea is simple enough to explain, even if the implementation has many
+details.</p>
+<p>Instead of asking "what is the best plan for the whole join?" immediately, the
+optimizer asks smaller questions first:</p>
+<ul>
+<li class="">What is the best plan for <code>users</code>?</li>
+<li class="">What is the best plan for <code>posts</code>?</li>
+<li class="">What is the best plan for <code>comments</code>?</li>
+<li class="">What is the best plan for <code>users JOIN posts</code>?</li>
+<li class="">What is the best plan for <code>posts JOIN comments</code>?</li>
+<li class="">Can those smaller answers help build the best larger answer?</li>
+</ul>
+<p>Dynamic programming is useful here because it remembers the best answer for a
+smaller subset of tables and reuses it later. It avoids doing the same work
+again and again.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-small-mental-model">A Small Mental Model<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#a-small-mental-model" class="hash-link" aria-label="Direct link to A Small Mental Model" title="Direct link to A Small Mental Model" translate="no">​</a></h2>
+<p>Think of the optimizer as filling a table of partial plans.</p>
+<p>First, it estimates the best way to access each individual table. Maybe one
+table should use an index. Maybe another should use a full scan.</p>
+<p>Then it looks at pairs of tables that can be joined. For each pair, it asks:</p>
+<ul>
+<li class="">Can this pair be joined with an indexed nested loop?</li>
+<li class="">Is a hash join cheaper?</li>
+<li class="">Can both sides arrive ordered, making merge join possible?</li>
+<li class="">How many rows will probably come out?</li>
+<li class="">How expensive is the intermediate result?</li>
+</ul>
+<p>Then it does the same for three-table groups, then four-table groups, and so
+on, always building from the best smaller plans it already found.</p>
+<p>At the end, it has a candidate plan for the full query.</p>
+<p>This does not mean the optimizer has perfect knowledge. It is still estimating.
+But it is estimating in a structured way.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-more-technical-view">A More Technical View<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#a-more-technical-view" class="hash-link" aria-label="Direct link to A More Technical View" title="Direct link to A More Technical View" translate="no">​</a></h2>
+<p>The dynamic programming part works by keeping a memo table. In CamusDB, the
+main idea is:</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">dp[set of tables] = cheapest known left-deep plan for exactly that set</span><br></div></code></pre></div></div>
+<p>For a query with three tables, the optimizer first creates entries for single
+tables:</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">dp[{users}]</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">dp[{posts}]</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">dp[{comments}]</span><br></div></code></pre></div></div>
+<p>Each entry stores more than the table name. It stores a partial plan, the
+estimated cost, and the estimated number of rows that the partial plan will
+produce.</p>
+<p>Then CamusDB tries to build larger entries from smaller ones:</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">dp[{users, posts}]</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">dp[{posts, comments}]</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">dp[{users, comments}]</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">dp[{users, posts, comments}]</span><br></div></code></pre></div></div>
+<p>The recurrence is roughly:</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">best(S) =</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  min over each table R in S:</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    best(S - R) joined with R</span><br></div></code></pre></div></div>
+<p>There is one important rule: CamusDB only considers a join when there is a
+connecting predicate between the existing left side and the new right table.
+That prevents the optimizer from inventing cross products for normal joins.</p>
+<p>For each possible extension, the optimizer asks which join shape is cheaper.
+For example:</p>
+<ul>
+<li class="">If the right table has an index on the join key, an indexed nested-loop join
+may be cheap.</li>
+<li class="">If repeated index probes look expensive, a hash join may be cheaper.</li>
+<li class="">If both sides can arrive ordered by the join key, a merge join can become a
+good option.</li>
+</ul>
+<p>In simplified form, the optimizer is doing this:</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">candidate_cost =</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  cost(best_left_plan)</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  + cost(join best_left_plan with next_table)</span><br></div></code></pre></div></div>
+<p>If the new candidate is cheaper than the current <code>dp[S]</code>, it replaces it.</p>
+<!-- -->
+<p>The real implementation has more details, but this is the core shape.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-left-deep-plans">Why Left-Deep Plans?<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#why-left-deep-plans" class="hash-link" aria-label="Direct link to Why Left-Deep Plans?" title="Direct link to Why Left-Deep Plans?" translate="no">​</a></h2>
+<p>CamusDB currently searches left-deep join trees. A left-deep plan looks like
+this:</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">(((users JOIN posts) JOIN comments) JOIN reactions)</span><br></div></code></pre></div></div>
+<p>The left side grows one table at a time, and each step adds one new table on
+the right.</p>
+<p>There are also bushy plans, where both sides of a join can already be joined
+subtrees:</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">(users JOIN posts) JOIN (comments JOIN reactions)</span><br></div></code></pre></div></div>
+<p>Bushy plans can be useful, but they make the search space larger. For now,
+CamusDB keeps the search practical by using left-deep plans for this DP pass.
+That is a common and useful step for a database optimizer.</p>
+<p>The search also has boundaries:</p>
+<ul>
+<li class="">It is used for eligible inner joins.</li>
+<li class="">It works with <code>JOIN ... ON</code> predicates that can be safely reordered.</li>
+<li class="">It is capped for very wide joins, so planning stays bounded.</li>
+<li class="">Unsupported shapes fall back to the heuristic join order.</li>
+</ul>
+<p>These limits are not failures. They are part of making the optimizer safe and
+incremental.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="statistics-make-the-optimizer-smarter">Statistics Make The Optimizer Smarter<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#statistics-make-the-optimizer-smarter" class="hash-link" aria-label="Direct link to Statistics Make The Optimizer Smarter" title="Direct link to Statistics Make The Optimizer Smarter" translate="no">​</a></h2>
+<p>Dynamic programming gives CamusDB a better way to search. Statistics give it
+better numbers to search with.</p>
+<p>CamusDB can use table statistics, index counts, histograms, min/max values, and
+distinct-value counts collected by <code>ANALYZE</code>. These values help answer
+questions like:</p>
+<ul>
+<li class="">How many rows are in this table?</li>
+<li class="">How selective is this filter?</li>
+<li class="">Is this index likely to return a small number of rows?</li>
+<li class="">How many rows might this join produce?</li>
+</ul>
+<p>For example:</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">ANALYZE</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">TABLE</span><span class="token plain"> users</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">ANALYZE</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">TABLE</span><span class="token plain"> posts</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">ANALYZE</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">TABLE</span><span class="token plain"> comments</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
+<p>After that, the optimizer has more information for cost estimates.</p>
+<p>You can inspect the result with:</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">EXPLAIN</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SELECT</span><span class="token plain"> u</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">email</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> p</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">title</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> c</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">body</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> users u</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">JOIN</span><span class="token plain"> posts p </span><span class="token keyword" style="color:#00009f">ON</span><span class="token plain"> p</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">user_id </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> u</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">id</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">JOIN</span><span class="token plain"> comments c </span><span class="token keyword" style="color:#00009f">ON</span><span class="token plain"> c</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">post_id </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> p</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">id</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">WHERE</span><span class="token plain"> u</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">active </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">true</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
+<p><code>EXPLAIN</code> shows the selected physical plan and the estimated rows and cost.
+That makes the optimizer less mysterious. You can see whether CamusDB picked a
+hash join, merge join, indexed nested loop join, or a fallback nested loop
+join.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-this-is-hard-in-a-real-database">Why This Is Hard In A Real Database<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#why-this-is-hard-in-a-real-database" class="hash-link" aria-label="Direct link to Why This Is Hard In A Real Database" title="Direct link to Why This Is Hard In A Real Database" translate="no">​</a></h2>
+<p>The clean explanation is only part of the story.</p>
+<p>In the real engine, the optimizer has to deal with many constraints:</p>
+<ul>
+<li class="">It must preserve SQL semantics.</li>
+<li class="">It must respect join predicates.</li>
+<li class="">It must not reorder joins when that would change the result.</li>
+<li class="">It must understand which indexes are available.</li>
+<li class="">It must estimate row counts from imperfect statistics.</li>
+<li class="">It must choose between different join algorithms.</li>
+<li class="">It must still produce a plan quickly.</li>
+</ul>
+<p>This is why the query optimizer is such complex machinery. It sits between the
+friendly SQL that users write and the lower-level storage operations that the
+database must execute.</p>
+<p>When it works well, users should not have to think too much about it. They
+write SQL, create useful indexes, run <code>ANALYZE</code> when data changes, and the
+database does the best it can.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="keeping-the-system-practical">Keeping The System Practical<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#keeping-the-system-practical" class="hash-link" aria-label="Direct link to Keeping The System Practical" title="Direct link to Keeping The System Practical" translate="no">​</a></h2>
+<p>CamusDB still keeps the cost-based optimizer behind configuration flags:</p>
+<div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token key atrule" style="color:#00a4db">cost_based_access_path_enabled</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#36acaa">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">cost_based_join_order_enabled</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#36acaa">true</span><br></div></code></pre></div></div>
+<p>That is intentional. The rule-based planner remains stable and predictable.
+The cost-based planner can be enabled when you want CamusDB to compare more
+plans and use statistics to make better choices.</p>
+<p>This is also useful while the database is still evolving. Query optimizers are
+not finished in one pass. They improve over time, as more query shapes, more
+statistics, and more execution strategies become available.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-i-like-this-feature">Why I Like This Feature<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#why-i-like-this-feature" class="hash-link" aria-label="Direct link to Why I Like This Feature" title="Direct link to Why I Like This Feature" translate="no">​</a></h2>
+<p>Dynamic programming is one of those ideas that feels elegant because it turns a
+large problem into smaller reusable pieces.</p>
+<p>It does not remove the complexity of query optimization. It gives the
+complexity a shape.</p>
+<p>That is exactly the kind of engineering I enjoy in CamusDB. The user sees a SQL
+query. Underneath, the database is making many decisions: how to read, how to
+join, how much data it expects, and which path is probably cheaper.</p>
+<p>There is still a lot to improve, but this is an important step. CamusDB is
+moving from "can this query run?" toward "can this query run with a plan that
+makes sense?"</p>
+<p>For a database, that is a big milestone.</p>]]></content:encoded>
+            <category>camusdb</category>
+            <category>query-optimizer</category>
+            <category>sql</category>
+        </item>
         <item>
             <title><![CDATA[Why CamusDB Exists]]></title>
             <link>https://camusdb.github.io/blog/welcome/</link>

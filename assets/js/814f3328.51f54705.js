@@ -1,1 +1,0 @@
-"use strict";(globalThis.webpackChunkcamusdb_docs=globalThis.webpackChunkcamusdb_docs||[]).push([[7472],{5513(s){s.exports=JSON.parse('{"title":"Recent posts","items":[{"title":"Why CamusDB Exists","permalink":"/blog/welcome","unlisted":false,"date":"2026-07-03T00:00:00.000Z"}]}')}}]);

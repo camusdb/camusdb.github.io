@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkcamusdb_docs=globalThis.webpackChunkcamusdb_docs||[]).push([[3215],{7646(a){a.exports=JSON.parse('{"tags":[{"label":"camusdb","permalink":"/blog/tags/camusdb","count":2},{"label":"query-optimizer","permalink":"/blog/tags/query-optimizer","count":1},{"label":"sql","permalink":"/blog/tags/sql","count":1}]}')}}]);
