@@ -16,11 +16,13 @@ are normalized to lowercase.
 | --- | --- |
 | Database lifecycle | [Databases](/docs/databases) |
 | Database branching | [Database Branching](/docs/database-branching) |
+| SQL comments | [SQL Comments](/docs/sql-comments) |
 | Tables, columns, and schema changes | [Tables And Schema](/docs/sql-schema) |
 | Column types and literal formats | [Data Types](/docs/data-types) |
 | Indexes and index DDL | [Indexes](/docs/sql-indexes) |
 | Inserts, updates, and deletes | [Writing Data](/docs/sql-writes) |
 | SELECT, filters, grouping, and ordering | [Querying Data](/docs/sql-queries) |
+| Query result caching | [Query Result Cache](/docs/query-result-cache) |
 | Transactions | [SQL Transactions](/docs/sql-transactions) |
 | SHOW, DESCRIBE, and EXPLAIN | [Schema Inspection](/docs/sql-inspection) |
 | Parameter placeholders | [SQL Parameters](/docs/sql-parameters) |
@@ -53,4 +55,5 @@ For joins, subqueries, derived tables, grouped aggregate behavior, table hints,
 and planner notes, see [Query Features](/docs/query-features).
 
 For plan selection and plan inspection, see [Query Planning](/docs/query-planning)
-and [Explaining Queries And Commands](/docs/explain).
+and [Explaining Queries And Commands](/docs/explain). For opt-in caching of
+repeated single-table reads, see [Query Result Cache](/docs/query-result-cache).

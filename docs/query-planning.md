@@ -33,6 +33,8 @@ Today CamusDB can plan:
 - Semi/anti-join rewrites for eligible indexed `IN` and `NOT IN` subqueries.
 - Derived tables, scalar subqueries, `IN`, `NOT IN`, and `EXISTS`.
 - Explicit index forcing with `@{FORCE_INDEX=...}`.
+- Opt-in result caching for eligible repeated single-table reads with
+  `{cache=...}`.
 
 CamusDB has a statistics-backed cost-based optimizer layered on top of the
 rule-based planner. Cost estimates are always exposed through `EXPLAIN`, and
@@ -362,6 +364,32 @@ Use this carefully. It is a debugging and tuning tool, not a substitute for
 good schema design. If a forced index makes the query slower, CamusDB will still
 honor the hint.
 
+## Result Cache Hints
+
+For repeated single-table reads, a `SELECT` can opt into the per-node query
+result cache:
+
+```camussql
+SELECT id, total
+FROM orders {cache=recent_orders, ttl=30s}
+WHERE status = "paid";
+```
+
+The result cache stores fully materialized results in memory after a successful
+autocommit read. It is separate from the plan cache: the plan cache can reuse an
+optimization decision, while the result cache can skip storage reads and return
+cached rows.
+
+Important planning behavior:
+
+- only single-table autocommit `SELECT` statements are cache eligible
+- joins bypass result caching even when a hint is present
+- explicit transactions read live storage
+- `EXPLAIN` appends a `cache` informational row when a cache hint is present
+
+See [Query Result Cache](/docs/query-result-cache) for syntax, freshness
+guarantees, manual eviction, and configuration.
+
 ## What Helps The Planner
 
 To get better plans consistently:
@@ -378,6 +406,8 @@ To get better plans consistently:
   viable indexes by estimated cost.
 - Enable `cost_based_join_order_enabled` when you want CamusDB to search
   left-deep inner-join orders by estimated cost.
+- Add `{cache=...}` only to repeated read-heavy single-table queries whose
+  result set is small enough to keep in memory.
 - Use qualified names in joins so predicates are unambiguous.
 - Use `EXPLAIN` to verify whether CamusDB chose a table scan, index lookup,
   range scan, join scan, or extra sort.

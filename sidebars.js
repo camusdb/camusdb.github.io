@@ -31,6 +31,7 @@ const sidebars = {
       collapsed: false,
       items: [
         'sql',
+        'sql-comments',
         'sql-schema',
         'data-types',
         'sql-indexes',
@@ -38,6 +39,7 @@ const sidebars = {
         'sql-queries',
         'query-features',
         'query-planning',
+        'query-result-cache',
         {
           type: 'doc',
           id: 'explain',
@@ -57,6 +59,7 @@ const sidebars = {
             'functions-datetime',
             'functions-json',
             'functions-conversion',
+            'functions-null',
             'functions-object-id',
           ],
         },

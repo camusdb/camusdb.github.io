@@ -15,6 +15,7 @@ Use it when you want to answer questions like:
 - Did `ORDER BY` require an explicit sort?
 - Is a join using indexed lookups, hash join, merge join, or a broader nested
   loop?
+- Will a `{cache=...}` query result hint be eligible for result caching?
 - How many KV lookups or scan entries did `EXPLAIN (ANALYZE)` observe?
 
 ## Syntax
@@ -104,6 +105,46 @@ These are the main node names you will see:
 | `hash-join` | Inner equi-join using an in-memory hash table. |
 | `merge-join` | Inner equi-join that streams ordered inputs by join key. |
 | `derived-table-scan` | Scan of a derived table from `FROM (SELECT ...) alias`. |
+
+## Informational Rows
+
+After the physical plan rows, `EXPLAIN` may append informational rows. These
+rows are not execution operators, so estimated and actual counters are usually
+`NULL`.
+
+| Node | Meaning |
+| --- | --- |
+| `plan-info` | Plan-cache metadata such as the query shape id and schema dependencies. |
+| `cache` | Static eligibility for a query result cache hint. |
+
+The `cache` row appears when the query carries a `{cache=...}` or
+`@{cache=...}` hint:
+
+```camussql
+EXPLAIN
+SELECT id, total
+FROM orders {cache=recent_orders, ttl=30s}
+WHERE status = "paid";
+```
+
+Typical cache row detail:
+
+```text
+cache  family=recent_orders, eligible=true, ttl=30000ms, strict=false
+```
+
+If the hint is present but the result will not use the cache, `eligible=false`
+includes a reason. Current reasons include:
+
+| Reason | Meaning |
+| --- | --- |
+| `join` | Joins bypass the result cache. |
+| `cache-disabled` | `query_result_cache_enabled` is `false`. |
+
+This row is a static plan property. It does not probe the cache, populate the
+cache, or tell you whether a matching entry currently exists. Runtime cache
+outcomes are reported in the query response metadata, such as `cacheStatus` and
+`cacheBypassReason`. See [Query Result Cache](/docs/query-result-cache).
 
 ## Cost-Based Optimizer Notes
 

@@ -71,6 +71,18 @@ The remaining YAML settings do not currently have command-line flags:
 | `cost_based_join_order_enabled` | `false` | Enable cost-based left-deep join-order enumeration for eligible joins. |
 | `plan_cache_enabled` | `false` | Enable the per-process query plan cache. |
 | `plan_cache_max_entries` | `512` | Maximum plan-cache entries; `0` effectively disables caching. |
+| `query_result_cache_enabled` | `true` | Enable the per-node in-memory query result cache. Queries still opt in individually with `{cache=...}`. |
+| `query_result_cache_default_ttl_ms` | `5000` | Default TTL for result-cache entries without a per-query `ttl`. |
+| `query_result_cache_max_entries` | `1024` | Maximum result-cache entries per process. |
+| `query_result_cache_max_bytes` | `67108864` | Total result-cache byte budget per process. |
+| `query_result_cache_max_entry_bytes` | `1048576` | Maximum bytes for a single result-cache entry. |
+| `query_result_cache_max_entry_rows` | `10000` | Maximum rows for a single result-cache entry. |
+| `query_result_cache_max_deps` | `4096` | Maximum dependency facts captured for one result-cache entry. |
+| `query_result_cache_max_point_deps` | `2048` | Maximum point-key dependencies captured for one result-cache entry. |
+| `query_result_cache_max_ranges` | `256` | Maximum range dependencies captured for one result-cache entry. |
+| `query_result_cache_singleflight_wait_ms` | `250` | Reserved single-flight wait setting for result-cache misses. |
+| `query_result_cache_strict_validation_max_keys` | `10000` | Maximum keys probed during strict validation before failing closed. |
+| `query_result_cache_sweep_interval_ms` | `10000` | Background TTL sweep interval. |
 | `sql_parser_cache_ttl_seconds` | `300` | Sliding TTL for cached SQL ASTs; `0` disables the parser cache. |
 | `sql_parser_cache_max_entries` | `2048` | Maximum cached SQL texts; `0` means unbounded. |
 | `sql_parser_cache_sweep_seconds` | `60` | Background sweep interval for expired parser-cache entries. |
@@ -268,6 +280,59 @@ The cache is per process and does not change query correctness. It may preserve
 an older access-path choice until schema changes invalidate the cached entry or
 the process restarts.
 
+## Query Result Cache
+
+The query result cache stores fully materialized result sets for repeated
+single-table reads that explicitly opt in with a `{cache=...}` hint.
+
+```yaml
+query_result_cache_enabled: true
+query_result_cache_default_ttl_ms: 5000
+query_result_cache_max_entries: 1024
+query_result_cache_max_bytes: 67108864
+query_result_cache_max_entry_bytes: 1048576
+query_result_cache_max_entry_rows: 10000
+query_result_cache_max_deps: 4096
+query_result_cache_max_point_deps: 2048
+query_result_cache_max_ranges: 256
+query_result_cache_singleflight_wait_ms: 250
+query_result_cache_strict_validation_max_keys: 10000
+query_result_cache_sweep_interval_ms: 10000
+```
+
+Settings:
+
+- `query_result_cache_enabled`: master switch. When `false`, hinted queries
+  read live storage and report `cache-disabled`.
+- `query_result_cache_default_ttl_ms`: TTL for entries without a per-query
+  `ttl=...` hint.
+- `query_result_cache_max_entries`: maximum number of result-cache entries.
+  Older entries are evicted by LRU behavior when the cap is exceeded.
+- `query_result_cache_max_bytes`: total byte budget across all cached entries.
+- `query_result_cache_max_entry_bytes`: per-entry byte cap. Larger results are
+  returned normally but not cached.
+- `query_result_cache_max_entry_rows`: per-entry row cap. Larger results are
+  returned normally but not cached.
+- `query_result_cache_max_deps`: maximum combined range, point, and schema
+  dependencies recorded for one entry. Exceeding it prevents publishing the
+  entry.
+- `query_result_cache_max_point_deps`: maximum point-key dependencies recorded
+  for one entry. Strict entries are not stored if point dependencies are
+  truncated.
+- `query_result_cache_max_ranges`: maximum range dependencies recorded for one
+  entry.
+- `query_result_cache_singleflight_wait_ms`: reserved for future single-flight
+  miss de-duplication. Current concurrent misses may compute independently.
+- `query_result_cache_strict_validation_max_keys`: maximum probe budget for
+  strict validation. Exceeding it treats the entry as stale and re-executes the
+  query.
+- `query_result_cache_sweep_interval_ms`: how often the background sweep removes
+  expired entries.
+
+The cache is enabled by default but inert until a query uses `{cache=...}` or
+`@{cache=...}`. See [Query Result Cache](/docs/query-result-cache) for query
+syntax, cache metadata, freshness behavior, and manual eviction.
+
 ## Schema Limits
 
 These settings bound schema growth and identifier sizes:
@@ -367,6 +432,7 @@ Important validation rules:
 - `cost_based_access_path_enabled` and `cost_based_join_order_enabled` are
   booleans
 - `plan_cache_enabled` is boolean
+- `query_result_cache_enabled` is boolean
 - `max_identifier_length`, `max_columns_per_table`,
   `max_indexes_per_table`, and `max_tables_per_database` use `<= 0` to disable
   the corresponding limit
@@ -388,6 +454,9 @@ cost_based_access_path_enabled: true
 cost_based_join_order_enabled: true
 plan_cache_enabled: true
 plan_cache_max_entries: 512
+query_result_cache_enabled: true
+query_result_cache_default_ttl_ms: 5000
+query_result_cache_max_entries: 1024
 sql_parser_cache_ttl_seconds: 300
 sql_parser_cache_max_entries: 2048
 sql_parser_cache_sweep_seconds: 60
@@ -434,6 +503,9 @@ cost_based_access_path_enabled: true
 cost_based_join_order_enabled: true
 plan_cache_enabled: true
 plan_cache_max_entries: 512
+query_result_cache_enabled: true
+query_result_cache_default_ttl_ms: 5000
+query_result_cache_max_entries: 1024
 kahuna:
   storage: rocksdb
   wal_storage: rocksdb

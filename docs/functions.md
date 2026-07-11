@@ -25,6 +25,7 @@ null handling.
 - [Date/Time Functions](/docs/functions-datetime)
 - [JSON Functions](/docs/functions-json)
 - [Conversion Functions](/docs/functions-conversion)
+- [Null Functions](/docs/functions-null)
 - [Object Id Functions](/docs/functions-object-id)
 
 ## General Rules

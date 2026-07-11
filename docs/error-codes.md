@@ -59,7 +59,7 @@ unexpected internal state, or storage-layer inconsistencies.
 | `CADB0506` | `TransactionMutationLimitExceeded` | A read-write transaction would exceed the maximum mutation count, currently 20,000 row/index mutations by default. Split the work into smaller transactions; retrying the same transaction will fail again. |
 | `CADB0507` | `SpillStorageUnavailable` | A query operator needed spill-to-disk temporary storage, but CamusDB could not create the spill directory or open a spill file. Free disk space, fix permissions under `data_dir`, or run the query on a node with writable spill storage. |
 | `CADB0508` | `DatabaseHasLiveDescendants` | `DROP DATABASE` targets a database that still has live branch descendants. Drop descendant branches first, then drop the parent. |
-| `CADB0600` | `InvalidConfig` | Startup configuration is invalid: wrong mode, invalid listener or Raft port, malformed peer lists, invalid schema-ack settings, invalid transaction/locking settings, invalid parser-cache values, or unsupported `kahuna` options. |
+| `CADB0600` | `InvalidConfig` | Startup configuration is invalid: wrong mode, invalid listener or Raft port, malformed peer lists, invalid schema-ack settings, invalid transaction/locking settings, invalid parser-cache values, unknown config keys, or unsupported `kahuna` options. |
 
 ## Corruption And Internal-State Errors
 

@@ -64,7 +64,7 @@ const config = {
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
-      image: 'img/docusaurus-social-card.jpg',
+      image: 'img/camusdb-social-card.png',
       navbar: {
         title: 'CamusDB',
         logo: {
