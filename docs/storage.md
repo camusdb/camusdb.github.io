@@ -86,9 +86,9 @@ where crash durability is not being evaluated.
 ## Database Create And Open
 
 Databases must be created explicitly before use. `CREATE DATABASE` allocates a
-stable opaque database id and stores the name-to-id mapping in CamusDB's
-registry. `CREATE DATABASE IF NOT EXISTS` returns the existing database when the
-name is already registered.
+stable short base62 database id and stores the name-to-id mapping in CamusDB's
+registry. `CREATE DATABASE IF NOT EXISTS` returns the existing database when
+the name is already registered.
 
 Both standalone and cluster modes use a single process-level
 [Kahuna](https://kahunakv.github.io/) node. Creating a database does not create
@@ -123,10 +123,18 @@ key/value entries in the shared [Kahuna](https://kahunakv.github.io/) keyspace.
 User data keys include the opaque database id first, so two databases can use
 the same table names without sharing storage keys.
 
+New tables receive short base62 table ids from a persistent monotonic sequence
+stored in the shared system keyspace. The id contains none of the KV key
+separators (`/`, `:`, or `~`), is not reused after a table is dropped, and is
+typically much shorter than the previous 24-character ObjectId-style table
+ids. Existing databases can still contain older 24-hex table ids; both formats
+coexist safely because the id is treated as an opaque key segment.
+
 | Object | Key shape | Value |
 | --- | --- | --- |
 | Database registry entry | `_system/dbregistry/db:{databaseName}` | Database id, normalized name, and creation time. |
 | Database id sequence | `_system/dbregistry/seq` | Monotonic sequence used to allocate database ids. |
+| Table id sequence | `_system/tableseq` | Monotonic sequence used to allocate new short base62 table ids. |
 | System metadata | `{databaseId}/meta/system` | Internal database metadata. |
 | Schema version | `{databaseId}/meta/version` | Current applied schema version. |
 | Table schema | `{databaseId}/meta/table:{tableId}` | Serialized schema for one table. |
@@ -134,12 +142,12 @@ the same table names without sharing storage keys.
 | DDL coordinator state | `{databaseId}/meta/coordinator:{tableId}~{element}` | State for multi-step schema changes such as index backfill. |
 | Table statistics | `{databaseId}:stats:{tableId}` | Persisted planner statistics for the table. |
 | Row | `{databaseId}:{tableId}:r/{rowId}` | Serialized row bytes. |
-| Unique index entry | `{databaseId}:{tableId}:i:{indexName}/{encodedKey}` | Row id as UTF-8 text. |
-| Non-unique index entry | `{databaseId}:{tableId}:i:{indexName}/{encodedKey}{rowId}` | Row id as UTF-8 text. |
+| Unique index entry | `{databaseId}:{tableId}:i:{indexId}/{encodedKey}` | Row id as UTF-8 text. |
+| Non-unique index entry | `{databaseId}:{tableId}:i:{indexId}/{encodedKey}{rowId}` | Row id as UTF-8 text. |
 
 The slash placement is intentional. Row keys share the bucket
 `{databaseId}:{tableId}:r`, and index keys share the bucket
-`{databaseId}:{tableId}:i:{indexName}`. That keeps scans, writes, and range
+`{databaseId}:{tableId}:i:{indexId}`. That keeps scans, writes, and range
 locks aligned on the same routed keyspace. Metadata keys use the single
 `{databaseId}/meta` bucket so database metadata can be loaded and purged as a
 coherent group.
@@ -148,9 +156,11 @@ Non-unique index keys append the row id directly after the encoded key. The row
 id has a fixed 24-character representation, so CamusDB can split it back out
 while preserving sortable index keys.
 
-Indexes use the schema-visible index name in the storage keyspace. Internally,
-tables and columns also have stable ids, so renaming tables or columns does not
-require rewriting existing row or index data.
+Indexes use stable ids in the storage keyspace and keep the schema-visible
+index name as metadata. Tables and columns also have stable ids. New table ids
+are short base62 strings allocated before the schema change is committed, so
+every node applies the same table identity. Renaming tables, columns, or indexes
+does not require rewriting existing row or index data.
 
 ## Row Values
 
@@ -166,6 +176,7 @@ schema history attached to the table. Column values are encoded by type:
 | Column type | Stored representation |
 | --- | --- |
 | `OID` | 12-byte object id. |
+| `UUID` | 16-byte UUID. |
 | `INT64` | 8-byte signed integer. |
 | `FLOAT64` | 8-byte double. |
 | `FLOAT32` | 4-byte single-precision value, exposed through the common numeric value path. |
@@ -187,6 +198,7 @@ order-preserving encoder for composite index values:
 - `FLOAT64` and `FLOAT32` apply order-preserving transforms to IEEE-754 bits.
 - `BOOL` stores `0` or `1`.
 - `DATE` and `DATETIME` sort by their UTC tick values.
+- `UUID` stores the 128-bit value in a fixed-width order-preserving encoding.
 - `BYTES` values use an order-preserving byte encoding.
 - `STRING` and `OID` values use terminators and escaping so prefixes sort
   correctly.
@@ -196,6 +208,11 @@ results for the indexed columns.
 
 All scalar column types are indexable. `ARRAY(T)` columns are stored in rows,
 but they cannot be used in primary keys or secondary indexes.
+
+For UUID identifiers, prefer `UUID` columns over `STRING` columns. A UUID
+column stores the value as 16 bytes in rows and uses compact fixed-width index
+keys, while a UUID saved as text carries the larger string representation
+through memory, disk, and index entries.
 
 ## Writes And Locks
 
@@ -224,7 +241,7 @@ Full table scans read the row bucket prefix:
 Index scans read the index bucket prefix:
 
 ```text
-{databaseId}:{tableId}:i:{indexName}
+{databaseId}:{tableId}:i:{indexId}
 ```
 
 Because row ids and encoded index keys preserve sort order, CamusDB can stream

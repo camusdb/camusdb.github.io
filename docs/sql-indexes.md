@@ -20,6 +20,40 @@ Multi-column unique indexes are supported:
 CREATE UNIQUE INDEX robots_kind_year_uq ON robots (kind, year);
 ```
 
+## Index Column Order
+
+Each indexed column can specify `ASC` or `DESC`. If no direction is written,
+`ASC` is used.
+
+```camussql
+CREATE INDEX robots_year_asc_idx ON robots (year ASC);
+CREATE INDEX robots_year_desc_idx ON robots (year DESC);
+CREATE INDEX robots_kind_year_idx ON robots (kind ASC, year DESC);
+```
+
+Index order matters for `ORDER BY`. CamusDB scans indexes forward, so the
+query direction must match the indexed direction for the planner to skip a
+separate sort:
+
+```camussql
+CREATE INDEX robots_year_desc_idx ON robots (year DESC);
+
+SELECT *
+FROM robots
+ORDER BY year DESC;
+```
+
+The index above can satisfy `ORDER BY year DESC`. It does not satisfy
+`ORDER BY year ASC`; that query needs an ascending index or a separate sort.
+For composite indexes, the `ORDER BY` columns and directions must match a
+left-to-right index prefix, such as `(kind ASC, year DESC)` for
+`ORDER BY kind ASC, year DESC`.
+
+Descending index columns are supported for fixed-width scalar types:
+`OID`, `UUID`, `INT64`, `FLOAT64`, `FLOAT32`, `BOOL`, `DATE`, and `DATETIME`.
+Descending `STRING` and `BYTES` index columns are currently rejected with
+`InvalidInput`. `ARRAY(T)` columns are not indexable.
+
 ## Alter Table Index DDL
 
 ```camussql

@@ -74,6 +74,9 @@ The table has:
 | `kind` | `STRING` | Required category or model family. |
 | `year` | `INT64` | Optional year with a default value. |
 
+For UUID identifiers, use the native `UUID` type instead of `STRING`. UUID
+columns store compact 128-bit values and use smaller index keys than UUID text.
+
 ## Inspect The Schema
 
 Show the tables in the current database:
@@ -252,6 +255,7 @@ WHERE name = "K-2SO";
 | SQL type | Notes |
 | --- | --- |
 | `OID` | Native object id values. |
+| `UUID` | Native 128-bit UUID values. Prefer this over `STRING` for UUID identifiers. |
 | `INT64` | Signed 64-bit integers. |
 | `FLOAT64` | Double-precision floating point values. |
 | `FLOAT32` | Single-precision floating point values. |

@@ -103,8 +103,13 @@ entry points at the stable storage id. Database data lives in the shared
 [Kahuna](https://kahunakv.github.io/) keyspace under keys that begin with that
 database id.
 
-Using ids instead of names means a rename does not move data and does not
-rewrite table or index keys.
+Tables use the same identity model. A newly created table receives a stable
+short base62 table id from a persistent monotonic sequence. Table ids are used
+inside row, index, statistics, and schema keys; SQL continues to address tables
+by name.
+
+Using ids instead of names means a database or table rename does not move data
+and does not rewrite table or index keys.
 
 ## Reserved Names
 

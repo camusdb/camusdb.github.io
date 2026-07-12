@@ -16,8 +16,16 @@ primary keys, inserts, filters, and parameterized queries.
 ## Examples
 
 ```camussql
-INSERT INTO robots (id, name, year)
-VALUES (gen_id(), "R2-D2", 1977);
+CREATE TABLE robots (
+  id OID PRIMARY KEY NOT NULL DEFAULT (gen_id()),
+  name STRING NOT NULL
+);
+
+INSERT INTO robots (name)
+VALUES ("R2-D2");
+
+INSERT INTO robots (id, name)
+VALUES (gen_id(), "BB-8");
 
 SELECT id, name
 FROM robots
@@ -28,8 +36,11 @@ FROM robots
 LIMIT 1;
 ```
 
-`gen_id()` returns a 24-character object id string. `to_id` and `str_id` accept
-existing `OID` values and strings that are exactly 24 lowercase hexadecimal
-characters.
+`gen_id()` returns a 24-character object id string. When used as
+`DEFAULT (gen_id())` on an `OID` column, CamusDB evaluates it once per inserted
+row, so omitted ids and `DEFAULT` values get distinct ObjectIds.
+
+`to_id` and `str_id` accept existing `OID` values and strings that are exactly
+24 lowercase hexadecimal characters.
 
 For the full conversion rules, see [Conversion Functions](/docs/functions-conversion).

@@ -163,6 +163,12 @@ row layouts, not human-readable names embedded in every row payload. That means
 renaming a column or table updates metadata and visibility rules, but does not
 force a data rewrite across the cluster.
 
+For newly created tables, the stable table identifier is a short base62 value
+allocated from a persistent monotonic sequence before the DDL is committed. The
+allocated id is carried in the replicated schema change, so followers apply the
+same table identity instead of generating their own. Existing tables created
+with older 24-character ids remain valid.
+
 For users, the practical benefit is that renames are lighter-weight than a
 "copy and rebuild everything" operation.
 

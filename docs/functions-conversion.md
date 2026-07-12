@@ -21,7 +21,7 @@ FROM robots;
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `to_string(value)` | `STRING` | Converts `STRING`, `OID`, `INT64`, `FLOAT64`, or `BOOL` to text. Booleans become `true` or `false`. |
+| `to_string(value)` | `STRING` | Converts `STRING`, `OID`, `UUID`, `INT64`, `FLOAT64`, or `BOOL` to text. UUID values use canonical lowercase hyphenated text. Booleans become `true` or `false`. |
 | `to_int64(value)` | `INT64` | Converts `INT64`, `FLOAT64`, `BOOL`, or integer text. Floats are truncated toward zero. Booleans become `1` or `0`. |
 | `to_float64(value)` | `FLOAT64` | Converts `FLOAT64`, `INT64`, `BOOL`, or numeric text. Booleans become `1.0` or `0.0`. |
 | `to_float32(value)` | `FLOAT32` | Converts numeric values or numeric text to single precision. |
@@ -44,6 +44,7 @@ FROM robots;
 | `float32`, `real` | `FLOAT32` |
 | `bool`, `boolean` | `BOOL` |
 | `oid`, `id`, `object_id` | `OID` |
+| `uuid`, `guid` | `UUID` |
 | `date` | `DATE` |
 | `datetime`, `timestamp` | `DATETIME` |
 | `bytes`, `blob` | `BYTES` |
@@ -57,6 +58,8 @@ SELECT to_int64("42"), to_float64("42.5"), to_bool("TrUe");
 SELECT to_date("2026-03-15"), to_datetime("2026-03-15T12:00:00Z");
 
 SELECT CAST("0xDEADBEEF" AS bytes);
+
+SELECT CAST("550e8400-e29b-41d4-a716-446655440000" AS uuid);
 
 SELECT CAST(CAST(7 AS string) AS int64);
 -- 7
@@ -74,6 +77,6 @@ WHERE id = str_id("507f1f77bcf86cd799439011");
 
 Invalid conversions fail the query. Examples include non-numeric text passed to
 numeric conversion functions, non-boolean text passed to `to_bool`, malformed
-date/datetime text, malformed byte hex text, non-finite floating-point values,
-integer overflow, and object id strings that are not 24 lowercase hex
-characters.
+date/datetime text, malformed UUID text, malformed byte hex text, non-finite
+floating-point values, integer overflow, and object id strings that are not 24
+lowercase hex characters.

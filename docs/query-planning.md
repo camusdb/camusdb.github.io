@@ -218,14 +218,21 @@ FROM robots
 ORDER BY year;
 ```
 
-With a compatible ascending index on `year`, CamusDB can scan directly in order.
+With a compatible index on `year`, CamusDB can scan directly in order. The
+index direction must match the query direction: an index on `(year ASC)` can
+satisfy `ORDER BY year ASC`, and an index on `(year DESC)` can satisfy
+`ORDER BY year DESC`.
+
+Composite indexes can also satisfy ordering when the `ORDER BY` list matches a
+left-to-right index prefix, including direction. For example, `(kind ASC, year
+DESC)` can satisfy `ORDER BY kind ASC, year DESC`.
 
 Cases that usually require a real sort:
 
 - `ORDER BY` on columns without a compatible index.
 - Orderings that do not match the index prefix.
-- Descending order when only ascending index order can be used by the current
-  planner.
+- Direction mismatches, such as `ORDER BY year ASC` when only `(year DESC)` is
+  available.
 
 ## LIMIT Pushdown
 
@@ -399,7 +406,8 @@ To get better plans consistently:
   that left-to-right shape.
 - For large equi-joins, index both join keys when you want merge join to be
   available.
-- Add indexes that match common `ORDER BY` prefixes when sorted reads matter.
+- Add indexes that match common `ORDER BY` prefixes, including `ASC`/`DESC`
+  directions, when sorted reads matter.
 - Run `ANALYZE TABLE <name>` after bulk loads or major data distribution
   changes.
 - Enable `cost_based_access_path_enabled` when you want CamusDB to compare all

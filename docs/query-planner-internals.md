@@ -174,6 +174,11 @@ execution filter.
 If the chosen scan already produces rows in the requested order, the planner
 sets `OutputOrdering` and skips the explicit `SortNode`.
 
+Index ordering is direction-aware. A scan over `(year ASC)` can satisfy
+`ORDER BY year ASC`, while a scan over `(year DESC)` can satisfy
+`ORDER BY year DESC`. Direction mismatches keep the `SortNode` because CamusDB
+does not flip a forward index scan into the opposite order.
+
 ### 3b. DISTINCT strategy
 
 For `SELECT DISTINCT`, the planner decides between:

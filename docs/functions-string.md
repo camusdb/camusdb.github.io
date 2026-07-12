@@ -54,6 +54,7 @@ string, the function returns an empty string.
 
 ## Concat Rules
 
-`concat` accepts `STRING`, `OID`, `INT64`, `FLOAT64`, and `BOOL` values. `NULL`
-arguments are skipped. If every argument is `NULL`, the result is `NULL`.
-
+`concat` accepts `STRING`, `OID`, `UUID`, `INT64`, `FLOAT64`, and `BOOL`
+values. UUID values are formatted as canonical lowercase hyphenated text.
+`NULL` arguments are skipped. If every argument is `NULL`, the result is
+`NULL`.

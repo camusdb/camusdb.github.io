@@ -11,7 +11,7 @@ then create tables, alter columns, rename schema objects, or drop tables.
 
 ```camussql
 CREATE TABLE robots (
-  id OID PRIMARY KEY NOT NULL,
+  id OID PRIMARY KEY NOT NULL DEFAULT (gen_id()),
   name STRING NOT NULL,
   year INT64 DEFAULT (2024),
   active BOOL DEFAULT (true)
@@ -22,7 +22,7 @@ Create a table only when it does not exist:
 
 ```camussql
 CREATE TABLE IF NOT EXISTS robots (
-  id OID PRIMARY KEY NOT NULL,
+  id OID PRIMARY KEY NOT NULL DEFAULT (gen_id()),
   name STRING NOT NULL
 );
 ```
@@ -52,7 +52,7 @@ CamusDB also accepts inline index-style constraints inside `CREATE TABLE`:
 
 ```camussql
 CREATE TABLE robots (
-  id OID NOT NULL,
+  id OID NOT NULL DEFAULT (gen_id()),
   code STRING NOT NULL,
   name STRING,
   PRIMARY KEY (id),
@@ -61,11 +61,44 @@ CREATE TABLE robots (
 );
 ```
 
+## Column Defaults
+
+Use `DEFAULT (...)` to define a value CamusDB applies when an insert omits the
+column or uses the `DEFAULT` keyword.
+
+```camussql
+CREATE TABLE events (
+  id UUID PRIMARY KEY NOT NULL DEFAULT (gen_uuid_v7()),
+  event_name STRING NOT NULL,
+  priority INT64 DEFAULT (0)
+);
+
+INSERT INTO events (event_name)
+VALUES ("robot-created");
+
+INSERT INTO events (id, event_name, priority)
+VALUES (DEFAULT, "robot-updated", DEFAULT);
+```
+
+Constant defaults are stored in the schema. Supported volatile generator
+defaults are evaluated once per inserted row, including each row in a multi-row
+`INSERT`.
+
+| Default expression | Column type | Use case |
+| --- | --- | --- |
+| `DEFAULT (gen_id())` | `OID` | Generate an ObjectId when the row is inserted. |
+| `DEFAULT (gen_uuid_v4())` | `UUID` / `GUID` | Generate a random UUID when the row is inserted. |
+| `DEFAULT (gen_uuid_v7())` | `UUID` / `GUID` | Generate a time-ordered UUID when the row is inserted. |
+
+Function defaults must be bare zero-argument calls. CamusDB rejects mismatched
+defaults such as `DEFAULT (gen_id())` on a `UUID` column.
+
 ## Column Types
 
 | SQL type | Notes |
 | --- | --- |
 | `OID` | Native object id values. |
+| `UUID` | Native 128-bit UUID values. Also accepted as `GUID`. |
 | `INT64` | Signed 64-bit integers. |
 | `FLOAT64` | Double-precision floating point values. |
 | `FLOAT32` | Single-precision floating point values. |
@@ -78,10 +111,11 @@ CREATE TABLE robots (
 
 Common aliases include `INT` / `INTEGER` for `INT64`, `REAL` for `FLOAT32`,
 `TIMESTAMP` for `DATETIME`, `BLOB` for `BYTES`, `CHAR` / `VARCHAR` / `TEXT`
-for `STRING`, `BOOLEAN` for `BOOL`, and `OBJECT_ID` for `OID`.
+for `STRING`, `BOOLEAN` for `BOOL`, `OBJECT_ID` for `OID`, and `GUID` for
+`UUID`.
 
 See [Data Types](/docs/data-types) for length limits, literal formats, casts,
-HTTP JSON values, and array rules.
+storage recommendations, HTTP JSON values, and array rules.
 
 ## Alter Tables
 

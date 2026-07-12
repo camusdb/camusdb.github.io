@@ -50,6 +50,7 @@ objects:
 | `8` | date |
 | `9` | datetime |
 | `10` | array |
+| `11` | uuid |
 
 ```json
 { "type": 3, "strValue": "R2-D2", "longValue": 0, "floatValue": 0, "boolValue": false }
@@ -62,11 +63,14 @@ objects:
 { "type": 8, "longValue": 639039456000000000, "isoValue": "2026-03-15" }
 { "type": 9, "longValue": 639039888000000000, "isoValue": "2026-03-15T12:00:00.0000000Z" }
 { "type": 10, "arrayElementType": 2, "arrayValues": [{ "type": 2, "longValue": 42 }] }
+{ "type": 11, "strValue": "550e8400-e29b-41d4-a716-446655440000", "longValue": 0, "uuidHigh": 0 }
 ```
 
 For bytes, SQL literals use `0x` hexadecimal while JSON uses base64 in
 `bytesValue`. For date and datetime values, responses include `isoValue`; the
-stored value is represented by UTC ticks in `longValue`.
+stored value is represented by UTC ticks in `longValue`. For UUID request
+values, pass canonical hyphenated or 32-character hexadecimal text in
+`strValue`; responses include `uuidValue` for readability.
 
 ## Health
 
@@ -158,8 +162,9 @@ Database rename is also exposed through SQL:
 ```
 
 The HTTP table-creation model accepts `id`, `int64`, `float64`, `float32`,
-`bool`, `string`, `date`, `datetime`, `bytes`, and `array`. Use `maxLength`
-for `string` and `bytes` limits, and `arrayElementType` for array columns.
+`bool`, `string`, `date`, `datetime`, `bytes`, `uuid`, `guid`, and `array`.
+Use `maxLength` for `string` and `bytes` limits, and `arrayElementType` for
+array columns.
 
 See [Data Types](/docs/data-types) for the SQL names, aliases, literal formats,
 and JSON value rules.

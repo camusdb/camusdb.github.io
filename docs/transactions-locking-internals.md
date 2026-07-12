@@ -24,10 +24,15 @@ Kahuna transactions.
 
 CamusDB rows and indexes are encoded as deterministic keys:
 
-- primary rows: `{tableId}:r/{rowId}`
-- unique indexes: `{tableId}:i:{indexId}/{value}`
-- non-unique indexes: `{tableId}:i:{indexId}/{value}{rowId}`
-- schema metadata: `{db}/meta/...`
+- primary rows: `{databaseId}:{tableId}:r/{rowId}`
+- unique indexes: `{databaseId}:{tableId}:i:{indexId}/{value}`
+- non-unique indexes: `{databaseId}:{tableId}:i:{indexId}/{value}{rowId}`
+- schema metadata: `{databaseId}/meta/...`
+
+Database ids and modern table ids are short base62 values allocated from
+persistent monotonic sequences. Table ids are stable storage identities, not
+SQL names, and older 24-character table ids can still appear in databases that
+were created before the base62 allocator.
 
 That key layout matters for:
 

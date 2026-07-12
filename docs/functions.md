@@ -26,6 +26,7 @@ null handling.
 - [JSON Functions](/docs/functions-json)
 - [Conversion Functions](/docs/functions-conversion)
 - [Null Functions](/docs/functions-null)
+- [UUID Functions](/docs/functions-uuid)
 - [Object Id Functions](/docs/functions-object-id)
 
 ## General Rules
@@ -33,9 +34,9 @@ null handling.
 Arguments are evaluated before the function call. Functions validate their
 argument count and argument types at execution time.
 
-Volatile functions such as `gen_id()`, `current_timestamp()`, `now()`,
-`current_date()`, `unix_timestamp()`, and `random()` can return a different
-value on each evaluation.
+Volatile functions such as `gen_id()`, `gen_uuid_v4()`, `gen_uuid_v7()`,
+`current_timestamp()`, `now()`, `current_date()`, `unix_timestamp()`, and
+`random()` can return a different value on each evaluation.
 
 String literals in CamusDB SQL are written with double quotes:
 

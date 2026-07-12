@@ -13,6 +13,7 @@ indexes, casts, defaults, and JSON values.
 | SQL type | Stores | Indexable | Notes |
 | --- | --- | --- | --- |
 | `OID` | 12-byte ObjectId | Yes | Native identifier type. Also accepted as `OBJECT_ID` in SQL and `id` in HTTP table definitions. |
+| `UUID` | 128-bit UUID | Yes | Native UUID/GUID type. Also accepted as `GUID`. |
 | `INT64` | 64-bit signed integer | Yes | Also accepted as `INT` or `INTEGER`. |
 | `FLOAT64` | IEEE-754 double | Yes | Also accepted as `DOUBLE` in `CAST`. |
 | `FLOAT32` | IEEE-754 single | Yes | Also accepted as `REAL`. Values are stored and compared at single precision. |
@@ -27,6 +28,7 @@ indexes, casts, defaults, and JSON values.
 ```camussql
 CREATE TABLE events (
   id OID PRIMARY KEY NOT NULL,
+  external_id UUID DEFAULT (gen_uuid_v7()),
   name STRING(64) NOT NULL,
   payload BYTES,
   score FLOAT32,
@@ -46,11 +48,17 @@ CREATE TABLE events (
 | `BLOB` | `BYTES` |
 | `CHAR`, `VARCHAR`, `TEXT` | `STRING` |
 | `OBJECT_ID` | `OID` |
+| `GUID` | `UUID` |
 | `BOOLEAN` | `BOOL` |
 
 In SQL, ObjectId columns use `OID` or `OBJECT_ID`. In HTTP table definitions,
 the same type is named `id`. The SQL identifier `id` is still just an ordinary
 column name.
+
+Use `UUID` or `GUID` columns for UUID identifiers instead of storing UUIDs in
+`STRING` columns. Native UUID values are stored as compact 128-bit values and
+use fixed-width order-preserving index encoding, so they are more efficient in
+memory, on disk, and in indexes than UUID text.
 
 ## String And Bytes Length
 
@@ -103,14 +111,16 @@ Current array rules:
 | `STRING` | Quoted string | `"hello"` or `'hello'` |
 | `BOOL` | `true` or `false` | `true` |
 | `OID` | Quoted 24-character ObjectId string | `"507f1f77bcf86cd799439011"` |
+| `UUID` | Quoted UUID string, hyphenated or 32 hexadecimal digits | `"550e8400-e29b-41d4-a716-446655440000"` |
 | `DATE` | Quoted `yyyy-MM-dd` string | `"2026-03-15"` |
 | `DATETIME` | Quoted ISO-8601 UTC string | `"2026-03-15T12:00:00Z"` |
 | `BYTES` | `0x`-prefixed hexadecimal | `0xDEADBEEF` |
 | `ARRAY(T)` | No inline SQL literal | Use a parameter or HTTP JSON value. |
 
 Numeric literals use invariant formatting, so `.` is the decimal separator
-regardless of server locale. Date and datetime text is parsed as UTC. Invalid
-date, datetime, byte, or cast inputs fail with `InvalidInput`.
+regardless of server locale. Date and datetime text is parsed as UTC. UUID
+text is returned in canonical lowercase hyphenated form. Invalid date,
+datetime, UUID, byte, or cast inputs fail with `InvalidInput`.
 
 ## Casts
 
@@ -120,6 +130,7 @@ date, datetime, byte, or cast inputs fail with `InvalidInput`.
 SELECT
   CAST("2026-03-15" AS DATE) AS event_day,
   CAST("2026-03-15T12:00:00Z" AS DATETIME) AS happened_at,
+  CAST("550e8400-e29b-41d4-a716-446655440000" AS UUID) AS external_id,
   CAST("0xDEADBEEF" AS BYTES) AS payload,
   CAST(score AS FLOAT32) AS compact_score
 FROM events;
@@ -157,7 +168,7 @@ These SQL type names and aliases are reserved:
 
 ```text
 oid object_id int int64 integer string char varchar text bool boolean
-float32 float64 real date datetime timestamp bytes blob array
+float32 float64 real date datetime timestamp bytes blob uuid guid array
 ```
 
 Only the exact keyword is reserved. Identifiers that merely start with a type

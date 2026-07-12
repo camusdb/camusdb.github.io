@@ -49,7 +49,7 @@ WHERE json_valid(payload) = true
 ```
 
 See [Functions](/docs/functions) for string, math, date/time, JSON,
-conversion, and object id functions.
+conversion, UUID, and object id functions.
 
 ## DISTINCT
 

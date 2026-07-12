@@ -27,6 +27,12 @@ INSERT INTO robots (id, name, year)
 VALUES (GEN_ID(), "K-2SO", DEFAULT);
 ```
 
+If a column has a generator default such as `DEFAULT (gen_id())`,
+`DEFAULT (gen_uuid_v4())`, or `DEFAULT (gen_uuid_v7())`, omitting that column
+or using `DEFAULT` evaluates the function for the inserted row.
+
+See [Tables And Schema](/docs/sql-schema#column-defaults) for default rules.
+
 Object id helpers are available as function calls:
 
 ```camussql

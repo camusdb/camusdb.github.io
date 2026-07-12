@@ -60,6 +60,7 @@ const sidebars = {
             'functions-json',
             'functions-conversion',
             'functions-null',
+            'functions-uuid',
             'functions-object-id',
           ],
         },
