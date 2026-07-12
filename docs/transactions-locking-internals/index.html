@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Transaction Internals | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/transactions-locking-internals/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Transaction Internals | CamusDB"><meta data-rh="true" name="description" content="It is aimed at contributors and operators who want to understand how the SQL"><meta data-rh="true" property="og:description" content="It is aimed at contributors and operators who want to understand how the SQL"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/transactions-locking-internals/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/transactions-locking-internals/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/transactions-locking-internals/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Transaction Internals","item":"https://camusdb.github.io/docs/transactions-locking-internals"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.6352cdba.css">
-<script src="/assets/js/runtime~main.28dc4b58.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.0c01ac64.js" defer="defer"></script>
 <script src="/assets/js/main.7d670669.js" defer="defer"></script>
 </head>
 <body>
@@ -28,11 +28,15 @@ Kahuna transactions.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="data-model-at-the-kv-layer">Data Model At The KV Layer<a href="#data-model-at-the-kv-layer" class="hash-link" aria-label="Direct link to Data Model At The KV Layer" title="Direct link to Data Model At The KV Layer" translate="no">​</a></h2>
 <p>CamusDB rows and indexes are encoded as deterministic keys:</p>
 <ul>
-<li class="">primary rows: <code>{tableId}:r/{rowId}</code></li>
-<li class="">unique indexes: <code>{tableId}:i:{indexId}/{value}</code></li>
-<li class="">non-unique indexes: <code>{tableId}:i:{indexId}/{value}{rowId}</code></li>
-<li class="">schema metadata: <code>{db}/meta/...</code></li>
+<li class="">primary rows: <code>{databaseId}:{tableId}:r/{rowId}</code></li>
+<li class="">unique indexes: <code>{databaseId}:{tableId}:i:{indexId}/{value}</code></li>
+<li class="">non-unique indexes: <code>{databaseId}:{tableId}:i:{indexId}/{value}{rowId}</code></li>
+<li class="">schema metadata: <code>{databaseId}/meta/...</code></li>
 </ul>
+<p>Database ids and modern table ids are short base62 values allocated from
+persistent monotonic sequences. Table ids are stable storage identities, not
+SQL names, and older 24-character table ids can still appear in databases that
+were created before the base62 allocator.</p>
 <p>That key layout matters for:</p>
 <ul>
 <li class="">partition routing</li>

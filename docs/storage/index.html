@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Storage | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/storage/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Storage | CamusDB"><meta data-rh="true" name="description" content="CamusDB stores relational data on top of a distributed key/value layer provided"><meta data-rh="true" property="og:description" content="CamusDB stores relational data on top of a distributed key/value layer provided"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/storage/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/storage/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/storage/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Storage","item":"https://camusdb.github.io/docs/storage"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.6352cdba.css">
-<script src="/assets/js/runtime~main.28dc4b58.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.0c01ac64.js" defer="defer"></script>
 <script src="/assets/js/main.7d670669.js" defer="defer"></script>
 </head>
 <body>
@@ -71,9 +71,9 @@ writes on the safer path; disabling it is useful only for benchmarks or tests
 where crash durability is not being evaluated.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="database-create-and-open">Database Create And Open<a href="#database-create-and-open" class="hash-link" aria-label="Direct link to Database Create And Open" title="Direct link to Database Create And Open" translate="no">​</a></h2>
 <p>Databases must be created explicitly before use. <code>CREATE DATABASE</code> allocates a
-stable opaque database id and stores the name-to-id mapping in CamusDB&#x27;s
-registry. <code>CREATE DATABASE IF NOT EXISTS</code> returns the existing database when the
-name is already registered.</p>
+stable short base62 database id and stores the name-to-id mapping in CamusDB&#x27;s
+registry. <code>CREATE DATABASE IF NOT EXISTS</code> returns the existing database when
+the name is already registered.</p>
 <p>Both standalone and cluster modes use a single process-level
 <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> node. Creating a database does not create
 a separate storage engine, RocksDB instance, WAL, or per-database directory.
@@ -102,19 +102,27 @@ append-only and is not rewritten by a drop.</p>
 key/value entries in the shared <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> keyspace.
 User data keys include the opaque database id first, so two databases can use
 the same table names without sharing storage keys.</p>
-<table><thead><tr><th>Object</th><th>Key shape</th><th>Value</th></tr></thead><tbody><tr><td>Database registry entry</td><td><code>_system/dbregistry/db:{databaseName}</code></td><td>Database id, normalized name, and creation time.</td></tr><tr><td>Database id sequence</td><td><code>_system/dbregistry/seq</code></td><td>Monotonic sequence used to allocate database ids.</td></tr><tr><td>System metadata</td><td><code>{databaseId}/meta/system</code></td><td>Internal database metadata.</td></tr><tr><td>Schema version</td><td><code>{databaseId}/meta/version</code></td><td>Current applied schema version.</td></tr><tr><td>Table schema</td><td><code>{databaseId}/meta/table:{tableId}</code></td><td>Serialized schema for one table.</td></tr><tr><td>Table schema history</td><td><code>{databaseId}/meta/history:{tableId}:{version}</code></td><td>Historical table schema version used to decode older rows.</td></tr><tr><td>DDL coordinator state</td><td><code>{databaseId}/meta/coordinator:{tableId}~{element}</code></td><td>State for multi-step schema changes such as index backfill.</td></tr><tr><td>Table statistics</td><td><code>{databaseId}:stats:{tableId}</code></td><td>Persisted planner statistics for the table.</td></tr><tr><td>Row</td><td><code>{databaseId}:{tableId}:r/{rowId}</code></td><td>Serialized row bytes.</td></tr><tr><td>Unique index entry</td><td><code>{databaseId}:{tableId}:i:{indexName}/{encodedKey}</code></td><td>Row id as UTF-8 text.</td></tr><tr><td>Non-unique index entry</td><td><code>{databaseId}:{tableId}:i:{indexName}/{encodedKey}{rowId}</code></td><td>Row id as UTF-8 text.</td></tr></tbody></table>
+<p>New tables receive short base62 table ids from a persistent monotonic sequence
+stored in the shared system keyspace. The id contains none of the KV key
+separators (<code>/</code>, <code>:</code>, or <code>~</code>), is not reused after a table is dropped, and is
+typically much shorter than the previous 24-character ObjectId-style table
+ids. Existing databases can still contain older 24-hex table ids; both formats
+coexist safely because the id is treated as an opaque key segment.</p>
+<table><thead><tr><th>Object</th><th>Key shape</th><th>Value</th></tr></thead><tbody><tr><td>Database registry entry</td><td><code>_system/dbregistry/db:{databaseName}</code></td><td>Database id, normalized name, and creation time.</td></tr><tr><td>Database id sequence</td><td><code>_system/dbregistry/seq</code></td><td>Monotonic sequence used to allocate database ids.</td></tr><tr><td>Table id sequence</td><td><code>_system/tableseq</code></td><td>Monotonic sequence used to allocate new short base62 table ids.</td></tr><tr><td>System metadata</td><td><code>{databaseId}/meta/system</code></td><td>Internal database metadata.</td></tr><tr><td>Schema version</td><td><code>{databaseId}/meta/version</code></td><td>Current applied schema version.</td></tr><tr><td>Table schema</td><td><code>{databaseId}/meta/table:{tableId}</code></td><td>Serialized schema for one table.</td></tr><tr><td>Table schema history</td><td><code>{databaseId}/meta/history:{tableId}:{version}</code></td><td>Historical table schema version used to decode older rows.</td></tr><tr><td>DDL coordinator state</td><td><code>{databaseId}/meta/coordinator:{tableId}~{element}</code></td><td>State for multi-step schema changes such as index backfill.</td></tr><tr><td>Table statistics</td><td><code>{databaseId}:stats:{tableId}</code></td><td>Persisted planner statistics for the table.</td></tr><tr><td>Row</td><td><code>{databaseId}:{tableId}:r/{rowId}</code></td><td>Serialized row bytes.</td></tr><tr><td>Unique index entry</td><td><code>{databaseId}:{tableId}:i:{indexId}/{encodedKey}</code></td><td>Row id as UTF-8 text.</td></tr><tr><td>Non-unique index entry</td><td><code>{databaseId}:{tableId}:i:{indexId}/{encodedKey}{rowId}</code></td><td>Row id as UTF-8 text.</td></tr></tbody></table>
 <p>The slash placement is intentional. Row keys share the bucket
 <code>{databaseId}:{tableId}:r</code>, and index keys share the bucket
-<code>{databaseId}:{tableId}:i:{indexName}</code>. That keeps scans, writes, and range
+<code>{databaseId}:{tableId}:i:{indexId}</code>. That keeps scans, writes, and range
 locks aligned on the same routed keyspace. Metadata keys use the single
 <code>{databaseId}/meta</code> bucket so database metadata can be loaded and purged as a
 coherent group.</p>
 <p>Non-unique index keys append the row id directly after the encoded key. The row
 id has a fixed 24-character representation, so CamusDB can split it back out
 while preserving sortable index keys.</p>
-<p>Indexes use the schema-visible index name in the storage keyspace. Internally,
-tables and columns also have stable ids, so renaming tables or columns does not
-require rewriting existing row or index data.</p>
+<p>Indexes use stable ids in the storage keyspace and keep the schema-visible
+index name as metadata. Tables and columns also have stable ids. New table ids
+are short base62 strings allocated before the schema change is committed, so
+every node applies the same table identity. Renaming tables, columns, or indexes
+does not require rewriting existing row or index data.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="row-values">Row Values<a href="#row-values" class="hash-link" aria-label="Direct link to Row Values" title="Direct link to Row Values" translate="no">​</a></h2>
 <p>Each row is stored as a compact binary value. The row payload includes:</p>
 <ul>
@@ -165,7 +173,7 @@ tracked write intents for atomic commit coordination.</p>
 <p>Full table scans read the row bucket prefix:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">{databaseId}:{tableId}:r</span><br></div></code></pre></div></div>
 <p>Index scans read the index bucket prefix:</p>
-<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">{databaseId}:{tableId}:i:{indexName}</span><br></div></code></pre></div></div>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">{databaseId}:{tableId}:i:{indexId}</span><br></div></code></pre></div></div>
 <p>Because row ids and encoded index keys preserve sort order, CamusDB can stream
 rows or index entries from KV storage in deterministic order before applying
 query filtering, projection, sorting, limits, and aggregation.</p>

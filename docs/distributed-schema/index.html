@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Distributed Schema Changes | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/distributed-schema/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Distributed Schema Changes | CamusDB"><meta data-rh="true" name="description" content="CamusDB treats schema as distributed state, not as a local side table that each"><meta data-rh="true" property="og:description" content="CamusDB treats schema as distributed state, not as a local side table that each"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/distributed-schema/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-schema/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-schema/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Distributed Schema Changes","item":"https://camusdb.github.io/docs/distributed-schema"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.6352cdba.css">
-<script src="/assets/js/runtime~main.28dc4b58.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.0c01ac64.js" defer="defer"></script>
 <script src="/assets/js/main.7d670669.js" defer="defer"></script>
 </head>
 <body>
@@ -140,6 +140,11 @@ staged reverse rollout.</li>
 row layouts, not human-readable names embedded in every row payload. That means
 renaming a column or table updates metadata and visibility rules, but does not
 force a data rewrite across the cluster.</p>
+<p>For newly created tables, the stable table identifier is a short base62 value
+allocated from a persistent monotonic sequence before the DDL is committed. The
+allocated id is carried in the replicated schema change, so followers apply the
+same table identity instead of generating their own. Existing tables created
+with older 24-character ids remain valid.</p>
 <p>For users, the practical benefit is that renames are lighter-weight than a
 &quot;copy and rebuild everything&quot; operation.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="backfill-and-safety">Backfill And Safety<a href="#backfill-and-safety" class="hash-link" aria-label="Direct link to Backfill And Safety" title="Direct link to Backfill And Safety" translate="no">​</a></h2>
