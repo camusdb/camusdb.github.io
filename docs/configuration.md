@@ -71,6 +71,8 @@ The remaining YAML settings do not currently have command-line flags:
 | `cost_based_join_order_enabled` | `false` | Enable cost-based left-deep join-order enumeration for eligible joins. |
 | `plan_cache_enabled` | `false` | Enable the per-process query plan cache. |
 | `plan_cache_max_entries` | `512` | Maximum plan-cache entries; `0` effectively disables caching. |
+| `regex_match_timeout_ms` | `250` | Per-match timeout for regex operators and regex scalar functions. |
+| `regex_cache_max_entries` | `1024` | Maximum compiled regex patterns cached per process; `0` disables caching. |
 | `query_result_cache_enabled` | `true` | Enable the per-node in-memory query result cache. Queries still opt in individually with `{cache=...}`. |
 | `query_result_cache_default_ttl_ms` | `5000` | Default TTL for result-cache entries without a per-query `ttl`. |
 | `query_result_cache_max_entries` | `1024` | Maximum result-cache entries per process. |
@@ -368,6 +370,31 @@ Details:
 
 This cache affects parse overhead, not SQL semantics.
 
+## Regex Safety Settings
+
+Regex operators and regex scalar functions share the same compiled-pattern
+cache and timeout settings:
+
+```yaml
+regex_match_timeout_ms: 250
+regex_cache_max_entries: 1024
+```
+
+Settings:
+
+- `regex_match_timeout_ms`: maximum time in milliseconds for a single regex
+  match operation. A match that exceeds this limit fails with `InvalidInput`,
+  or `CheckConstraintViolation` when the regex is being evaluated inside a
+  check constraint.
+- `regex_cache_max_entries`: maximum number of compiled regex patterns cached
+  by the process. `0` disables caching. Queries still work when the cache is
+  full; CamusDB compiles the pattern for the current operation and does not
+  retain it.
+
+These settings apply to `~`, `~*`, `!~`, `!~*`, and the `regexp_*` scalar
+functions. See [Regex Functions](/docs/functions-regex) for function syntax,
+flags, and matching rules.
+
 ## Kahuna Engine Options
 
 The `kahuna` section is an allow-listed passthrough to embedded
@@ -398,7 +425,12 @@ kahuna:
   voting_timeout_ms: 1500
   max_entries_per_actor: 50000
   max_bytes_per_actor: 268435456
+  cache_entry_ttl_ms: 60000
+  cache_entries_to_remove: 1000
+  collection_interval_ms: 10000
   compact_every_operations: 1000
+  compact_number_entries: 128
+  max_entries_per_compaction: 10000
 ```
 
 Allowed storage backends are `rocksdb`, `sqlite`, and `memory`. Use `rocksdb`
@@ -406,9 +438,36 @@ for the default durable path, `sqlite` when you specifically want SQLite-backed
 embedded files, and `memory` only for development and tests because data is lost
 on restart.
 
+The allow-listed Kahuna keys are:
+
+- storage settings: `storage`, `storage_revision`, `wal_storage`,
+  `wal_revision`, `wal_sync_writes`
+- transaction and worker settings: `default_transaction_timeout_ms`,
+  `locks_workers`, `key_value_workers`, `background_writer_workers`,
+  `read_io_threads`, and `write_io_threads`
+- Raft timing settings: `start_election_timeout_ms`,
+  `end_election_timeout_ms`, `start_election_timeout_increment_ms`,
+  `end_election_timeout_increment_ms`, `heartbeat_interval_ms`, and
+  `voting_timeout_ms`
+- in-memory actor bounds: `max_entries_per_actor` and `max_bytes_per_actor`
+- time-based cache eviction: `cache_entry_ttl_ms`,
+  `cache_entries_to_remove`, and `collection_interval_ms`
+- Raft log compaction: `compact_every_operations`, `compact_number_entries`,
+  and `max_entries_per_compaction`
+
+Entry eviction has two controls. `max_entries_per_actor` and
+`max_bytes_per_actor` bound actor memory by size, while
+`collection_interval_ms` runs a background sweep that removes up to
+`cache_entries_to_remove` entries older than `cache_entry_ttl_ms`.
+
+Raft log compaction is controlled by `compact_every_operations`,
+`compact_number_entries`, and `max_entries_per_compaction`. Tune them together:
+one controls how often compaction runs, one controls how many trailing log
+entries are retained, and one caps how much a single pass can remove.
+
 Unknown `kahuna` keys are rejected at startup. Numeric worker, timeout, actor,
-and compaction settings must be greater than `0`; when both election timeout
-bounds are set, `start_election_timeout_ms` must be less than
+eviction, and compaction settings must be greater than `0`; when both election
+timeout bounds are set, `start_election_timeout_ms` must be less than
 `end_election_timeout_ms`.
 
 ## Validation Rules
@@ -431,6 +490,8 @@ Important validation rules:
 - `stats_flush_interval_ms` must be `>= 0` or `-1`
 - `cost_based_access_path_enabled` and `cost_based_join_order_enabled` are
   booleans
+- `regex_match_timeout_ms` must be `> 0`
+- `regex_cache_max_entries` must be `>= 0`
 - `plan_cache_enabled` is boolean
 - `query_result_cache_enabled` is boolean
 - `max_identifier_length`, `max_columns_per_table`,

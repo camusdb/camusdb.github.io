@@ -41,6 +41,8 @@ Behavior:
 - `EXPLAIN` output is diagnostic. It is useful for people, not a stable format
   for application logic.
 - `EXPLAIN (ANALYZE)` is not supported for `JOIN` queries yet.
+- `EXPLAIN (ANALYZE)` is not supported for FROM-less `SELECT` statements
+  because there is no table access to measure.
 - Queries with uncorrelated subqueries can still read storage during planning,
   because CamusDB may evaluate the inner subquery before producing the final
   plan output.
@@ -105,6 +107,7 @@ These are the main node names you will see:
 | `hash-join` | Inner equi-join using an in-memory hash table. |
 | `merge-join` | Inner equi-join that streams ordered inputs by join key. |
 | `derived-table-scan` | Scan of a derived table from `FROM (SELECT ...) alias`. |
+| `constant-source` | The single synthetic row used by a FROM-less `SELECT`. |
 
 ## Informational Rows
 

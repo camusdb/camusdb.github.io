@@ -7,7 +7,7 @@ sidebar_position: 7.2
 CamusDB also ships an Entity Framework Core provider built on top of the
 ADO.NET driver. The package name is `CamusDB.EntityFrameworkCore`.
 
-It targets `net8.0` and `net9.0` and depends on EF Core 9 relational APIs.
+It targets `net10.0` and depends on EF Core 10 relational APIs.
 
 ## Install
 
@@ -24,7 +24,7 @@ using CamusDB.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 var options = new DbContextOptionsBuilder<AppDbContext>()
-    .UseCamusDB("Endpoint=http://localhost:5095;Database=mydb")
+    .UseCamusDB("Endpoint=http://localhost:5095;Database=mydb;Timeout=30")
     .Options;
 ```
 
@@ -101,6 +101,20 @@ public sealed class AppDbContext : DbContext
 For string primary keys mapped to `"id"` or `"oid"`, the provider generates a
 24-character Camus ObjectId on the client side.
 
+Use `ToTable(t => t.HasCheckConstraint(...))` for server-enforced check
+constraints:
+
+```csharp
+modelBuilder.Entity<Robot>(b =>
+{
+    b.ToTable("robots", t =>
+        t.HasCheckConstraint("ck_robots_price", "price >= 0"));
+});
+```
+
+Rows rejected by a check constraint surface as `DbUpdateException` with an inner
+`CamusException` carrying `CADB0303`.
+
 ## Type Mapping
 
 Supported CLR-to-store mappings:
@@ -109,28 +123,55 @@ Supported CLR-to-store mappings:
 | --- | --- | --- |
 | `string` key | `id` or `oid` | `OID` |
 | `Guid` key | `id` or `oid` | `OID` |
+| `Guid` with `HasColumnType("uuid")` | `uuid` or `guid` | `UUID` |
 | `string` | `string` | `STRING` |
+| `string` with `HasMaxLength(n)` | `string` | `STRING(n)` |
 | `bool` | `bool` | `BOOL` |
 | `short`, `int`, `long` | `int64` | `INT64` |
-| `float`, `double` | `float64` | `FLOAT64` |
+| `float` | `float32` or `real` | `FLOAT32` |
+| `double` | `float64` | `FLOAT64` |
+| `byte[]` | `bytes` or `blob` | `BYTES` |
+| `DateOnly` | `date` | `DATE` |
+| `DateTime`, `DateTimeOffset` | `datetime` or `timestamp` | `DATETIME` |
 
 Practical rule:
 
 - use `HasColumnType("id")` for CamusDB ObjectId primary keys
-- use `HasColumnType("string")`, `HasColumnType("int64")`, `HasColumnType("float64")`, and `HasColumnType("bool")` for regular columns
+- use `HasColumnType("uuid")` for native UUID columns
+- use `HasColumnType("string")`, `HasColumnType("int64")`,
+  `HasColumnType("float32")`, `HasColumnType("float64")`,
+  `HasColumnType("bytes")`, `HasColumnType("date")`,
+  `HasColumnType("datetime")`, and `HasColumnType("bool")` for regular columns
+
+A plain `Guid` property defaults to the `id` / `OID` mapping for backward
+compatibility. For UUID application values, explicitly map the property as
+`uuid`:
+
+```csharp
+b.Property(e => e.ExternalRef).HasColumnType("uuid");
+```
+
+`DateTime` and `DateTimeOffset` values are normalized to UTC. `DateOnly` maps to
+calendar dates. The EF provider does not map `ARRAY(T)` columns; use the ADO.NET
+driver when you need array parameters.
 
 ## Create Tables
 
-`EnsureCreated()` is supported:
+`EnsureCreated()` is supported and idempotent:
 
 ```csharp
 await using var ctx = new AppDbContext(options);
 await ctx.Database.EnsureCreatedAsync();
 ```
 
-The target CamusDB database must already exist. `EnsureCreated()` builds
-`CREATE TABLE` statements from the model and continues safely if a table already
-exists; it does not create or drop the database container itself.
+`EnsureCreated()` creates the database with `IF NOT EXISTS` and then creates the
+model tables. It continues safely if the database or tables already exist.
+
+`EnsureDeleted()` drops the database named in the connection string:
+
+```csharp
+await ctx.Database.EnsureDeletedAsync();
+```
 
 ## Basic CRUD
 
@@ -250,6 +291,27 @@ The execution strategy retries the entire EF operation. If you manage explicit
 transactions manually, replay the whole transaction from the beginning instead
 of retrying only the failed statement.
 
+## Query Result Cache
+
+Use `WithCache(...)` to opt a LINQ query into CamusDB's query result cache. The
+provider injects the `{cache=...}` hint into generated SQL.
+
+```csharp
+using CamusDB.EntityFrameworkCore;
+
+List<Order> recent = await ctx.Orders
+    .Where(o => o.Status == 1)
+    .OrderByDescending(o => o.Total)
+    .Take(20)
+    .WithCache("recent_orders", ttl: TimeSpan.FromSeconds(30), strict: true)
+    .ToListAsync();
+```
+
+The cache only serves single-table, autocommit reads. Queries with joins or
+queries inside explicit transactions read live storage. Evict cache entries
+through the underlying `CamusConnection` with `EvictCacheAsync(...)` or
+`EvictAllCacheAsync()`.
+
 ## Migrations
 
 The provider includes design-time services, so standard EF tooling can discover
@@ -266,11 +328,17 @@ Supported migration operations:
 | --- | --- |
 | Create table | `CREATE TABLE IF NOT EXISTS ...` |
 | Drop table | `DROP TABLE ...` |
+| Rename table | `ALTER TABLE ... RENAME TO ...` |
 | Add column | `ALTER TABLE ... ADD COLUMN ...` |
 | Drop column | `ALTER TABLE ... DROP COLUMN ...` |
+| Rename column | `ALTER TABLE ... RENAME COLUMN ... TO ...` |
+| Alter column nullability | `ALTER TABLE ... ALTER COLUMN ... SET NOT NULL` or `DROP NOT NULL` |
+| Add check constraint | `ALTER TABLE ... ADD CONSTRAINT ... CHECK (...)` |
+| Drop check constraint | `ALTER TABLE ... DROP CONSTRAINT ...` |
 | Create index | `CREATE INDEX IF NOT EXISTS ...` |
 | Create unique index | `CREATE UNIQUE INDEX IF NOT EXISTS ...` |
 | Drop index | `ALTER TABLE ... DROP INDEX ...` |
+| Rename index | `ALTER TABLE ... RENAME INDEX ... TO ...` |
 | Seed data | `INSERT INTO ... VALUES (...)` |
 | Raw SQL | passed through as-is |
 
@@ -293,9 +361,20 @@ public partial class AddStockColumn : Migration
             table: "products",
             column: "Name",
             unique: true);
+
+        migrationBuilder.AddCheckConstraint(
+            name: "ck_products_stock",
+            table: "products",
+            sql: "Stock >= 0");
     }
 }
 ```
+
+Changing a column's nullability is supported when the stored type does not
+change. Changing a column's type is not supported in place.
+
+`DropCheckConstraint` emits `DROP CONSTRAINT`; CamusDB resolves that against
+both named `CHECK` constraints and named `NOT NULL` constraints.
 
 ## Concurrency
 
@@ -345,19 +424,20 @@ Unsupported or restricted operations include:
 
 - no foreign key constraints
 - no computed columns
-- no `ALTER COLUMN`
-- no rename table/column/index operations through EF migrations; use SQL DDL
-  directly for `ALTER TABLE ... RENAME ...`
-- no check constraints
+- `ALTER COLUMN` only supports toggling nullability; changing the stored type
+  requires a manual migration strategy
 - no sequences
 - no add/drop primary key through migrations
 - no inline unique constraints in migrations; use unique indexes instead
-- no drop-database support through the provider
+- no `ARRAY(T)` property mapping; use the ADO.NET driver for array parameters
 
 Model restrictions:
 
 - key CLR types must be `string`, `Guid`, `short`, `int`, or `long`
 - `[ConcurrencyCheck]` is limited to numeric columns
+- plain `Guid` maps to `OID`; use `HasColumnType("uuid")` for native UUID
+  storage
+- `WithCache(...)` is effective only on single-table autocommit reads
 
 ## When To Use It
 

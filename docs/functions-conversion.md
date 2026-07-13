@@ -80,3 +80,6 @@ numeric conversion functions, non-boolean text passed to `to_bool`, malformed
 date/datetime text, malformed UUID text, malformed byte hex text, non-finite
 floating-point values, integer overflow, and object id strings that are not 24
 lowercase hex characters.
+
+Conversion errors include the offending value and a short hint about the
+expected format, such as a valid UUID string, a 64-bit integer, or a number.

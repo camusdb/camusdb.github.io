@@ -6,6 +6,10 @@ sidebar_position: 2.4
 
 Use `SELECT` for projections, filters, grouping, ordering, and pagination.
 
+For scalar utility queries such as `SELECT 1 + 1`, `SELECT upper("abc")`, or
+`SELECT EXISTS (...)` without a table source, see
+[FROM-less SELECT](/docs/sql-fromless-select).
+
 ## Select Lists
 
 Select explicit columns, all columns, qualified columns, expressions, aliases,
@@ -56,12 +60,55 @@ WHERE year IS NULL OR name LIKE "%D2";
 SELECT year
 FROM robots
 WHERE year BETWEEN 2001 AND 2004;
+
+SELECT name
+FROM robots
+WHERE name ~* "^r";
 ```
 
 Supported filter operators include `=`, `!=`, `<`, `>`, `<=`, `>=`, `AND`,
-`OR`, `LIKE`, `ILIKE`, `BETWEEN ... AND ...`, `IS NULL`, `IS NOT NULL`,
-`IN (...)`, `NOT IN (...)`, `IN (SELECT ...)`, `NOT IN (SELECT ...)`, and
-`EXISTS (SELECT ...)`.
+`OR`, `LIKE`, `ILIKE`, regex operators `~`, `~*`, `!~`, `!~*`,
+`BETWEEN ... AND ...`, `IS NULL`, `IS NOT NULL`, `IN (...)`, `NOT IN (...)`,
+`IN (SELECT ...)`, `NOT IN (SELECT ...)`, and `EXISTS (SELECT ...)`.
+
+## Regex Matching
+
+Use regex operators when `LIKE` / `ILIKE` wildcards are not expressive enough.
+
+| Operator | Meaning |
+| --- | --- |
+| `~` | Matches a regular expression, case-sensitive. |
+| `~*` | Matches a regular expression, case-insensitive. |
+| `!~` | Does not match a regular expression, case-sensitive. |
+| `!~*` | Does not match a regular expression, case-insensitive. |
+
+```camussql
+SELECT username
+FROM users
+WHERE username ~ "^[a-zA-Z][a-zA-Z0-9_]{2,29}$";
+
+SELECT name
+FROM robots
+WHERE name ~* "^r";
+
+SELECT sku
+FROM products
+WHERE sku !~ "\\s";
+```
+
+Regex matching is unanchored by default: a pattern matches if it appears
+anywhere in the string. Use `^` and `$` when you want to match the whole value.
+
+Both operands must be strings. If either operand is `NULL`, the result is
+unknown and the row is filtered out in `WHERE`.
+
+CamusDB uses the .NET regular-expression engine with culture-invariant
+case-insensitive matching. Common constructs such as character classes,
+quantifiers, anchors, alternation, and groups are supported. Use `\p{L}` or
+`[a-zA-Z]` for letters instead of POSIX named classes such as `[[:alpha:]]`.
+
+Malformed patterns return `CADB0400 InvalidInput`. Each match is bounded by an
+internal timeout so pathological patterns fail instead of running indefinitely.
 
 ## Subquery Predicates
 

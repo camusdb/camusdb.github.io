@@ -7,7 +7,7 @@ sidebar_position: 7.1
 CamusDB ships an ADO.NET provider for direct access from .NET applications.
 The package name is `CamusDB.Client`.
 
-It targets `net8.0` and `net9.0`.
+It targets `net8.0`, `net9.0`, and `net10.0`.
 
 ## Install
 
@@ -38,6 +38,7 @@ Supported keys:
 | --- | --- | --- |
 | `Endpoint` | Yes | Base URL for the CamusDB node. |
 | `Database` | Yes | Database name sent on requests. |
+| `Timeout` | No | HTTP request timeout in seconds. Defaults to `10`. |
 
 `Endpoint` can also be a comma-separated pool:
 
@@ -62,14 +63,36 @@ await connection.OpenAsync();
 `ChangeDatabase("otherdb")` updates the target database on the connection.
 
 Opening a connection does not create the database. Create databases explicitly
-before running table DDL, DML, or queries:
+before running table DDL, DML, or queries.
 
 ```csharp
-await using CamusCommand createDb = connection.CreateCamusCommand(
-    "CREATE DATABASE IF NOT EXISTS test");
+await connection.CreateDatabaseAsync(ifNotExists: true);
+await connection.CreateDatabaseAsync("otherdb", ifNotExists: true);
 
-await createDb.ExecuteDDLAsync();
+await connection.DropDatabaseAsync("old_test_db");
 ```
+
+`CreateDatabaseAsync()` and `DropDatabaseAsync()` operate on the database in the
+connection string unless you pass an explicit name. Database creation retries a
+small set of transient schema-allocation conflicts internally.
+
+For copy-on-write database branches, use the branching helpers:
+
+```csharp
+await connection.CreateBranchDatabaseAsync(
+    branchName: "factory_test",
+    sourceDatabaseName: "factory",
+    ifNotExists: true);
+
+IReadOnlyList<CamusBranchRow> branches =
+    await connection.ShowBranchesAsync("factory");
+
+IReadOnlyList<CamusBranchRow> ancestors =
+    await connection.ShowAncestorsAsync("factory_test");
+```
+
+See [Database Branching](/docs/database-branching) for the SQL behavior behind
+these helpers.
 
 ## Ping
 
@@ -98,6 +121,10 @@ await using CamusCommand ddl = connection.CreateCamusCommand("""
 
 bool created = await ddl.ExecuteDDLAsync();
 ```
+
+`ExecuteDDLAsync()` is also the direct path for CamusDB-specific DDL such as
+`CHECK` constraints, named `NOT NULL`, index operations, table renames, and raw
+schema changes not wrapped by a helper method.
 
 ## Insert Rows
 
@@ -164,6 +191,9 @@ The reader exposes standard typed getters such as:
 - `GetInt16` / `GetInt32` / `GetInt64`
 - `GetFloat` / `GetDouble`
 - `GetGuid`
+- `GetDateTime`
+- `GetFieldValue<T>` for `DateOnly`, `DateTimeOffset`, `byte[]`, `float`,
+  `Guid`, and other provider-supported values
 - `IsDBNull`
 
 ## Parameters
@@ -172,21 +202,109 @@ Parameters are input-only. Supported value mappings include:
 
 | Camus type | Typical .NET values |
 | --- | --- |
-| `ColumnType.Id` | `string`, `Guid`, Camus object id values |
+| `ColumnType.Id` | `string`, `Guid`, `CamusObjectIdValue` |
+| `ColumnType.Uuid` | `Guid`, canonical UUID `string` |
 | `ColumnType.String` | `string` |
 | `ColumnType.Integer64` | `short`, `int`, `long`, other integer-convertible values |
-| `ColumnType.Float64` | `float`, `double` |
+| `ColumnType.Float64` | `double`, `decimal`, other floating-convertible values |
+| `ColumnType.Float32` | `float`, other floating-convertible values |
 | `ColumnType.Bool` | `bool` |
+| `ColumnType.Bytes` | `byte[]`, `ReadOnlyMemory<byte>`, `Memory<byte>`, `ArraySegment<byte>`, `IEnumerable<byte>` |
+| `ColumnType.Date` | `DateOnly`, `DateTime`, `DateTimeOffset`, ISO date/time `string` |
+| `ColumnType.DateTime` | `DateTime`, `DateTimeOffset`, ISO date/time `string` |
+| `ColumnType.Array` | `IEnumerable` of a scalar supported type |
 | `ColumnType.Null` | `null`, `DBNull.Value` |
 
 Examples:
 
 ```csharp
 command.Parameters.Add("@id", ColumnType.Id, Guid.NewGuid());
+command.Parameters.Add("@ref", ColumnType.Uuid, Guid.NewGuid());
 command.Parameters.Add("@count", ColumnType.Integer64, 5);
 command.Parameters.Add("@price", ColumnType.Float64, 19.99);
+command.Parameters.Add("@payload", ColumnType.Bytes, new byte[] { 0xDE, 0xAD });
+command.Parameters.Add("@day", ColumnType.Date, new DateOnly(2026, 5, 1));
+command.Parameters.Add("@happened", ColumnType.DateTime, DateTimeOffset.UtcNow);
 command.Parameters.Add("@note", ColumnType.Null, null);
 ```
+
+For arrays, pass `isArray: true`. Set the scalar element type explicitly for
+empty arrays or arrays where all current values are `NULL`.
+
+```csharp
+command.Parameters.Add(
+    "@tags",
+    ColumnType.Integer64,
+    new long[] { 1, 2, 3 },
+    isArray: true);
+
+command.Parameters.Add(
+    "@empty_tags",
+    ColumnType.String,
+    Array.Empty<string>(),
+    isArray: true);
+```
+
+Dates and datetimes are normalized to UTC before they are sent. `DATE` values
+are stored at midnight UTC. `DATETIME` values are read back with
+`DateTimeKind.Utc`.
+
+## Data Types
+
+The ADO.NET driver covers CamusDB's current scalar and array type surface:
+
+| SQL DDL type | Driver type | Typical read/write type |
+| --- | --- | --- |
+| `OID`, `OBJECT_ID` | `ColumnType.Id` | `string`, `Guid`, `CamusObjectIdValue` |
+| `UUID`, `GUID` | `ColumnType.Uuid` | `Guid` |
+| `STRING`, `STRING(N)` | `ColumnType.String` | `string` |
+| `INT64`, `INT`, `INTEGER` | `ColumnType.Integer64` | `long`, `int`, `short` |
+| `FLOAT64` | `ColumnType.Float64` | `double` |
+| `FLOAT32`, `REAL` | `ColumnType.Float32` | `float` |
+| `BOOL`, `BOOLEAN` | `ColumnType.Bool` | `bool` |
+| `BYTES`, `BLOB` | `ColumnType.Bytes` | `byte[]` |
+| `DATE` | `ColumnType.Date` | `DateOnly`, `DateTime` |
+| `DATETIME`, `TIMESTAMP` | `ColumnType.DateTime` | `DateTime`, `DateTimeOffset` |
+| `ARRAY(T)` | `ColumnType.Array` | `object?[]` on read, `IEnumerable` on write |
+
+Use native `UUID` columns for UUID values instead of storing UUID text in
+`STRING`; the native type is more efficient on memory and disk and compares as a
+fixed-width value.
+
+## Query Result Cache
+
+CamusDB's query result cache is available from raw SQL. Put a `{cache=...}` hint
+after the table reference, or build the hint with `CamusCacheHint`.
+
+```csharp
+string hint = CamusCacheHint.Build(
+    "recent_orders",
+    ttl: TimeSpan.FromSeconds(30),
+    strict: true);
+
+await using CamusCommand select = connection.CreateSelectCommand(
+    $"SELECT id, total FROM orders {hint} WHERE status = @status");
+
+select.Parameters.Add("@status", ColumnType.Integer64, 1);
+
+await using CamusDataReader reader = await select.ExecuteReaderAsync();
+
+CamusCacheMetadata? cache = reader.CacheMetadata;
+CamusCacheMetadata? lastCache = select.LastCacheMetadata;
+```
+
+`CamusCacheMetadata` reports the server cache decision, including statuses such
+as `Hit`, `Miss`, `Bypass`, `StaleRevalidated`, and `EvictedBeforePublish`.
+
+Evict cache families through the connection:
+
+```csharp
+await connection.EvictCacheAsync("recent_orders");
+await connection.EvictAllCacheAsync();
+```
+
+Cache entries are scoped to the current database. See
+[Query Result Cache](/docs/query-result-cache) for query-shape rules.
 
 ## Transactions
 

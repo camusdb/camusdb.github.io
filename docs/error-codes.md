@@ -42,7 +42,8 @@ unexpected internal state, or storage-layer inconsistencies.
 | `CADB0300` | `DuplicateUniqueKeyValue` | An insert, update, or index backfill would violate a unique index or unique key. |
 | `CADB0301` | `NotNullViolation` | An insert or update tries to store `NULL` into a `NOT NULL` column. |
 | `CADB0302` | `ValueTooLong` | An insert, update, or cast tries to store a `STRING` or `BYTES` value longer than the column's configured or default maximum length. |
-| `CADB0400` | `InvalidInput` | The request shape is invalid: missing names, invalid DDL/DML parameters, malformed query structure, unsupported function arguments, invalid casts, malformed UUID input, duplicate aliases, invalid index rename inputs, invalid `GROUP BY` / `HAVING` / `DISTINCT` combinations, and similar user mistakes. |
+| `CADB0303` | `CheckConstraintViolation` | An insert, update, or `ALTER TABLE ... ADD CONSTRAINT ... CHECK` would make a row violate a check constraint, or check evaluation hits incompatible values or a regex failure inside the check. |
+| `CADB0400` | `InvalidInput` | The request shape is invalid: missing names, invalid DDL/DML parameters, malformed query structure, invalid check definitions, invalid regex patterns, unsupported function arguments, invalid casts, malformed UUID input, duplicate aliases, invalid index rename inputs, invalid `GROUP BY` / `HAVING` / `DISTINCT` combinations, and similar user mistakes. |
 | `CADB0401` | `UnknownType` | CamusDB is asked to encode, decode, cast, or evaluate a type it does not understand in that context. |
 | `CADB0402` | `DuplicatePrimaryKey` | Reserved for duplicate primary-key violations. The current storage path usually reports uniqueness failures as `CADB0300`. |
 | `CADB0403` | `DuplicateColumn` | A `CREATE TABLE` or `ALTER TABLE` introduces the same column name more than once, or a column rename targets an existing column name. |
@@ -98,6 +99,7 @@ These codes are usually not retryable without changing the request:
 - `CADB0300` `DuplicateUniqueKeyValue`
 - `CADB0301` `NotNullViolation`
 - `CADB0302` `ValueTooLong`
+- `CADB0303` `CheckConstraintViolation`
 - `CADB0506` `TransactionMutationLimitExceeded`
 - `CADB0507` `SpillStorageUnavailable`
 - `CADB0508` `DatabaseHasLiveDescendants`

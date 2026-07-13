@@ -128,6 +128,16 @@ WHERE year >= 2020 AND name = "R2";
 An index on `year` helps narrow the scan, and `name = "R2"` remains a residual
 filter.
 
+Pattern predicates such as `LIKE`, `ILIKE`, and regex operators `~`, `~*`,
+`!~`, and `!~*` are also residual filters. They can still combine with an
+indexable predicate on another column:
+
+```camussql
+SELECT *
+FROM robots
+WHERE year >= 2020 AND name ~* "^r";
+```
+
 ## Composite Index Behavior
 
 Composite indexes are most useful when query predicates follow the indexed

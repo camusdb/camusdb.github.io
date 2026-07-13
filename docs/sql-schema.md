@@ -38,6 +38,22 @@ CREATE TABLE app_users (
 );
 ```
 
+Use `CHECK` constraints when a column or row must satisfy a predicate before it
+can be inserted or updated:
+
+```camussql
+CREATE TABLE products (
+  id OID PRIMARY KEY NOT NULL DEFAULT (gen_id()),
+  name STRING NOT NULL,
+  price FLOAT64 NOT NULL CHECK (price > 0),
+  discounted_price FLOAT64,
+  CONSTRAINT valid_discount CHECK (discounted_price IS NULL OR price > discounted_price)
+);
+```
+
+See [Check Constraints](/docs/check-constraints) for naming, `ALTER TABLE`,
+`NULL` behavior, and supported expressions.
+
 Declare a composite primary key after the column list:
 
 ```camussql
@@ -170,6 +186,7 @@ DROP TABLE IF EXISTS robots;
 
 - [Databases](/docs/databases)
 - [Data Types](/docs/data-types)
+- [Check Constraints](/docs/check-constraints)
 - [Indexes](/docs/sql-indexes)
 - [Schema Inspection](/docs/sql-inspection)
 - [Error Codes](/docs/error-codes)

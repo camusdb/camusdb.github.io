@@ -48,7 +48,7 @@ WHERE json_valid(payload) = true
   AND json_type(payload) = "object";
 ```
 
-See [Functions](/docs/functions) for string, math, date/time, JSON,
+See [Functions](/docs/functions) for string, math, date/time, JSON, regex,
 conversion, UUID, and object id functions.
 
 ## DISTINCT
@@ -102,6 +102,10 @@ SELECT year
 FROM robots
 WHERE year BETWEEN 2001 AND 2004
 ORDER BY year;
+
+SELECT name
+FROM robots
+WHERE name ~* "^r";
 ```
 
 Supported filter operators include:
@@ -110,13 +114,29 @@ Supported filter operators include:
 | --- | --- |
 | Comparison | `=`, `!=`, `<`, `>`, `<=`, `>=`, `BETWEEN ... AND ...` |
 | Boolean | `AND`, `OR`, bare boolean columns such as `WHERE enabled` |
-| Pattern matching | `LIKE`, `ILIKE` |
+| Pattern matching | `LIKE`, `ILIKE`, regex operators `~`, `~*`, `!~`, `!~*` |
 | Null checks | `IS NULL`, `IS NOT NULL` |
 | Membership | `IN (...)`, `NOT IN (...)`, `IN (SELECT ...)`, `NOT IN (SELECT ...)` |
 | Existence checks | `EXISTS (SELECT ...)` |
 
 `BETWEEN` is inclusive. `year BETWEEN 2001 AND 2004` matches `2001`, `2002`,
 `2003`, and `2004`.
+
+Regex operators use .NET regular expressions:
+
+```camussql
+SELECT username
+FROM users
+WHERE username ~ "^[a-zA-Z][a-zA-Z0-9_]{2,29}$";
+
+SELECT tag
+FROM tags
+WHERE tag !~ "deprecated";
+```
+
+`~` and `!~` are case-sensitive. `~*` and `!~*` are case-insensitive. Patterns
+are unanchored unless you use `^` and `$`. A malformed pattern raises
+`CADB0400 InvalidInput`, and a `NULL` subject or pattern evaluates to unknown.
 
 ## IN And NOT IN Value Lists
 
