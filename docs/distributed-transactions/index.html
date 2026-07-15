@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Distributed Transactions And HLC | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/distributed-transactions/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Distributed Transactions And HLC | CamusDB"><meta data-rh="true" name="description" content="When a transaction touches data on more than one partition, the storage layer"><meta data-rh="true" property="og:description" content="When a transaction touches data on more than one partition, the storage layer"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/distributed-transactions/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-transactions/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-transactions/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Distributed Transactions And HLC","item":"https://camusdb.github.io/docs/distributed-transactions"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.6506d99b.css">
-<script src="/assets/js/runtime~main.eac8daf7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.746e25fa.js" defer="defer"></script>
 <script src="/assets/js/main.37210faa.js" defer="defer"></script>
 </head>
 <body>
@@ -50,8 +50,10 @@ leaders. A single node cannot safely mark the whole transaction committed
 without making sure every touched partition is ready.</p>
 <p>CamusDB uses two-phase commit for that coordination:</p>
 <ol>
-<li class="">A transaction runs and accumulates its read set, write set, and locks.</li>
-<li class="">During commit, each touched partition is asked to prepare the pending
+<li class="">A transaction runs through a Kahuna coordinator session.</li>
+<li class="">SQL operations register confirmed writes, locks, and read observations with
+that coordinator session.</li>
+<li class="">During commit, each touched partition is asked to prepare the registered
 mutations.</li>
 <li class="">If every participant prepares successfully, the transaction commits.</li>
 <li class="">If any participant cannot prepare, the transaction aborts and the prepared
@@ -59,17 +61,56 @@ work is rolled back.</li>
 </ol>
 <p>The result is atomic cross-partition commit without requiring all data to live
 on one leader.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="durability-across-leader-changes">Durability Across Leader Changes<a href="#durability-across-leader-changes" class="hash-link" aria-label="Direct link to Durability Across Leader Changes" title="Direct link to Durability Across Leader Changes" translate="no">​</a></h2>
+<p>Committed transactional writes are stored through the same replicated partition
+log as ordinary writes. A participant is not treated as durably committed until
+its partition has accepted the commit through <a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a>
+and the committed entry can be restored by <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a>.</p>
+<p>That matters during failures:</p>
+<ul>
+<li class="">If a node restarts after a commit is acknowledged, committed partition log
+entries are restored and applied back into the KV store as needed.</li>
+<li class="">If a partition leader changes, the new leader continues from a Raft-safe log
+state and can continue serving the partition.</li>
+<li class="">If a transaction has installed a durable commit decision, the partition that
+owns the decision anchor can drive the remaining participant commits even if
+the original live coordinator is gone.</li>
+<li class="">If a failure happens before a commit decision is durably installed, the
+transaction is not reported as a committed SQL result. The application should
+retry the business operation from <code>BEGIN</code> if it still wants the change.</li>
+</ul>
+<p>The practical guarantee is that CamusDB does not expose half-committed SQL
+transactions. A transaction either becomes committed through the storage layer&#x27;s
+replicated commit path, or it remains retryable/aborted without being surfaced
+as a committed result.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="idempotent-internal-retries">Idempotent Internal Retries<a href="#idempotent-internal-retries" class="hash-link" aria-label="Direct link to Idempotent Internal Retries" title="Direct link to Idempotent Internal Retries" translate="no">​</a></h2>
+<p>The storage layer can retry individual pieces of a transaction without applying
+the same effect twice.</p>
+<p>Every registered operation carries a transaction operation id. The coordinator
+uses that id to distinguish:</p>
+<ul>
+<li class="">a duplicate delivery of the same logical operation</li>
+<li class="">a new operation that should run separately</li>
+<li class="">a retry of commit or rollback for the same transaction handle</li>
+</ul>
+<p>If a write reaches a participant and the acknowledgement back to the coordinator
+is lost, a retry with the same operation id replays the recorded completion
+instead of writing the row or index entry a second time. Commit and rollback use
+the transaction handle and can also be retried when Kahuna returns <code>MustRetry</code>.</p>
+<p>This idempotency is an internal engine guarantee. Application code should still
+treat a failed explicit serializable transaction as a failed unit and replay the
+whole transaction from <code>BEGIN</code>, because the business logic may have observed
+different data on the next attempt.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="high-level-2pc-flow">High-Level 2PC Flow<a href="#high-level-2pc-flow" class="hash-link" aria-label="Direct link to High-Level 2PC Flow" title="Direct link to High-Level 2PC Flow" translate="no">​</a></h2>
 <p>For a write transaction, the commit path looks like this:</p>
 <ol>
 <li class="">CamusDB opens a transaction and receives a transaction timestamp from
-Kahuna.</li>
-<li class="">SQL statements read rows, write rows, maintain indexes, and track the keys
-and ranges touched by the transaction.</li>
-<li class="">On <code>COMMIT</code>, CamusDB sends the transaction metadata to Kahuna: acquired
-locks, modified keys, and transaction identity.</li>
+Kahuna, plus a coordinator handle.</li>
+<li class="">SQL statements read rows, write rows, maintain indexes, and acquire locks.</li>
+<li class="">Each successful transactional operation registers with the coordinator.</li>
+<li class="">On <code>COMMIT</code>, CamusDB sends the transaction handle to Kahuna.</li>
 <li class="">Kahuna validates that the transaction can still commit.</li>
-<li class="">Kahuna prepares the pending mutations on the affected partitions.</li>
+<li class="">Kahuna prepares the registered mutations on the affected partitions.</li>
 <li class="">If prepare succeeds everywhere, Kahuna commits the prepared mutations.</li>
 <li class="">If prepare fails anywhere, Kahuna rolls the prepared mutations back.</li>
 <li class="">Locks are released after the transaction finishes.</li>
@@ -81,7 +122,7 @@ transactions.</p>
 <ul>
 <li class="">exclusive key locks for writes</li>
 <li class="">prefix or range locks for scan protection in the relevant execution modes</li>
-<li class="">tracked modified keys for commit-time coordination</li>
+<li class="">coordinator-registered modified keys for commit-time coordination</li>
 <li class="">transaction timestamps from HLC</li>
 <li class="">read dependency validation and write-intent checks in Kahuna&#x27;s transaction
 coordinator</li>
@@ -149,26 +190,20 @@ break serial ordering.</p>
 <p>Internally, CamusDB and Kahuna follow this shape:</p>
 <ol>
 <li class=""><code>BEGIN</code> asks Kahuna to start a transaction and returns an HLC transaction
-ID.</li>
-<li class="">CamusDB executes SQL work while tracking:<!-- -->
-<ul>
-<li class="">acquired locks</li>
-<li class="">acquired prefix locks</li>
-<li class="">modified keys</li>
-<li class="">schema-version pins for touched tables</li>
-</ul>
-</li>
+ID plus a coordinator handle.</li>
+<li class="">CamusDB executes SQL work while registering confirmed writes, locks, and
+tracked reads with the coordinator.</li>
+<li class="">CamusDB also pins schema versions for touched tables.</li>
 <li class=""><code>COMMIT</code> validates schema pins so the transaction cannot commit against a
 table definition that became incompatible mid-transaction.</li>
-<li class="">CamusDB forwards the transaction metadata to Kahuna&#x27;s transaction
-coordinator.</li>
+<li class="">CamusDB asks Kahuna to commit the transaction handle.</li>
 <li class="">Kahuna validates read dependencies when needed.</li>
 <li class="">Kahuna prepares the transaction&#x27;s mutations with a fresh commit timestamp.</li>
 <li class="">Kahuna checks for conflicting write intents on read keys when the execution
 path requires it.</li>
 <li class="">Kahuna commits the prepared mutations on all participants, or rolls them
 back if the prepare step failed.</li>
-<li class="">CamusDB releases the transaction&#x27;s key and prefix locks.</li>
+<li class="">The coordinator releases registered locks and finalizes the session.</li>
 </ol>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-counts-as-a-retryable-failure">What Counts As A Retryable Failure<a href="#what-counts-as-a-retryable-failure" class="hash-link" aria-label="Direct link to What Counts As A Retryable Failure" title="Direct link to What Counts As A Retryable Failure" translate="no">​</a></h2>
 <p>Applications should be ready to retry when a transaction fails because:</p>
@@ -200,6 +235,12 @@ correctness. They are not partial commits.</p>
 Kahuna:</p>
 <ul>
 <li class="">cross-partition writes use 2PC</li>
+<li class="">committed writes are durable across node restart and leader change through
+the replicated partition log</li>
+<li class="">durable commit decisions can be recovered by the decision-anchor partition
+after the live coordinator disappears</li>
+<li class="">registered transaction operations, commit, and rollback are idempotent across
+engine retries</li>
 <li class="">HLC timestamps provide transaction ordering across nodes</li>
 <li class="">lock and intent tracking protect atomic distributed commit</li>
 <li class="">Serializable is the default isolation level</li>
@@ -215,6 +256,6 @@ production guarantee.</p>
 <li class=""><a class="" href="/docs/architecture/">Architecture</a></li>
 <li class=""><a class="" href="/docs/cluster/">Cluster Mode</a></li>
 <li class=""><a class="" href="/docs/wal-recovery/">WAL And Recovery</a></li>
-</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/distributed-transactions.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/serializable-retries/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Serializable Retries</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/multi-active-availability/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Multi-Active Availability</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#what-users-get" class="table-of-contents__link toc-highlight">What Users Get</a></li><li><a href="#why-2pc-exists" class="table-of-contents__link toc-highlight">Why 2PC Exists</a></li><li><a href="#high-level-2pc-flow" class="table-of-contents__link toc-highlight">High-Level 2PC Flow</a></li><li><a href="#conflict-detection" class="table-of-contents__link toc-highlight">Conflict Detection</a><ul><li><a href="#write-write-conflicts" class="table-of-contents__link toc-highlight">Write-Write Conflicts</a></li><li><a href="#phantom-protection" class="table-of-contents__link toc-highlight">Phantom Protection</a></li><li><a href="#read-write-conflicts" class="table-of-contents__link toc-highlight">Read-Write Conflicts</a></li></ul></li><li><a href="#how-hlc-timestamps-fit-in" class="table-of-contents__link toc-highlight">How HLC Timestamps Fit In</a></li><li><a href="#why-hlc-instead-of-plain-wall-clock-time" class="table-of-contents__link toc-highlight">Why HLC Instead Of Plain Wall Clock Time</a></li><li><a href="#transaction-start-timestamp" class="table-of-contents__link toc-highlight">Transaction Start Timestamp</a></li><li><a href="#commit-timestamp" class="table-of-contents__link toc-highlight">Commit Timestamp</a></li><li><a href="#internal-commit-flow" class="table-of-contents__link toc-highlight">Internal Commit Flow</a></li><li><a href="#what-counts-as-a-retryable-failure" class="table-of-contents__link toc-highlight">What Counts As A Retryable Failure</a></li><li><a href="#limits-and-scope" class="table-of-contents__link toc-highlight">Limits And Scope</a></li><li><a href="#see-also" class="table-of-contents__link toc-highlight">See Also</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Getting Started</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/databases/">Databases</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-cli/">camus-cli</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/sql/">SQL</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-features/">Query Features</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/functions/">Functions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable Transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/multi-active-availability/">Multi-Active Availability</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET Driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core Provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-dump/">camus-dump</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/configuration/">Configuration</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/storage/">Storage</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/wal-recovery/">WAL &amp; Recovery</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">Source<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/camusdb/camusdb.github.io" target="_blank" rel="noopener noreferrer" class="footer__link-item">Docs Repo<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 CamusDB.</div></div></div></footer></div>
+</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/distributed-transactions.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/serializable-retries/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Serializable Retries</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/multi-active-availability/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Multi-Active Availability</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#what-users-get" class="table-of-contents__link toc-highlight">What Users Get</a></li><li><a href="#why-2pc-exists" class="table-of-contents__link toc-highlight">Why 2PC Exists</a></li><li><a href="#durability-across-leader-changes" class="table-of-contents__link toc-highlight">Durability Across Leader Changes</a></li><li><a href="#idempotent-internal-retries" class="table-of-contents__link toc-highlight">Idempotent Internal Retries</a></li><li><a href="#high-level-2pc-flow" class="table-of-contents__link toc-highlight">High-Level 2PC Flow</a></li><li><a href="#conflict-detection" class="table-of-contents__link toc-highlight">Conflict Detection</a><ul><li><a href="#write-write-conflicts" class="table-of-contents__link toc-highlight">Write-Write Conflicts</a></li><li><a href="#phantom-protection" class="table-of-contents__link toc-highlight">Phantom Protection</a></li><li><a href="#read-write-conflicts" class="table-of-contents__link toc-highlight">Read-Write Conflicts</a></li></ul></li><li><a href="#how-hlc-timestamps-fit-in" class="table-of-contents__link toc-highlight">How HLC Timestamps Fit In</a></li><li><a href="#why-hlc-instead-of-plain-wall-clock-time" class="table-of-contents__link toc-highlight">Why HLC Instead Of Plain Wall Clock Time</a></li><li><a href="#transaction-start-timestamp" class="table-of-contents__link toc-highlight">Transaction Start Timestamp</a></li><li><a href="#commit-timestamp" class="table-of-contents__link toc-highlight">Commit Timestamp</a></li><li><a href="#internal-commit-flow" class="table-of-contents__link toc-highlight">Internal Commit Flow</a></li><li><a href="#what-counts-as-a-retryable-failure" class="table-of-contents__link toc-highlight">What Counts As A Retryable Failure</a></li><li><a href="#limits-and-scope" class="table-of-contents__link toc-highlight">Limits And Scope</a></li><li><a href="#see-also" class="table-of-contents__link toc-highlight">See Also</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Getting Started</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/databases/">Databases</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-cli/">camus-cli</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/sql/">SQL</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-features/">Query Features</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/functions/">Functions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable Transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/multi-active-availability/">Multi-Active Availability</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET Driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core Provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-dump/">camus-dump</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/configuration/">Configuration</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/storage/">Storage</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/wal-recovery/">WAL &amp; Recovery</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">Source<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/camusdb/camusdb.github.io" target="_blank" rel="noopener noreferrer" class="footer__link-item">Docs Repo<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 CamusDB.</div></div></div></footer></div>
 </body>
 </html>
