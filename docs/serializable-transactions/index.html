@@ -5,8 +5,8 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Transactions, Locking And Isolation | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/serializable-transactions/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Transactions, Locking And Isolation | CamusDB"><meta data-rh="true" name="description" content="CamusDB runs all SQL work inside transactions, including single-statement"><meta data-rh="true" property="og:description" content="CamusDB runs all SQL work inside transactions, including single-statement"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/serializable-transactions/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/serializable-transactions/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/serializable-transactions/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Transactions And Isolation","item":"https://camusdb.github.io/docs/serializable-transactions"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.6506d99b.css">
-<script src="/assets/js/runtime~main.16018604.js" defer="defer"></script>
-<script src="/assets/js/main.37210faa.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.eaae5e56.js" defer="defer"></script>
+<script src="/assets/js/main.f9ec9196.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -208,9 +208,9 @@ keeps lock bookkeeping bounded at the cost of protecting a larger range.</p>
 Kahuna to take the needed locks before conflicting work is allowed to proceed.
 This is the behavior exposed by normal SQL transactions and the one most
 applications should use for read-then-write invariants.</p>
-<p>Kahuna also supports optimistic transactions as an advanced, opt-in concurrency
-strategy. Optimistic transactions avoid explicit locks while they run and
-validate at commit instead:</p>
+<p>CamusDB also supports optimistic transactions as an advanced, opt-in
+concurrency strategy. Optimistic transactions avoid explicit locks while they
+run and validate at commit instead:</p>
 <ul>
 <li class="">a conflicting write to the same key aborts one transaction</li>
 <li class="">a changed row that the transaction read can abort the commit</li>
@@ -222,8 +222,18 @@ avoiding blocking matters more than taking predicate locks. Use the default
 pessimistic Serializable path when a transaction needs phantom protection for
 range-based business rules.</p>
 <p>This is separate from the SQL isolation level. <code>SET TRANSACTION ISOLATION LEVEL</code>
-chooses <code>Serializable</code> or <code>Read Committed</code>; it does not expose optimistic
-locking as a SQL option.</p>
+chooses <code>Serializable</code> or <code>Read Committed</code>; <code>SET TRANSACTION LOCKING</code> chooses
+the concurrency strategy.</p>
+<p>Use <code>SET TRANSACTION LOCKING</code> as the first statement of an explicit
+transaction:</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">BEGIN</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SET</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">TRANSACTION</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">LOCKING</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">OPTIMISTIC</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
+<p>You can also be explicit about the default behavior:</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">BEGIN</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SET</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">TRANSACTION</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">LOCKING</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">PESSIMISTIC</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
+<p>The locking statement must run before the transaction executes a data statement.
+It can be combined with <code>SET TRANSACTION ISOLATION LEVEL</code> in either order, as
+long as both appear before reads or writes. HTTP clients can also select the
+same strategy with the <code>locking</code> request field, and operators can change the
+server default with <code>default_transaction_locking</code>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="key-range-routing-and-scan-protection">Key-Range Routing And Scan Protection<a href="#key-range-routing-and-scan-protection" class="hash-link" aria-label="Direct link to Key-Range Routing And Scan Protection" title="Direct link to Key-Range Routing And Scan Protection" translate="no">​</a></h2>
 <p>CamusDB supports two routing models underneath the SQL layer:</p>
 <ul>

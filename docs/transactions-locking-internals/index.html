@@ -5,8 +5,8 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Transaction Internals | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/transactions-locking-internals/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Transaction Internals | CamusDB"><meta data-rh="true" name="description" content="This page is for contributors and operators who want to understand how CamusDB"><meta data-rh="true" property="og:description" content="This page is for contributors and operators who want to understand how CamusDB"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/transactions-locking-internals/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/transactions-locking-internals/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/transactions-locking-internals/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Transaction Internals","item":"https://camusdb.github.io/docs/transactions-locking-internals"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.6506d99b.css">
-<script src="/assets/js/runtime~main.16018604.js" defer="defer"></script>
-<script src="/assets/js/main.37210faa.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.eaae5e56.js" defer="defer"></script>
+<script src="/assets/js/main.f9ec9196.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -129,9 +129,9 @@ pessimistic locking.</p>
 <li class="">serializable scan protection uses point or range locks depending on the read
 shape</li>
 </ul>
-<p>This is the default for ordinary SQL transactions and the behavior exposed by
-the SQL isolation statements. Treat optimistic locking as an advanced internal
-begin option, not as a SQL-level isolation mode.</p>
+<p>This is the default for ordinary SQL transactions. It can be selected
+explicitly with <code>SET TRANSACTION LOCKING PESSIMISTIC</code>, the HTTP <code>locking</code>
+request field, or <code>default_transaction_locking: pessimistic</code>.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="optimistic-locking">Optimistic Locking<a href="#optimistic-locking" class="hash-link" aria-label="Direct link to Optimistic Locking" title="Direct link to Optimistic Locking" translate="no">​</a></h3>
 <p>Optimistic transactions avoid explicit write locks during normal execution and
 validate at commit.</p>
@@ -145,6 +145,10 @@ validate at commit.</p>
 <p>Optimistic validation is based on rows the transaction actually observed. It
 does not protect against a newly inserted row that would have matched an
 earlier predicate unless the execution path also took range protection.</p>
+<p>Optimistic locking is available through <code>SET TRANSACTION LOCKING OPTIMISTIC</code>,
+the HTTP <code>locking</code> request field, and <code>default_transaction_locking: optimistic</code>. Because Kahuna pins the locking mode when the coordinator session
+opens, SQL can apply it only before the first data statement of an explicit
+transaction.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="read-folding-and-validation">Read Folding And Validation<a href="#read-folding-and-validation" class="hash-link" aria-label="Direct link to Read Folding And Validation" title="Direct link to Read Folding And Validation" translate="no">​</a></h2>
 <p>Read folding is the mechanism that lets the coordinator validate that rows read
 by a transaction are still compatible at commit.</p>
@@ -250,10 +254,11 @@ gives abandoned sessions a server-side cleanup bound even when a client opens a
 transaction and disappears without calling commit or rollback.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="configuration-touchpoints">Configuration Touchpoints<a href="#configuration-touchpoints" class="hash-link" aria-label="Direct link to Configuration Touchpoints" title="Direct link to Configuration Touchpoints" translate="no">​</a></h2>
 <p>The public transaction and locking settings are:</p>
-<div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token key atrule" style="color:#00a4db">default_isolation_level</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> serializable</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">range_lock_expires_ms</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">150000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">max_serializable_transaction_lifetime_ms</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">3600000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">lock_escalation_threshold</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">50</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">lock_wait_deadline_ms</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">500</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">key_range_sharding</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#36acaa">false</span><br></div></code></pre></div></div>
+<div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token key atrule" style="color:#00a4db">default_isolation_level</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> serializable</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">default_transaction_locking</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> pessimistic</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">range_lock_expires_ms</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">150000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">max_serializable_transaction_lifetime_ms</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">3600000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">lock_escalation_threshold</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">50</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">lock_wait_deadline_ms</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">500</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">key_range_sharding</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#36acaa">false</span><br></div></code></pre></div></div>
 <p>Important details:</p>
 <ul>
 <li class=""><code>default_isolation_level</code> accepts <code>serializable</code> and <code>read_committed</code>.</li>
+<li class=""><code>default_transaction_locking</code> accepts <code>pessimistic</code> and <code>optimistic</code>.</li>
 <li class=""><code>range_lock_expires_ms</code> is an initial range-lock TTL; <code>&lt;= 0</code> disables
 expiry.</li>
 <li class=""><code>max_serializable_transaction_lifetime_ms</code> bounds Serializable read-write
@@ -266,10 +271,9 @@ conflict.</li>
 <li class=""><code>key_range_sharding</code> opts table row spaces and eligible secondary indexes
 into Kahuna key-range routing.</li>
 </ul>
-<p>Internal defaults also exist for transaction locking mode, read validation, and
-commit-decision durability:</p>
+<p>Internal defaults also exist for read validation and commit-decision
+durability:</p>
 <ul>
-<li class="">locking: pessimistic</li>
 <li class="">read validation: none, except optimistic transactions validate reads</li>
 <li class="">decision durability: best effort</li>
 </ul>
