@@ -40,6 +40,34 @@ Read Committed is available as an explicit opt-out:
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 ```
 
+## Locking Strategy
+
+Pessimistic locking is the default strategy. It takes the needed locks before
+conflicting work proceeds:
+
+```camussql
+BEGIN;
+SET TRANSACTION LOCKING PESSIMISTIC;
+```
+
+Optimistic locking is available as an opt-in strategy. It skips explicit
+exclusive write locks and validates conflicts at commit:
+
+```camussql
+BEGIN;
+SET TRANSACTION LOCKING OPTIMISTIC;
+```
+
+`SET TRANSACTION LOCKING` must run before any data statement in the transaction.
+It can be combined with `SET TRANSACTION ISOLATION LEVEL` in either order, as
+long as both statements appear before reads or writes.
+
+Optimistic locking is still governed by the isolation level. With
+`READ COMMITTED`, optimistic transactions are fully lock-free but only validate
+the rows they observed. With `SERIALIZABLE`, reads and scans still take shared
+predicate locks, so the transaction keeps phantom protection while using
+commit-time write/read-set validation.
+
 See [Transactions And Isolation](/docs/serializable-transactions),
 [Transaction Limits](/docs/transaction-limits), and
 [Serializable Retries](/docs/serializable-retries) for guarantees, limits, and

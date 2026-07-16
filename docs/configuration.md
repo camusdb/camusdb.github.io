@@ -21,10 +21,11 @@ value from `config.yml`.
 ## Default File
 
 The source repository ships a commented configuration reference at
-`CamusDB/Config/config.yml`. Its only active setting is:
+`CamusDB/Config/config.yml`. Its active settings are:
 
 ```yaml
 data_dir: /tmp/camusdb/
+initial_partitions: 3
 ```
 
 The commented sections show the available server, cluster, transaction, parser,
@@ -60,8 +61,8 @@ The remaining YAML settings do not currently have command-line flags:
 | YAML key | Default | Purpose |
 | --- | --- | --- |
 | `default_isolation_level` | `serializable` | Default transaction isolation when a request does not choose one. |
-| `range_lock_expires_ms` | `30000` | Serializable range-lock TTL; `<= 0` disables expiry. |
-| `range_lock_heartbeat_interval_ms` | `10000` | Renewal interval for live range locks. |
+| `default_transaction_locking` | `pessimistic` | Default transaction locking strategy when a request does not choose one. |
+| `range_lock_expires_ms` | `150000` | Initial Serializable range-lock TTL; the coordinator renews live range locks; positive values must be at least `2x` the effective Kahuna collection interval; `<= 0` disables expiry. |
 | `max_serializable_transaction_lifetime_ms` | `3600000` | Maximum Serializable read-write transaction lifetime; `<= 0` disables the cap. |
 | `lock_escalation_threshold` | `50` | Shared point-lock count per bucket before escalation. |
 | `lock_wait_deadline_ms` | `500` | Per-operation Serializable conflict wait cap. |
@@ -176,16 +177,19 @@ Serializable is the default isolation level:
 
 ```yaml
 default_isolation_level: serializable
+default_transaction_locking: pessimistic
 ```
 
 Use `read_committed` only when you explicitly want weaker isolation by default.
 Individual SQL/API transactions can still request an isolation level.
+Use `optimistic` for `default_transaction_locking` only when the deployment
+wants transactions to avoid explicit locks and validate conflicts at commit by
+default. Individual SQL/API transactions can still request a locking strategy.
 
 Locking settings tune Serializable read-write behavior:
 
 ```yaml
-range_lock_expires_ms: 30000
-range_lock_heartbeat_interval_ms: 10000
+range_lock_expires_ms: 150000
 max_serializable_transaction_lifetime_ms: 3600000
 lock_escalation_threshold: 50
 lock_wait_deadline_ms: 500
@@ -193,10 +197,15 @@ lock_wait_deadline_ms: 500
 
 Operational notes:
 
-- `range_lock_heartbeat_interval_ms` must be less than
-  `range_lock_expires_ms` when lock expiry is enabled.
+- `range_lock_expires_ms` is the initial TTL for range locks acquired by
+  Serializable read-write scans. The Kahuna coordinator renews live range locks
+  on its collection tick, so a positive value must be at least `2x` the
+  effective `kahuna.collection_interval_ms`. The default is `150000`
+  milliseconds, which is safe with Kahuna's default `60000` millisecond
+  collection interval.
 - `max_serializable_transaction_lifetime_ms` limits how long an active
-  Serializable read-write transaction can remain open.
+  Serializable read-write transaction can remain open. The same value is used
+  as the Kahuna transaction coordinator session timeout.
 - `lock_escalation_threshold` keeps lock bookkeeping bounded by escalating many
   point locks in the same bucket.
 - `lock_wait_deadline_ms` limits how long a single lock acquisition waits before
@@ -412,6 +421,7 @@ kahuna:
   wal_revision: v1
   wal_sync_writes: true
   default_transaction_timeout_ms: 5000
+  max_transaction_timeout_ms: 3600000
   locks_workers: 8
   key_value_workers: 8
   background_writer_workers: 1
@@ -425,12 +435,15 @@ kahuna:
   voting_timeout_ms: 1500
   max_entries_per_actor: 50000
   max_bytes_per_actor: 268435456
-  cache_entry_ttl_ms: 60000
+  cache_entry_ttl_ms: 300000
   cache_entries_to_remove: 1000
-  collection_interval_ms: 10000
+  collection_interval_ms: 60000
   compact_every_operations: 1000
-  compact_number_entries: 128
-  max_entries_per_compaction: 10000
+  compact_number_entries: 50
+  max_entries_per_compaction: 5000
+  rocksdb_shared_memory: true
+  rocksdb_shared_memory_budget_mb: 320
+  rocksdb_shared_memtable_budget_mb: 128
 ```
 
 Allowed storage backends are `rocksdb`, `sqlite`, and `memory`. Use `rocksdb`
@@ -443,8 +456,8 @@ The allow-listed Kahuna keys are:
 - storage settings: `storage`, `storage_revision`, `wal_storage`,
   `wal_revision`, `wal_sync_writes`
 - transaction and worker settings: `default_transaction_timeout_ms`,
-  `locks_workers`, `key_value_workers`, `background_writer_workers`,
-  `read_io_threads`, and `write_io_threads`
+  `max_transaction_timeout_ms`, `locks_workers`, `key_value_workers`,
+  `background_writer_workers`, `read_io_threads`, and `write_io_threads`
 - Raft timing settings: `start_election_timeout_ms`,
   `end_election_timeout_ms`, `start_election_timeout_increment_ms`,
   `end_election_timeout_increment_ms`, `heartbeat_interval_ms`, and
@@ -454,6 +467,9 @@ The allow-listed Kahuna keys are:
   `cache_entries_to_remove`, and `collection_interval_ms`
 - Raft log compaction: `compact_every_operations`, `compact_number_entries`,
   and `max_entries_per_compaction`
+- RocksDB shared memory: `rocksdb_shared_memory`,
+  `rocksdb_shared_memory_budget_mb`, and
+  `rocksdb_shared_memtable_budget_mb`
 
 Entry eviction has two controls. `max_entries_per_actor` and
 `max_bytes_per_actor` bound actor memory by size, while
@@ -464,6 +480,41 @@ Raft log compaction is controlled by `compact_every_operations`,
 `compact_number_entries`, and `max_entries_per_compaction`. Tune them together:
 one controls how often compaction runs, one controls how many trailing log
 entries are retained, and one caps how much a single pass can remove.
+
+### RocksDB Shared Memory
+
+When both the KV backend and WAL backend use RocksDB, CamusDB can share one
+RocksDB block cache and one write-buffer manager across both embedded RocksDB
+databases:
+
+```yaml
+kahuna:
+  storage: rocksdb
+  wal_storage: rocksdb
+  rocksdb_shared_memory: true
+  rocksdb_shared_memory_budget_mb: 320
+  rocksdb_shared_memtable_budget_mb: 128
+```
+
+Settings:
+
+- `rocksdb_shared_memory`: enables the shared RocksDB memory bundle. In
+  CamusDB's RocksDB baselines this is enabled by default. Set it to `false`
+  when you want the KV backend and WAL backend to use independent RocksDB
+  memory resources.
+- `rocksdb_shared_memory_budget_mb`: total shared block-cache budget in MiB.
+  The memtable sub-budget lives inside this total.
+- `rocksdb_shared_memtable_budget_mb`: memtable sub-budget in MiB, charged
+  against the shared cache budget. It must be less than or equal to
+  `rocksdb_shared_memory_budget_mb`.
+
+The setting is active only when both `storage` and `wal_storage` are
+`rocksdb`. If either side uses `sqlite` or `memory`, there is no second RocksDB
+database to share with, so the shared-memory setting is ignored.
+
+The feature changes only in-process RocksDB memory objects. It does not change
+on-disk format, WAL semantics, recovery behavior, SQL behavior, or wire
+protocols.
 
 Unknown `kahuna` keys are rejected at startup. Numeric worker, timeout, actor,
 eviction, and compaction settings must be greater than `0`; when both election
@@ -484,14 +535,21 @@ Important validation rules:
 - `schema_ack_wait_timeout_ms` must be `> 0`
 - `schema_ack_live_node_lease_ms` must be `> 0` or `-1`
 - `default_isolation_level` must be `serializable` or `read_committed`
-- `range_lock_heartbeat_interval_ms` must be less than
-  `range_lock_expires_ms` when expiry is enabled
+- `default_transaction_locking` must be `pessimistic` or `optimistic`
 - `lock_escalation_threshold` and `lock_wait_deadline_ms` must be `> 0`
+- positive `range_lock_expires_ms` values must be at least `2x` the effective
+  `kahuna.collection_interval_ms`
+- `kahuna.max_transaction_timeout_ms`, when set, must be `>=`
+  `max_serializable_transaction_lifetime_ms`
 - `stats_flush_interval_ms` must be `>= 0` or `-1`
 - `cost_based_access_path_enabled` and `cost_based_join_order_enabled` are
   booleans
 - `regex_match_timeout_ms` must be `> 0`
 - `regex_cache_max_entries` must be `>= 0`
+- `kahuna.rocksdb_shared_memory_budget_mb` must be `> 0`
+- `kahuna.rocksdb_shared_memtable_budget_mb` must be `> 0`
+- `kahuna.rocksdb_shared_memtable_budget_mb` must be less than or equal to
+  `kahuna.rocksdb_shared_memory_budget_mb` when shared RocksDB memory is active
 - `plan_cache_enabled` is boolean
 - `query_result_cache_enabled` is boolean
 - `max_identifier_length`, `max_columns_per_table`,
@@ -510,6 +568,7 @@ data_dir: /var/lib/camusdb
 mode: standalone
 http_port: 5095
 default_isolation_level: serializable
+default_transaction_locking: pessimistic
 stats_flush_interval_ms: 5000
 cost_based_access_path_enabled: true
 cost_based_join_order_enabled: true
@@ -524,6 +583,9 @@ sql_parser_cache_sweep_seconds: 60
 kahuna:
   storage: rocksdb
   wal_storage: rocksdb
+  rocksdb_shared_memory: true
+  rocksdb_shared_memory_budget_mb: 320
+  rocksdb_shared_memtable_budget_mb: 128
 ```
 
 Start with the YAML values:
@@ -560,6 +622,7 @@ http_peers:
 schema_ack_wait_timeout_ms: 30000
 schema_ack_live_node_lease_ms: 30000
 key_range_sharding: true
+default_transaction_locking: pessimistic
 cost_based_access_path_enabled: true
 cost_based_join_order_enabled: true
 plan_cache_enabled: true

@@ -7,8 +7,8 @@ sidebar_position: 3
 CamusDB runs all SQL work inside transactions, including single-statement
 queries.
 
-Serializable isolation is now the default. Read Committed remains available
-only when a transaction explicitly opts down.
+Serializable isolation is the default. Read Committed remains available only
+when a transaction explicitly opts down.
 
 For application developers, the baseline guarantees are:
 
@@ -79,8 +79,8 @@ The important user-facing behavior is:
 This is the mode to use when correctness depends on a read-then-write invariant
 that should behave as if transactions ran one at a time.
 
-Range locks are renewed by a background heartbeat while the transaction is
-alive. CamusDB also keeps a hard maximum lifetime as a backstop. The current
+Kahuna's transaction coordinator renews live range locks while the transaction
+is alive. CamusDB also keeps a hard maximum lifetime as a backstop. The current
 default cap is one hour. If a transaction outlives that cap, a later operation
 or commit fails with `TransactionLifetimeExceeded` instead of silently
 continuing without protection.
@@ -171,7 +171,8 @@ For each write, CamusDB:
 2. builds the row and index keys that must change
 3. places provisional write intents and acquires the needed key-level locks
 4. commits the write atomically through Kahuna
-5. releases tracked locks at transaction end
+5. lets the Kahuna transaction coordinator release the registered locks at
+   transaction end
 
 If another transaction is already writing a conflicting key, one side fails or
 must retry instead of silently clobbering data.
@@ -252,6 +253,59 @@ For scan-style reads:
 If a transaction reads many rows from the same table or index, CamusDB can
 escalate many point locks into one shared whole-table or whole-bucket lock. This
 keeps lock bookkeeping bounded at the cost of protecting a larger range.
+
+## Pessimistic vs Optimistic Locking
+
+The default serializable read-write path uses pessimistic locking: CamusDB asks
+Kahuna to take the needed locks before conflicting work is allowed to proceed.
+This is the behavior exposed by normal SQL transactions and the one most
+applications should use for read-then-write invariants.
+
+CamusDB also supports optimistic transactions as an advanced, opt-in
+concurrency strategy. Optimistic transactions skip the explicit exclusive write
+lock and validate at commit instead:
+
+- a conflicting write to the same key aborts one transaction
+- a changed row that the transaction read can abort the commit
+- the application retries the whole transaction from the beginning
+
+Optimistic validation is based on the rows the transaction actually observed.
+The important boundary is the isolation level:
+
+- `Read Committed + Optimistic` is the fully lock-free mode. It validates
+  observed rows, but it does not protect predicates from phantoms.
+- `Serializable + Optimistic` is a hybrid. Writes are optimistic, but
+  Serializable reads and scans still take shared point or range locks, so the
+  transaction remains phantom-safe.
+
+Use Serializable when a transaction needs phantom protection for range-based
+business rules. Use Read Committed + Optimistic only when observed-row
+validation is enough for the workload.
+
+This is separate from the SQL isolation level. `SET TRANSACTION ISOLATION LEVEL`
+chooses `Serializable` or `Read Committed`; `SET TRANSACTION LOCKING` chooses
+the concurrency strategy.
+
+Use `SET TRANSACTION LOCKING` as the first statement of an explicit
+transaction:
+
+```camussql
+BEGIN;
+SET TRANSACTION LOCKING OPTIMISTIC;
+```
+
+You can also be explicit about the default behavior:
+
+```camussql
+BEGIN;
+SET TRANSACTION LOCKING PESSIMISTIC;
+```
+
+The locking statement must run before the transaction executes a data statement.
+It can be combined with `SET TRANSACTION ISOLATION LEVEL` in either order, as
+long as both appear before reads or writes. HTTP clients can also select the
+same strategy with the `locking` request field, and operators can change the
+server default with `default_transaction_locking`.
 
 ## Key-Range Routing And Scan Protection
 
@@ -336,11 +390,11 @@ The current anomaly coverage includes:
 - write skew prevention
 - lost update prevention
 
-The robustness refinements that were previously outstanding are now in place:
+The implementation includes:
 
 - wait-die deadlock fairness, so contending transactions have a deterministic
   winner
-- range-lock heartbeat renewal for long-running serializable read-write
+- coordinator-owned range-lock renewal for long-running serializable read-write
   transactions
 - lock escalation for very large reads
 - tighter predicate-lock bounds for bounded scans, `UPDATE`, and `DELETE`

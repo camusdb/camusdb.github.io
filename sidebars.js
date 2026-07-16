@@ -121,7 +121,8 @@ const sidebars = {
       label: 'Reference',
       collapsed: false,
       items: [
-        'camus-cli',
+        'mcp-server',
+        'camus-cli',        
         'camus-dump',
         {
           type: 'category',

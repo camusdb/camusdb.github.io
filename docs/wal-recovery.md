@@ -99,6 +99,34 @@ committed log ordering. A transaction that is not committed is not recovered as
 a committed SQL result. A transaction that is committed can be replayed into the
 KV store if the process stopped before the background writer finished.
 
+## Transaction Decision Recovery
+
+Distributed transactions add one more recovery concern: a commit can involve
+several participant partitions. Kahuna handles this with a transaction
+coordinator and, for durable decisions, an internal decision record anchored to
+the first persistent key modified by the transaction.
+
+After the anchor decision is committed:
+
+- the transaction must finish as committed
+- participant commits can be retried without applying the same mutation twice
+- completion receipts identify participants that already committed
+- the leader for the anchor partition can continue recovery after a leader
+  change or node restart
+- recovery work is partition-scoped, so independent anchor partitions can make
+  progress without blocking each other
+
+If a participant commit response is lost, retrying the same commit path can use
+the participant's completion receipt instead of treating the missing in-memory
+intent as an abort. If the live coordinator disappears, the decision recovery
+actor scans outstanding durable decisions on partitions the node currently
+leads and re-drives unacknowledged participants until the decision is completed.
+
+If the process stops before the durable anchor decision is installed, the active
+transaction session is not recovered as a committed result. That boundary keeps
+recovery conservative: CamusDB recovers committed decisions and committed WAL
+entries, not speculative application work.
+
 ## Checkpoints And Compaction
 
 The WAL does not have to grow forever. [Kommander](https://kahunakv.github.io/kommander.github.io/)

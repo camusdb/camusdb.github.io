@@ -268,6 +268,10 @@ Only the retryable CamusDB transaction errors are retried:
 - `CADB0504` `TransactionMustRetry`
 - `CADB0505` `TransactionLifetimeExceeded`
 
+`CADB0509` `TransactionFinalizeUnresolved` is not a replay-from-beginning
+signal. If it surfaces while finalizing a transaction, retry the same commit or
+rollback for the same transaction id instead of rerunning the unit of work.
+
 Default retry settings:
 
 | Parameter | Default | Description |

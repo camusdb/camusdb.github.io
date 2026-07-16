@@ -349,8 +349,13 @@ Only these CamusDB error codes are treated as retryable:
 | Code | Name | Meaning |
 | --- | --- | --- |
 | `CADB0502` | `TransactionConflict` | A lock conflict aborted the transaction. |
-| `CADB0504` | `TransactionMustRetry` | A transient routing or leader-transition condition exhausted the commit retry budget. |
+| `CADB0504` | `TransactionMustRetry` | A pre-write transient routing, leader-transition, lock-wait, or storage conflict condition exhausted internal retries. |
 | `CADB0505` | `TransactionLifetimeExceeded` | A serializable read-write transaction exceeded the server lifetime cap. |
+
+`CADB0509` `TransactionFinalizeUnresolved` is intentionally not part of this
+replay helper. It means a commit or rollback has not reached a terminal answer;
+retry the same finalize on the same transaction instead of replaying the
+operation from the beginning.
 
 Use `SerializableRetryHelper.IsRetryable(...)` when you own the retry loop:
 

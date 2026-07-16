@@ -55,11 +55,12 @@ unexpected internal state, or storage-layer inconsistencies.
 | `CADB0501` | `TransactionAlreadyCompleted` | The caller tries to commit or roll back a transaction that is already committed, already rolled back, or otherwise no longer active. It is also used when Kahuna returns a permanent non-retryable commit failure and the transaction is already dead. |
 | `CADB0502` | `TransactionConflict` | The transaction cannot acquire the needed lock or hits a conflicting concurrent write. |
 | `CADB0503` | `SchemaCatchingUp` | The node is more than one schema version behind the committed schema head for that database, so it temporarily rejects reads and DML until schema apply catches up. Retry on another node or retry later. |
-| `CADB0504` | `TransactionMustRetry` | The commit path exhausted internal retries after Kahuna kept returning `MustRetry`, usually during routing or leader-transition instability. Retry the whole transaction from `BEGIN`. |
+| `CADB0504` | `TransactionMustRetry` | A pre-write transient condition exhausted internal retries, usually during transaction start, routing, leader transition, lock-wait deadline, or a storage write conflict before the affected write was applied. Retry the whole transaction from `BEGIN`. |
 | `CADB0505` | `TransactionLifetimeExceeded` | A serializable read-write transaction stayed open longer than the configured maximum lifetime, currently one hour by default. CamusDB aborts it explicitly instead of letting a runaway transaction continue forever. Roll it back and retry from `BEGIN`. |
 | `CADB0506` | `TransactionMutationLimitExceeded` | A read-write transaction would exceed the maximum mutation count, currently 20,000 row/index mutations by default. Split the work into smaller transactions; retrying the same transaction will fail again. |
 | `CADB0507` | `SpillStorageUnavailable` | A query operator needed spill-to-disk temporary storage, but CamusDB could not create the spill directory or open a spill file. Free disk space, fix permissions under `data_dir`, or run the query on a node with writable spill storage. |
 | `CADB0508` | `DatabaseHasLiveDescendants` | `DROP DATABASE` targets a database that still has live branch descendants. Drop descendant branches first, then drop the parent. |
+| `CADB0509` | `TransactionFinalizeUnresolved` | A `COMMIT` or `ROLLBACK` could not reach a terminal answer after bounded same-handle retries. The final outcome is not known yet, so retry the same finalize request on the same transaction id; do not replay the business operation from `BEGIN`. |
 | `CADB0600` | `InvalidConfig` | Startup configuration is invalid: wrong mode, invalid listener or Raft port, malformed peer lists, invalid schema-ack settings, invalid transaction/locking settings, invalid parser-cache values, unknown config keys, or unsupported `kahuna` options. |
 
 ## Corruption And Internal-State Errors
@@ -86,6 +87,11 @@ These codes are usually retryable:
 - `CADB0503` `SchemaCatchingUp`
 - `CADB0504` `TransactionMustRetry`
 - `CADB0505` `TransactionLifetimeExceeded`
+
+`CADB0509` `TransactionFinalizeUnresolved` is a different kind of retry: resend
+the same `COMMIT` or `ROLLBACK` for the same transaction id. Do not start a new
+transaction and replay the statements, because the original commit may already
+have succeeded server-side.
 
 These codes are usually not retryable without changing the request:
 

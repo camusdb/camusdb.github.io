@@ -76,12 +76,71 @@ kahuna:
   storage: rocksdb
   wal_storage: rocksdb
   wal_sync_writes: true
+  rocksdb_shared_memory: true
+  rocksdb_shared_memory_budget_mb: 320
+  rocksdb_shared_memtable_budget_mb: 128
 ```
 
 `storage` controls the materialized KV backend. `wal_storage` controls the Raft
 write-ahead-log backend. `wal_sync_writes: true` keeps acknowledged durable WAL
 writes on the safer path; disabling it is useful only for benchmarks or tests
 where crash durability is not being evaluated.
+
+## Shared RocksDB Memory
+
+When RocksDB is used for both the materialized KV backend and the WAL backend,
+there are two separate embedded RocksDB databases in the CamusDB process:
+
+- the Kahuna KV/locks backend, used for SQL rows, indexes, metadata, locks, and
+  transaction state
+- the Kommander Raft WAL backend, used for consensus log entries
+
+The databases remain separate on disk. That separation protects the Raft log
+from being merged into the data-store lifecycle and keeps WAL recovery,
+checkpointing, compaction, and data files independently managed.
+
+However, separate RocksDB databases can otherwise allocate separate memory
+budgets. RocksDB memory is dominated by:
+
+- the block cache, which caches data blocks read from SST files
+- memtables, which buffer recent writes in memory before they are flushed
+
+CamusDB's RocksDB baselines enable shared RocksDB memory by default. Kahuna
+creates one shared block cache and one shared write-buffer manager and passes
+them to both RocksDB databases:
+
+```yaml
+kahuna:
+  rocksdb_shared_memory: true
+  rocksdb_shared_memory_budget_mb: 320
+  rocksdb_shared_memtable_budget_mb: 128
+```
+
+The total budget bounds the shared block cache. The memtable sub-budget is
+charged into that same budget, so reads and writes across both RocksDB
+databases are governed by one process-level memory target instead of separate
+independent budgets.
+
+Operational notes:
+
+- Sharing is active only when both `storage` and `wal_storage` are `rocksdb`.
+- If either backend is `sqlite` or `memory`, the setting is a no-op.
+- `rocksdb_shared_memory_budget_mb` defaults to `320`.
+- `rocksdb_shared_memtable_budget_mb` defaults to `128` and must be less than
+  or equal to the total budget.
+- Set `rocksdb_shared_memory: false` to return to independent RocksDB memory
+  resources.
+- The feature does not change persisted data formats, SQL behavior, transaction
+  behavior, WAL semantics, or recovery ordering.
+
+Use a larger total budget for nodes with hot read working sets or heavy write
+bursts. If the memtable sub-budget is too small for the workload, RocksDB may
+flush more frequently. If it is too large, the deployment saves less memory.
+
+The main reason to keep two RocksDB databases while sharing memory resources is
+isolation: the WAL remains its own local database and the KV backend remains
+its own local database, but the expensive cache and memtable accounting are
+shared when both use RocksDB.
 
 ## Database Create And Open
 
@@ -216,14 +275,15 @@ through memory, disk, and index entries.
 
 ## Writes And Locks
 
-Write paths use persistent KV entries and explicit transaction state:
+Write paths use persistent KV entries and a server-owned transaction
+coordinator:
 
 1. Start a transaction.
 2. Acquire an exclusive lock for each row, index, or metadata key that will be
    written.
 3. Write or delete the affected keys.
-4. Track acquired locks and modified keys in the transaction object.
-5. Commit or roll back through [Kahuna](https://kahunakv.github.io/)'s
+4. Register confirmed writes and locks with the Kahuna transaction coordinator.
+5. Commit or roll back the transaction handle through [Kahuna](https://kahunakv.github.io/)'s
    transaction API.
 
 Cross-partition writes use two-phase commit. CamusDB uses Serializable

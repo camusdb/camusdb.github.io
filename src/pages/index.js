@@ -25,6 +25,10 @@ const heroPillars = [
     title: 'Copy-on-write database branches',
     detail: 'Clone a base database for testing and issue reproduction.',
   },
+  {
+    title: 'AI-agent ready',
+    detail: 'Expose schemas, queries, and controlled writes through MCP.',
+  },
 ];
 
 function DataBeam({className}) {
@@ -66,7 +70,8 @@ function HomepageHeader() {
           Write ordinary SQL. CamusDB spreads it across a cluster that scales
           writes, survives node failures, and runs transactions at Serializable
           isolation by default. Branch a database for feature work or issue
-          reproduction without touching the source.
+          reproduction without touching the source, or connect AI agents through
+          the CamusDB MCP server.
         </p>
         <div className={styles.buttons}>
           <Link className="button button--primary button--lg" to="/docs/intro">
@@ -74,6 +79,9 @@ function HomepageHeader() {
           </Link>
           <Link className="button button--secondary button--lg" to="/docs/why-camusdb">
             Why CamusDB?
+          </Link>
+          <Link className="button button--secondary button--lg" to="/docs/mcp-server">
+            MCP Server
           </Link>
         </div>
         <div className={styles.heroPillars}>

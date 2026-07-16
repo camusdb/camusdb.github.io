@@ -177,8 +177,12 @@ used by the engine tests.
 Autocommit SQL requests use Serializable isolation by default. For requests
 that start an autocommit transaction, `isolationLevel` can be set to
 `"Serializable"` or `"ReadCommitted"`, and `transactionMode` can be set to
-`"ReadWrite"` or `"ReadOnly"`. These fields are ignored when the request
-resumes an existing transaction with `txnIdPT` and `txnIdCounter`.
+`"ReadWrite"` or `"ReadOnly"`. Writable autocommit requests can also set
+`locking` to `"Pessimistic"` or `"Optimistic"`. These fields are ignored when
+the request resumes an existing transaction with `txnIdPT` and `txnIdCounter`.
+`locking` is also ignored by read-only `/execute-sql-query` requests because
+they do not run a writable transaction that can acquire or validate write
+conflicts.
 
 ### `POST /execute-sql-ddl`
 
@@ -371,17 +375,21 @@ Start a transaction:
 {
   "databaseName": "app",
   "isolationLevel": "Serializable",
-  "transactionMode": "ReadWrite"
+  "transactionMode": "ReadWrite",
+  "locking": "Pessimistic"
 }
 ```
 
-`isolationLevel` and `transactionMode` are optional. If omitted, the transaction
-starts with the server default isolation level, which is Serializable, and the
-default transaction mode, which is read-write.
+`isolationLevel`, `transactionMode`, and `locking` are optional. If omitted, the
+transaction starts with the server default isolation level, which is
+Serializable, the default transaction mode, which is read-write, and the server
+default locking strategy, which is pessimistic.
 
 Use `"ReadCommitted"` only when you intentionally opt down from the default
 Serializable behavior. Use `"ReadOnly"` with `"Serializable"` for a stable
-snapshot transaction.
+snapshot transaction. Use `"Optimistic"` when you want conflicts detected at
+commit instead of taking explicit locks while the transaction runs.
+Unrecognized locking values are rejected with `InvalidInput`.
 
 Response:
 
@@ -426,3 +434,8 @@ Commit or roll back:
   "txnIdCounter": 1
 }
 ```
+
+If `COMMIT` or `ROLLBACK` returns `CADB0509`
+`TransactionFinalizeUnresolved`, retry the same request with the same
+transaction id. Do not start a fresh transaction and replay the statements,
+because the original commit may already have succeeded server-side.
