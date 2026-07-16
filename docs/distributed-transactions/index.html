@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Distributed Transactions And HLC | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/distributed-transactions/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Distributed Transactions And HLC | CamusDB"><meta data-rh="true" name="description" content="When a transaction touches data on more than one partition, the storage layer"><meta data-rh="true" property="og:description" content="When a transaction touches data on more than one partition, the storage layer"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/distributed-transactions/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-transactions/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-transactions/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Distributed Transactions And HLC","item":"https://camusdb.github.io/docs/distributed-transactions"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.6506d99b.css">
-<script src="/assets/js/runtime~main.eaae5e56.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.924ed6c8.js" defer="defer"></script>
 <script src="/assets/js/main.f9ec9196.js" defer="defer"></script>
 </head>
 <body>
@@ -215,6 +215,10 @@ back if the prepare step failed.</li>
 <li class="">the transaction could not prepare on every participant</li>
 <li class="">a serializable read-write transaction exceeded its lifetime deadline</li>
 </ul>
+<p>Those failures mean replay the whole transaction from <code>BEGIN</code>.
+<code>TransactionFinalizeUnresolved</code> is different: the commit or rollback outcome is
+not terminal yet, and the same finalize request must be retried on the same
+transaction handle instead of rerunning the business operation.</p>
 <p>Applications should also pick the right isolation mode for the job:</p>
 <ul>
 <li class="">use the default Serializable isolation for correctness-sensitive work</li>
@@ -223,9 +227,9 @@ lock-based write blocking</li>
 <li class="">use Read Committed only as an explicit opt-out when fresh committed reads and
 cheaper concurrency matter more than full serializable behavior</li>
 </ul>
-<p>CamusDB does not automatically replay failed serializable transactions. The
-client must restart them from the beginning when a retryable conflict or
-deadline error occurs.</p>
+<p>CamusDB does not automatically replay failed explicit serializable
+transactions. The client must restart them from the beginning when a retryable
+conflict or deadline error occurs.</p>
 <p>For single-statement autocommit serializable work, CamusDB includes a helper
 that performs bounded replay with backoff. Explicit multi-statement
 transactions still need replay from <code>BEGIN</code>.</p>

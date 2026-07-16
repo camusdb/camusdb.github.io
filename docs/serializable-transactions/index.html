@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Transactions, Locking And Isolation | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/serializable-transactions/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Transactions, Locking And Isolation | CamusDB"><meta data-rh="true" name="description" content="CamusDB runs all SQL work inside transactions, including single-statement"><meta data-rh="true" property="og:description" content="CamusDB runs all SQL work inside transactions, including single-statement"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/serializable-transactions/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/serializable-transactions/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/serializable-transactions/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Transactions And Isolation","item":"https://camusdb.github.io/docs/serializable-transactions"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.6506d99b.css">
-<script src="/assets/js/runtime~main.eaae5e56.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.924ed6c8.js" defer="defer"></script>
 <script src="/assets/js/main.f9ec9196.js" defer="defer"></script>
 </head>
 <body>
@@ -209,18 +209,25 @@ Kahuna to take the needed locks before conflicting work is allowed to proceed.
 This is the behavior exposed by normal SQL transactions and the one most
 applications should use for read-then-write invariants.</p>
 <p>CamusDB also supports optimistic transactions as an advanced, opt-in
-concurrency strategy. Optimistic transactions avoid explicit locks while they
-run and validate at commit instead:</p>
+concurrency strategy. Optimistic transactions skip the explicit exclusive write
+lock and validate at commit instead:</p>
 <ul>
 <li class="">a conflicting write to the same key aborts one transaction</li>
 <li class="">a changed row that the transaction read can abort the commit</li>
 <li class="">the application retries the whole transaction from the beginning</li>
 </ul>
-<p>Optimistic validation is based on the rows the transaction actually observed,
-not on arbitrary predicates. It is useful for low-contention workloads where
-avoiding blocking matters more than taking predicate locks. Use the default
-pessimistic Serializable path when a transaction needs phantom protection for
-range-based business rules.</p>
+<p>Optimistic validation is based on the rows the transaction actually observed.
+The important boundary is the isolation level:</p>
+<ul>
+<li class=""><code>Read Committed + Optimistic</code> is the fully lock-free mode. It validates
+observed rows, but it does not protect predicates from phantoms.</li>
+<li class=""><code>Serializable + Optimistic</code> is a hybrid. Writes are optimistic, but
+Serializable reads and scans still take shared point or range locks, so the
+transaction remains phantom-safe.</li>
+</ul>
+<p>Use Serializable when a transaction needs phantom protection for range-based
+business rules. Use Read Committed + Optimistic only when observed-row
+validation is enough for the workload.</p>
 <p>This is separate from the SQL isolation level. <code>SET TRANSACTION ISOLATION LEVEL</code>
 chooses <code>Serializable</code> or <code>Read Committed</code>; <code>SET TRANSACTION LOCKING</code> chooses
 the concurrency strategy.</p>
