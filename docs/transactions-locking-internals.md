@@ -155,8 +155,8 @@ Important behavior:
   shape
 
 This is the default for ordinary SQL transactions. It can be selected
-explicitly with `SET TRANSACTION LOCKING PESSIMISTIC`, the HTTP `locking`
-request field, or `default_transaction_locking: pessimistic`.
+explicitly with `SET TRANSACTION LOCKING PESSIMISTIC`, the HTTP/gRPC
+`locking` request field, or `default_transaction_locking: pessimistic`.
 
 ### Optimistic Locking
 
@@ -177,7 +177,7 @@ Optimistic` is a hybrid: writes are optimistic, but reads and scans still take
 the shared point or range predicate locks required for phantom protection.
 
 Optimistic locking is available through `SET TRANSACTION LOCKING OPTIMISTIC`,
-the HTTP `locking` request field, and `default_transaction_locking:
+the HTTP/gRPC `locking` request field, and `default_transaction_locking:
 optimistic`. Because Kahuna pins the locking mode when the coordinator session
 opens, SQL can apply it only before the first data statement of an explicit
 transaction.
@@ -310,10 +310,10 @@ The same value is supplied to Kahuna as the coordinator session timeout. That
 gives abandoned sessions a server-side cleanup bound even when a client opens a
 transaction and disappears without calling commit or rollback.
 
-Explicit HTTP transactions are also tracked by a CamusDB-side abandoned
+Explicit client transactions are also tracked by a CamusDB-side abandoned
 transaction reaper. It rolls back transactions that sit idle with no client
-statement long enough to be considered abandoned, while Kahuna's session timeout
-remains the final cleanup backstop.
+statement long enough to be considered abandoned, while Kahuna's session
+timeout remains the final cleanup backstop.
 
 ## Configuration Touchpoints
 

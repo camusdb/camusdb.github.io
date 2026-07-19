@@ -8,7 +8,7 @@ CamusDB provides an MCP server for AI agents and MCP-capable clients. The server
 exposes a running CamusDB node or cluster through a typed Model Context Protocol
 tool surface, so an assistant can inspect databases, explain queries, run
 read-only SQL, and perform controlled database setup tasks without hand-writing
-HTTP requests.
+database API requests.
 
 The MCP server speaks MCP over `stdio` and is launched by the MCP client. It
 connects to CamusDB through the published `CamusDB.Client` provider.

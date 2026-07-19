@@ -21,7 +21,8 @@ CREATE DATABASE IF NOT EXISTS app;
 ```
 
 After creation, connect to that database with `camus-cli app`, `use app;`, a
-driver connection string, or an HTTP request whose `databaseName` is `app`.
+driver connection string, an HTTP request whose `databaseName` is `app`, or a
+gRPC request whose `database` is `app`.
 
 ## Branch A Database
 
@@ -59,16 +60,33 @@ column details.
 ```camussql
 DROP DATABASE app;
 DROP DATABASE IF EXISTS app;
+DROP DATABASE app FORCE;
 ```
 
-`DROP DATABASE` removes the registry entry for the database name.
+`DROP DATABASE` removes the registry entry for the database name immediately,
+but the database data is retained as a recoverable orphan for the configured
+retention window. The name is free to reuse, `SHOW DATABASES` no longer lists
+it, and opening the dropped name returns `DatabaseDoesntExist`.
 
-CamusDB then drains in-flight operations for the database descriptor and purges
-that database's metadata, table row, index, and statistics keyspaces from the
-shared storage layer. Both standalone and cluster modes use a shared storage
-node; a drop does not remove a separate per-database RocksDB or WAL directory.
+Use `SHOW ORPHAN DATABASES` to inspect recoverable dropped databases, then
+recover one under a new name with `CREATE DATABASE ... RELINK TO`:
 
-`DROP DATABASE IF EXISTS` is a no-op when the database name is absent.
+```camussql
+SHOW ORPHAN DATABASES;
+CREATE DATABASE app_recovered RELINK TO '7';
+```
+
+Use `FORCE` only when the database should be physically deleted immediately and
+permanently:
+
+```camussql
+DROP DATABASE app FORCE;
+```
+
+`DROP DATABASE IF EXISTS` is a no-op when the database name is absent. A forced
+drop creates no orphan and cannot be recovered. See
+[Recover Dropped Objects](/docs/recover-dropped-objects) for the recovery
+workflow, retention settings, and limits.
 
 ## Rename A Database
 
@@ -131,11 +149,14 @@ Creating or renaming a database to either name returns `DatabaseNameReserved`.
 | `CADB0018` | `DatabaseNameReserved` | `CREATE DATABASE` or `RENAME DATABASE` uses `_system` or `information_schema`. |
 | `CADB0019` | `DatabaseCreationIncomplete` | Reserved for an incomplete database-create recovery condition from older standalone storage layouts. It is not expected on the current shared-storage create path. |
 | `CADB0508` | `DatabaseHasLiveDescendants` | `DROP DATABASE` targets a database that still has live branch descendants. Drop descendant branches first. |
+| `CADB0510` | `OrphanNotFound` | `CREATE DATABASE ... RELINK TO` references an unknown, already recovered, or reclaimed orphan id. |
 
 ## Related Pages
 
 - [Tutorial](/docs/intro)
 - [Database Branching](/docs/database-branching)
+- [Recover Dropped Objects](/docs/recover-dropped-objects)
 - [SQL](/docs/sql)
 - [HTTP API](/docs/http-api)
+- [gRPC API](/docs/grpc-api)
 - [Error Codes](/docs/error-codes)

@@ -12,6 +12,7 @@ indexes, and query plans.
 ```camussql
 SHOW DATABASES;
 SHOW DATABASE;
+SHOW ORPHAN DATABASES;
 SHOW BRANCHES FROM prod;
 SHOW ANCESTORS FROM feature_checkout;
 ```
@@ -27,15 +28,25 @@ id, depth, immediate parent, and fork timestamp.
 queried database's parent chain, starting with the immediate parent. Root
 databases return an empty result set.
 
+`SHOW ORPHAN DATABASES` lists dropped root databases that are still recoverable.
+Use the returned `id` with `CREATE DATABASE ... RELINK TO`.
+
 ## Tables And Columns
 
 ```camussql
 SHOW TABLES;
+SHOW ORPHAN TABLES;
 SHOW COLUMNS FROM robots;
 DESCRIBE robots;
 DESC robots;
 SHOW CREATE TABLE robots;
 ```
+
+`SHOW ORPHAN TABLES` lists dropped tables in the current database that are still
+recoverable. Use the returned `id` with `CREATE TABLE ... RELINK TO`.
+
+See [Recover Dropped Objects](/docs/recover-dropped-objects) for the recovery
+workflow and retention settings.
 
 ## Indexes
 

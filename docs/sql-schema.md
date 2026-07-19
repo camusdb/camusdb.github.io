@@ -131,7 +131,7 @@ for `STRING`, `BOOLEAN` for `BOOL`, `OBJECT_ID` for `OID`, and `GUID` for
 `UUID`.
 
 See [Data Types](/docs/data-types) for length limits, literal formats, casts,
-storage recommendations, HTTP JSON values, and array rules.
+storage recommendations, API value encoding, and array rules.
 
 ## Alter Tables
 
@@ -180,11 +180,39 @@ column name fails with `DuplicateColumn`.
 ```camussql
 DROP TABLE robots;
 DROP TABLE IF EXISTS robots;
+DROP TABLE robots FORCE;
 ```
+
+`DROP TABLE` removes the table from the active schema immediately, but the table
+data is retained as a recoverable orphan for the configured retention window.
+`SHOW TABLES` no longer lists the table and the name is free to reuse.
+
+Use `SHOW ORPHAN TABLES` in the current database to inspect recoverable dropped
+tables, then recover one under a new name:
+
+```camussql
+SHOW ORPHAN TABLES;
+CREATE TABLE robots_recovered RELINK TO "A0";
+```
+
+The recovered table keeps its rows, indexes, constraints, and column definitions
+from the time it was dropped.
+
+Use `FORCE` only when the table should be physically deleted immediately and
+permanently:
+
+```camussql
+DROP TABLE robots FORCE;
+```
+
+Forced drops create no orphan and cannot be recovered. See
+[Recover Dropped Objects](/docs/recover-dropped-objects) for retention settings,
+recovery examples, and limits.
 
 ## Related Pages
 
 - [Databases](/docs/databases)
+- [Recover Dropped Objects](/docs/recover-dropped-objects)
 - [Data Types](/docs/data-types)
 - [Check Constraints](/docs/check-constraints)
 - [Indexes](/docs/sql-indexes)

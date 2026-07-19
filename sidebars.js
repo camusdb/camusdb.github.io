@@ -20,9 +20,10 @@ const sidebars = {
       collapsed: false,
       items: [
         'intro',
-        'databases',
-        'database-branching',
         'why-camusdb',
+        'databases',        
+        'database-branching',        
+        'recover-dropped-objects',
       ],
     },
     {
@@ -135,6 +136,7 @@ const sidebars = {
         },
         'error-codes',
         'http-api',
+        'grpc-api',
       ],
     },
   ],

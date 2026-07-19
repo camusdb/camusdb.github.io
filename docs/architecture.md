@@ -52,7 +52,8 @@ storage layer routes the work to the node that can coordinate it.
 
 At a high level, every SQL request follows this path:
 
-1. The client sends SQL to any available CamusDB node.
+1. The client sends SQL to any available CamusDB node through the HTTP API,
+   gRPC API, or an official client/tool.
 2. CamusDB parses and validates the statement.
 3. The query or write executor checks catalog metadata, constraints, indexes,
    and transaction state.
@@ -72,7 +73,7 @@ contract to the layer above it.
 
 | Layer | Purpose |
 | --- | --- |
-| SQL interface | Accept SQL statements from clients and tools. |
+| Client interfaces | Accept SQL and row operations from clients and tools through REST/JSON and gRPC. |
 | Parser and validator | Normalize statements, validate syntax, and reject invalid command inputs. |
 | Catalog | Track databases, tables, columns, indexes, constraints, and schema versions. |
 | Query and write execution | Plan reads, apply filters, joins, grouping, subqueries, updates, deletes, inserts, and index maintenance. |

@@ -11,8 +11,8 @@ SELECT id, name FROM robots WHERE id = @id;
 UPDATE robots SET name = @name WHERE id = @id;
 ```
 
-Parameter values are bound by the client, shell command, or HTTP request that
-submits the SQL.
+Parameter values are bound by the client, shell command, HTTP request, or gRPC
+request that submits the SQL.
 
 ## HTTP Example
 
@@ -32,5 +32,5 @@ submits the SQL.
 }
 ```
 
-See [HTTP API](/docs/http-api) and [.NET Driver](/docs/dotnet-driver) for
-client-specific binding details.
+See [HTTP API](/docs/http-api), [gRPC API](/docs/grpc-api), and
+[.NET Driver](/docs/dotnet-driver) for client-specific binding details.

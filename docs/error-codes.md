@@ -4,8 +4,8 @@ sidebar_position: 6
 
 # Error Codes
 
-CamusDB surfaces structured error codes through `CamusDBException` and through
-HTTP API error responses.
+CamusDB surfaces structured error codes through `CamusDBException`, HTTP API
+error responses, and gRPC error metadata.
 
 Example failed HTTP response:
 
@@ -16,6 +16,10 @@ Example failed HTTP response:
   "message": "error message"
 }
 ```
+
+gRPC unary and streaming calls include the same domain code in the
+`camus-error-code` trailer. Batched gRPC operations carry it in the in-band
+`BatchError` message.
 
 ## How To Read Them
 
@@ -61,6 +65,7 @@ unexpected internal state, or storage-layer inconsistencies.
 | `CADB0507` | `SpillStorageUnavailable` | A query operator needed spill-to-disk temporary storage, but CamusDB could not create the spill directory or open a spill file. Free disk space, fix permissions under `data_dir`, or run the query on a node with writable spill storage. |
 | `CADB0508` | `DatabaseHasLiveDescendants` | `DROP DATABASE` targets a database that still has live branch descendants. Drop descendant branches first, then drop the parent. |
 | `CADB0509` | `TransactionFinalizeUnresolved` | A `COMMIT` or `ROLLBACK` could not reach a terminal answer after bounded same-handle retries. The final outcome is not known yet, so retry the same finalize request on the same transaction id; do not replay the business operation from `BEGIN`. |
+| `CADB0510` | `OrphanNotFound` | `CREATE DATABASE ... RELINK TO`, `CREATE TABLE ... RELINK TO`, or orphan reclamation references an orphan id that does not exist, was already recovered, or was already reclaimed. |
 | `CADB0600` | `InvalidConfig` | Startup configuration is invalid: wrong mode, invalid listener or Raft port, malformed peer lists, invalid schema-ack settings, invalid transaction/locking settings, invalid parser-cache values, unknown config keys, or unsupported `kahuna` options. |
 
 ## Corruption And Internal-State Errors
@@ -109,6 +114,7 @@ These codes are usually not retryable without changing the request:
 - `CADB0506` `TransactionMutationLimitExceeded`
 - `CADB0507` `SpillStorageUnavailable`
 - `CADB0508` `DatabaseHasLiveDescendants`
+- `CADB0510` `OrphanNotFound`
 
 These codes usually need operator investigation rather than blind retries:
 
@@ -118,9 +124,11 @@ These codes usually need operator investigation rather than blind retries:
 ## Related Pages
 
 - [HTTP API](/docs/http-api)
+- [gRPC API](/docs/grpc-api)
 - [Transactions And Isolation](/docs/serializable-transactions)
 - [Transaction Limits](/docs/transaction-limits)
 - [Serializable Retries](/docs/serializable-retries)
 - [Distributed Transactions And HLC](/docs/distributed-transactions)
 - [Distributed Schema Changes](/docs/distributed-schema)
 - [Database Branching](/docs/database-branching)
+- [Recover Dropped Objects](/docs/recover-dropped-objects)

@@ -7,6 +7,10 @@ sidebar_position: 3
 CamusDB exposes JSON endpoints for automation and application integration.
 Request and response properties use camelCase.
 
+For HTTP/2 and Protobuf-based clients, see [gRPC API](/docs/grpc-api). The
+REST/JSON and gRPC APIs reach the same SQL, transaction, and row-operation
+engine.
+
 ## Status And Errors
 
 Successful responses use:

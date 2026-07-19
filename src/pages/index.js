@@ -26,8 +26,16 @@ const heroPillars = [
     detail: 'Clone a base database for testing and issue reproduction.',
   },
   {
+    title: 'Recover accidental drops',
+    detail: 'Relink dropped root databases and tables during retention.',
+  },
+  {
     title: 'AI-agent ready',
     detail: 'Expose schemas, queries, and controlled writes through MCP.',
+  },
+  {
+    title: 'Flexible client protocols',
+    detail: 'Use tools, REST/JSON, gRPC, or native client libraries.',
   },
 ];
 
@@ -70,8 +78,9 @@ function HomepageHeader() {
           Write ordinary SQL. CamusDB spreads it across a cluster that scales
           writes, survives node failures, and runs transactions at Serializable
           isolation by default. Branch a database for feature work or issue
-          reproduction without touching the source, or connect AI agents through
-          the CamusDB MCP server.
+          reproduction without touching the source, recover accidental drops
+          without a full restore, connect over REST/JSON or gRPC, or give AI
+          agents controlled access through the CamusDB MCP server.
         </p>
         <div className={styles.buttons}>
           <Link className="button button--primary button--lg" to="/docs/intro">
@@ -159,6 +168,13 @@ const branchingUseCases = [
   'Run migration rehearsals and destructive tests, then drop the branch when the run is done.',
 ];
 
+const recoveryUseCases = [
+  'Recover from an accidental DROP DATABASE or DROP TABLE while the data is still retained.',
+  'Undo a destructive migration or cleanup script by relinking the old object under a safe name.',
+  'Inspect, audit, or compare dropped data after a new object reused the original name.',
+  'Keep normal cleanup reversible, then use FORCE later only when permanent deletion is intentional.',
+];
+
 function BranchingWorkflow() {
   return (
     <section className={styles.branching}>
@@ -194,6 +210,46 @@ UPDATE orders SET audit_note = "repro case";
 
 -- prod is unchanged.
 DROP DATABASE feature_checkout;`}</CodeBlock>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function RecoveryWorkflow() {
+  return (
+    <section className={styles.branching}>
+      <div className="container">
+        <div className={styles.branchingGrid}>
+          <div className={styles.branchingCopy}>
+            <p className={styles.eyebrow}>Catastrophic recovery</p>
+            <Heading as="h2">Dropped does not have to mean gone</Heading>
+            <p>
+              A normal drop removes the database or table from the active
+              catalog immediately, but CamusDB can retain the data as a
+              recoverable orphan for a configured retention window.
+            </p>
+            <ul>
+              {recoveryUseCases.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+            <Link className="button button--secondary" to="/docs/recover-dropped-objects">
+              Read the recovery guide
+            </Link>
+          </div>
+          <div className={styles.branchingSnippet}>
+            <CodeBlock language="camussql">{`USE shop;
+
+DROP TABLE orders;
+SHOW ORPHAN TABLES;
+
+CREATE TABLE orders_recovered RELINK TO "A0";
+SELECT * FROM orders_recovered LIMIT 5;
+
+-- Permanent deletion is explicit.
+DROP TABLE scratch FORCE;`}</CodeBlock>
           </div>
         </div>
       </div>
@@ -277,6 +333,7 @@ export default function Home() {
       <main>
         <HomepageFeatures />
         <BranchingWorkflow />
+        <RecoveryWorkflow />
         <AdvantageComparison />
       </main>
     </Layout>

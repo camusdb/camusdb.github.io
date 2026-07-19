@@ -37,6 +37,7 @@ SELECT "literal text", 'literal text';
 | Area | Page |
 | --- | --- |
 | Database lifecycle | [Databases](/docs/databases) |
+| Recover dropped databases and tables | [Recover Dropped Objects](/docs/recover-dropped-objects) |
 | Database branching | [Database Branching](/docs/database-branching) |
 | Tables, columns, and schema changes | [Tables And Schema](/docs/sql-schema) |
 | Check and not-null constraints | [Check Constraints](/docs/check-constraints) |

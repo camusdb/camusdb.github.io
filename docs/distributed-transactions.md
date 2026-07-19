@@ -158,8 +158,8 @@ idea also applies to the read set they must preserve until commit.
 Kahuna's coordinator also checks whether a transaction read data that is no
 longer compatible with the state being committed. In the advanced optimistic
 locking path, which can be selected with `SET TRANSACTION LOCKING OPTIMISTIC`,
-the HTTP `locking` field, or `default_transaction_locking`, it validates read
-dependencies and checks for concurrent write intents before final commit.
+the HTTP/gRPC `locking` field, or `default_transaction_locking`, it validates
+read dependencies and checks for concurrent write intents before final commit.
 
 For applications, the practical rule is simple: a serialization failure is a
 retry signal, not a silent correctness bug.

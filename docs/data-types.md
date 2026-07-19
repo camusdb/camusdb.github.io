@@ -99,7 +99,7 @@ Current array rules:
 - Nested arrays such as `ARRAY(ARRAY(INT64))` are rejected.
 - Array columns cannot be used in a primary key or secondary index.
 - SQL does not currently have an inline array literal. Write array values
-  through parameters or the HTTP JSON API.
+  through parameters, the HTTP JSON API, or the gRPC `Value` model.
 - Array elements may be `NULL`.
 
 ## SQL Literal Formats
@@ -115,7 +115,7 @@ Current array rules:
 | `DATE` | Quoted `yyyy-MM-dd` string | `"2026-03-15"` |
 | `DATETIME` | Quoted ISO-8601 UTC string | `"2026-03-15T12:00:00Z"` |
 | `BYTES` | `0x`-prefixed hexadecimal | `0xDEADBEEF` |
-| `ARRAY(T)` | No inline SQL literal | Use a parameter or HTTP JSON value. |
+| `ARRAY(T)` | No inline SQL literal | Use a parameter, HTTP JSON value, or gRPC `Value`. |
 
 Numeric literals use invariant formatting, so `.` is the decimal separator
 regardless of server locale. Date and datetime text is parsed as UTC. UUID

@@ -15,7 +15,11 @@ For a higher-level overview of why CamusDB is built as a distributed SQL databas
 Start CamusDB in standalone mode for local use:
 
 ```bash
-docker run --rm -p 5095:5095 -v camus-data:/data --name camusdb camusdb/camusdb:latest
+docker run --rm \
+        -p 5095:5095 \
+        -p 5096:5096 \
+        -v camus-data:/data \
+        --name camusdb camusdb/camusdb:latest
 ```
 
 Install the SQL shell:

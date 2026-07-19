@@ -22,6 +22,7 @@ CamusDB is designed around several core advantages:
 - Atomic distributed transactions with committed reads and conflict detection
 - Copy-on-write database branching for development, testing, and issue
   reproduction
+- Recoverable root database and table drops for catastrophic mistakes
 - Transactional SQL for schema design, writes, reads, indexes, and aggregation
 
 ## Resilient Distributed Storage
@@ -95,6 +96,27 @@ This gives developers production-like data for feature work, migration
 rehearsals, and hard-to-reproduce issue debugging without writing to the base
 database. See [Database Branching](/docs/database-branching).
 
+## Recoverable Drops
+
+CamusDB's normal `DROP DATABASE` and `DROP TABLE` statements are recoverable for
+root databases and tables. The dropped object disappears from the active catalog
+immediately and the name is free to reuse, but the data is retained as an orphan
+for a configurable retention window.
+
+```camussql
+DROP TABLE orders;
+SHOW ORPHAN TABLES;
+CREATE TABLE orders_recovered RELINK TO "A0";
+```
+
+This helps in catastrophic situations where a database, table, migration, or
+cleanup script removed the wrong object. Instead of restoring a full backup
+before anyone can inspect the data, an operator can relink the retained object
+under a safe recovery name.
+
+Use `DROP ... FORCE` only when the object should be deleted immediately and
+permanently. See [Recover Dropped Objects](/docs/recover-dropped-objects).
+
 ## Familiar SQL
 
 CamusDB keeps the application-facing model simple: define tables, add indexes,
@@ -112,12 +134,16 @@ Supported SQL includes:
 
 See [Query Features](/docs/query-features) for examples.
 
-## Standalone Or Clustered
+## Standalone or Clustered
 
 Use standalone mode for development and quick experiments:
 
 ```bash
-dotnet run --project CamusDB
+docker run --rm \
+        -p 5095:5095 \
+        -p 5096:5096 \
+        -v camus-data:/data \
+        --name camusdb camusdb/camusdb:latest
 ```
 
 Use cluster mode when you want to test distributed behavior:

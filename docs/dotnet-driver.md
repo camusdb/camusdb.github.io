@@ -334,8 +334,8 @@ Unspecified transactions inherit CamusDB's server default, which is
 Serializable.
 
 The current ADO.NET driver does not expose a Read Committed transaction option.
-Use SQL or the HTTP API directly if you need to opt a transaction down to Read
-Committed.
+Use SQL, the HTTP API, or the gRPC API directly if you need to opt a
+transaction down to Read Committed.
 
 ## Serializable Retries
 
@@ -434,7 +434,8 @@ The helper's default backoff is bounded exponential delay with jitter:
 
 ## ADO.NET Notes
 
-- The provider uses HTTP under the hood.
+- The provider uses HTTP under the hood. CamusDB also exposes a separate
+  [gRPC API](/docs/grpc-api) for protocol-level clients.
 - `Cancel()` is cooperative through cancellation tokens.
 - Concurrent reads can share a connection session.
 - Transaction-scoped commands are pinned to the transaction endpoint, which is

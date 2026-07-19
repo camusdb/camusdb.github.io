@@ -139,6 +139,10 @@ const config = {
                 to: '/docs/http-api',
               },
               {
+                label: 'gRPC API',
+                to: '/docs/grpc-api',
+              },
+              {
                 label: '.NET Driver',
                 to: '/docs/dotnet-driver',
               },

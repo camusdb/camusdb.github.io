@@ -151,7 +151,9 @@ DROP DATABASE prod;
 ```
 
 Dropping a branch releases the retention hold that kept its source snapshot
-readable.
+readable. Branch drops are immediate and are not recoverable with
+`CREATE DATABASE ... RELINK TO`. Recoverable drops apply to root databases and
+tables in root databases; see [Recover Dropped Objects](/docs/recover-dropped-objects).
 
 ## Inspect Branches
 

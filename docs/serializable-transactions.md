@@ -303,9 +303,9 @@ SET TRANSACTION LOCKING PESSIMISTIC;
 
 The locking statement must run before the transaction executes a data statement.
 It can be combined with `SET TRANSACTION ISOLATION LEVEL` in either order, as
-long as both appear before reads or writes. HTTP clients can also select the
-same strategy with the `locking` request field, and operators can change the
-server default with `default_transaction_locking`.
+long as both appear before reads or writes. HTTP and gRPC clients can also
+select the same strategy with the `locking` request field, and operators can
+change the server default with `default_transaction_locking`.
 
 ## Key-Range Routing And Scan Protection
 

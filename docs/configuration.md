@@ -28,9 +28,9 @@ data_dir: /tmp/camusdb/
 initial_partitions: 3
 ```
 
-The commented sections show the available server, cluster, transaction, parser,
-and Kahuna engine settings. For real deployments, set `data_dir` to persistent
-storage instead of relying on `/tmp`.
+The commented sections show the available server, cluster, transaction,
+recoverable-drop, parser, and Kahuna engine settings. For real deployments, set
+`data_dir` to persistent storage instead of relying on `/tmp`.
 
 ## Unified Reference
 
@@ -60,10 +60,17 @@ The remaining YAML settings do not currently have command-line flags:
 
 | YAML key | Default | Purpose |
 | --- | --- | --- |
+| `grpc_enabled` | `false` | Enable the client-facing gRPC API on a dedicated HTTP/2 listener. |
+| `grpc_port` | `5096` | Port for the client-facing gRPC API when `grpc_enabled` is true. |
+| `grpc_batch_max_in_flight` | `64` | Maximum concurrently executing operations per `CamusSql.BatchExecute` stream before backpressure. |
 | `default_isolation_level` | `serializable` | Default transaction isolation when a request does not choose one. |
 | `default_transaction_locking` | `pessimistic` | Default transaction locking strategy when a request does not choose one. |
 | `range_lock_expires_ms` | `150000` | Initial Serializable range-lock TTL; the coordinator renews live range locks; positive values must be at least `2x` the effective Kahuna collection interval; `<= 0` disables expiry. |
 | `max_serializable_transaction_lifetime_ms` | `3600000` | Maximum Serializable read-write transaction lifetime; `<= 0` disables the cap. |
+| `transaction_idle_timeout_ms` | `300000` | Idle timeout for explicit client transactions before the background reaper rolls them back; `<= 0` disables the CamusDB-side reaper. |
+| `transaction_reaper_interval_ms` | `30000` | Background sweep interval for abandoned explicit transactions. |
+| `orphan_retention_ms` | `604800000` | Recoverable orphan retention window for normal root database/table drops; `<= 0` keeps orphans indefinitely. |
+| `orphan_reclaim_interval_ms` | `300000` | Background sweep interval for reclaiming expired orphans; `<= 0` disables automatic reclamation. |
 | `lock_escalation_threshold` | `50` | Shared point-lock count per bucket before escalation. |
 | `lock_wait_deadline_ms` | `500` | Per-operation Serializable conflict wait cap. |
 | `key_range_sharding` | `false` | Opt tables and eligible indexes into Kahuna key-range routing. |
@@ -156,6 +163,27 @@ https_certificate: /etc/camusdb/api.pfx
 raft_certificate: /etc/camusdb/raft.pfx
 ```
 
+### Client gRPC
+
+Set `grpc_enabled: true` to expose the client-facing gRPC API on a dedicated
+HTTP/2 listener:
+
+```yaml
+grpc_enabled: true
+grpc_port: 5096
+grpc_batch_max_in_flight: 64
+```
+
+The gRPC listener is separate from the REST/JSON API on `http_port`. It exposes
+the `CamusSql` and `CamusRows` services described in [gRPC API](/docs/grpc-api).
+
+When `raft_certificate` is configured, CamusDB reuses it for TLS on the gRPC
+listener. Without `raft_certificate`, the gRPC listener uses plaintext HTTP/2.
+
+`grpc_batch_max_in_flight` bounds the number of concurrently executing
+operations per `CamusSql.BatchExecute` duplex stream before the server applies
+backpressure.
+
 ## Schema Ack Settings
 
 These settings control the distributed schema two-version gate in cluster mode:
@@ -191,6 +219,8 @@ Locking settings tune Serializable read-write behavior:
 ```yaml
 range_lock_expires_ms: 150000
 max_serializable_transaction_lifetime_ms: 3600000
+transaction_idle_timeout_ms: 300000
+transaction_reaper_interval_ms: 30000
 lock_escalation_threshold: 50
 lock_wait_deadline_ms: 500
 ```
@@ -206,10 +236,41 @@ Operational notes:
 - `max_serializable_transaction_lifetime_ms` limits how long an active
   Serializable read-write transaction can remain open. The same value is used
   as the Kahuna transaction coordinator session timeout.
+- `transaction_idle_timeout_ms` controls how long an explicit client
+  transaction may sit idle before CamusDB rolls it back. Set it to `<= 0` to
+  disable the CamusDB-side reaper; Kahuna's transaction session timeout remains
+  the final cleanup backstop.
+- `transaction_reaper_interval_ms` controls how often the abandoned transaction
+  reaper scans for idle explicit transactions.
 - `lock_escalation_threshold` keeps lock bookkeeping bounded by escalating many
   point locks in the same bucket.
 - `lock_wait_deadline_ms` limits how long a single lock acquisition waits before
   surfacing a Serializable conflict.
+
+## Recoverable Drop Settings
+
+Normal `DROP DATABASE` and `DROP TABLE` statements are deferred for root
+databases and tables. The object disappears from the active catalog immediately,
+but its data is retained as an orphan that can be recovered with
+`CREATE ... RELINK TO` until it is reclaimed.
+
+```yaml
+orphan_retention_ms: 604800000
+orphan_reclaim_interval_ms: 300000
+```
+
+Settings:
+
+- `orphan_retention_ms`: how long a dropped database or table remains eligible
+  for recovery. The default is seven days. Set it to `0` or a negative value to
+  keep orphans indefinitely.
+- `orphan_reclaim_interval_ms`: how often the background reclaimer checks for
+  expired orphans. The default is five minutes. Set it to `0` or a negative
+  value to disable the automatic sweep.
+
+Use `DROP ... FORCE` when you want immediate permanent deletion instead of a
+recoverable orphan. See [Recover Dropped Objects](/docs/recover-dropped-objects)
+for SQL examples and operational guidance.
 
 ## Key-Range Sharding
 
@@ -529,7 +590,8 @@ Invalid configuration fails startup with `InvalidConfig`.
 Important validation rules:
 
 - `mode` must be `standalone` or `cluster`
-- `raft_port`, `http_port`, and `https_port` must be in `1..65535`
+- `raft_port`, `http_port`, `https_port`, and `grpc_port` must be in
+  `1..65535`
 - `raft_node_id` must be `> 0`
 - `initial_partitions` must be `>= 1`
 - `schema_ack_wait_timeout_ms` must be `> 0`
@@ -537,6 +599,8 @@ Important validation rules:
 - `default_isolation_level` must be `serializable` or `read_committed`
 - `default_transaction_locking` must be `pessimistic` or `optimistic`
 - `lock_escalation_threshold` and `lock_wait_deadline_ms` must be `> 0`
+- `transaction_reaper_interval_ms` must be `> 0`
+- `grpc_enabled` is boolean
 - positive `range_lock_expires_ms` values must be at least `2x` the effective
   `kahuna.collection_interval_ms`
 - `kahuna.max_transaction_timeout_ms`, when set, must be `>=`
@@ -567,6 +631,8 @@ Important validation rules:
 data_dir: /var/lib/camusdb
 mode: standalone
 http_port: 5095
+grpc_enabled: true
+grpc_port: 5096
 default_isolation_level: serializable
 default_transaction_locking: pessimistic
 stats_flush_interval_ms: 5000
@@ -610,6 +676,8 @@ raft_node_id: 1
 raft_host: 192.168.1.10
 raft_port: 7070
 http_port: 5095
+grpc_enabled: true
+grpc_port: 5096
 initial_partitions: 3
 peers:
   - 192.168.1.10:7070
