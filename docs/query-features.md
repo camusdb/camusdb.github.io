@@ -14,6 +14,11 @@ query shape and available indexes. See [Query Planning](/docs/query-planning)
 for the planning rules and [Explaining Queries And Commands](/docs/explain) for
 plan inspection.
 
+For historical read-only snapshots, CamusDB supports
+[`AS OF SYSTEM TIME`](/docs/time-travel-reads). A time-travel query pins the
+whole `SELECT`, including joins and subqueries, to one committed point in the
+past.
+
 ## Select Lists
 
 Queries can project all columns, named columns, qualified columns, expressions,
@@ -24,6 +29,7 @@ SELECT * FROM robots;
 SELECT id, name, year FROM robots;
 SELECT r.id, r.name FROM robots r;
 SELECT year + 100 AS display_year FROM robots;
+SELECT CASE WHEN year >= 2000 THEN "modern" ELSE "classic" END AS era FROM robots;
 SELECT COUNT(*) AS total FROM robots;
 SELECT upper(trim(name)) AS display_name FROM robots;
 ```
@@ -50,6 +56,29 @@ WHERE json_valid(payload) = true
 
 See [Functions](/docs/functions) for string, math, date/time, JSON, regex,
 conversion, UUID, and object id functions.
+
+## CASE Expressions
+
+`CASE ... END` can choose values inside projections, filters, aggregates,
+derived tables, and constraints.
+
+```camussql
+SELECT
+  name,
+  CASE
+    WHEN year < 1980 THEN "classic"
+    WHEN year >= 1980 THEN "modern"
+    ELSE "unknown"
+  END AS era
+FROM robots;
+
+SELECT SUM(CASE WHEN status = "paid" THEN amount ELSE 0 END) AS paid_total
+FROM orders;
+```
+
+CamusDB supports both searched `CASE WHEN condition THEN value ... END` and
+simple `CASE expression WHEN value THEN result ... END`. Branches are evaluated
+in order. If no branch matches and no `ELSE` is present, the result is `NULL`.
 
 ## DISTINCT
 
@@ -408,6 +437,27 @@ ORDER BY email;
 
 For `EXISTS`, the subquery projection can be `*`, one column, or multiple
 columns because only row existence matters.
+
+For correlated `EXISTS`, CamusDB can use an index on the inner table when the
+inner `WHERE` clause pins the leading index columns with equality predicates
+against outer-row values, literals, or parameters. The full inner predicate is
+still evaluated after the seek; the index only narrows the candidate rows.
+
+```camussql
+CREATE INDEX posts_user_idx ON posts (user_id);
+
+SELECT email
+FROM app_users
+WHERE EXISTS (
+  SELECT *
+  FROM posts
+  WHERE posts.user_id = app_users.id
+    AND posts.published = true
+);
+```
+
+Without a qualifying index, CamusDB still returns the same result by scanning
+the inner table for each outer row.
 
 ## Derived Tables
 

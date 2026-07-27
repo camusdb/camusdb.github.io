@@ -73,9 +73,38 @@ CREATE TABLE robots (
   name STRING,
   PRIMARY KEY (id),
   UNIQUE KEY code_uk (code),
-  KEY name_idx (name)
+  KEY name_idx (name),
+  KEY code_lookup_idx (code) INCLUDE (name)
 );
 ```
+
+Inline `KEY ... INCLUDE (...)` creates a covering secondary index. See
+[Indexes](/docs/sql-indexes#covering-indexes) for when included columns help a
+query avoid fetching the primary row.
+
+## Schema Comments
+
+Use inline `COMMENT '<text>'` clauses to document tables, columns, and inline
+secondary indexes when creating a table:
+
+```camussql
+CREATE TABLE users (
+  id OID PRIMARY KEY NOT NULL COMMENT 'Internal user identifier',
+  email STRING NOT NULL COMMENT 'Unique login email address',
+  KEY email_idx (email) COMMENT 'Lookup by login email'
+) COMMENT 'Application users';
+```
+
+You can also set or remove comments later with `COMMENT ON`:
+
+```camussql
+COMMENT ON TABLE users IS 'Application users';
+COMMENT ON COLUMN users.email IS 'Unique login email address';
+COMMENT ON INDEX users.email_idx IS 'Lookup by login email';
+```
+
+See [Schema Comments](/docs/comment-on) for database comments, removal with
+`IS NULL`, limits, and introspection behavior.
 
 ## Column Defaults
 
@@ -115,8 +144,8 @@ defaults such as `DEFAULT (gen_id())` on a `UUID` column.
 | --- | --- |
 | `OID` | Native object id values. |
 | `UUID` | Native 128-bit UUID values. Also accepted as `GUID`. |
-| `INT64` | Signed 64-bit integers. |
-| `FLOAT64` | Double-precision floating point values. |
+| `INT64` | Signed 64-bit integers. Also accepted as `SMALLINT`. |
+| `FLOAT64` | Double-precision floating point values. Also accepted as `FLOAT`. |
 | `FLOAT32` | Single-precision floating point values. |
 | `BOOL` | Boolean values. |
 | `STRING`, `STRING(N)` | Text values, optionally with a maximum length. Also accepted as `CHAR`, `VARCHAR`, or `TEXT`. |
@@ -125,10 +154,10 @@ defaults such as `DEFAULT (gen_id())` on a `UUID` column.
 | `BYTES` | Opaque byte strings. |
 | `ARRAY(T)` | Ordered lists of scalar values. Arrays are not indexable. |
 
-Common aliases include `INT` / `INTEGER` for `INT64`, `REAL` for `FLOAT32`,
-`TIMESTAMP` for `DATETIME`, `BLOB` for `BYTES`, `CHAR` / `VARCHAR` / `TEXT`
-for `STRING`, `BOOLEAN` for `BOOL`, `OBJECT_ID` for `OID`, and `GUID` for
-`UUID`.
+Common aliases include `INT` / `INTEGER` / `SMALLINT` for `INT64`, `FLOAT` for
+`FLOAT64`, `REAL` for `FLOAT32`, `TIMESTAMP` for `DATETIME`, `BLOB` for
+`BYTES`, `CHAR` / `VARCHAR` / `TEXT` for `STRING`, `BOOLEAN` for `BOOL`,
+`OBJECT_ID` for `OID`, and `GUID` for `UUID`.
 
 See [Data Types](/docs/data-types) for length limits, literal formats, casts,
 storage recommendations, API value encoding, and array rules.
@@ -139,6 +168,7 @@ Add or drop columns:
 
 ```camussql
 ALTER TABLE robots ADD COLUMN model STRING NULL;
+ALTER TABLE robots ADD COLUMN notes STRING NULL COMMENT 'Operator notes';
 ALTER TABLE robots DROP COLUMN model;
 ```
 
@@ -174,6 +204,48 @@ column name.
 
 Renaming a missing column fails with `UnknownColumn`. Renaming to an existing
 column name fails with `DuplicateColumn`.
+
+## Identifier Case
+
+Schema object names preserve the case you use when creating or renaming them,
+but name lookup is case-insensitive.
+
+```camussql
+CREATE TABLE Robots (
+  Id OID PRIMARY KEY NOT NULL,
+  RobotName STRING NOT NULL
+);
+
+INSERT INTO robots (id, robotname) VALUES (GEN_ID(), "R2-D2");
+SELECT ROBOTNAME FROM ROBOTS;
+```
+
+`SHOW TABLES`, `SHOW COLUMNS`, and `SHOW CREATE TABLE` display the stored names
+with their original case. References in SQL can use any case.
+
+Duplicate names that differ only by case are rejected. For example, a table
+cannot contain both `RobotName` and `robotname`, and a database cannot contain
+both `Robots` and `robots` as separate tables.
+
+## Table Settings
+
+Use `ALTER TABLE ... SET (...)` to update table-level settings.
+
+```camussql
+ALTER TABLE application_logs
+SET (sql_stats_automatic_collection_enabled = false);
+
+ALTER TABLE application_logs
+SET (sql_stats_automatic_collection_enabled = true);
+```
+
+`sql_stats_automatic_collection_enabled` controls whether automatic analyze may
+refresh statistics for that table. It defaults to `true`. Setting it to `false`
+opts the table out of background statistics collection, but manual
+`ANALYZE TABLE application_logs` still runs.
+
+The setting name is case-insensitive and the value must be boolean. Unknown
+setting names are rejected.
 
 ## Drop Tables
 

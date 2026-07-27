@@ -230,7 +230,13 @@ Each row is stored as a compact binary value. The row payload includes:
 - One encoded value for each column in schema order.
 
 The schema version lets CamusDB deserialize older row payloads through the
-schema history attached to the table. Column values are encoded by type:
+schema history attached to the table. CamusDB compiles the row layout for each
+visible schema version, so scans and point reads can decode only the values the
+query needs instead of rebuilding every row through a generic path. This keeps
+the storage format stable while reducing CPU and allocation overhead for
+read-heavy queries, index lookups, updates, and backfills.
+
+Column values are encoded by type:
 
 | Column type | Stored representation |
 | --- | --- |

@@ -38,10 +38,10 @@ unexpected internal state, or storage-layer inconsistencies.
 | --- | --- | --- |
 | `CADB0010` | `DatabaseDoesntExist` | An operation targets a database name that has not been explicitly created, or a name that was dropped or renamed away. |
 | `CADB0011` | `TableDoesntExist` | A query, DML statement, schema change, or table rename references a table that does not exist, or the table name is empty. |
-| `CADB0012` | `DatabaseAlreadyExists` | `CREATE DATABASE` targets an existing database, or `RENAME DATABASE ... TO ...` targets a name that is already registered. |
+| `CADB0012` | `DatabaseAlreadyExists` | `CREATE DATABASE` targets an existing database, or a database rename targets a name that is already registered. |
 | `CADB0013` | `TableAlreadyExists` | `CREATE TABLE` tries to create a table name that already exists, or `ALTER TABLE ... RENAME TO ...` targets an existing table name. |
 | `CADB0016` | `IndexDoesntExist` | Reserved for index lookups or DDL against an index that does not exist. It is defined but not commonly thrown by the current user-facing path. |
-| `CADB0018` | `DatabaseNameReserved` | `CREATE DATABASE` or `RENAME DATABASE` uses a reserved name such as `_system` or `information_schema`. |
+| `CADB0018` | `DatabaseNameReserved` | `CREATE DATABASE` or a database rename uses a reserved name such as `_system` or `information_schema`. |
 | `CADB0019` | `DatabaseCreationIncomplete` | Reserved for an incomplete database-create recovery condition from older standalone storage layouts. It is defined in the core list but is not expected on the current shared-storage create path. |
 | `CADB0300` | `DuplicateUniqueKeyValue` | An insert, update, or index backfill would violate a unique index or unique key. |
 | `CADB0301` | `NotNullViolation` | An insert or update tries to store `NULL` into a `NOT NULL` column. |
@@ -56,8 +56,9 @@ unexpected internal state, or storage-layer inconsistencies.
 | `CADB0406` | `SqlSyntaxError` | The SQL parser cannot parse the statement text. |
 | `CADB0407` | `InvalidAstStmt` | The parser succeeded, but the resulting AST shape is invalid, unsupported, or semantically unusable for the requested executor path. |
 | `CADB0408` | `SchemaLimitExceeded` | A database, table, column, or index name is longer than `max_identifier_length`, or a schema operation would exceed `max_columns_per_table`, `max_indexes_per_table`, or `max_tables_per_database`. |
+| `CADB0409` | `InvalidAsOfSystemTime` | An `AS OF SYSTEM TIME` query uses a malformed value, a future or non-positive timestamp, an incompatible parameter, or a transaction shape that cannot be pinned to an arbitrary historical snapshot. |
 | `CADB0501` | `TransactionAlreadyCompleted` | The caller tries to commit or roll back a transaction that is already committed, already rolled back, or otherwise no longer active. It is also used when Kahuna returns a permanent non-retryable commit failure and the transaction is already dead. |
-| `CADB0502` | `TransactionConflict` | The transaction cannot acquire the needed lock or hits a conflicting concurrent write. |
+| `CADB0502` | `TransactionConflict` | The transaction cannot acquire the needed lock or hits a conflicting concurrent write. Conflict messages include bounded diagnostic context such as the table/database, a small sample of contended keys, and the waiting transaction mode when available. |
 | `CADB0503` | `SchemaCatchingUp` | The node is more than one schema version behind the committed schema head for that database, so it temporarily rejects reads and DML until schema apply catches up. Retry on another node or retry later. |
 | `CADB0504` | `TransactionMustRetry` | A pre-write transient condition exhausted internal retries, usually during transaction start, routing, leader transition, lock-wait deadline, or a storage write conflict before the affected write was applied. Retry the whole transaction from `BEGIN`. |
 | `CADB0505` | `TransactionLifetimeExceeded` | A serializable read-write transaction stayed open longer than the configured maximum lifetime, currently one hour by default. CamusDB aborts it explicitly instead of letting a runaway transaction continue forever. Roll it back and retry from `BEGIN`. |
@@ -66,7 +67,8 @@ unexpected internal state, or storage-layer inconsistencies.
 | `CADB0508` | `DatabaseHasLiveDescendants` | `DROP DATABASE` targets a database that still has live branch descendants. Drop descendant branches first, then drop the parent. |
 | `CADB0509` | `TransactionFinalizeUnresolved` | A `COMMIT` or `ROLLBACK` could not reach a terminal answer after bounded same-handle retries. The final outcome is not known yet, so retry the same finalize request on the same transaction id; do not replay the business operation from `BEGIN`. |
 | `CADB0510` | `OrphanNotFound` | `CREATE DATABASE ... RELINK TO`, `CREATE TABLE ... RELINK TO`, or orphan reclamation references an orphan id that does not exist, was already recovered, or was already reclaimed. |
-| `CADB0600` | `InvalidConfig` | Startup configuration is invalid: wrong mode, invalid listener or Raft port, malformed peer lists, invalid schema-ack settings, invalid transaction/locking settings, invalid parser-cache values, unknown config keys, or unsupported `kahuna` options. |
+| `CADB0511` | `CommentTooLong` | A `COMMENT ON` statement or inline `COMMENT` clause exceeds the maximum comment length of `65,535` characters. Shorten the comment and retry. |
+| `CADB0600` | `InvalidConfig` | Startup configuration is invalid: wrong mode, invalid listener or Raft port, malformed peer lists, invalid schema-ack settings, invalid transaction/locking settings, invalid statistics, automatic-analyze, spill, diagnostics, parser-cache, or regex settings, unknown config keys, or unsupported `kahuna` options. |
 
 ## Corruption And Internal-State Errors
 
@@ -107,6 +109,7 @@ These codes are usually not retryable without changing the request:
 - `CADB0404` `UnknownColumn`
 - `CADB0406` `SqlSyntaxError`
 - `CADB0408` `SchemaLimitExceeded`
+- `CADB0409` `InvalidAsOfSystemTime`
 - `CADB0300` `DuplicateUniqueKeyValue`
 - `CADB0301` `NotNullViolation`
 - `CADB0302` `ValueTooLong`
@@ -115,6 +118,7 @@ These codes are usually not retryable without changing the request:
 - `CADB0507` `SpillStorageUnavailable`
 - `CADB0508` `DatabaseHasLiveDescendants`
 - `CADB0510` `OrphanNotFound`
+- `CADB0511` `CommentTooLong`
 
 These codes usually need operator investigation rather than blind retries:
 
@@ -132,3 +136,5 @@ These codes usually need operator investigation rather than blind retries:
 - [Distributed Schema Changes](/docs/distributed-schema)
 - [Database Branching](/docs/database-branching)
 - [Recover Dropped Objects](/docs/recover-dropped-objects)
+- [Time-Travel Reads](/docs/time-travel-reads)
+- [Schema Comments](/docs/comment-on)

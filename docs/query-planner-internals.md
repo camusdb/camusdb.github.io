@@ -335,14 +335,20 @@ the query to populate counters such as:
 - Row count per table.
 - Per-index entry counts.
 - Running min/max bounds for indexed columns.
-- Equi-depth histograms built by `ANALYZE`.
+- Equi-depth histograms built by manual or automatic `ANALYZE`.
 - Distinct-value counts for columns and composite index prefixes built by
-  `ANALYZE`.
+  manual or automatic `ANALYZE`.
 
 `ANALYZE TABLE <name>` scans the table, or samples the configured number of
 rows for larger tables, then rebuilds histograms and distinct-value counts in a
 single pass. DML-maintained row counts, index counts, and min/max bounds remain
 advisory; missing statistics fall back to defaults instead of failing queries.
+
+Automatic analyze uses the same statistics publication path, but runs from a
+background scheduler against a lock-free read-only snapshot. It detects stale
+tables from the mutation count since the last analyze, bounds memory with
+reservoir and HyperLogLog sketches, throttles scan rate, and publishes refreshed
+statistics atomically after confirming cluster ownership.
 
 `CostEstimator` annotates plan nodes with estimated cardinality and cost. Those
 annotations are exposed through `EXPLAIN`, and the planner consumes them for:

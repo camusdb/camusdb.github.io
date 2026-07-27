@@ -68,18 +68,26 @@ Each spilled row stores its row id, column count, column names, value type tags,
 and values. Preserving the row id is important for `DELETE` and `UPDATE`, where
 the mutation phase must still target the original row.
 
-## Runtime Knobs
+## Configuration
 
-The current spill controls are runtime `CamusDBConfig` settings:
+Spill is configured in `config.yml`:
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `SpillEnabled` | `false` | Master switch. When `false`, no query operator spills. |
-| `SpillThresholdRows` | `500000` | Per-operator in-memory row cap before spilling starts. |
-| `SpillMergeFanIn` | `16` | Maximum spill runs read at once during merge passes. |
+| `spill_enabled` | `false` | Master switch. When `false`, no query operator spills. |
+| `spill_threshold_rows` | `500000` | Per-operator in-memory row cap before spilling starts. |
+| `spill_merge_fan_in` | `16` | Maximum spill runs read at once during merge passes. |
 
-These are not currently accepted as `config.yml` keys. See
-[Configuration](/docs/configuration) for the supported startup YAML options.
+Example:
+
+```yaml
+spill_enabled: true
+spill_threshold_rows: 500000
+spill_merge_fan_in: 16
+```
+
+See [Configuration](/docs/configuration) for the full startup configuration
+reference.
 
 ## Failure Behavior
 

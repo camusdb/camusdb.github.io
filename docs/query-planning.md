@@ -19,6 +19,8 @@ Today CamusDB can plan:
 - Full table scans.
 - Unique-index point lookups such as primary-key equality.
 - Non-unique index range scans for equality, inequalities, and `BETWEEN`.
+- Covering secondary-index scans that can return projected columns from the
+  index without fetching primary rows.
 - Repeated index probes for indexed `IN (...)` value lists.
 - Residual filters above a scan when an index only covers part of the predicate.
 - Sort elision when an index already produces the required ordering.
@@ -31,6 +33,7 @@ Today CamusDB can plan:
 - Merge joins when both sides can be read in join-key order.
 - Indexed nested-loop joins when the right-side join key is indexed.
 - Semi/anti-join rewrites for eligible indexed `IN` and `NOT IN` subqueries.
+- Indexed seeks for eligible correlated `EXISTS` subqueries.
 - Derived tables, scalar subqueries, `IN`, `NOT IN`, and `EXISTS`.
 - Explicit index forcing with `@{FORCE_INDEX=...}`.
 - Opt-in result caching for eligible repeated single-table reads with
@@ -138,6 +141,28 @@ FROM robots
 WHERE year >= 2020 AND name ~* "^r";
 ```
 
+### Covering indexes
+
+An index with `INCLUDE (...)` can answer a query without fetching the primary
+row when every required column is either a key column or an included column:
+
+```camussql
+CREATE INDEX orders_customer_idx
+ON orders (customer_id)
+INCLUDE (status, total);
+
+SELECT customer_id, status, total
+FROM orders
+WHERE customer_id = 42;
+```
+
+The key column `customer_id` drives the lookup. The included columns `status`
+and `total` are stored in the index entry and can be returned directly.
+
+If the query projects or filters on a column that is neither a key column nor an
+included column, CamusDB may still use the index but must fetch the primary row.
+See [Indexes](/docs/sql-indexes#covering-indexes).
+
 ## Composite Index Behavior
 
 Composite indexes are most useful when query predicates follow the indexed
@@ -173,12 +198,18 @@ statistics from `ANALYZE`. The planner can use them to estimate:
 - Per-column histograms.
 - Distinct-value counts for columns and composite index prefixes.
 
-Run `ANALYZE` after loading or materially changing data when you want the
-optimizer to make better selectivity and join-cardinality estimates:
+Run `ANALYZE` after loading or materially changing data when you want to force
+better selectivity and join-cardinality estimates:
 
 ```camussql
 ANALYZE TABLE robots;
 ```
+
+CamusDB also has an automatic analyze engine path that can refresh stale table
+statistics in the background. It tracks row mutations since the last analyze
+and can rebuild statistics when enough rows have changed. See
+[Automatic Analyze](/docs/automatic-analyze) for the staleness threshold,
+resource limits, and configuration settings.
 
 The cost model uses these estimates to populate `estimated_rows` and
 `estimated_cost` in `EXPLAIN`. It also feeds:
@@ -367,6 +398,30 @@ WHERE year = (SELECT MAX(year) FROM robots);
 For uncorrelated subqueries, CamusDB can evaluate the inner subquery once and
 then plan the outer predicate around that result.
 
+For correlated `EXISTS`, CamusDB can avoid a full inner-table scan when the
+inner table has an index whose leading key columns are fixed by equality
+predicates. The seek key can come from outer-row columns, literals, or
+parameters. CamusDB still evaluates the full inner predicate on rows returned
+by the seek, so the optimization changes how much work is done, not which rows
+match.
+
+```camussql
+CREATE INDEX posts_user_idx ON posts (user_id);
+
+SELECT email
+FROM app_users
+WHERE EXISTS (
+  SELECT *
+  FROM posts
+  WHERE posts.user_id = app_users.id
+    AND posts.published = true
+);
+```
+
+If no qualifying index exists, the executor falls back to the full inner scan.
+Under Serializable transactions, CamusDB protects the indexed seek range so a
+concurrent insert into that range cannot create a missed phantom.
+
 ## Forcing An Index
 
 When you know a specific index should be used, you can force it:
@@ -418,14 +473,17 @@ To get better plans consistently:
   available.
 - Add indexes that match common `ORDER BY` prefixes, including `ASC`/`DESC`
   directions, when sorted reads matter.
+- Add `INCLUDE` columns for hot lookup queries that return a small set of
+  non-key columns.
 - Run `ANALYZE TABLE <name>` after bulk loads or major data distribution
-  changes.
+  changes, or use automatic analyze where it is enabled.
 - Enable `cost_based_access_path_enabled` when you want CamusDB to compare all
   viable indexes by estimated cost.
 - Enable `cost_based_join_order_enabled` when you want CamusDB to search
   left-deep inner-join orders by estimated cost.
 - Add `{cache=...}` only to repeated read-heavy single-table queries whose
   result set is small enough to keep in memory.
+- Add indexes on the inner correlated columns used by `EXISTS` predicates.
 - Use qualified names in joins so predicates are unambiguous.
 - Use `EXPLAIN` to verify whether CamusDB chose a table scan, index lookup,
   range scan, join scan, or extra sort.

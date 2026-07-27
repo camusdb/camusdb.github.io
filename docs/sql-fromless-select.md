@@ -20,6 +20,7 @@ Evaluate scalar expressions:
 SELECT 1 + 1;
 SELECT upper("abc");
 SELECT CAST("5" AS INT64);
+SELECT CASE WHEN 1 = 1 THEN "ok" ELSE "fail" END;
 SELECT regexp_split_to_array("one,two,three", ",");
 ```
 

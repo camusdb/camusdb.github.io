@@ -39,8 +39,8 @@ FROM robots;
 | Target | Result Type |
 | --- | --- |
 | `string`, `char`, `varchar`, `text` | `STRING` |
-| `int`, `int64`, `integer` | `INT64` |
-| `float64`, `double` | `FLOAT64` |
+| `int`, `int64`, `integer`, `smallint` | `INT64` |
+| `float`, `float64`, `double` | `FLOAT64` |
 | `float32`, `real` | `FLOAT32` |
 | `bool`, `boolean` | `BOOL` |
 | `oid`, `id`, `object_id` | `OID` |

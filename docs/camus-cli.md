@@ -78,10 +78,11 @@ The connection string must include a valid absolute `Endpoint`. Include
 `Database` when you want the shell to start with a selected database.
 
 If no database is selected, system-level commands such as `CREATE DATABASE`,
-`DROP DATABASE`, `RENAME DATABASE`, `CREATE DATABASE ... RELINK TO`,
-`SHOW DATABASES`, `SHOW ORPHAN DATABASES`, `SHOW BRANCHES FROM ...`, and
-`SHOW ANCESTORS FROM ...` still work. Table DDL, DML, table orphan recovery,
-and ordinary queries require a selected database.
+`DROP DATABASE`, `RENAME DATABASE`, `ALTER DATABASE ... RENAME TO`,
+`COMMENT ON DATABASE`, `CREATE DATABASE ... RELINK TO`, `SHOW DATABASES`,
+`SHOW ORPHAN DATABASES`, `SHOW BRANCHES FROM ...`, and `SHOW ANCESTORS FROM ...`
+still work. Table DDL, DML, table orphan recovery, and ordinary queries require
+a selected database.
 
 ## Command Line Syntax
 

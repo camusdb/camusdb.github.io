@@ -92,11 +92,15 @@ workflow, retention settings, and limits.
 
 ```camussql
 RENAME DATABASE app TO app_prod;
+ALTER DATABASE app RENAME TO app_prod;
 ```
 
+Both forms are equivalent. `ALTER DATABASE ... RENAME TO` matches the table
+rename word order, while `RENAME DATABASE ... TO ...` remains supported.
+
 Renaming changes only the registry binding from name to internal storage id.
-The storage id, table ids, row keys, index keys, and statistics keys remain the
-same.
+The storage id, table ids, row keys, index keys, statistics keys, and database
+comment remain the same.
 
 Important behavior:
 
@@ -106,6 +110,7 @@ Important behavior:
   row or index storage keys
 - renaming to an existing name fails
 - reserved names cannot be used as rename targets
+- comments set with `COMMENT ON DATABASE` survive the rename
 
 ## Stable Storage Identity
 
@@ -145,8 +150,8 @@ Creating or renaming a database to either name returns `DatabaseNameReserved`.
 | Code | Name | Typical cause |
 | --- | --- | --- |
 | `CADB0010` | `DatabaseDoesntExist` | Opening, querying, dropping, renaming, or running table DDL against an unknown database. |
-| `CADB0012` | `DatabaseAlreadyExists` | `CREATE DATABASE` targets an existing name, or `RENAME DATABASE ... TO ...` targets an existing name. |
-| `CADB0018` | `DatabaseNameReserved` | `CREATE DATABASE` or `RENAME DATABASE` uses `_system` or `information_schema`. |
+| `CADB0012` | `DatabaseAlreadyExists` | `CREATE DATABASE` targets an existing name, or a database rename targets an existing name. |
+| `CADB0018` | `DatabaseNameReserved` | `CREATE DATABASE` or a database rename uses `_system` or `information_schema`. |
 | `CADB0019` | `DatabaseCreationIncomplete` | Reserved for an incomplete database-create recovery condition from older standalone storage layouts. It is not expected on the current shared-storage create path. |
 | `CADB0508` | `DatabaseHasLiveDescendants` | `DROP DATABASE` targets a database that still has live branch descendants. Drop descendant branches first. |
 | `CADB0510` | `OrphanNotFound` | `CREATE DATABASE ... RELINK TO` references an unknown, already recovered, or reclaimed orphan id. |
@@ -157,6 +162,7 @@ Creating or renaming a database to either name returns `DatabaseNameReserved`.
 - [Database Branching](/docs/database-branching)
 - [Recover Dropped Objects](/docs/recover-dropped-objects)
 - [SQL](/docs/sql)
+- [Schema Comments](/docs/comment-on)
 - [HTTP API](/docs/http-api)
 - [gRPC API](/docs/grpc-api)
 - [Error Codes](/docs/error-codes)

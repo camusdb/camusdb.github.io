@@ -228,6 +228,21 @@ Snapshot retention is the main operational cost. A live branch keeps the
 source's fork-time history readable, so many long-lived branches over a hot
 source can hold back storage reclamation.
 
+CamusDB keeps each live branch's parent snapshot hold renewed in the
+background. The renewer scans the persistent branch registry, so a branch
+created on one node can still be renewed by the node that currently owns the
+registry work. Renaming a branch preserves that hold, and dropping the branch
+releases it.
+
+The lease window is controlled by `branch_snapshot_hold_lease_ms` in
+[Configuration](/docs/configuration). The default is 300,000 milliseconds, or
+5 minutes.
+
+In cluster mode, CamusDB fences parent drops against concurrent branch creation.
+If the fence cannot be acquired or its state is indeterminate, the drop fails
+closed with a retryable error instead of purging a parent while another node may
+be publishing a branch.
+
 Watch the Kahuna snapshot-floor metrics when branches are used heavily:
 
 | Metric | Meaning |

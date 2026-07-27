@@ -60,7 +60,7 @@ The remaining YAML settings do not currently have command-line flags:
 
 | YAML key | Default | Purpose |
 | --- | --- | --- |
-| `grpc_enabled` | `false` | Enable the client-facing gRPC API on a dedicated HTTP/2 listener. |
+| `grpc_enabled` | `true` | Enable the client-facing gRPC API on a dedicated HTTP/2 listener. |
 | `grpc_port` | `5096` | Port for the client-facing gRPC API when `grpc_enabled` is true. |
 | `grpc_batch_max_in_flight` | `64` | Maximum concurrently executing operations per `CamusSql.BatchExecute` stream before backpressure. |
 | `default_isolation_level` | `serializable` | Default transaction isolation when a request does not choose one. |
@@ -75,6 +75,18 @@ The remaining YAML settings do not currently have command-line flags:
 | `lock_wait_deadline_ms` | `500` | Per-operation Serializable conflict wait cap. |
 | `key_range_sharding` | `false` | Opt tables and eligible indexes into Kahuna key-range routing. |
 | `stats_flush_interval_ms` | `5000` | Advisory table-statistics flush interval. |
+| `stats_analyze_sample_rows` | `100000` | Manual `ANALYZE` full-scan/sample threshold; `0` means always full scan. |
+| `stats_histogram_buckets` | `100` | Histogram bucket count built per analyzed column. |
+| `auto_analyze_enabled` | `false` | Enable background automatic table analyze. |
+| `auto_analyze_check_interval_ms` | `60000` | Automatic analyze staleness sweep interval; `<= 0` disables the loop. |
+| `auto_analyze_fraction_stale_rows` | `0.20` | Proportional staleness trigger for automatic analyze. |
+| `auto_analyze_min_stale_rows` | `500` | Minimum mutations before a table is stale for automatic analyze. |
+| `auto_analyze_max_concurrent` | `1` | Maximum background analyses running at once on a node. |
+| `auto_analyze_max_rows_per_second` | `50000` | Background analyze scan-rate throttle; `<= 0` disables throttling. |
+| `auto_analyze_histogram_sample_rows` | `10000` | Reservoir sample size per column for background histograms. |
+| `auto_analyze_hll_precision` | `11` | HyperLogLog precision for automatic analyze distinct-value estimates; valid range `4..16`. |
+| `auto_analyze_load_pause_threshold` | `16` | In-flight foreground work threshold above which automatic analyze backs off; `<= 0` disables load backoff. |
+| `auto_analyze_ownership_check_rows` | `1000` | Rows between background analyze ownership/load re-checks. |
 | `cost_based_access_path_enabled` | `false` | Enable cost-based selection among viable table/index access paths. |
 | `cost_based_join_order_enabled` | `false` | Enable cost-based left-deep join-order enumeration for eligible joins. |
 | `plan_cache_enabled` | `false` | Enable the per-process query plan cache. |
@@ -100,7 +112,15 @@ The remaining YAML settings do not currently have command-line flags:
 | `max_columns_per_table` | `512` | Maximum user-declared columns per table; `<= 0` disables the limit. |
 | `max_indexes_per_table` | `64` | Maximum user-visible secondary indexes per table; `<= 0` disables the limit. |
 | `max_tables_per_database` | `10000` | Maximum tables per database; `<= 0` disables the limit. |
+| `max_index_columns` | `32` | Maximum key plus `INCLUDE` columns in one index; `<= 0` disables the limit. |
+| `max_index_include_tuple_bytes` | `4096` | Maximum encoded bytes for one index entry's key plus included-column payload; `<= 0` disables the limit. |
+| `max_mutations_per_transaction` | `20000` | Maximum row/index mutations in one user transaction; `<= 0` disables the user limit. |
+| `spill_enabled` | `false` | Enable spill-to-disk for blocking query operators. |
+| `spill_threshold_rows` | `500000` | Per-operator in-memory row cap before spilling starts. |
+| `spill_merge_fan_in` | `16` | Maximum spill runs read at once during merge passes. |
+| `branch_snapshot_hold_lease_ms` | `300000` | Lease window for branch snapshot-floor holds on parent MVCC history. |
 | `kahuna` | empty mapping | Allow-listed storage and Raft engine overrides. |
+| `diagnostics` | disabled mapping | Opt-in standalone Prometheus/OpenTelemetry diagnostics. |
 
 Cluster mode is active when either `mode: cluster` is set or `peers` contains
 at least one entry.
@@ -165,8 +185,8 @@ raft_certificate: /etc/camusdb/raft.pfx
 
 ### Client gRPC
 
-Set `grpc_enabled: true` to expose the client-facing gRPC API on a dedicated
-HTTP/2 listener:
+The client-facing gRPC API is enabled by default on a dedicated HTTP/2
+listener:
 
 ```yaml
 grpc_enabled: true
@@ -174,8 +194,9 @@ grpc_port: 5096
 grpc_batch_max_in_flight: 64
 ```
 
-The gRPC listener is separate from the REST/JSON API on `http_port`. It exposes
-the `CamusSql` and `CamusRows` services described in [gRPC API](/docs/grpc-api).
+Set `grpc_enabled: false` when you only want the HTTP API listener. The gRPC
+listener is separate from the REST/JSON API on `http_port`. It exposes the
+`CamusSql` and `CamusRows` services described in [gRPC API](/docs/grpc-api).
 
 When `raft_certificate` is configured, CamusDB reuses it for TLS on the gRPC
 listener. Without `raft_certificate`, the gRPC listener uses plaintext HTTP/2.
@@ -183,6 +204,34 @@ listener. Without `raft_certificate`, the gRPC listener uses plaintext HTTP/2.
 `grpc_batch_max_in_flight` bounds the number of concurrently executing
 operations per `CamusSql.BatchExecute` duplex stream before the server applies
 backpressure.
+
+### Runtime Log Verbosity
+
+CamusDB also reads optional environment variables that tune console logging at
+process startup. These are useful in containers because they do not require
+editing `appsettings.json` or rebuilding the image.
+
+| Environment variable | Purpose |
+| --- | --- |
+| `CAMUS_LOG_LEVEL` | Default log level for categories without a more specific rule. |
+| `CAMUS_LOG_LEVEL_KAHUNA` | Log level for Kahuna categories. Defaults to `Warning`. |
+| `CAMUS_LOG_LEVEL_KOMMANDER` | Log level for Kommander categories. Defaults to `Warning`. |
+| `CAMUS_LOG_LEVEL_GRPC` | Log level for gRPC categories. Defaults to `Warning`. |
+| `CAMUS_LOG_FILTERS` | Comma-separated category filters in `Category=Level` form. |
+
+Accepted levels are `Trace`, `Debug`, `Information`, `Warning`, `Error`,
+`Critical`, and `None`, case-insensitively. Invalid values are ignored and the
+built-in defaults remain active.
+
+Examples:
+
+```bash
+CAMUS_LOG_LEVEL=Debug dotnet run --project CamusDB
+
+CAMUS_LOG_LEVEL_KAHUNA=Information \
+CAMUS_LOG_FILTERS="Microsoft.AspNetCore=Warning,CamusDB.Core=Debug" \
+dotnet run --project CamusDB
+```
 
 ## Schema Ack Settings
 
@@ -303,6 +352,18 @@ memory on DML and flushes them to durable storage on a schedule.
 
 ```yaml
 stats_flush_interval_ms: 5000
+stats_analyze_sample_rows: 100000
+stats_histogram_buckets: 100
+auto_analyze_enabled: false
+auto_analyze_check_interval_ms: 60000
+auto_analyze_fraction_stale_rows: 0.20
+auto_analyze_min_stale_rows: 500
+auto_analyze_max_concurrent: 1
+auto_analyze_max_rows_per_second: 50000
+auto_analyze_histogram_sample_rows: 10000
+auto_analyze_hll_precision: 11
+auto_analyze_load_pause_threshold: 16
+auto_analyze_ownership_check_rows: 1000
 ```
 
 Values:
@@ -315,6 +376,11 @@ This affects planner statistics durability, not SQL correctness.
 
 `ANALYZE TABLE <name>` builds richer statistics used by the cost-based
 optimizer, including equi-depth histograms and distinct-value counts.
+
+Automatic analyze can refresh stale table statistics in the background when
+`auto_analyze_enabled` is `true`. See
+[Automatic Analyze](/docs/automatic-analyze) for staleness rules, resource
+limits, and per-table opt-out syntax.
 
 ## Cost-Based Optimizer
 
@@ -405,6 +471,29 @@ The cache is enabled by default but inert until a query uses `{cache=...}` or
 `@{cache=...}`. See [Query Result Cache](/docs/query-result-cache) for query
 syntax, cache metadata, freshness behavior, and manual eviction.
 
+## Spill To Disk
+
+Spill-to-disk lets blocking query operators use temporary files when their
+intermediate row buffers grow past a configured threshold:
+
+```yaml
+spill_enabled: false
+spill_threshold_rows: 500000
+spill_merge_fan_in: 16
+```
+
+Settings:
+
+- `spill_enabled`: master switch. When `false`, blocking operators use their
+  in-memory paths.
+- `spill_threshold_rows`: per-operator row count before spilling starts. The
+  setting is ignored when spilling is disabled.
+- `spill_merge_fan_in`: maximum number of spill runs read at once during merge
+  passes. Larger values reduce merge passes but use more open readers.
+
+See [Spill To Disk](/docs/spill-to-disk) for supported operators, temporary
+file layout, and failure behavior.
+
 ## Schema Limits
 
 These settings bound schema growth and identifier sizes:
@@ -465,6 +554,29 @@ These settings apply to `~`, `~*`, `!~`, `!~*`, and the `regexp_*` scalar
 functions. See [Regex Functions](/docs/functions-regex) for function syntax,
 flags, and matching rules.
 
+## Diagnostics
+
+Standalone diagnostics are opt-in:
+
+```yaml
+diagnostics:
+  enabled: false
+  prometheus_enabled: false
+  prometheus_path: /metrics
+  otlp_endpoint:
+  trace_sample_ratio: 0.01
+  include_runtime_metrics: true
+```
+
+When disabled, CamusDB does not register a metrics exporter, scrape endpoint,
+trace exporter, or diagnostics collector. When enabled on a standalone node,
+the server can expose Prometheus metrics and optional OpenTelemetry traces for
+request handling, SQL execution, scans, query cache activity, transaction
+commit, Kahuna, Kommander, and runtime metrics.
+
+See [Performance Diagnostics](/docs/performance-diagnostics) for metric names,
+security notes, and workload snapshot scripts.
+
 ## Kahuna Engine Options
 
 The `kahuna` section is an allow-listed passthrough to embedded
@@ -481,6 +593,8 @@ kahuna:
   wal_storage: rocksdb
   wal_revision: v1
   wal_sync_writes: true
+  wal_group_commit_linger_ms: 0
+  wal_single_fsync_commit: false
   default_transaction_timeout_ms: 5000
   max_transaction_timeout_ms: 3600000
   locks_workers: 8
@@ -515,7 +629,8 @@ on restart.
 The allow-listed Kahuna keys are:
 
 - storage settings: `storage`, `storage_revision`, `wal_storage`,
-  `wal_revision`, `wal_sync_writes`
+  `wal_revision`, `wal_sync_writes`, `wal_group_commit_linger_ms`, and
+  `wal_single_fsync_commit`
 - transaction and worker settings: `default_transaction_timeout_ms`,
   `max_transaction_timeout_ms`, `locks_workers`, `key_value_workers`,
   `background_writer_workers`, `read_io_threads`, and `write_io_threads`
@@ -541,6 +656,27 @@ Raft log compaction is controlled by `compact_every_operations`,
 `compact_number_entries`, and `max_entries_per_compaction`. Tune them together:
 one controls how often compaction runs, one controls how many trailing log
 entries are retained, and one caps how much a single pass can remove.
+
+### WAL Durability And Throughput
+
+`wal_sync_writes` controls whether each WAL write is fsynced for crash
+durability before acknowledgement. Keep it `true` for production durability.
+Use `false` only for development or bulk-load experiments where losing the most
+recent unflushed WAL writes is acceptable.
+
+Two WAL settings can improve write throughput while preserving the durable
+acknowledgement contract:
+
+- `wal_group_commit_linger_ms`: a small bounded wait, in milliseconds, that
+  lets concurrent commits share one group fsync. `0` disables the linger. Try
+  `1` or `2` for fsync-bound write-heavy workloads.
+- `wal_single_fsync_commit`: allows eligible single-round autocommit proposals
+  to acknowledge once the durable propose quorum is written, while the commit
+  marker rides a later durable flush. This removes one serial fsync from the
+  critical path without acknowledging an undurable commit.
+
+Both settings affect latency/throughput tradeoffs, not SQL semantics. Compare
+changes with the same workload shape and durability settings.
 
 ### RocksDB Shared Memory
 
@@ -603,9 +739,23 @@ Important validation rules:
 - `grpc_enabled` is boolean
 - positive `range_lock_expires_ms` values must be at least `2x` the effective
   `kahuna.collection_interval_ms`
+- `spill_enabled` is boolean
+- `spill_threshold_rows` and `spill_merge_fan_in` must be `> 0`
+- `diagnostics.trace_sample_ratio` must be in `0..1`
+- `diagnostics.prometheus_path` must start with `/`
+- `diagnostics.otlp_endpoint`, when set, must be an absolute URL
+- `kahuna.wal_group_commit_linger_ms` must be `>= 0`
 - `kahuna.max_transaction_timeout_ms`, when set, must be `>=`
   `max_serializable_transaction_lifetime_ms`
 - `stats_flush_interval_ms` must be `>= 0` or `-1`
+- `stats_analyze_sample_rows` must be `>= 0`
+- `stats_histogram_buckets` must be `>= 1`
+- `auto_analyze_fraction_stale_rows` and `auto_analyze_min_stale_rows` must be
+  `>= 0`
+- `auto_analyze_max_concurrent` and
+  `auto_analyze_histogram_sample_rows` must be `>= 1`
+- `auto_analyze_hll_precision` must be in `4..16`
+- `auto_analyze_ownership_check_rows` must be `>= 1`
 - `cost_based_access_path_enabled` and `cost_based_join_order_enabled` are
   booleans
 - `regex_match_timeout_ms` must be `> 0`
@@ -617,8 +767,10 @@ Important validation rules:
 - `plan_cache_enabled` is boolean
 - `query_result_cache_enabled` is boolean
 - `max_identifier_length`, `max_columns_per_table`,
-  `max_indexes_per_table`, and `max_tables_per_database` use `<= 0` to disable
-  the corresponding limit
+  `max_indexes_per_table`, `max_tables_per_database`, `max_index_columns`,
+  `max_index_include_tuple_bytes`, and `max_mutations_per_transaction` use
+  `<= 0` to disable the corresponding limit
+- `branch_snapshot_hold_lease_ms` must be `> 0`
 - `sql_parser_cache_ttl_seconds` and `sql_parser_cache_max_entries` must be
   `>= 0`
 - `sql_parser_cache_sweep_seconds` must be `> 0`
@@ -636,6 +788,9 @@ grpc_port: 5096
 default_isolation_level: serializable
 default_transaction_locking: pessimistic
 stats_flush_interval_ms: 5000
+stats_analyze_sample_rows: 100000
+stats_histogram_buckets: 100
+auto_analyze_enabled: false
 cost_based_access_path_enabled: true
 cost_based_join_order_enabled: true
 plan_cache_enabled: true
@@ -643,12 +798,16 @@ plan_cache_max_entries: 512
 query_result_cache_enabled: true
 query_result_cache_default_ttl_ms: 5000
 query_result_cache_max_entries: 1024
+spill_enabled: false
 sql_parser_cache_ttl_seconds: 300
 sql_parser_cache_max_entries: 2048
 sql_parser_cache_sweep_seconds: 60
 kahuna:
   storage: rocksdb
   wal_storage: rocksdb
+  wal_sync_writes: true
+  wal_group_commit_linger_ms: 0
+  wal_single_fsync_commit: false
   rocksdb_shared_memory: true
   rocksdb_shared_memory_budget_mb: 320
   rocksdb_shared_memtable_budget_mb: 128
@@ -691,6 +850,7 @@ schema_ack_wait_timeout_ms: 30000
 schema_ack_live_node_lease_ms: 30000
 key_range_sharding: true
 default_transaction_locking: pessimistic
+auto_analyze_enabled: true
 cost_based_access_path_enabled: true
 cost_based_join_order_enabled: true
 plan_cache_enabled: true

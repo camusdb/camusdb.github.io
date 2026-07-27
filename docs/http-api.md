@@ -127,6 +127,14 @@ Database rename is also exposed through SQL:
 }
 ```
 
+The equivalent `ALTER DATABASE ... RENAME TO` form is also accepted:
+
+```json
+{
+  "sql": "ALTER DATABASE app RENAME TO app_prod"
+}
+```
+
 ### `POST /close-db`
 
 ```json
@@ -245,6 +253,70 @@ Response:
   ]
 }
 ```
+
+Time-travel reads with `AS OF SYSTEM TIME` are supported through this endpoint
+for autocommit read-only `SELECT` statements:
+
+```json
+{
+  "databaseName": "app",
+  "sql": "SELECT id, name FROM robots AS OF SYSTEM TIME '-10s' WHERE year >= @year",
+  "transactionMode": "ReadOnly",
+  "parameters": {
+    "@year": {
+      "type": 2,
+      "longValue": 1970
+    }
+  }
+}
+```
+
+The same SQL restrictions apply over HTTP: the clause cannot run inside an
+explicit transaction and invalid time-travel values return `CADB0409`
+`InvalidAsOfSystemTime`. See [Time-Travel Reads](/docs/time-travel-reads).
+
+### `POST /execute-sql-query-stream`
+
+For large `SELECT` or `SHOW` result sets, use the streaming endpoint:
+
+```json
+{
+  "databaseName": "app",
+  "sql": "SELECT id, name FROM robots ORDER BY name",
+  "isolationLevel": "Serializable",
+  "transactionMode": "ReadOnly",
+  "parameters": null
+}
+```
+
+The request body is the same shape as `/execute-sql-query`. The response uses
+newline-delimited JSON with content type `application/x-ndjson`:
+
+```json
+{"status":"ok","columns":[{"name":"id","type":1},{"name":"name","type":3}]}
+["507f1f77bcf86cd799439011","R2-D2"]
+["507f1f77bcf86cd799439012","C-3PO"]
+{"status":"ok","total":2,"serverTimeMs":3.1}
+```
+
+The first line is the schema header. Each row is a compact positional array
+aligned to the header's column order. The final line is a trailer with the
+terminal status, total rows streamed, optional causal token, and server time.
+
+If an error happens before the first line is written, CamusDB returns a normal
+JSON error body with the mapped HTTP status. If an error happens after the
+stream has started, the HTTP status may already be `200`, so CamusDB reports
+the failure in the final trailer:
+
+```json
+{"status":"failed","total":128,"code":"CADB0502","message":"transaction conflict","serverTimeMs":12.4}
+```
+
+Autocommit streaming runs as a single attempt. Because rows may already be on
+the wire before commit, the server cannot transparently replay a late
+Serializable conflict the way the buffered endpoint can. Use
+`/execute-sql-query` when automatic autocommit retry is more important than
+incremental delivery, or use an explicit transaction and retry client-side.
 
 ### `POST /execute-sql-non-query`
 

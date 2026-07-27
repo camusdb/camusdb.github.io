@@ -141,6 +141,7 @@ Check expressions must be deterministic single-row predicates. They can use:
 - regex operators `~`, `~*`, `!~`, and `!~*`
 - `IS NULL` and `IS NOT NULL`
 - `IN` with a literal list
+- `CASE ... END`
 - deterministic scalar functions
 - `CAST`
 
@@ -175,6 +176,23 @@ constraint, such as `NOT NULL`, rejects it. Literal malformed regex patterns in
 `CHECK` constraints are rejected at `CREATE TABLE` or `ALTER TABLE ... ADD
 CONSTRAINT` time. Regex failures during check evaluation are surfaced as
 `CADB0303 CheckConstraintViolation`.
+
+`CASE ... END` is also supported inside checks when the valid rule depends on
+another column:
+
+```camussql
+CREATE TABLE entries (
+  id INT64 NOT NULL PRIMARY KEY,
+  kind STRING NOT NULL,
+  value INT64 NOT NULL,
+  CONSTRAINT valid_value_for_kind CHECK (
+    CASE
+      WHEN kind = "discount" THEN value < 0
+      ELSE value >= 0
+    END
+  )
+);
+```
 
 ## Named Not Null Constraints
 

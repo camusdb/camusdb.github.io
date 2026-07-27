@@ -33,6 +33,11 @@ const sidebars = {
       items: [
         'sql',
         'sql-schema',
+        {
+          type: 'doc',
+          id: 'comment-on',
+          label: 'Schema Comments',
+        },
         'check-constraints',
         'data-types',
         'sql-indexes',
@@ -44,6 +49,7 @@ const sidebars = {
           items: [
             'sql-queries',
             'query-features',
+            'time-travel-reads',
             'query-planning',
             {
               type: 'doc',
@@ -91,6 +97,8 @@ const sidebars = {
         'serializable-retries',
         'distributed-transactions',
         'multi-active-availability',
+        'automatic-analyze',
+        'performance-diagnostics',
         'cluster',
         'configuration',
       ],
@@ -125,6 +133,7 @@ const sidebars = {
         'mcp-server',
         'camus-cli',        
         'camus-dump',
+        'workload-utility',
         {
           type: 'category',
           label: '.NET',

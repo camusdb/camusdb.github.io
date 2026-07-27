@@ -20,6 +20,7 @@ SELECT id, name FROM robots;
 SELECT * FROM robots;
 SELECT r.id, r.name FROM robots r;
 SELECT year + 100 AS display_year FROM robots;
+SELECT CASE WHEN year >= 2000 THEN "modern" ELSE "classic" END AS era FROM robots;
 SELECT SUM(year) AS total_year FROM robots;
 SELECT DISTINCT kind FROM robots ORDER BY kind;
 ```
@@ -31,6 +32,52 @@ Supported aggregate functions are:
 - `AVG(column)`
 - `MIN(column)`
 - `MAX(column)`
+
+## CASE Expressions
+
+Use `CASE ... END` to choose a value conditionally inside a query.
+
+Searched `CASE` evaluates boolean predicates in order and returns the first
+matching branch:
+
+```camussql
+SELECT
+  name,
+  CASE
+    WHEN year < 1980 THEN "classic"
+    WHEN year >= 1980 THEN "modern"
+    ELSE "unknown"
+  END AS era
+FROM robots;
+```
+
+Simple `CASE` compares one expression against each `WHEN` value:
+
+```camussql
+SELECT
+  status,
+  CASE status
+    WHEN "A" THEN "active"
+    WHEN "B" THEN "blocked"
+    ELSE "other"
+  END AS status_name
+FROM users;
+```
+
+`CASE` can be used in projections, `WHERE`, aggregate expressions, derived
+tables, and check constraints:
+
+```camussql
+SELECT SUM(CASE WHEN status = "paid" THEN amount ELSE 0 END) AS paid_total
+FROM orders;
+
+SELECT *
+FROM orders
+WHERE CASE WHEN status = "paid" THEN true ELSE false END;
+```
+
+Evaluation is first-match wins. If no branch matches and there is no `ELSE`,
+the result is `NULL`. `WHEN` conditions that evaluate to `NULL` do not match.
 
 ## DISTINCT
 
@@ -145,6 +192,24 @@ WHERE year >= 1970
 ORDER BY year DESC, name ASC
 LIMIT 25 OFFSET 50;
 ```
+
+## Time-Travel Reads
+
+Use `AS OF SYSTEM TIME` to read a consistent historical snapshot:
+
+```camussql
+SELECT id, name, year
+FROM robots AS OF SYSTEM TIME '-10s'
+WHERE year >= 1970
+ORDER BY year DESC;
+```
+
+The clause belongs after the `FROM` source and before `WHERE`. It is available
+for autocommit read-only `SELECT` statements and pins the whole statement,
+including joins and subqueries, to one historical timestamp.
+
+See [Time-Travel Reads](/docs/time-travel-reads) for accepted timestamp formats,
+guarantees, and restrictions.
 
 ## Table Hints
 

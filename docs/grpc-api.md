@@ -8,7 +8,7 @@ CamusDB exposes a client-facing gRPC API in addition to the REST/JSON API.
 The gRPC endpoint uses HTTP/2 on a dedicated port and reaches the same SQL,
 transaction, and row-operation engine as the HTTP endpoints.
 
-Enable it in `config.yml`:
+It is enabled by default. Configure or disable it in `config.yml`:
 
 ```yaml
 grpc_enabled: true

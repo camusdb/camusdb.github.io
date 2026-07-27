@@ -62,7 +62,7 @@ Behavior:
 These estimates come from CamusDB's lightweight planner statistics when they
 exist. Different deployments can produce different numbers depending on current
 row counts, observed indexed-column bounds, histograms, and distinct-value
-counts collected by `ANALYZE`.
+counts collected by manual or automatic `ANALYZE`.
 
 `estimated_rows` and `estimated_cost` are the same values used by CamusDB's
 cost-based optimizer. With the default rule-based search path, they explain the
@@ -78,7 +78,7 @@ All plain `EXPLAIN` columns, plus:
 | Column | Type | Meaning |
 | --- | --- | --- |
 | `actual_rows` | `INT64` or `NULL` | Rows emitted by that operator. |
-| `rows_read` | `INT64` or `NULL` | Rows decoded from storage before filtering. |
+| `rows_read` | `INT64` or `NULL` | Primary rows decoded from storage before filtering. Covered index scans can report `0` because the needed values came from the index entry. |
 | `actual_time_ms` | `FLOAT64` or `NULL` | Total wall-clock time for the root node only. |
 | `kv_lookups` | `INT64` or `NULL` | KV point lookups issued. |
 | `kv_scan_entries` | `INT64` or `NULL` | KV entries visited during scans. |
@@ -166,6 +166,9 @@ For best results, collect statistics first:
 ANALYZE TABLE robots;
 ```
 
+Automatic analyze can also keep stale table statistics fresh in the background
+where it is enabled. See [Automatic Analyze](/docs/automatic-analyze).
+
 With cost-based access paths enabled, a query may choose a different index or a
 full table scan than the rule-based planner would have chosen. With cost-based
 join ordering enabled, an eligible inner join may be reordered so a more
@@ -223,6 +226,23 @@ physical  index-range-scan  index=year_idx, from>=2024, to<2025
 ```
 
 For non-unique indexes, equality is still a range of matching keys.
+
+### Covered index scan
+
+```camussql
+CREATE INDEX orders_customer_idx
+ON orders (customer_id)
+INCLUDE (status, total);
+
+EXPLAIN (ANALYZE)
+SELECT customer_id, status, total
+FROM orders
+WHERE customer_id = 42;
+```
+
+For covered `index-lookup` or `index-range-scan` nodes, `rows_read = 0` means
+CamusDB did not fetch primary rows after reading the index entries. The query's
+required columns were available from the index key and `INCLUDE` payload.
 
 ### Range scan plus residual filter
 

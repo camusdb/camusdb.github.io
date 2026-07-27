@@ -14,8 +14,8 @@ indexes, casts, defaults, and JSON values.
 | --- | --- | --- | --- |
 | `OID` | 12-byte ObjectId | Yes | Native identifier type. Also accepted as `OBJECT_ID` in SQL and `id` in HTTP table definitions. |
 | `UUID` | 128-bit UUID | Yes | Native UUID/GUID type. Also accepted as `GUID`. |
-| `INT64` | 64-bit signed integer | Yes | Also accepted as `INT` or `INTEGER`. |
-| `FLOAT64` | IEEE-754 double | Yes | Also accepted as `DOUBLE` in `CAST`. |
+| `INT64` | 64-bit signed integer | Yes | Also accepted as `INT`, `INTEGER`, or `SMALLINT`. |
+| `FLOAT64` | IEEE-754 double | Yes | Also accepted as `FLOAT`. Also accepted as `DOUBLE` in `CAST`. |
 | `FLOAT32` | IEEE-754 single | Yes | Also accepted as `REAL`. Values are stored and compared at single precision. |
 | `BOOL` | Boolean | Yes | Also accepted as `BOOLEAN`. |
 | `STRING` | UTF-16 text | Yes | Uses the default string length limit. Also accepted as `CHAR`, `VARCHAR`, or `TEXT`. |
@@ -42,7 +42,8 @@ CREATE TABLE events (
 
 | Alias | Canonical type |
 | --- | --- |
-| `INT`, `INTEGER` | `INT64` |
+| `INT`, `INTEGER`, `SMALLINT` | `INT64` |
+| `FLOAT` | `FLOAT64` |
 | `REAL` | `FLOAT32` |
 | `TIMESTAMP` | `DATETIME` |
 | `BLOB` | `BYTES` |
@@ -167,8 +168,8 @@ and examples.
 These SQL type names and aliases are reserved:
 
 ```text
-oid object_id int int64 integer string char varchar text bool boolean
-float32 float64 real date datetime timestamp bytes blob uuid guid array
+oid object_id int int64 integer smallint string char varchar text bool boolean
+float float32 float64 real date datetime timestamp bytes blob uuid guid array
 ```
 
 Only the exact keyword is reserved. Identifiers that merely start with a type

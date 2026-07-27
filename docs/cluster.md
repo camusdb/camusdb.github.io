@@ -30,9 +30,9 @@ This starts three CamusDB nodes on a private bridge network:
 | `camus2` | `localhost:5096` | `7072` |
 | `camus3` | `localhost:5097` | `7074` |
 
-Connect with the SQL shell by pointing it at one of the node endpoints.
-The client-facing gRPC API can also be enabled per node with `grpc_enabled`
-and `grpc_port`.
+Connect with the SQL shell by pointing it at one of the node endpoints. The
+client-facing gRPC API is enabled by default and can be configured per node with
+`grpc_enabled` and `grpc_port`.
 
 ## Run A Standalone Node
 

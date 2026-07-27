@@ -60,6 +60,10 @@ per inserted row. Inserting one row costs:
 With the default 20,000-mutation cap, a single transaction can insert at most
 6,666 such rows before it must be split into another transaction.
 
+The cap is controlled by `max_mutations_per_transaction` in
+[Configuration](/docs/configuration). Set it to `<= 0` only when you
+intentionally want to disable the user DML mutation limit.
+
 ## Handling CADB0506
 
 `CADB0506 TransactionMutationLimitExceeded` means the transaction is too large.
