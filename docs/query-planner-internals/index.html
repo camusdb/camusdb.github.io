@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Query Planner Internals | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/query-planner-internals/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Query Planner Internals | CamusDB"><meta data-rh="true" name="description" content="This page is the internal companion to the user-facing"><meta data-rh="true" property="og:description" content="This page is the internal companion to the user-facing"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/query-planner-internals/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planner-internals/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planner-internals/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Query Planner Internals","item":"https://camusdb.github.io/docs/query-planner-internals"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.b95f6b71.css">
-<script src="/assets/js/runtime~main.7ac9f8b1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.f2933959.js" defer="defer"></script>
 <script src="/assets/js/main.0bd90066.js" defer="defer"></script>
 </head>
 <body>
@@ -32,7 +32,7 @@ declarative SQL query into a concrete execution plan:</p>
 <p>CamusDB has a rule-based planner plus a cost-based optimizer stack. The cost
 model annotates plans, drives some decisions unconditionally, and can take over
 broader access-path and join-order search when the corresponding config flags
-are enabled.</p>
+are enabled. Those broad cost-based flags are enabled by default.</p>
 <p>The optimizer stack is:</p>
 <ol>
 <li class="">Table statistics from live DML and <code>ANALYZE</code>.</li>
@@ -40,8 +40,8 @@ are enabled.</p>
 min/max bounds.</li>
 <li class="">A weighted cost model for KV lookups, range entries, primary-row fetches,
 in-memory work, and network cost.</li>
-<li class="">Plan search for access paths and join order when the cost-based flags are
-enabled.</li>
+<li class="">Plan search for access paths and join order through the cost-based flags,
+which are enabled by default.</li>
 </ol>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="pipeline">Pipeline<a href="#pipeline" class="hash-link" aria-label="Direct link to Pipeline" title="Direct link to Pipeline" translate="no">​</a></h2>
 <p>Every <code>SELECT</code> follows this high-level pipeline:</p>
@@ -128,8 +128,8 @@ execution.</p>
 <li class="">Column-to-column comparisons.</li>
 <li class="">Residual conjuncts.</li>
 </ul>
-<p><code>IndexScanSelector</code> can operate in two modes. The default mode scores usable
-indexes with heuristic rules such as:</p>
+<p><code>IndexScanSelector</code> can operate in two modes. The heuristic mode scores usable
+indexes with rules such as:</p>
 <ul>
 <li class="">Unique full equality beats everything else.</li>
 <li class="">Non-unique equality and equality-prefix matches are strong candidates.</li>
@@ -137,11 +137,11 @@ indexes with heuristic rules such as:</p>
 <li class="">Matching <code>ORDER BY</code> prefixes can win even without a filtering predicate.</li>
 <li class="">Indexed <code>IN (...)</code> lists can compete with range scans and full scans.</li>
 </ul>
-<p>When <code>cost_based_access_path_enabled</code> is enabled and table statistics are
-available, the planner instead enumerates every viable scan candidate plus the
-full-scan baseline, estimates each candidate&#x27;s cost, and keeps the cheapest.
-<code>UPDATE</code> and <code>DELETE</code> locate scans keep the heuristic path to avoid widening
-exclusive lock ranges unexpectedly.</p>
+<p>Because <code>cost_based_access_path_enabled</code> defaults to <code>true</code>, the planner uses
+cost-based access selection when table statistics are available. It enumerates
+every viable scan candidate plus the full-scan baseline, estimates each
+candidate&#x27;s cost, and keeps the cheapest. <code>UPDATE</code> and <code>DELETE</code> locate scans
+keep the heuristic path to avoid widening exclusive lock ranges unexpectedly.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="2-filter-absorption">2. Filter absorption<a href="#2-filter-absorption" class="hash-link" aria-label="Direct link to 2. Filter absorption" title="Direct link to 2. Filter absorption" translate="no">​</a></h3>
 <p>Once scan bounds are chosen, comparisons already implied by the scan are
 removed from the runtime filter. The remaining predicate becomes the residual
@@ -300,9 +300,9 @@ it is zero for single-node or unsharded plans.</p>
 <li class="">Heuristic join reordering.</li>
 <li class="">Cost-based veto for low-selectivity index range scans.</li>
 <li class="">Cost-assisted join algorithm selection for eligible equi-joins.</li>
-<li class="">Cost-based access-path enumeration behind
+<li class="">Cost-based access-path enumeration through
 <code>cost_based_access_path_enabled</code>.</li>
-<li class="">Cost-based join-order enumeration behind <code>cost_based_join_order_enabled</code>.</li>
+<li class="">Cost-based join-order enumeration through <code>cost_based_join_order_enabled</code>.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="cost-model-status">Cost Model Status<a href="#cost-model-status" class="hash-link" aria-label="Direct link to Cost Model Status" title="Direct link to Cost Model Status" translate="no">​</a></h2>
 <p>The cost model is implemented and used in layers:</p>
@@ -338,7 +338,7 @@ executor yet.</p>
 <li class=""><code>EXPLAIN (ANALYZE)</code> for joins is missing.</li>
 <li class=""><code>EXPLAIN (LOGICAL)</code> is mostly cosmetic today.</li>
 <li class="">Descending-order exploitation is limited.</li>
-<li class="">Cost-based access-path and join-order search are opt-in.</li>
+<li class="">Cost-based access-path and join-order search are enabled by default.</li>
 <li class="">The join-order DP is left-deep and does not yet keep multiple interesting
 order/distribution alternatives per subset.</li>
 </ul>

@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Explaining Queries And Commands | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/explain/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Explaining Queries And Commands | CamusDB"><meta data-rh="true" name="description" content="EXPLAIN shows how CamusDB plans a query. It is the main user-facing tool for"><meta data-rh="true" property="og:description" content="EXPLAIN shows how CamusDB plans a query. It is the main user-facing tool for"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/explain/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/explain/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/explain/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Explaining Queries And Commands","item":"https://camusdb.github.io/docs/explain"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.b95f6b71.css">
-<script src="/assets/js/runtime~main.7ac9f8b1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.f2933959.js" defer="defer"></script>
 <script src="/assets/js/main.0bd90066.js" defer="defer"></script>
 </head>
 <body>
@@ -56,11 +56,11 @@ exist. Different deployments can produce different numbers depending on current
 row counts, observed indexed-column bounds, histograms, and distinct-value
 counts collected by manual or automatic <code>ANALYZE</code>.</p>
 <p><code>estimated_rows</code> and <code>estimated_cost</code> are the same values used by CamusDB&#x27;s
-cost-based optimizer. With the default rule-based search path, they explain the
-plan that the heuristic planner selected. When
-<code>cost_based_access_path_enabled</code> or <code>cost_based_join_order_enabled</code> is enabled,
-they also help explain why the optimizer chose one index, full scan, join
-algorithm, or join order over another.</p>
+cost-based optimizer. Because cost-based access-path and join-order search are
+enabled by default, they help explain why the optimizer chose one index, full
+scan, join algorithm, or join order over another. If a cost-based flag is
+disabled or a query falls outside the current CBO search envelope, the same
+columns explain the heuristic plan that CamusDB selected.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="explain-analyze">EXPLAIN ANALYZE<a href="#explain-analyze" class="hash-link" aria-label="Direct link to EXPLAIN ANALYZE" title="Direct link to EXPLAIN ANALYZE" translate="no">​</a></h3>
 <p>All plain <code>EXPLAIN</code> columns, plus:</p>
 <table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>actual_rows</code></td><td><code>INT64</code> or <code>NULL</code></td><td>Rows emitted by that operator.</td></tr><tr><td><code>rows_read</code></td><td><code>INT64</code> or <code>NULL</code></td><td>Primary rows decoded from storage before filtering. Covered index scans can report <code>0</code> because the needed values came from the index entry.</td></tr><tr><td><code>actual_time_ms</code></td><td><code>FLOAT64</code> or <code>NULL</code></td><td>Total wall-clock time for the root node only.</td></tr><tr><td><code>kv_lookups</code></td><td><code>INT64</code> or <code>NULL</code></td><td>KV point lookups issued.</td></tr><tr><td><code>kv_scan_entries</code></td><td><code>INT64</code> or <code>NULL</code></td><td>KV entries visited during scans.</td></tr></tbody></table>
@@ -87,12 +87,12 @@ outcomes are reported in the query response metadata, such as <code>cacheStatus<
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="cost-based-optimizer-notes">Cost-Based Optimizer Notes<a href="#cost-based-optimizer-notes" class="hash-link" aria-label="Direct link to Cost-Based Optimizer Notes" title="Direct link to Cost-Based Optimizer Notes" translate="no">​</a></h2>
 <p>The plan shown by <code>EXPLAIN</code> reflects the active optimizer configuration.
 CamusDB always annotates planned nodes with estimated row counts and costs when
-it can. The broader search passes are opt-in:</p>
+it can. The broader search passes are enabled by default:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token key atrule" style="color:#00a4db">cost_based_access_path_enabled</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#36acaa">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">cost_based_join_order_enabled</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#36acaa">true</span><br></div></code></pre></div></div>
 <p>For best results, collect statistics first:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">ANALYZE</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">TABLE</span><span class="token plain"> robots</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
-<p>Automatic analyze can also keep stale table statistics fresh in the background
-where it is enabled. See <a class="" href="/docs/automatic-analyze/">Automatic Analyze</a>.</p>
+<p>Automatic analyze also keeps stale table statistics fresh in the background by
+default. See <a class="" href="/docs/automatic-analyze/">Automatic Analyze</a>.</p>
 <p>With cost-based access paths enabled, a query may choose a different index or a
 full table scan than the rule-based planner would have chosen. With cost-based
 join ordering enabled, an eligible inner join may be reordered so a more

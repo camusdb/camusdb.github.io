@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Query Planning | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/query-planning/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Query Planning | CamusDB"><meta data-rh="true" name="description" content="CamusDB accepts declarative SQL, then chooses a physical execution plan for the"><meta data-rh="true" property="og:description" content="CamusDB accepts declarative SQL, then chooses a physical execution plan for the"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/query-planning/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planning/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planning/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Query Planning","item":"https://camusdb.github.io/docs/query-planning"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.b95f6b71.css">
-<script src="/assets/js/runtime~main.7ac9f8b1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.f2933959.js" defer="defer"></script>
 <script src="/assets/js/main.0bd90066.js" defer="defer"></script>
 </head>
 <body>
@@ -48,18 +48,17 @@ index.</li>
 <p>CamusDB has a statistics-backed cost-based optimizer layered on top of the
 rule-based planner. Cost estimates are always exposed through <code>EXPLAIN</code>, and
 some choices, such as broad range-scan vetoes and join algorithm selection, use
-costing automatically. The two broad search passes are opt-in configuration
-flags:</p>
+costing automatically. The two broad search passes are enabled by default:</p>
 <ul>
 <li class=""><code>cost_based_access_path_enabled</code>: enumerate viable index/table access paths
 for each table and pick the cheapest.</li>
 <li class=""><code>cost_based_join_order_enabled</code>: enumerate left-deep join orders with a
 System-R-style dynamic program and pick the cheapest connected plan.</li>
 </ul>
-<p>Both flags default to <code>false</code>. With the flags off, CamusDB keeps the stable
-heuristic plan shape. With the flags on and statistics available, the same SQL
-statement may choose a different index, full scan, join algorithm, or join
-order because the optimizer has found a lower-cost plan.</p>
+<p>Both flags default to <code>true</code>. With statistics available, the same SQL statement
+may choose a different index, full scan, join algorithm, or join order because
+the optimizer has found a lower-cost plan. If either flag is turned off,
+CamusDB keeps the corresponding heuristic choice.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-scan-choice-works">How Scan Choice Works<a href="#how-scan-choice-works" class="hash-link" aria-label="Direct link to How Scan Choice Works" title="Direct link to How Scan Choice Works" translate="no">​</a></h2>
 <p>CamusDB tries to turn predicates into ordered KV access whenever it can.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="unique-equality">Unique equality<a href="#unique-equality" class="hash-link" aria-label="Direct link to Unique equality" title="Direct link to Unique equality" translate="no">​</a></h3>
@@ -289,10 +288,11 @@ directions, when sorted reads matter.</li>
 <li class="">Add <code>INCLUDE</code> columns for hot lookup queries that return a small set of
 non-key columns.</li>
 <li class="">Run <code>ANALYZE TABLE &lt;name&gt;</code> after bulk loads or major data distribution
-changes, or use automatic analyze where it is enabled.</li>
-<li class="">Enable <code>cost_based_access_path_enabled</code> when you want CamusDB to compare all
-viable indexes by estimated cost.</li>
-<li class="">Enable <code>cost_based_join_order_enabled</code> when you want CamusDB to search
+changes when you need fresh statistics immediately. Automatic analyze keeps
+stale statistics refreshed in the background by default.</li>
+<li class="">Leave <code>cost_based_access_path_enabled</code> enabled when you want CamusDB to
+compare all viable indexes by estimated cost.</li>
+<li class="">Leave <code>cost_based_join_order_enabled</code> enabled when you want CamusDB to search
 left-deep inner-join orders by estimated cost.</li>
 <li class="">Add <code>{cache=...}</code> only to repeated read-heavy single-table queries whose
 result set is small enough to keep in memory.</li>
@@ -304,8 +304,8 @@ range scan, join scan, or extra sort.</li>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="current-limits">Current Limits<a href="#current-limits" class="hash-link" aria-label="Direct link to Current Limits" title="Direct link to Current Limits" translate="no">​</a></h2>
 <p>The planner is improving, but there are still important limits:</p>
 <ul>
-<li class="">Broad cost-based access-path and join-order search are opt-in and depend on
-useful statistics.</li>
+<li class="">Broad cost-based access-path and join-order search are enabled by default,
+but depend on useful statistics.</li>
 <li class="">Join planning exists, but <code>EXPLAIN (ANALYZE)</code> for joins is not supported yet.</li>
 <li class=""><code>(LOGICAL)</code> <code>EXPLAIN</code> currently labels the same physical tree rather than
 rendering a separate logical-plan view.</li>
