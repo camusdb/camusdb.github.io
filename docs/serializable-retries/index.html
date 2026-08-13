@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Retries And Conflicts | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/serializable-retries/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Retries And Conflicts | CamusDB"><meta data-rh="true" name="description" content="A serializable read-write transaction can fail on purpose. When CamusDB detects"><meta data-rh="true" property="og:description" content="A serializable read-write transaction can fail on purpose. When CamusDB detects"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/serializable-retries/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/serializable-retries/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/serializable-retries/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Retries And Conflicts","item":"https://camusdb.github.io/docs/serializable-retries"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.ac3f6328.css">
-<script src="/assets/js/runtime~main.de740c6c.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.7874e576.js" defer="defer"></script>
 <script src="/assets/js/main.ce8d00b1.js" defer="defer"></script>
 </head>
 <body>
@@ -50,6 +50,17 @@ business operation risks applying it twice.</p>
 <p>Once finalize starts, no further data statements are accepted on that
 transaction. An abandoned finalizing transaction is eventually bounded by the
 server-side session timeout.</p>
+<p>CamusDB retries this for you first. A finalize that comes back &quot;outcome not known
+yet&quot; — a leadership flip mid-finalize, an in-progress drain, a participant write
+shed under load — is retried on the same handle with backoff, bounded by a
+wall-clock budget: <code>transaction_finalize_retry_budget_ms</code>, 15 seconds by default.
+<code>CADB0509</code> is what you see when that budget runs out.</p>
+<p>The bound is a duration rather than a count of attempts because every one of
+those conditions resolves on its own schedule. A saturated node makes each
+attempt take longer without making it take more attempts, so an attempt cap would
+shrink the real budget exactly when the node most needs it. Raise the setting on
+nodes that run hot; lower it if you would rather take the unresolved answer
+sooner and retry it yourself.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="keep-transactions-short">Keep Transactions Short<a href="#keep-transactions-short" class="hash-link" aria-label="Direct link to Keep Transactions Short" title="Direct link to Keep Transactions Short" translate="no">​</a></h2>
 <p>Read-write transactions hold locks. Kahuna&#x27;s coordinator renews live range locks
 while the transaction is alive, so the initial range-lock TTL is not a ceiling
