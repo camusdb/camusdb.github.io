@@ -13,8 +13,7 @@ Under the hood, CamusDB relies on
 [Kommander](https://kahunakv.github.io/kommander.github.io/) for Raft-backed
 replication of each partition.
 
-This page explains what that means for application developers and operators,
-then shows the internal flow used by CamusDB and Kahuna.
+What follows is the guarantee first, then the flow underneath it.
 
 ## What Users Get
 
@@ -294,7 +293,7 @@ production guarantee.
 ## See Also
 
 - [Transactions And Isolation](/docs/serializable-transactions)
-- [Serializable Retries](/docs/serializable-retries)
+- [Retries And Conflicts](/docs/serializable-retries)
 - [Architecture](/docs/architecture)
 - [Cluster Mode](/docs/cluster)
 - [WAL And Recovery](/docs/wal-recovery)

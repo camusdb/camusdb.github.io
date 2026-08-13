@@ -4,13 +4,14 @@ sidebar_position: 3.1
 
 # Query Planning
 
-CamusDB accepts declarative SQL, then chooses a physical execution plan for the
-query. That plan decides whether CamusDB should scan a table, probe an index,
-use an index range, sort results in memory, aggregate rows, or choose a join
-algorithm.
+SQL says what you want, not how to get it. The planner decides the how: scan a
+table or probe an index, sort in memory or read in index order, which join
+algorithm to run.
 
-For users, the important question is not "how is the planner implemented?" but
-"what can CamusDB do for my query, and how do I help it choose a good plan?"
+This page covers what the planner is able to do and how to help it choose well.
+For the internal pipeline, see
+[Query Planner Internals](/docs/query-planner-internals); to see what it chose
+for a specific query, use [EXPLAIN](/docs/explain).
 
 ## What The Planner Can Do
 
@@ -42,18 +43,17 @@ Today CamusDB can plan:
 CamusDB has a statistics-backed cost-based optimizer layered on top of the
 rule-based planner. Cost estimates are always exposed through `EXPLAIN`, and
 some choices, such as broad range-scan vetoes and join algorithm selection, use
-costing automatically. The two broad search passes are opt-in configuration
-flags:
+costing automatically. The two broad search passes are enabled by default:
 
 - `cost_based_access_path_enabled`: enumerate viable index/table access paths
   for each table and pick the cheapest.
 - `cost_based_join_order_enabled`: enumerate left-deep join orders with a
   System-R-style dynamic program and pick the cheapest connected plan.
 
-Both flags default to `false`. With the flags off, CamusDB keeps the stable
-heuristic plan shape. With the flags on and statistics available, the same SQL
-statement may choose a different index, full scan, join algorithm, or join
-order because the optimizer has found a lower-cost plan.
+Both flags default to `true`. With statistics available, the same SQL statement
+may choose a different index, full scan, join algorithm, or join order because
+the optimizer has found a lower-cost plan. If either flag is turned off,
+CamusDB keeps the corresponding heuristic choice.
 
 ## How Scan Choice Works
 
@@ -476,10 +476,11 @@ To get better plans consistently:
 - Add `INCLUDE` columns for hot lookup queries that return a small set of
   non-key columns.
 - Run `ANALYZE TABLE <name>` after bulk loads or major data distribution
-  changes, or use automatic analyze where it is enabled.
-- Enable `cost_based_access_path_enabled` when you want CamusDB to compare all
-  viable indexes by estimated cost.
-- Enable `cost_based_join_order_enabled` when you want CamusDB to search
+  changes when you need fresh statistics immediately. Automatic analyze keeps
+  stale statistics refreshed in the background by default.
+- Leave `cost_based_access_path_enabled` enabled when you want CamusDB to
+  compare all viable indexes by estimated cost.
+- Leave `cost_based_join_order_enabled` enabled when you want CamusDB to search
   left-deep inner-join orders by estimated cost.
 - Add `{cache=...}` only to repeated read-heavy single-table queries whose
   result set is small enough to keep in memory.
@@ -492,8 +493,8 @@ To get better plans consistently:
 
 The planner is improving, but there are still important limits:
 
-- Broad cost-based access-path and join-order search are opt-in and depend on
-  useful statistics.
+- Broad cost-based access-path and join-order search are enabled by default,
+  but depend on useful statistics.
 - Join planning exists, but `EXPLAIN (ANALYZE)` for joins is not supported yet.
 - `(LOGICAL)` `EXPLAIN` currently labels the same physical tree rather than
   rendering a separate logical-plan view.
@@ -517,6 +518,6 @@ EXPLAIN SELECT * FROM robots WHERE year = 2024;
 EXPLAIN (ANALYZE) SELECT * FROM robots WHERE year = 2024 LIMIT 5;
 ```
 
-See [Explaining Queries And Commands](/docs/explain) for the output format and
+See [EXPLAIN](/docs/explain) for the output format and
 examples, and [Query Planner Internals](/docs/query-planner-internals) for the
 execution pipeline and planner architecture.

@@ -2,24 +2,28 @@
 sidebar_position: 2.5
 ---
 
-# SQL Transactions
+# Transactions In SQL
 
-CamusDB supports explicit transaction statements:
+Group statements with `BEGIN` (or `START TRANSACTION`) and close with `COMMIT`
+or `ROLLBACK`:
 
 ```camussql
 BEGIN;
-START TRANSACTION;
+UPDATE accounts SET balance = balance - 100 WHERE id = @from;
+UPDATE accounts SET balance = balance + 100 WHERE id = @to;
 COMMIT;
-ROLLBACK;
 ```
 
-When a write or query request does not include a transaction id, CamusDB starts
-and commits a single-operation transaction automatically.
+A statement sent without a transaction gets one anyway — CamusDB opens and
+commits a single-operation transaction around it.
+
+This page is the SQL syntax. For the guarantees behind it, see
+[Transactions And Isolation](/docs/serializable-transactions).
 
 ## Isolation
 
-Serializable is the default isolation level. You can be explicit at the start
-of a transaction:
+Serializable is the default. You can state it explicitly at the start of a
+transaction:
 
 ```camussql
 BEGIN;
@@ -68,7 +72,32 @@ the rows they observed. With `SERIALIZABLE`, reads and scans still take shared
 predicate locks, so the transaction keeps phantom protection while using
 commit-time write/read-set validation.
 
+## Priority
+
+Transaction priority controls admission ordering when a node is saturated and
+the [Kahuna](https://kahunakv.github.io/) concurrency gate is enabled. It does
+not change isolation, locks, commit order, or execution resources after a
+transaction has started.
+
+```camussql
+BEGIN;
+SET TRANSACTION PRIORITY BACKGROUND;
+DELETE FROM events WHERE created_at < '2026-01-01';
+COMMIT;
+```
+
+Accepted values are `BACKGROUND`, `LOW`, `NORMAL`, `HIGH`, and `CRITICAL`.
+`SET TRANSACTION PRIORITY` must run before any data statement and before the
+coordinator session starts. It can be combined with
+`SET TRANSACTION ISOLATION LEVEL` and `SET TRANSACTION LOCKING` during
+transaction setup.
+
+With the default configuration, priority is recorded but no transaction is
+deferred. See [Transaction Priority](/docs/transaction-priority) for the
+admission gate settings and operational guidance.
+
 See [Transactions And Isolation](/docs/serializable-transactions),
+[Transaction Priority](/docs/transaction-priority),
 [Transaction Limits](/docs/transaction-limits), and
-[Serializable Retries](/docs/serializable-retries) for guarantees, limits, and
-retry guidance.
+[Retries And Conflicts](/docs/serializable-retries) for guarantees, admission
+ordering, limits, and retry guidance.

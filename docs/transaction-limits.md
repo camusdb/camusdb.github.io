@@ -17,6 +17,12 @@ The two user-visible limits are:
 Read-only transactions do not create mutations, so the mutation count limit does
 not apply to them.
 
+CamusDB can also place a node-local admission ceiling on concurrent coordinator
+sessions with `kahuna.max_concurrent_sessions`, but that gate is disabled by
+default. See [Transaction Priority](/docs/transaction-priority) before enabling
+it; the gate orders queued starts by priority and is not a replacement for
+short transactions or batch sizing.
+
 ## Mutation Count Limit
 
 Every read-write transaction has a hard cap on the number of KV mutations it can
@@ -105,5 +111,5 @@ User DML is always counted.
 ## Related Pages
 
 - [Transactions And Isolation](/docs/serializable-transactions)
-- [Serializable Retries](/docs/serializable-retries)
+- [Retries And Conflicts](/docs/serializable-retries)
 - [Error Codes](/docs/error-codes)

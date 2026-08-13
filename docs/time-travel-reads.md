@@ -4,14 +4,13 @@ sidebar_position: 2.6
 
 # Time-Travel Reads
 
-CamusDB can read data as it existed at a specific point in the past with
-`AS OF SYSTEM TIME`. A time-travel read is a normal read-only `SELECT`, but it
-is pinned to a historical committed snapshot instead of the latest committed
-state.
+`AS OF SYSTEM TIME` reads data as it existed at a point in the past. The query
+is an ordinary read-only `SELECT` — it is simply pinned to a historical
+committed snapshot rather than the latest one.
 
-This is useful when you need to inspect what users saw before a change, compare
-current data with a recent snapshot, debug an incident, validate reports, or
-recover context after an accidental write.
+The usual reason to reach for it is that something changed and you need to see
+what was there before: diagnosing an incident, checking what a report was built
+from, or working out what an accidental write overwrote.
 
 ## Quick Example
 
@@ -110,15 +109,42 @@ For catastrophic dropped-object recovery, use
 inspect historical row state; relinking dropped databases and tables restores
 whole dropped objects that are still within the recoverable retention window.
 
+## Copying Historical Data
+
+`AS OF SYSTEM TIME` can also be used as the source of
+`INSERT INTO ... SELECT` and `CREATE TABLE ... AS SELECT`:
+
+```camussql
+CREATE TABLE orders_before_incident AS
+SELECT customer, total
+FROM orders AS OF SYSTEM TIME '-2h';
+
+INSERT INTO orders (id, customer, total)
+SELECT gen_id(), customer, total
+FROM orders AS OF SYSTEM TIME '-2h'
+WHERE customer = "acme";
+```
+
+The source reads the historical snapshot, while the destination writes to the
+current database state. This is useful when you need to rebuild rows after an
+accidental update or delete without restoring a backup.
+
+See [Copying Query Results](/docs/insert-select-and-ctas) for CTAS, transaction,
+locking, and zero-row warning behavior.
+
 ## Restrictions
 
-`AS OF SYSTEM TIME` is intentionally read-only:
+Standalone `AS OF SYSTEM TIME` reads are intentionally read-only:
 
 - It is supported for autocommit read-only `SELECT` statements.
-- It is rejected inside explicit multi-statement transactions.
+- Standalone historical `SELECT` is rejected inside explicit multi-statement
+  transactions.
+- `INSERT INTO ... SELECT` and `CREATE TABLE ... AS SELECT` may use a
+  historical `SELECT` source; the writes still target the current database
+  state.
 - It is rejected if the read has already been promoted into a transaction-bound
   snapshot.
-- It cannot be used with `UPDATE`, `DELETE`, `INSERT`, or schema changes.
+- It cannot be used directly with `UPDATE`, `DELETE`, or `INSERT ... VALUES`.
 - It only accepts past instants. Future times and times at or before the Unix
   epoch are rejected.
 

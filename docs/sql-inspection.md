@@ -2,55 +2,70 @@
 sidebar_position: 2.6
 ---
 
-# Schema Inspection
+# Inspecting The Database
 
-CamusDB supports SQL inspection commands for databases, tables, columns,
-indexes, and query plans.
+`SHOW` and `DESCRIBE` answer "what is actually in here?" — databases, tables,
+columns, indexes, and grants.
 
 ## Databases
 
 ```camussql
 SHOW DATABASES;
 SHOW DATABASE;
-SHOW ORPHAN DATABASES;
+```
+
+`SHOW DATABASES` lists registered databases. `SHOW DATABASE` reports the current
+database context and its comment, if one is set.
+
+### Branches
+
+```camussql
 SHOW BRANCHES FROM prod;
 SHOW ANCESTORS FROM feature_checkout;
 ```
 
-`SHOW DATABASES` lists registered databases. `SHOW DATABASE` reports the current
-database context and its database comment, if one is set.
+`SHOW BRANCHES` lists every branch below a database, including branches of
+branches, returning the descendant name, stable internal id, depth, immediate
+parent, and fork timestamp. `SHOW ANCESTORS` walks the other direction and
+returns the parent chain, nearest first; a root database returns nothing.
 
-`SHOW BRANCHES FROM <database>` lists every branch below a database, including
-branches of branches. It returns the descendant database name, stable internal
-id, depth, immediate parent, and fork timestamp.
-
-`SHOW ANCESTORS FROM <database>` walks the other direction: it returns the
-queried database's parent chain, starting with the immediate parent. Root
-databases return an empty result set.
-
-`SHOW ORPHAN DATABASES` lists dropped root databases that are still recoverable.
-Use the returned `id` with `CREATE DATABASE ... RELINK TO`.
+See [Database Branching](/docs/database-branching).
 
 ## Tables And Columns
 
 ```camussql
 SHOW TABLES;
-SHOW ORPHAN TABLES;
 SHOW COLUMNS FROM robots;
 DESCRIBE robots;
 DESC robots;
 SHOW CREATE TABLE robots;
 ```
 
-`SHOW ORPHAN TABLES` lists dropped tables in the current database that are still
-recoverable. Use the returned `id` with `CREATE TABLE ... RELINK TO`.
+Reach for `SHOW CREATE TABLE` when you want the whole picture — it is the one
+that renders comments on the table, its columns, and its secondary indexes, and
+it replays `INCLUDE (...)` for covering indexes, so its output is DDL you can
+run elsewhere.
 
-`SHOW CREATE TABLE` includes table, column, and secondary-index comments, so it
-is the preferred inspection command when you need schema descriptions. See
-[Schema Comments](/docs/comment-on).
+## Views
 
-See [Recover Dropped Objects](/docs/recover-dropped-objects) for the recovery
-workflow and retention settings.
+```camussql
+SHOW VIEWS;
+SHOW VIEWS LIKE 'open%';
+SHOW CREATE VIEW open_orders;
+
+SHOW MATERIALIZED VIEWS;
+SHOW CREATE MATERIALIZED VIEW customer_totals;
+```
+
+`SHOW TABLES` lists tables only — neither views nor materialized views have
+their own row in it. `SHOW VIEWS` lists only what the caller can reach, and
+`SHOW MATERIALIZED VIEWS` also reports whether each one holds data and which
+snapshot it holds. Both `SHOW CREATE` forms print the normalized definition
+rather than the text you typed, and both re-parse to the same object. See
+[Views](/docs/views) and [Materialized Views](/docs/materialized-views).
+
+`SHOW COLUMNS` and `DESCRIBE` work on either kind; `SHOW INDEXES` works on a
+materialized view, which is a real relation.
 
 ## Indexes
 
@@ -59,13 +74,33 @@ SHOW INDEXES FROM robots;
 SHOW INDEX FROM robots;
 ```
 
-`SHOW INDEXES` includes any covering-index payload columns in the `Include`
-column. `SHOW CREATE TABLE` renders `INCLUDE (...)` for inline and standalone
-covering indexes so the DDL can be replayed.
+The `Include` column lists covering-index payload columns. See
+[Indexes](/docs/sql-indexes).
 
-## Explain
+## Recoverable Objects
 
-Inspect a plan with `EXPLAIN`:
+```camussql
+SHOW ORPHAN DATABASES;
+SHOW ORPHAN TABLES;
+```
+
+Both list dropped objects that are still recoverable. Pass the returned `id` to
+`CREATE DATABASE ... RELINK TO` or `CREATE TABLE ... RELINK TO` to bring one
+back. See [Recover Dropped Objects](/docs/recover-dropped-objects) for the
+workflow and retention settings.
+
+## Grants
+
+```camussql
+SHOW GRANTS;
+SHOW GRANTS FOR myapp;
+```
+
+`SHOW GRANTS` lists the current authenticated user's grants. The `FOR` form
+targets another user and requires superuser privileges. See
+[Authentication And Authorization](/docs/sql-authentication).
+
+## Query Plans
 
 ```camussql
 EXPLAIN SELECT * FROM robots WHERE year = 2024;
@@ -74,17 +109,37 @@ EXPLAIN (PHYSICAL) SELECT * FROM robots WHERE year = 2024;
 EXPLAIN (ANALYZE) SELECT * FROM robots WHERE year = 2024 LIMIT 5;
 ```
 
-See [Explaining Queries And Commands](/docs/explain) for output details.
+See [EXPLAIN](/docs/explain) for the output reference.
 
-## Analyze
-
-Refresh planner statistics for a table with `ANALYZE`:
+## Refreshing Statistics
 
 ```camussql
 ANALYZE robots;
 ANALYZE TABLE robots;
 ```
 
-`ANALYZE` rebuilds table statistics used by the cost model, including
-histograms and distinct-value counts. See [Query Planning](/docs/query-planning)
-and [Automatic Analyze](/docs/automatic-analyze).
+`ANALYZE` rebuilds the table statistics the cost model reads — histograms and
+distinct-value counts. Run it after a bulk load or a large delete, when the
+planner's estimates no longer match the data. CamusDB also schedules this work
+itself; see [Automatic Analyze](/docs/automatic-analyze) and
+[Query Planning](/docs/query-planning).
+
+## Node-Level State
+
+Two more `SHOW` commands report on the node that served the statement rather
+than on your data. Both require a superuser when authentication is enabled.
+
+| Command | Reports | Page |
+| --- | --- | --- |
+| `SHOW VARIABLES` | Effective configuration, with each value's default and source layer. | [SHOW VARIABLES](/docs/show-variables) |
+| `SHOW ENGINE STATS` | Kahuna and Kommander metrics: workload, Raft, WAL, storage. | [Engine Stats](/docs/engine-stats) |
+
+Both accept a `LIKE` filter:
+
+```camussql
+SHOW VARIABLES LIKE "query_result_cache_%";
+SHOW ENGINE STATS LIKE 'raft.executor%';
+```
+
+`SHOW ENGINE STATS` does not require a selected database. Because both are
+node-local, run them against each node when comparing a cluster.

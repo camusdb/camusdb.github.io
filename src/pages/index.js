@@ -323,7 +323,7 @@ function FinalCallToAction() {
         <div>
           <p className={styles.sectionEyebrow}>Evaluate it for yourself</p>
           <Heading as="h2">See whether CamusDB fits your use case</Heading>
-          <p>Run it locally, follow the tutorial, and review the current scope.</p>
+          <p>Install the server from NuGet, run it locally, follow the tutorial, and review the current scope.</p>
         </div>
         <div className={styles.finalActions}>
           <Link className="button button--primary button--lg" to="/docs/intro">

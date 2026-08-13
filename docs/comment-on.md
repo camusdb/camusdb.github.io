@@ -11,6 +11,12 @@ query planning, row encoding, indexes, constraints, or transaction behavior.
 Use comments to document ownership, expected values, operational intent, and
 application-facing meaning directly next to the schema object.
 
+Comments are especially useful when CamusDB is accessed through the
+[CamusDB MCP server](/docs/mcp-server). AI agents can inspect schema metadata
+through MCP, and clear database, table, column, and index comments help them
+understand what each object is for before they generate queries or suggest
+changes.
+
 ## COMMENT ON
 
 Use `COMMENT ON` to set or update a comment after an object exists:
@@ -134,15 +140,30 @@ The comment is attached to the schema object, not only to the display name.
 A comment can be at most `65,535` characters. Longer comments fail with
 `CADB0511 CommentTooLong`.
 
-Comments that cannot be rendered back into parseable CamusSQL are rejected with
-`InvalidInput`. That includes raw control characters such as newlines and tabs,
-a trailing backslash, or a backslash immediately before a quote.
+Comments can contain quotes, backslashes, newlines, tabs, NUL, and other
+characters. CamusDB renders them back as parseable SQL in `SHOW CREATE TABLE`.
+Plain string literals are used when possible, and `E'...'` escape strings are
+used when a control character needs a spelling.
 
 Single quotes inside a comment are escaped by doubling them:
 
 ```camussql
 COMMENT ON COLUMN users.email IS 'The user''s email';
 ```
+
+Use `E'...'` when writing control characters directly:
+
+```camussql
+COMMENT ON TABLE users IS E'first line\nsecond line';
+COMMENT ON TABLE users IS 'C:\Users\data';
+```
+
+Malformed escape string literals, such as truncated `\x` or `\u` escapes,
+out-of-range `\U` escapes, or unpaired surrogate escapes, fail with
+`InvalidInput`.
+
+See [String Literals](/docs/data-types#string-literals) for the full literal
+rules.
 
 ## Notes
 
@@ -156,4 +177,3 @@ SELECT `comment` FROM posts;
 Only databases, tables, columns, and secondary indexes are currently supported.
 Primary-key index comments, constraints, branches, functions, and sequences do
 not have `COMMENT ON` forms.
-

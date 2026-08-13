@@ -19,22 +19,47 @@ If `raft_certificate` is configured, CamusDB reuses it for TLS on the gRPC
 listener. Otherwise the gRPC listener uses plaintext HTTP/2, which is suitable
 for local development and private test networks.
 
+When authentication is enabled, use the `CamusAuth` service to exchange a
+username and password for a bearer token. gRPC clients then send that token in
+request metadata:
+
+```text
+authorization: Bearer camus_<id>.<secret>
+```
+
+Authentication failures return `UNAUTHENTICATED`; privilege failures return
+`PERMISSION_DENIED`. See
+[Authentication And Authorization](/docs/sql-authentication).
+
 The Protobuf contract lives in the CamusDB source tree at
 `CamusDB.Grpc.Contracts/Protos/camus_sql.proto`. Generate client bindings from
 that file with the standard gRPC toolchain for your language.
 
 ## Services
 
-The protocol defines two services:
+The protocol defines three services:
 
 | Service | Use it for |
 | --- | --- |
 | `CamusSql` | SQL queries, DML, DDL, explicit transactions, ping, and duplex batching. |
 | `CamusRows` | Typed row CRUD without building SQL text. |
+| `CamusAuth` | Login and logout for authenticated gRPC clients. |
 
 Use `CamusSql` for most application and ORM work. Use `CamusRows` when a client
 already has structured row values, filters, and ordering and wants to avoid
 constructing SQL strings.
+
+## Auth Service
+
+`CamusAuth` provides the credential exchange used by gRPC-only deployments:
+
+| RPC | Purpose |
+| --- | --- |
+| `Login` | Accepts `LoginRequest { user, password }` and returns `LoginReply { token, expires_at_unix_ms, expires_in_seconds }`. |
+| `Logout` | Revokes the token supplied in `authorization` metadata. Missing or already-revoked tokens still produce the desired end state. |
+
+`expires_at_unix_ms` and `expires_in_seconds` describe the same deadline. Renew
+before that deadline instead of assuming a fixed token lifetime.
 
 ## SQL Service
 
@@ -42,13 +67,13 @@ constructing SQL strings.
 
 | RPC | Shape | Purpose |
 | --- | --- | --- |
-| `ExecuteQuery` | server stream | Execute `SELECT`; emits schema first, then rows. |
+| `ExecuteQuery` | server stream | Execute `SELECT` and `SHOW`; emits schema first, then rows. |
 | `ExecuteNonQuery` | unary | Execute `INSERT`, `UPDATE`, or `DELETE`; returns affected rows. |
 | `ExecuteDdl` | unary | Execute database, table, index, and schema statements. |
 | `StartTransaction` | unary | Start an explicit transaction and receive a `TxnHandle`. |
 | `CommitTransaction` | unary | Commit an explicit transaction by handle. |
 | `RollbackTransaction` | unary | Roll back an explicit transaction by handle. |
-| `BatchExecute` | bidirectional stream | Pipeline SQL operations and transaction lifecycle messages on one stream. |
+| `BatchExecute` | bidirectional stream | Pipeline SQL operations, transaction lifecycle messages, and prepared-statement lifecycle messages on one stream. |
 | `Ping` | unary | Check liveness and round-trip connectivity. |
 
 SQL parameters are sent as a `map<string, Value>`. Prefer parameters over SQL
@@ -122,12 +147,17 @@ QueryStreamMessage(schema)
 QueryStreamMessage(row)
 QueryStreamMessage(row)
 ...
+QueryStreamMessage(cache_metadata)
 ```
 
 The schema message is always first and appears exactly once, even when the
 result set is empty. Rows are positional: `row.values[i]` belongs to
 `schema.columns[i]`. Clients should take the column type from the schema, not
 from the first non-NULL row value.
+
+A query with a `{cache=...}` hint may append one trailing `cache_metadata`
+message after the last row. Its absence means the statement carried no cache
+hint.
 
 ## Transactions
 
@@ -150,9 +180,16 @@ CommitTransaction(txn_handle)
 - `isolation_level`: `READ_COMMITTED` or `SERIALIZABLE`
 - `transaction_mode`: `READ_WRITE` or `READ_ONLY`
 - `locking`: `PESSIMISTIC` or `OPTIMISTIC`
+- `priority`: `BACKGROUND`, `LOW`, `NORMAL`, `HIGH`, or `CRITICAL`
 
 When a request resumes an existing `txn_handle`, these fields are ignored
 because the transaction properties were fixed when the transaction started.
+For priority, `TRANSACTION_PRIORITY_UNSPECIFIED` means use the server default;
+it never means background.
+
+Row-level CRUD requests also accept `priority` when they start an autocommit
+transaction. See [Transaction Priority](/docs/transaction-priority) for
+admission semantics and configuration.
 
 ## Causal Tokens
 
@@ -179,7 +216,8 @@ pay one unary round trip per statement.
 Each request contains:
 
 - `request_id`: client-assigned id echoed by every response for that operation
-- `kind`: `QUERY`, `NON_QUERY`, `START`, `COMMIT`, or `ROLLBACK`
+- `kind`: `QUERY`, `NON_QUERY`, `START`, `COMMIT`, `ROLLBACK`, `PREPARE`, or
+  `CLOSE`
 - `request`: the same `SqlRequest` shape used by unary SQL calls
 
 Responses for different `request_id` values may interleave and arrive out of
@@ -194,8 +232,9 @@ query_complete
 ```
 
 `query_complete` is the terminal message for that request and carries the row
-count plus causal token. Non-query, start, commit, and rollback operations each
-emit one terminal success response. Failed operations emit one terminal
+count plus causal token. For a `{cache=...}` hinted query, `query_complete`
+also carries the cache verdict. Non-query, start, commit, and rollback
+operations each emit one terminal success response. Failed operations emit one terminal
 `BatchError { code, message }`.
 
 Operations that share the same transaction handle are ordered per batch stream.
@@ -204,6 +243,33 @@ to the same stream. Autocommit operations can use any stream.
 
 `grpc_batch_max_in_flight` controls how many operations one batch stream may
 execute concurrently before the server applies backpressure.
+
+## Prepared Statements
+
+Prepared statements are supported on `CamusSql.BatchExecute`.
+
+Send a `PREPARE` operation with the target database and SQL text. The terminal
+`PrepareReply` returns:
+
+- `statement_id`: an integer handle scoped to that batch stream
+- `parameter_names`: the positional binding order for placeholders
+
+Then send `QUERY` or `NON_QUERY` operations with `statement_id` and
+`positional_parameters`. When `statement_id` is set, do not also send SQL text,
+database name, or named parameter maps.
+
+Use `CLOSE` to release a prepared statement id on the stream. `CLOSE` is
+idempotent.
+
+Handles are stream-local and disappear when the `BatchExecute` stream closes or
+is rebuilt. If an execution fails with `CADB0520` `UnknownPreparedStatement`,
+prepare again on the current stream and replay the operation once. Await the
+`PrepareReply` before executing with its id; batch requests may otherwise run
+concurrently and the execution can reach the server before registration.
+
+Unary gRPC calls do not accept prepared handles because they have no stream
+scope. See [Prepared Statements](/docs/prepared-statements) for supported
+statement types, binding rules, and configuration limits.
 
 ## Errors And Retries
 
@@ -226,6 +292,7 @@ Retry by `camus-error-code`, not by message text:
 | `CADB0504` `TransactionMustRetry` | Replay the whole transaction from a fresh `BEGIN`. |
 | `CADB0505` `TransactionLifetimeExceeded` | Replay the whole transaction from a fresh `BEGIN`. |
 | `CADB0509` `TransactionFinalizeUnresolved` | Retry the same `COMMIT` or `ROLLBACK` on the same transaction handle. |
+| `CADB0520` `UnknownPreparedStatement` | Prepare again on the current node or stream, then replay the execution once. |
 
 For streaming queries, only replay automatically if no rows have been surfaced
 to the caller yet. Once rows have been emitted, surface the error to the caller
@@ -236,5 +303,5 @@ instead of silently replaying the query.
 - [HTTP API](/docs/http-api)
 - [Configuration](/docs/configuration)
 - [Transactions And Isolation](/docs/serializable-transactions)
-- [Serializable Retries](/docs/serializable-retries)
+- [Retries And Conflicts](/docs/serializable-retries)
 - [Error Codes](/docs/error-codes)

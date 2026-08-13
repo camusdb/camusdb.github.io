@@ -235,7 +235,7 @@ When `SET NOT NULL` creates an unnamed constraint, CamusDB stores it as
 
 ## Related Pages
 
-- [Tables And Schema](/docs/sql-schema)
+- [Tables And Columns](/docs/sql-schema)
 - [Data Types](/docs/data-types)
-- [Writing Data](/docs/sql-writes)
+- [Insert, Update, Delete](/docs/sql-writes)
 - [Error Codes](/docs/error-codes)

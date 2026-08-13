@@ -2,15 +2,22 @@
 sidebar_position: 2.45
 ---
 
-# FROM-less SELECT
+# SELECT Without FROM
 
-CamusDB supports `SELECT` statements without a `FROM` clause. The statement
-evaluates the projection list against one synthetic row, so it returns exactly
-one row unless `LIMIT` / `OFFSET` skips it.
+A `SELECT` with no `FROM` evaluates its projection list against one synthetic
+row, so it returns exactly one row:
 
-This is useful for application probes, ORM-generated utility SQL, parameter
-checks, scalar function calls, casts, and simple existence checks that do not
-need an outer table.
+```camussql
+SELECT 1 + 1;
+```
+
+Most often you reach for this without thinking about it — a connection health
+probe, a cast you want to sanity-check, or the utility SQL an ORM emits on its
+own. It is also the shortest way to ask a yes/no question of the database:
+
+```camussql
+SELECT EXISTS (SELECT 1 FROM accounts WHERE email = @email);
+```
 
 ## Supported Forms
 
@@ -50,7 +57,7 @@ Both examples return zero rows.
 
 ## Projection Subqueries
 
-A subquery inside the projection of a FROM-less `SELECT` is evaluated first and
+A subquery inside the projection of a `SELECT` without `FROM` is evaluated first and
 then replaced with its scalar result:
 
 ```camussql
@@ -92,13 +99,13 @@ SELECT (
 ) > 0;
 ```
 
-Because a FROM-less `SELECT` has no outer row, these projection subqueries are
+Because a `SELECT` without `FROM` has no outer row, these projection subqueries are
 uncorrelated. Correlated projection subqueries in table-backed `SELECT`
 statements are a separate query shape.
 
 ## Rejected Shapes
 
-FROM-less `SELECT` is intentionally limited to projection evaluation plus
+A `SELECT` without `FROM` is intentionally limited to projection evaluation plus
 optional `LIMIT` and `OFFSET`.
 
 | Query shape | Result |
@@ -113,7 +120,7 @@ optional `LIMIT` and `OFFSET`.
 
 ## EXPLAIN
 
-Plain `EXPLAIN` for a FROM-less `SELECT` returns a fixed plan shape:
+Plain `EXPLAIN` for a `SELECT` without `FROM` returns a fixed plan shape:
 
 ```camussql
 EXPLAIN SELECT 41 + 1 AS answer;
@@ -128,5 +135,5 @@ physical  constant-source  1 row
 
 When `LIMIT` or `OFFSET` is present, a `limit` node is included.
 
-`EXPLAIN (ANALYZE)` is rejected for FROM-less `SELECT` because there is no table
+`EXPLAIN (ANALYZE)` is rejected for a `SELECT` without `FROM` because there is no table
 access to measure. Use plain `EXPLAIN` for this query shape.

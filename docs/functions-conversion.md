@@ -28,7 +28,7 @@ FROM robots;
 | `to_bool(value)` | `BOOL` | Converts `BOOL` or text equal to `true` or `false`, case-insensitively. |
 | `to_date(value)` | `DATE` | Converts a date/datetime value or `yyyy-MM-dd` text to a date. |
 | `to_datetime(value)` | `DATETIME` | Converts a date/datetime value or ISO-8601 text to a UTC datetime. |
-| `to_bytes(value)` | `BYTES` | Converts bytes or `0x`-prefixed hex text to bytes. |
+| `to_bytes(value)` | `BYTES` | Converts bytes or `0x`-prefixed hex text to bytes. SQL bytes literals can be written directly as `X'...'`. |
 | `to_id(value)` | `OID` | Converts an `OID` or a 24-character lowercase hex string to an object id. |
 | `str_id(value)` | `OID` | Alias for `to_id(value)`. |
 
@@ -56,6 +56,8 @@ SELECT to_int64("42"), to_float64("42.5"), to_bool("TrUe");
 -- 42, 42.5, true
 
 SELECT to_date("2026-03-15"), to_datetime("2026-03-15T12:00:00Z");
+
+SELECT X'DEADBEEF';
 
 SELECT CAST("0xDEADBEEF" AS bytes);
 

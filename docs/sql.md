@@ -2,80 +2,11 @@
 sidebar_position: 2
 ---
 
-# SQL
+# SQL Overview
 
-CamusDB uses a compact SQL dialect for database lifecycle, schema changes,
-writes, reads, indexes, and transactions.
-
-SQL keywords are case-insensitive.
-
-## Identifiers
-
-CamusDB stores database, table, column, and index names in the exact case used
-when they are created. Later references match those names case-insensitively.
-
-```camussql
-CREATE TABLE Robots (
-  Id OID PRIMARY KEY NOT NULL,
-  RobotName STRING NOT NULL
-);
-
-INSERT INTO robots (id, robotname) VALUES (GEN_ID(), "R2-D2");
-SELECT ROBOTNAME FROM ROBOTS;
-```
-
-The table still displays as `Robots`, and the columns still display as `Id` and
-`RobotName`, but `robots`, `ROBOTS`, and `Robots` all refer to the same table.
-Names are also unique case-insensitively, so `Robots` and `robots` cannot exist
-as two different tables in the same database.
-
-Use backticks when an identifier would otherwise conflict with a reserved SQL
-keyword, type name, or function name.
-
-```camussql
-CREATE TABLE `order` (
-  `select` STRING NOT NULL,
-  `from` STRING
-);
-
-SELECT `select`, `from`
-FROM `order`;
-```
-
-For example, `CASE` and `END` are reserved keywords. Use backticks for a column
-named `end`, such as ``SELECT `end` FROM events``.
-
-Backticks escape identifiers only. String literals use single quotes or double
-quotes:
-
-```camussql
-SELECT "literal text", 'literal text';
-```
-
-## Statement Reference
-
-| Area | Page |
-| --- | --- |
-| Database lifecycle | [Databases](/docs/databases) |
-| Recover dropped databases and tables | [Recover Dropped Objects](/docs/recover-dropped-objects) |
-| Database branching | [Database Branching](/docs/database-branching) |
-| Tables, columns, and schema changes | [Tables And Schema](/docs/sql-schema) |
-| Database, table, column, and index comments | [Schema Comments](/docs/comment-on) |
-| Check and not-null constraints | [Check Constraints](/docs/check-constraints) |
-| Column types and literal formats | [Data Types](/docs/data-types) |
-| Indexes, covering indexes, and index DDL | [Indexes](/docs/sql-indexes) |
-| Inserts, updates, and deletes | [Writing Data](/docs/sql-writes) |
-| SELECT, filters, grouping, and ordering | [Querying Data](/docs/sql-queries) |
-| Historical `SELECT` snapshots | [Time-Travel Reads](/docs/time-travel-reads) |
-| FROM-less SELECT | [FROM-less SELECT](/docs/sql-fromless-select) |
-| Query result caching | [Query Result Cache](/docs/query-result-cache) |
-| Planner statistics and automatic analyze | [Automatic Analyze](/docs/automatic-analyze) |
-| Transactions | [SQL Transactions](/docs/sql-transactions) |
-| SHOW, DESCRIBE, and EXPLAIN | [Schema Inspection](/docs/sql-inspection) |
-| Parameter placeholders | [SQL Parameters](/docs/sql-parameters) |
-| SQL comments | [SQL Comments](/docs/sql-comments) |
-
-## Common Workflow
+CamusDB speaks a compact SQL dialect covering database lifecycle, schema
+changes, writes, reads, indexes, and transactions. If you know SQL, most of it
+will look familiar; this page covers the parts that are specific to CamusDB.
 
 ```camussql
 CREATE DATABASE IF NOT EXISTS app;
@@ -97,17 +28,125 @@ WHERE year >= 1970
 ORDER BY year DESC;
 ```
 
-## Query Features
+## Identifiers And Case
 
-For joins, subqueries, derived tables, grouped aggregate behavior, table hints,
-and planner notes, see [Query Features](/docs/query-features).
+Keywords are case-insensitive. Database, table, column, and index names are
+**stored in the case you create them in, and matched case-insensitively
+afterwards**:
 
-For utility `SELECT` statements without a table source, see
-[FROM-less SELECT](/docs/sql-fromless-select).
+```camussql
+CREATE TABLE Robots (
+  Id OID PRIMARY KEY NOT NULL,
+  RobotName STRING NOT NULL
+);
 
-For historical read-only snapshots, see
-[Time-Travel Reads](/docs/time-travel-reads).
+INSERT INTO robots (id, robotname) VALUES (GEN_ID(), "R2-D2");
+SELECT ROBOTNAME FROM ROBOTS;
+```
 
-For plan selection and plan inspection, see [Query Planning](/docs/query-planning)
-and [Explaining Queries And Commands](/docs/explain). For opt-in caching of
-repeated single-table reads, see [Query Result Cache](/docs/query-result-cache).
+Results still display the original `Robots`, `Id`, and `RobotName`, but
+`robots`, `ROBOTS`, and `Robots` all address the same table. Names are unique
+case-insensitively too, so `Robots` and `robots` cannot coexist as two tables in
+one database.
+
+### Backticks
+
+Use backticks when an identifier collides with a reserved keyword, type name, or
+function name:
+
+```camussql
+CREATE TABLE `order` (
+  `select` STRING NOT NULL,
+  `from` STRING
+);
+
+SELECT `select`, `from`
+FROM `order`;
+```
+
+`CASE` and `END` are reserved, so a column named `end` needs
+``SELECT `end` FROM events``.
+
+## Literals
+
+Backticks quote identifiers only. String literals take single or double quotes,
+interchangeably:
+
+```camussql
+SELECT "literal text", 'literal text';
+```
+
+See [Data Types](/docs/data-types) for the literal format of every type,
+including temporal values, arrays, and object ids.
+
+## Comments
+
+Both comment forms are accepted anywhere whitespace is valid — before a
+statement, between clauses, or at the end of a line.
+
+```camussql
+-- Line comments run to the end of the line.
+SELECT id, name
+FROM robots
+WHERE year >= 1980; -- only newer robots
+
+/*
+  Block comments span multiple lines.
+*/
+SELECT id, name
+FROM robots /* or sit inline */
+WHERE active = true;
+```
+
+Block comments do not nest — the first `*/` closes the comment, and an
+unterminated one is a parse error. Comment markers inside string literals are
+just text:
+
+```camussql
+SELECT "not -- a comment" AS value;
+```
+
+One subtlety: `--` always starts a comment, so `SELECT 10 FROM t --5` parses as
+`SELECT 10 FROM t`. Write `10 - -5` with a space to subtract a negative number.
+
+## Statement Map
+
+**Schema**
+
+| Task | Page |
+| --- | --- |
+| Databases, create and drop | [Databases](/docs/databases) |
+| Branching a database | [Database Branching](/docs/database-branching) |
+| Restoring dropped databases and tables | [Recover Dropped Objects](/docs/recover-dropped-objects) |
+| Tables, columns, and `ALTER` | [Tables And Columns](/docs/sql-schema) |
+| Column types and literals | [Data Types](/docs/data-types) |
+| `CHECK` and `NOT NULL` | [Check Constraints](/docs/check-constraints) |
+| Indexes, including covering indexes | [Indexes](/docs/sql-indexes) |
+| Descriptions on schema objects | [Schema Comments](/docs/comment-on) |
+| Stored queries | [Views](/docs/views) |
+| Stored query results | [Materialized Views](/docs/materialized-views) |
+
+**Reading and writing**
+
+| Task | Page |
+| --- | --- |
+| `INSERT`, `UPDATE`, `DELETE` | [Insert, Update, Delete](/docs/sql-writes) |
+| `INSERT ... SELECT` and CTAS | [Copying Query Results](/docs/insert-select-and-ctas) |
+| `SELECT`, filters, grouping, ordering | [SELECT](/docs/sql-queries) |
+| Joins, subqueries, derived tables | [Joins And Subqueries](/docs/joins-and-subqueries) |
+| Historical snapshots | [Time-Travel Reads](/docs/time-travel-reads) |
+| `SELECT` with no table source | [SELECT Without FROM](/docs/sql-fromless-select) |
+| Scalar functions | [Functions](/docs/functions) |
+| Row expiration | [Row-Level TTL](/docs/row-level-ttl) |
+
+**Transactions, performance, and inspection**
+
+| Task | Page |
+| --- | --- |
+| `BEGIN`, `COMMIT`, isolation, locking | [Transactions In SQL](/docs/sql-transactions) |
+| How plans are chosen | [Query Planning](/docs/query-planning) |
+| Reading a plan | [EXPLAIN](/docs/explain) |
+| Caching repeated reads | [Result Cache](/docs/query-result-cache) |
+| Placeholders and prepared handles | [Parameters And Prepared Statements](/docs/prepared-statements) |
+| `SHOW`, `DESCRIBE`, `ANALYZE` | [Inspecting The Database](/docs/sql-inspection) |
+| Grants and roles | [Authentication And Authorization](/docs/sql-authentication) |

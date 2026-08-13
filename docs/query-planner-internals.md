@@ -4,11 +4,9 @@ sidebar_position: 6.5
 
 # Query Planner Internals
 
-This page is the internal companion to the user-facing
-[Query Planning](/docs/query-planning) and
-[Explaining Queries And Commands](/docs/explain) docs. It describes how
-CamusDB turns SQL text into a physical plan and then executes that plan against
-the KV layer.
+How CamusDB turns SQL text into a physical plan, and then executes that plan
+against the KV layer. For the user-facing view, read
+[Query Planning](/docs/query-planning) and [EXPLAIN](/docs/explain) instead.
 
 ## Mental Model
 
@@ -25,7 +23,7 @@ declarative SQL query into a concrete execution plan:
 CamusDB has a rule-based planner plus a cost-based optimizer stack. The cost
 model annotates plans, drives some decisions unconditionally, and can take over
 broader access-path and join-order search when the corresponding config flags
-are enabled.
+are enabled. Those broad cost-based flags are enabled by default.
 
 The optimizer stack is:
 
@@ -34,8 +32,8 @@ The optimizer stack is:
    min/max bounds.
 3. A weighted cost model for KV lookups, range entries, primary-row fetches,
    in-memory work, and network cost.
-4. Plan search for access paths and join order when the cost-based flags are
-   enabled.
+4. Plan search for access paths and join order through the cost-based flags,
+   which are enabled by default.
 
 ## Pipeline
 
@@ -148,8 +146,8 @@ It analyzes the predicate and tries to choose:
 - Column-to-column comparisons.
 - Residual conjuncts.
 
-`IndexScanSelector` can operate in two modes. The default mode scores usable
-indexes with heuristic rules such as:
+`IndexScanSelector` can operate in two modes. The heuristic mode scores usable
+indexes with rules such as:
 
 - Unique full equality beats everything else.
 - Non-unique equality and equality-prefix matches are strong candidates.
@@ -157,11 +155,11 @@ indexes with heuristic rules such as:
 - Matching `ORDER BY` prefixes can win even without a filtering predicate.
 - Indexed `IN (...)` lists can compete with range scans and full scans.
 
-When `cost_based_access_path_enabled` is enabled and table statistics are
-available, the planner instead enumerates every viable scan candidate plus the
-full-scan baseline, estimates each candidate's cost, and keeps the cheapest.
-`UPDATE` and `DELETE` locate scans keep the heuristic path to avoid widening
-exclusive lock ranges unexpectedly.
+Because `cost_based_access_path_enabled` defaults to `true`, the planner uses
+cost-based access selection when table statistics are available. It enumerates
+every viable scan candidate plus the full-scan baseline, estimates each
+candidate's cost, and keeps the cheapest. `UPDATE` and `DELETE` locate scans
+keep the heuristic path to avoid widening exclusive lock ranges unexpectedly.
 
 ### 2. Filter absorption
 
@@ -377,9 +375,9 @@ The planner already includes several concrete passes:
 - Heuristic join reordering.
 - Cost-based veto for low-selectivity index range scans.
 - Cost-assisted join algorithm selection for eligible equi-joins.
-- Cost-based access-path enumeration behind
+- Cost-based access-path enumeration through
   `cost_based_access_path_enabled`.
-- Cost-based join-order enumeration behind `cost_based_join_order_enabled`.
+- Cost-based join-order enumeration through `cost_based_join_order_enabled`.
 
 ## Cost Model Status
 
@@ -420,7 +418,7 @@ Important current limitations from the source design:
 - `EXPLAIN (ANALYZE)` for joins is missing.
 - `EXPLAIN (LOGICAL)` is mostly cosmetic today.
 - Descending-order exploitation is limited.
-- Cost-based access-path and join-order search are opt-in.
+- Cost-based access-path and join-order search are enabled by default.
 - The join-order DP is left-deep and does not yet keep multiple interesting
   order/distribution alternatives per subset.
 

@@ -47,7 +47,7 @@ committed.
 
 The important distinction is that CamusDB does not accept conflicting writes on
 independent replicas. It uses consensus-backed partitions so a committed write
-has a single agreed-upon outcome. See [Multi-Active Availability](/docs/multi-active-availability).
+has a single agreed-upon outcome. See [Cluster Mode](/docs/cluster).
 
 ## Horizontal Scale
 
@@ -132,19 +132,19 @@ Supported SQL includes:
   `ORDER BY`, `LIMIT`, and `OFFSET`.
 - `COUNT`, `SUM`, `AVG`, `MIN`, and `MAX`.
 
-See [Query Features](/docs/query-features) for examples.
+See [SELECT](/docs/sql-queries) and [Joins And Subqueries](/docs/joins-and-subqueries)
+for examples.
 
 ## Standalone or Clustered
 
 Use standalone mode for development and quick experiments:
 
 ```bash
-docker run --rm \
-        -p 5095:5095 \
-        -p 5096:5096 \
-        -v camus-data:/data \
-        --name camusdb camusdb/camusdb:latest
+dotnet tool install --global CamusDB.Server
+camusdb
 ```
+
+Docker remains available when you want a containerized node.
 
 Use cluster mode when you want to test distributed behavior:
 

@@ -241,4 +241,5 @@ ordered scans, indexed joins, and covered index-only reads through `INCLUDE`
 columns.
 
 For planner behavior, see [Query Planning](/docs/query-planning). For query
-syntax examples that use indexes, see [Query Features](/docs/query-features).
+syntax examples that use indexes, see [SELECT](/docs/sql-queries) and
+[Joins And Subqueries](/docs/joins-and-subqueries).

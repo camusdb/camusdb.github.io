@@ -2,7 +2,7 @@
 sidebar_position: 3.2
 ---
 
-# Explaining Queries And Commands
+# EXPLAIN
 
 `EXPLAIN` shows how CamusDB plans a query. It is the main user-facing tool for
 understanding whether a query uses a table scan, index lookup, index range
@@ -41,7 +41,7 @@ Behavior:
 - `EXPLAIN` output is diagnostic. It is useful for people, not a stable format
   for application logic.
 - `EXPLAIN (ANALYZE)` is not supported for `JOIN` queries yet.
-- `EXPLAIN (ANALYZE)` is not supported for FROM-less `SELECT` statements
+- `EXPLAIN (ANALYZE)` is not supported for `SELECT` statements without a `FROM` clause
   because there is no table access to measure.
 - Queries with uncorrelated subqueries can still read storage during planning,
   because CamusDB may evaluate the inner subquery before producing the final
@@ -65,11 +65,11 @@ row counts, observed indexed-column bounds, histograms, and distinct-value
 counts collected by manual or automatic `ANALYZE`.
 
 `estimated_rows` and `estimated_cost` are the same values used by CamusDB's
-cost-based optimizer. With the default rule-based search path, they explain the
-plan that the heuristic planner selected. When
-`cost_based_access_path_enabled` or `cost_based_join_order_enabled` is enabled,
-they also help explain why the optimizer chose one index, full scan, join
-algorithm, or join order over another.
+cost-based optimizer. Because cost-based access-path and join-order search are
+enabled by default, they help explain why the optimizer chose one index, full
+scan, join algorithm, or join order over another. If a cost-based flag is
+disabled or a query falls outside the current CBO search envelope, the same
+columns explain the heuristic plan that CamusDB selected.
 
 ### EXPLAIN ANALYZE
 
@@ -107,7 +107,7 @@ These are the main node names you will see:
 | `hash-join` | Inner equi-join using an in-memory hash table. |
 | `merge-join` | Inner equi-join that streams ordered inputs by join key. |
 | `derived-table-scan` | Scan of a derived table from `FROM (SELECT ...) alias`. |
-| `constant-source` | The single synthetic row used by a FROM-less `SELECT`. |
+| `constant-source` | The single synthetic row used by a `SELECT` without `FROM`. |
 
 ## Informational Rows
 
@@ -153,7 +153,7 @@ outcomes are reported in the query response metadata, such as `cacheStatus` and
 
 The plan shown by `EXPLAIN` reflects the active optimizer configuration.
 CamusDB always annotates planned nodes with estimated row counts and costs when
-it can. The broader search passes are opt-in:
+it can. The broader search passes are enabled by default:
 
 ```yaml
 cost_based_access_path_enabled: true
@@ -166,8 +166,8 @@ For best results, collect statistics first:
 ANALYZE TABLE robots;
 ```
 
-Automatic analyze can also keep stale table statistics fresh in the background
-where it is enabled. See [Automatic Analyze](/docs/automatic-analyze).
+Automatic analyze also keeps stale table statistics fresh in the background by
+default. See [Automatic Analyze](/docs/automatic-analyze).
 
 With cost-based access paths enabled, a query may choose a different index or a
 full table scan than the rule-based planner would have chosen. With cost-based
@@ -454,6 +454,6 @@ If the plan is not what you want, the usual fixes are:
 ## Related Pages
 
 Read [Query Planning](/docs/query-planning) for user-facing planner behavior,
-[Query Features](/docs/query-features) for the SQL surface, and
+[SELECT](/docs/sql-queries) for the SQL surface, and
 [Query Planner Internals](/docs/query-planner-internals) for the internal
 pipeline and implementation model.

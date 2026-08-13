@@ -19,7 +19,7 @@ dotnet add package CamusDB.Client
 
 Create a `CamusConnection` with a connection string containing:
 
-- `Endpoint`: the base CamusDB HTTP endpoint
+- `Endpoint`: the base CamusDB endpoint
 - `Database`: the database name to use
 
 ```csharp
@@ -36,9 +36,16 @@ Supported keys:
 
 | Key | Required | Description |
 | --- | --- | --- |
-| `Endpoint` | Yes | Base URL for the CamusDB node. |
+| `Endpoint` | Yes | Base URL for the CamusDB node. Use the REST port by default, or the gRPC port when `Protocol=grpc`. |
 | `Database` | Yes | Database name sent on requests. |
-| `Timeout` | No | HTTP request timeout in seconds. Defaults to `10`. |
+| `Timeout` | No | Request timeout in seconds. Defaults to `10`. |
+| `Protocol` | No | Wire protocol: `rest` by default, or `grpc`. |
+| `User` | No | User to authenticate as. Aliases: `UserId`, `Uid`, `Username`. |
+| `Password` | No | Password for `User`. Alias: `Pwd`. |
+| `AccessToken` | No | Bearer token obtained elsewhere. Used directly instead of logging in. |
+| `TokenLifetime` | No | Fallback seconds to reuse a token if the server does not report expiry. Defaults to `600`. |
+| `MaxAutoPrepare` | No | Maximum statements the driver keeps prepared. Defaults to `128`; `0` disables automatic preparation. |
+| `AutoPrepareMinUsages` | No | Executions of the same SQL before the driver prepares it. Defaults to `2`. |
 
 `Endpoint` can also be a comma-separated pool:
 
@@ -49,6 +56,41 @@ Endpoint=http://localhost:5095,http://localhost:5096,http://localhost:5097;Datab
 The client uses round-robin routing across endpoints. If one endpoint becomes
 unreachable, it is marked unhealthy and skipped by later requests that use the
 same connection-string builder.
+
+## Authentication
+
+CamusDB authentication is off by default. A connection string without
+credentials sends no `Authorization` header. Against a server with
+authentication enabled, add `User` and `Password`:
+
+```csharp
+CamusConnectionStringBuilder builder = new(
+    "Endpoint=https://db.example.com:7141;Database=app;User=myapp;Password=app-secret");
+```
+
+The driver exchanges the password once for a short-lived bearer token, using
+REST `/login` on REST connections and the `CamusAuth` service on gRPC
+connections. Statements then send the token, not the password. The token is
+cached for the credential set and renewed from the expiry reported by the
+server.
+
+You can also log in explicitly when the password comes from a secret manager:
+
+```csharp
+await using CamusConnection connection = new(
+    new CamusConnectionStringBuilder("Endpoint=https://db.example.com:7141;Database=app"));
+
+await connection.OpenAsync();
+string token = await connection.LoginAsync("myapp", passwordFromSecretManager);
+await connection.LogoutAsync();
+```
+
+`AccessToken=...` uses a token obtained elsewhere and does not renew it. If that
+token expires or is revoked, the server returns `CADB0516`.
+
+Use `https://` for non-loopback authenticated deployments. See
+[Authentication And Authorization](/docs/sql-authentication) for server setup,
+grants, and TLS behavior.
 
 ## Open A Connection
 
@@ -249,6 +291,73 @@ Dates and datetimes are normalized to UTC before they are sent. `DATE` values
 are stored at midnight UTC. `DATETIME` values are read back with
 `DateTimeKind.Utc`.
 
+## Prepared Statements
+
+The driver prepares repeated SQL statements automatically. Once the same SQL
+shape has been executed enough times, later executions run as prepared
+statements without changing application code.
+
+```csharp
+for (int i = 0; i < 100; i++)
+{
+    await using CamusCommand select = connection.CreateSelectCommand(
+        "SELECT name FROM robots WHERE year = @year");
+
+    select.Parameters.Add("@year", ColumnType.Integer64, 1984);
+
+    await using CamusDataReader reader = await select.ExecuteReaderAsync();
+    while (await reader.ReadAsync())
+        Console.WriteLine(reader.GetString(0));
+}
+```
+
+By default, the first execution runs inline and the second execution prepares
+the statement. Tune the policy in the connection string:
+
+```csharp
+CamusConnectionStringBuilder eager = new(
+    "Endpoint=http://localhost:5095;Database=test;MaxAutoPrepare=512;AutoPrepareMinUsages=1");
+
+CamusConnectionStringBuilder off = new(
+    "Endpoint=http://localhost:5095;Database=test;MaxAutoPrepare=0");
+```
+
+Call `Prepare()` or `PrepareAsync()` when you already know a statement is hot:
+
+```csharp
+await using CamusCommand insert = connection.CreateCamusCommand("""
+    INSERT INTO robots (id, name, year)
+    VALUES (GEN_ID(), @name, @year)
+    """);
+
+await insert.PrepareAsync();
+
+foreach (Robot robot in robots)
+{
+    insert.Parameters.Clear();
+    insert.Parameters.Add("@name", ColumnType.String, robot.Name);
+    insert.Parameters.Add("@year", ColumnType.Integer64, robot.Year);
+
+    await insert.ExecuteNonQueryAsync();
+}
+```
+
+Prepared execution preserves the same transaction, isolation, locking,
+affected-row, and query-result-cache behavior as inline execution. Parameters
+are still bound by name in the ADO.NET API; the driver maps them to the
+server's positional binding order.
+
+Only `SELECT`, `INSERT`, `UPDATE`, `DELETE`, and `SHOW` statements are
+preparable. If a statement cannot be prepared, the driver runs it inline.
+Unknown server handles are handled transparently by preparing again and
+replaying once.
+
+`CamusConnectionStringBuilder.PreparedStatementCount` and `IsPrepared(sql)` are
+available for diagnostics.
+
+See [Prepared Statements](/docs/prepared-statements) for the server-side handle
+scope, REST/gRPC lifecycle, and limits.
+
 ## Data Types
 
 The ADO.NET driver covers CamusDB's current scalar and array type surface:
@@ -434,8 +543,8 @@ The helper's default backoff is bounded exponential delay with jitter:
 
 ## ADO.NET Notes
 
-- The provider uses HTTP under the hood. CamusDB also exposes a separate
-  [gRPC API](/docs/grpc-api) for protocol-level clients.
+- The provider can use REST/JSON or gRPC with the same ADO.NET surface. Select
+  gRPC with `Protocol=grpc` and point `Endpoint` at the gRPC listener.
 - `Cancel()` is cooperative through cancellation tokens.
 - Concurrent reads can share a connection session.
 - Transaction-scoped commands are pinned to the transaction endpoint, which is

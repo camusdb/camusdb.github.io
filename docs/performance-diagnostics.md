@@ -9,13 +9,19 @@ server exports Prometheus metrics and optional sampled OpenTelemetry traces so
 you can connect a workload result to server stages such as request handling,
 SQL execution, scans, transaction commit, and WAL activity.
 
+For quick SQL-based inspection of embedded
+[Kahuna](https://kahunakv.github.io/) and
+[Kommander](https://kahunakv.github.io/kommander.github.io/) engine metrics,
+use [`SHOW ENGINE STATS`](/docs/engine-stats). It is independent from the
+Prometheus/OpenTelemetry exporter path documented here.
+
 Diagnostics are off by default. With `diagnostics.enabled: false`, CamusDB
 registers no exporter, endpoint, or background collector. The current
 diagnostics path is for standalone nodes.
 
 ## Enable Diagnostics
 
-Add a `diagnostics` section to `Config/config.yml`:
+Add a `diagnostics` section to the selected `config.yml` file:
 
 ```yaml
 diagnostics:
@@ -74,15 +80,36 @@ The diagnostics exporter also subscribes to embedded dependency and runtime
 meters:
 
 - [Kahuna](https://kahunakv.github.io/) metrics, including KV write batches,
-  write entries, and durable transaction counters.
+  write entries, durable transaction counters, and transaction admission
+  gauges.
 - [Kommander](https://kahunakv.github.io/kommander.github.io/) metrics,
   including Raft WAL batches, WAL operations, batch size, executor duration,
   and client queue depth.
+- Row-level TTL counters, including expired rows, re-check skips, completed
+  spans, and planned runs.
 - .NET runtime metrics, including GC, heap, allocation, thread-pool, and
   process metrics.
 
 These signals are useful when a run is limited by WAL fsync latency, storage
 batch density, runtime pressure, scan cost, or request concurrency.
+
+## SQL Engine Stats
+
+`SHOW ENGINE STATS` exposes a live node-local snapshot of embedded engine
+metrics:
+
+```camussql
+SHOW ENGINE STATS;
+SHOW ENGINE STATS LIKE 'raft.wal%';
+SHOW ENGINE STATS LIKE 'kahuna.kv.write%';
+```
+
+Use it when you need immediate operational visibility from SQL without first
+configuring a scrape endpoint or trace collector. The statement is controlled
+by `engine_metrics_enabled`, not by `diagnostics.enabled`.
+
+See [Engine Stats](/docs/engine-stats) for permissions, result columns, and
+metric examples.
 
 ## Traces
 
@@ -142,4 +169,3 @@ scripts/diagnostics-overhead.sh /tmp/camus-diagnostics-overhead \
 It alternates diagnostics-disabled and diagnostics-enabled runs and reports the
 median throughput delta. Measure overhead on the same machine, data shape, and
 server build you plan to compare.
-

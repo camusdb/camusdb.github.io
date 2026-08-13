@@ -10,12 +10,61 @@ This tutorial uses `camus-cli`, the interactive SQL shell. It walks through the 
 
 For a higher-level overview of why CamusDB is built as a distributed SQL database, start with [Why CamusDB?](/docs/why-camusdb).
 
+## Video Walkthrough
+
+<div className="video-embed">
+  <iframe
+    src="https://www.youtube.com/embed/ZgoMD2gXaWA"
+    title="CamusDB tutorial video"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  />
+</div>
+
 ## Start CamusDB
 
-Start CamusDB in standalone mode for local use:
+CamusDB ships as a .NET global tool. With the [.NET runtime](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) installed,
+install the server and start a standalone node:
 
 ```bash
-docker run --rm \
+$ dotnet tool install --global CamusDB.Server
+$ camusdb
+```
+
+The `camusdb` command starts with built-in defaults when no configuration file
+exists. It stores data under the user data directory and listens on HTTP port
+`5095` and gRPC port `5096`:
+
+```bash
+   ____                          ____  ____
+  / ___|__ _ _ __ ___  _   _ ___|  _ \| __ )
+ | |   / _` | '_ ` _ \| | | / __| | | |  _ \
+ | |__| (_| | | | | | | |_| \__ \ |_| | |_) |
+  \____\__,_|_| |_| |_|\__,_|___/____/|____/
+
+Configuration: built-in defaults (no configuration file found)
+Data directory: /Users/andresgutierrez/.local/share/camusdb
+```
+
+Upgrade the installed server with:
+
+```bash
+$ dotnet tool update --global CamusDB.Server
+```
+
+To create a user-owned starter configuration, run:
+
+```bash
+$ camusdb init
+```
+
+That writes `~/.camusdb/config.yml` and creates the default data directory.
+After editing the file, run `camusdb` again.
+
+Alternatively, start CamusDB with Docker:
+
+```bash
+$ docker run --rm \
         -p 5095:5095 \
         -p 5096:5096 \
         -v camus-data:/data \
@@ -25,18 +74,22 @@ docker run --rm \
 Install the SQL shell:
 
 ```bash
-dotnet tool install --global CamusDB.SqlSh
+$ dotnet tool install --global CamusDB.SqlSh
 ```
 
 Then open the SQL shell in another terminal:
 
 ```bash
-camus-cli
+$ camus-cli
 ```
 
 You should see an interactive prompt:
 
 ```camussql
+CamusDB SQL Shell 0.9.7
+
+Connected to http://localhost:5096 over gRPC, database: (none)
+
 camus>
 ```
 
@@ -270,5 +323,7 @@ WHERE name = "K-2SO";
 | `ARRAY(T)` | Ordered lists of scalar values. |
 
 Continue with the [SQL overview](/docs/sql), [Data Types](/docs/data-types),
-[Tables And Schema](/docs/sql-schema), and [Query Features](/docs/query-features)
-for joins, grouping, subqueries, and derived tables.
+and [Tables And Columns](/docs/sql-schema). Then read
+[SELECT](/docs/sql-queries) for filtering, grouping, and ordering, and
+[Joins And Subqueries](/docs/joins-and-subqueries) for joins, subqueries, and
+derived tables.

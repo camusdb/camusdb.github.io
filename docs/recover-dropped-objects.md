@@ -246,7 +246,8 @@ Dropping a branch database removes the branch immediately. See
 ## Related Pages
 
 - [Databases](/docs/databases)
-- [Tables And Schema](/docs/sql-schema)
-- [Schema Inspection](/docs/sql-inspection)
+- [Tables And Columns](/docs/sql-schema)
+- [Inspecting The Database](/docs/sql-inspection)
 - [Configuration](/docs/configuration)
+- [Backup And Restore](/docs/backup-and-restore)
 - [Error Codes](/docs/error-codes)

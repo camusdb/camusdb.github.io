@@ -4,39 +4,103 @@ sidebar_position: 8
 
 # Configuration
 
-CamusDB reads `Config/config.yml` at startup, merges explicit command-line
-flags, validates the result, and then applies the resolved configuration before
-the server starts accepting work.
+CamusDB can start with no configuration file, which is the default experience
+for the `CamusDB.Server` .NET global tool. At startup it locates the first YAML
+file in a fixed search order, applies explicit command-line overrides, fills in
+runtime defaults, validates the result, and then starts accepting work.
 
-Precedence is:
+Install and run the server with:
+
+```bash
+dotnet tool install --global CamusDB.Server
+camusdb
+```
+
+Upgrade an existing tool install with:
+
+```bash
+dotnet tool update --global CamusDB.Server
+```
+
+Create a user-owned starter configuration with:
+
+```bash
+camusdb init
+```
+
+This writes `~/.camusdb/config.yml` on macOS/Linux, or
+`%APPDATA%\camusdb\config.yml` on Windows, and creates the default data
+directory. If the file already exists, `camusdb init` exits without replacing
+it; use `camusdb init --force` when you intentionally want to overwrite the
+starter file.
+
+CamusDB reads the first configuration it finds:
+
+1. `--config <path>`
+2. `CAMUS_CONFIG_PATH`
+3. `./camusdb.yml`
+4. `./Config/config.yml`
+5. `~/.camusdb/config.yml` on macOS/Linux, or
+   `%APPDATA%\camusdb\config.yml` on Windows
+6. built-in defaults, when no file exists
+
+An explicit path from `--config` or `CAMUS_CONFIG_PATH` must exist. If it does
+not, startup fails instead of silently falling through to another file.
+
+Precedence after a file is loaded is:
 
 1. command-line flags
 2. environment variables
-3. `Config/config.yml`
+3. the selected YAML file
 4. built-in defaults
 
 Only flags you pass explicitly override YAML values. Omitting a flag keeps the
-value from `config.yml`.
+value from the selected file. The resolved configuration source and data
+directory are printed at startup.
 
-## Default File
+After startup, inspect the effective engine configuration from SQL with
+[`SHOW VARIABLES`](/docs/show-variables). This is useful when a CLI flag or
+environment variable overrides the selected YAML file.
 
-The source repository ships a commented configuration reference at
-`CamusDB/Config/config.yml`. Its active settings are:
+## Default Files And Directories
+
+The source repository and Docker image ship a commented configuration reference
+at `CamusDB/Config/config.yml`. Its active settings are:
 
 ```yaml
 data_dir: /tmp/camusdb/
-initial_partitions: 3
+initial_partitions: 1
 ```
 
 The commented sections show the available server, cluster, transaction,
-recoverable-drop, parser, and Kahuna engine settings. For real deployments, set
-`data_dir` to persistent storage instead of relying on `/tmp`.
+recoverable-drop, parser, and Kahuna engine settings. Authentication secrets
+are intentionally not configured in YAML; see
+[Authentication And Authorization](/docs/sql-authentication). For real
+deployments, set `data_dir` to persistent storage instead of relying on `/tmp`.
+
+When no file or flag sets `data_dir`, CamusDB uses a user data directory:
+
+- `$CAMUS_HOME/data`, when `CAMUS_HOME` is set
+- `$XDG_DATA_HOME/camusdb` on macOS/Linux when `XDG_DATA_HOME` is set
+- `~/.local/share/camusdb` on macOS/Linux otherwise
+- `%LOCALAPPDATA%\camusdb` on Windows
+
+`CAMUS_HOME` also relocates the user configuration file to
+`$CAMUS_HOME/config.yml`.
+
+When `initial_partitions` is not set explicitly, CamusDB chooses an effective
+default from the run mode:
+
+- standalone mode: `1`
+- cluster mode: `3`
 
 ## Unified Reference
 
 Most startup settings can now be configured either in `config.yml` or by a
 matching command-line flag. CLI flags are useful for containers, scripts, and
 per-node cluster settings; YAML is better for stable node configuration.
+
+`--config <path>` selects the YAML file to load. It is not itself a YAML key.
 
 | YAML key | CLI flag | Default | Purpose |
 | --- | --- | --- | --- |
@@ -46,7 +110,7 @@ per-node cluster settings; YAML is better for stable node configuration.
 | `raft_node_id` | `--raft-nodeid` | `1` | Numeric Raft node id. Must be greater than `0`. |
 | `raft_host` | `--raft-host` | `localhost` | Host address used for Raft communication. |
 | `raft_port` | `--raft-port` | `7070` | Port used for Raft gRPC traffic. |
-| `initial_partitions` | `--initial-cluster-partitions` | `3` | Number of Raft partitions to initialize. |
+| `initial_partitions` | `--initial-cluster-partitions` | runtime fallback | Number of Raft partitions to initialize. Defaults to `1` for standalone mode and `3` for cluster mode when unset. |
 | `peers` | `--initial-cluster` | empty list | Static Raft peer list in `host:port` form. |
 | `http_peers` | `--http-peers` | empty list | Per-peer HTTP addresses, parallel to `peers`. |
 | `schema_ack_wait_timeout_ms` | `--schema-ack-wait-timeout-ms` | `30000` | DDL schema-ack wait timeout in milliseconds. |
@@ -55,6 +119,7 @@ per-node cluster settings; YAML is better for stable node configuration.
 | `https_port` | `--https-port` | `7141` | HTTPS API listener port when a certificate is configured. |
 | `https_certificate` | `--https-certificate` | empty | Path to a PFX certificate for the HTTPS API listener; empty disables HTTPS. |
 | `raft_certificate` | `--raft-certificate` | empty | Path to a PFX certificate for the Raft gRPC listener in cluster mode. |
+| `require_tls_when_auth_enabled` | `--require-tls-when-auth-enabled` | `true` | When authentication is enabled, reject credential-bearing requests over plaintext except loopback. Set `false` only behind a trusted TLS terminator. |
 
 The remaining YAML settings do not currently have command-line flags:
 
@@ -65,10 +130,24 @@ The remaining YAML settings do not currently have command-line flags:
 | `grpc_batch_max_in_flight` | `64` | Maximum concurrently executing operations per `CamusSql.BatchExecute` stream before backpressure. |
 | `default_isolation_level` | `serializable` | Default transaction isolation when a request does not choose one. |
 | `default_transaction_locking` | `pessimistic` | Default transaction locking strategy when a request does not choose one. |
+| `default_transaction_priority` | `normal` | Default admission priority when a request does not choose one. |
+| `transaction_admission_wait_ms` | `0` | How long a transaction may queue at the admission gate before a retryable refusal; `0` leaves `kahuna.default_admission_wait_ms` in force. This is not the transaction lifetime. |
 | `range_lock_expires_ms` | `150000` | Initial Serializable range-lock TTL; the coordinator renews live range locks; positive values must be at least `2x` the effective Kahuna collection interval; `<= 0` disables expiry. |
 | `max_serializable_transaction_lifetime_ms` | `3600000` | Maximum Serializable read-write transaction lifetime; `<= 0` disables the cap. |
 | `transaction_idle_timeout_ms` | `300000` | Idle timeout for explicit client transactions before the background reaper rolls them back; `<= 0` disables the CamusDB-side reaper. |
 | `transaction_reaper_interval_ms` | `30000` | Background sweep interval for abandoned explicit transactions. |
+| `transaction_finalize_retry_budget_ms` | `15000` | Wall-clock budget for retrying an unresolved `COMMIT`/`ROLLBACK` on the same handle before returning `CADB0509`; `<= 0` attempts the finalize once. |
+| `sequence_retry_budget_ms` | `10000` | Wall-clock budget for retrying a monotonic id counter while its partition has no confirmed leader, before failing with `CADB0535`; `<= 0` attempts the call once. |
+| `database_idle_eviction_ms` | `900000` | How long a database may sit unused before this node releases its descriptor; `<= 0` disables idle eviction. |
+| `prepared_statement_idle_timeout_ms` | `600000` | REST prepared-statement idle timeout; `<= 0` disables REST handle reaping. |
+| `prepared_statement_sweep_interval_ms` | `60000` | Background sweep interval for expired REST prepared statements. Must be greater than `0`. |
+| `grpc_max_prepared_statements_per_stream` | `512` | Maximum prepared statements per `CamusSql.BatchExecute` stream; `0` means unbounded. |
+| `rest_max_prepared_statements_per_principal` | `512` | Maximum REST prepared statements per principal on one node; `0` means unbounded. |
+| `rest_max_prepared_statements` | `8192` | Node-wide REST prepared-statement cap across principals; `0` means unbounded. |
+| `max_prepared_statement_bytes` | `65536` | Maximum SQL text size for one prepared statement; `0` means unlimited. |
+| `grpc_max_prepared_statement_bytes_per_stream` | `8388608` | Retained prepared SQL byte budget per gRPC batch stream; `0` means unlimited. |
+| `rest_max_prepared_statement_bytes_per_principal` | `8388608` | Retained prepared SQL byte budget per REST principal; `0` means unlimited. |
+| `rest_max_prepared_statement_bytes` | `67108864` | Node-wide retained REST prepared SQL byte budget; `0` means unlimited. |
 | `orphan_retention_ms` | `604800000` | Recoverable orphan retention window for normal root database/table drops; `<= 0` keeps orphans indefinitely. |
 | `orphan_reclaim_interval_ms` | `300000` | Background sweep interval for reclaiming expired orphans; `<= 0` disables automatic reclamation. |
 | `lock_escalation_threshold` | `50` | Shared point-lock count per bucket before escalation. |
@@ -77,7 +156,7 @@ The remaining YAML settings do not currently have command-line flags:
 | `stats_flush_interval_ms` | `5000` | Advisory table-statistics flush interval. |
 | `stats_analyze_sample_rows` | `100000` | Manual `ANALYZE` full-scan/sample threshold; `0` means always full scan. |
 | `stats_histogram_buckets` | `100` | Histogram bucket count built per analyzed column. |
-| `auto_analyze_enabled` | `false` | Enable background automatic table analyze. |
+| `auto_analyze_enabled` | `true` | Enable background automatic table analyze. |
 | `auto_analyze_check_interval_ms` | `60000` | Automatic analyze staleness sweep interval; `<= 0` disables the loop. |
 | `auto_analyze_fraction_stale_rows` | `0.20` | Proportional staleness trigger for automatic analyze. |
 | `auto_analyze_min_stale_rows` | `500` | Minimum mutations before a table is stale for automatic analyze. |
@@ -87,12 +166,28 @@ The remaining YAML settings do not currently have command-line flags:
 | `auto_analyze_hll_precision` | `11` | HyperLogLog precision for automatic analyze distinct-value estimates; valid range `4..16`. |
 | `auto_analyze_load_pause_threshold` | `16` | In-flight foreground work threshold above which automatic analyze backs off; `<= 0` disables load backoff. |
 | `auto_analyze_ownership_check_rows` | `1000` | Rows between background analyze ownership/load re-checks. |
-| `cost_based_access_path_enabled` | `false` | Enable cost-based selection among viable table/index access paths. |
-| `cost_based_join_order_enabled` | `false` | Enable cost-based left-deep join-order enumeration for eligible joins. |
+| `ttl_enabled` | `true` | Enable the row-level TTL background sweep loop. |
+| `ttl_default_job_cron` | `@daily` | Default sweep cadence for TTL tables that do not set `ttl_job_cron`. |
+| `ttl_default_select_batch_size` | `500` | Default rows read per TTL scan batch. |
+| `ttl_default_delete_batch_size` | `100` | Default rows deleted per TTL transaction. |
+| `ttl_default_select_rate_limit` | `0` | Default TTL scan cap in rows per second; `0` means unlimited. |
+| `ttl_default_delete_rate_limit` | `100` | Default TTL delete cap in rows per second; `0` means unlimited. |
+| `ttl_spans_per_table` | `64` | Number of spans a TTL run divides each table into. |
+| `ttl_max_concurrent_spans_per_node` | `1` | Maximum TTL spans processed concurrently on one node. |
+| `ttl_load_pause_threshold` | `16` | In-flight foreground work threshold above which TTL sweeps pause; `<= 0` disables load backoff. |
+| `ttl_span_lease_ms` | `30000` | TTL span claim lease in milliseconds. |
+| `ttl_span_lease_renew_interval_ms` | `10000` | TTL span lease renewal interval in milliseconds. |
+| `cost_based_access_path_enabled` | `true` | Enable cost-based selection among viable table/index access paths. |
+| `cost_based_join_order_enabled` | `true` | Enable cost-based left-deep join-order enumeration for eligible joins. |
 | `plan_cache_enabled` | `false` | Enable the per-process query plan cache. |
 | `plan_cache_max_entries` | `512` | Maximum plan-cache entries; `0` effectively disables caching. |
+| `max_view_expansion_depth` | `32` | Maximum view-over-view nesting depth; a backstop behind the DDL-time cycle check. |
+| `materialized_view_refresh_chunk_rows` | `10000` | Rows written per transaction while a materialized view is refreshed. Must stay well below `max_mutations_per_transaction`. |
+| `materialized_view_refresh_enabled` | `true` | Whether this node may execute materialized-view refresh work. `WITH NO DATA` still works when disabled. |
+| `materialized_view_refresh_takeover_attempts` | `3` | How many times the background sweep restarts a materialized-view refresh interrupted by a crash or a leadership change; `0` only reclaims the abandoned storage. |
 | `regex_match_timeout_ms` | `250` | Per-match timeout for regex operators and regex scalar functions. |
 | `regex_cache_max_entries` | `1024` | Maximum compiled regex patterns cached per process; `0` disables caching. |
+| `engine_metrics_enabled` | `true` | Observe embedded [Kahuna](https://kahunakv.github.io/)/[Kommander](https://kahunakv.github.io/kommander.github.io/) engine metrics for `SHOW ENGINE STATS`. |
 | `query_result_cache_enabled` | `true` | Enable the per-node in-memory query result cache. Queries still opt in individually with `{cache=...}`. |
 | `query_result_cache_default_ttl_ms` | `5000` | Default TTL for result-cache entries without a per-query `ttl`. |
 | `query_result_cache_max_entries` | `1024` | Maximum result-cache entries per process. |
@@ -183,6 +278,20 @@ https_certificate: /etc/camusdb/api.pfx
 raft_certificate: /etc/camusdb/raft.pfx
 ```
 
+When authentication is enabled, CamusDB rejects credential-bearing requests over
+plaintext by default, except loopback development traffic. If TLS terminates in
+front of the node, keep that plaintext hop inside the trust boundary and set:
+
+```yaml
+require_tls_when_auth_enabled: false
+```
+
+or:
+
+```bash
+camusdb --require-tls-when-auth-enabled false
+```
+
 ### Client gRPC
 
 The client-facing gRPC API is enabled by default on a dedicated HTTP/2
@@ -226,12 +335,31 @@ built-in defaults remain active.
 Examples:
 
 ```bash
-CAMUS_LOG_LEVEL=Debug dotnet run --project CamusDB
+CAMUS_LOG_LEVEL=Debug camusdb
 
 CAMUS_LOG_LEVEL_KAHUNA=Information \
 CAMUS_LOG_FILTERS="Microsoft.AspNetCore=Warning,CamusDB.Core=Debug" \
-dotnet run --project CamusDB
+camusdb
 ```
+
+### Authentication Environment
+
+The authentication switch and secrets are configured with environment variables
+or an external secret provider, not with `config.yml`:
+
+| Environment variable | Purpose |
+| --- | --- |
+| `CAMUSDB_AUTH_ENABLED` | Set to `true` to require bearer tokens and enforce privileges. Defaults to off. |
+| `CAMUSDB_AUTH_TOKEN_KEY` | HMAC key for access-token secrets. Required when auth is enabled; must match on every cluster node. |
+| `CAMUSDB_BOOTSTRAP_USER` | First superuser name when the auth catalog is empty. |
+| `CAMUSDB_BOOTSTRAP_PASSWORD` | Initial password for the bootstrap superuser. |
+| `CAMUSDB_NODE_SECRET` | Shared node-to-node secret for internal cluster routes when auth is enabled. |
+
+Do not put these values in YAML. See
+[Authentication And Authorization](/docs/sql-authentication) for bootstrap,
+login, grants, TLS, and token usage. The non-secret
+`require_tls_when_auth_enabled` transport policy is configured in YAML or with
+`--require-tls-when-auth-enabled`.
 
 ## Schema Ack Settings
 
@@ -255,6 +383,7 @@ Serializable is the default isolation level:
 ```yaml
 default_isolation_level: serializable
 default_transaction_locking: pessimistic
+default_transaction_priority: normal
 ```
 
 Use `read_committed` only when you explicitly want weaker isolation by default.
@@ -262,6 +391,8 @@ Individual SQL/API transactions can still request an isolation level.
 Use `optimistic` for `default_transaction_locking` only when the deployment
 wants transactions to avoid explicit locks and validate conflicts at commit by
 default. Individual SQL/API transactions can still request a locking strategy.
+Use a non-`normal` `default_transaction_priority` only when you intentionally
+want untagged transactions to enter the admission queue at that level.
 
 Locking settings tune Serializable read-write behavior:
 
@@ -295,6 +426,153 @@ Operational notes:
   point locks in the same bucket.
 - `lock_wait_deadline_ms` limits how long a single lock acquisition waits before
   surfacing a Serializable conflict.
+
+### Retry Budgets
+
+Two settings bound how long the server keeps retrying an operation internally
+before handing the retry back to the caller. Both are wall-clock durations rather
+than attempt counts, because what they wait on — an election, a drain, a
+leadership handover — resolves on its own schedule: a saturated node makes each
+attempt take longer without making it take more attempts, so an attempt cap
+shrinks the real budget exactly when the node most needs it.
+
+```yaml
+transaction_finalize_retry_budget_ms: 15000
+sequence_retry_budget_ms: 10000
+```
+
+- `transaction_finalize_retry_budget_ms` is how long a `COMMIT` or `ROLLBACK`
+  that comes back "outcome not known yet" is retried on the same handle. The
+  write may already have landed, so this is retried rather than reported. When
+  the budget runs out the client sees `CADB0509`
+  `TransactionFinalizeUnresolved` and resends the same finalize itself — see
+  [Retries And Conflicts](/docs/serializable-retries). Raise it on nodes that run
+  hot. `<= 0` attempts the finalize once.
+- `sequence_retry_budget_ms` is how long a call against a persistent monotonic
+  counter — database ids, table ids, the registry's cross-node generation stamp —
+  is retried while its Raft partition has no confirmed leader. Every
+  `CREATE TABLE`, `CREATE VIEW`, and `CREATE TABLE AS SELECT` allocates an id
+  first, so this budget decides whether an election is invisible or fails the
+  statement with `CADB0535` `SequenceUnavailable`. The default is sized against
+  an election, which runs in seconds. `<= 0` attempts the call once.
+
+### Idle Database Eviction
+
+A node releases a database descriptor it has not used for
+`database_idle_eviction_ms`, so the set it holds open tracks its working set
+rather than every database it has ever touched:
+
+```yaml
+database_idle_eviction_ms: 900000
+```
+
+The default is fifteen minutes; `<= 0` disables eviction entirely. Only the
+in-memory descriptor and its per-database state are released — nothing on disk
+changes, and the next statement against that database reopens it transparently at
+the cost of one open.
+
+Eviction never takes a descriptor out from under running work. A database with an
+active transaction, an in-flight DDL, a caller holding a reference, an open branch
+reading through it, or a drop in progress is skipped and retried on a later sweep.
+The idle window is part of that safety rather than only a policy: a caller that
+has just resolved a descriptor but not yet taken a reference on it reports an idle
+time of approximately zero, so requiring minutes of idleness excludes that
+interleaving rather than merely making it unlikely.
+
+Lower it on a node that touches many databases and keeps few of them warm. Raise
+it, or disable it, when a workload returns to the same databases on a long cycle
+and you would rather not pay the reopen.
+
+### Transaction Priority
+
+Transaction priority controls which queued transaction starts next when the
+local node is at its configured concurrency ceiling. It does not change
+isolation, locking, commit semantics, or resource use after the transaction has
+started.
+
+The request-level default is:
+
+```yaml
+default_transaction_priority: normal
+```
+
+Accepted values are `background`, `low`, `normal`, `high`, and `critical`.
+
+Priority has no admission effect unless the
+[Kahuna](https://kahunakv.github.io/) gate is enabled:
+
+```yaml
+transaction_admission_wait_ms: 0
+
+kahuna:
+  max_concurrent_sessions: 0
+  transaction_priority_reserved_slots: 0
+  transaction_priority_aging_threshold: 1000
+  transaction_priority_max_queued: 4096
+  default_admission_wait_ms: 5000
+  max_admission_wait_ms: 30000
+```
+
+Keep `kahuna.max_concurrent_sessions: 0` unless you have tested the gate with
+your workload. When a ceiling is active, set
+`kahuna.transaction_priority_reserved_slots` to at least `1` so high-priority
+engine work cannot be queued behind ordinary user traffic.
+
+The admission wait settings bound how long an *unadmitted* transaction queues
+before being refused with a retryable `CADB0504`.
+`transaction_admission_wait_ms` is the CamusDB-side budget; `0` defers to
+`kahuna.default_admission_wait_ms`, and `kahuna.max_admission_wait_ms` clamps
+any caller-supplied value. Keep the budget in seconds — it is not the
+transaction lifetime, and a long door-wait makes a saturated node hold requests
+open instead of shedding them.
+
+See [Transaction Priority](/docs/transaction-priority) for SQL/API usage,
+aging, observability, and operational tradeoffs.
+
+## Prepared Statements
+
+Prepared statements register a SQL text once and execute it repeatedly by
+handle. See [Prepared Statements](/docs/prepared-statements) for the client
+lifecycle.
+
+```yaml
+prepared_statement_idle_timeout_ms: 600000
+prepared_statement_sweep_interval_ms: 60000
+grpc_max_prepared_statements_per_stream: 512
+rest_max_prepared_statements_per_principal: 512
+rest_max_prepared_statements: 8192
+max_prepared_statement_bytes: 65536
+grpc_max_prepared_statement_bytes_per_stream: 8388608
+rest_max_prepared_statement_bytes_per_principal: 8388608
+rest_max_prepared_statement_bytes: 67108864
+```
+
+Settings:
+
+- `prepared_statement_idle_timeout_ms`: idle cutoff for REST handles. Set it to
+  `<= 0` to disable REST prepared-statement reaping.
+- `prepared_statement_sweep_interval_ms`: how often the background reaper scans
+  for expired REST handles. It must be greater than `0`.
+- `grpc_max_prepared_statements_per_stream`: count cap for one
+  `CamusSql.BatchExecute` stream. Set it to `0` for unbounded.
+- `rest_max_prepared_statements_per_principal`: count cap for one principal on
+  one node. Set it to `0` for unbounded.
+- `rest_max_prepared_statements`: node-wide REST count cap across principals.
+  Set it to `0` for unbounded.
+- `max_prepared_statement_bytes`: maximum SQL text size for a single prepared
+  statement. Set it to `0` for unlimited.
+- `grpc_max_prepared_statement_bytes_per_stream`: retained prepared SQL byte
+  budget for one gRPC batch stream. Set it to `0` for unlimited.
+- `rest_max_prepared_statement_bytes_per_principal`: retained prepared SQL byte
+  budget for one REST principal. Set it to `0` for unlimited.
+- `rest_max_prepared_statement_bytes`: node-wide retained REST prepared SQL
+  byte budget. Set it to `0` for unlimited.
+
+Exceeding a prepared-statement count or byte budget rejects the new
+registration with `CADB0521` `PreparedStatementLimitExceeded`. CamusDB does not
+evict an existing handle silently.
+
+Negative values are invalid at startup and return `CADB0600` `InvalidConfig`.
 
 ## Recoverable Drop Settings
 
@@ -334,7 +612,7 @@ key_range_sharding: true
 enable it from the environment:
 
 ```bash
-CAMUS_KEY_RANGE_SHARDING=true dotnet run --project CamusDB
+CAMUS_KEY_RANGE_SHARDING=true camusdb
 ```
 
 Operational notes:
@@ -354,7 +632,7 @@ memory on DML and flushes them to durable storage on a schedule.
 stats_flush_interval_ms: 5000
 stats_analyze_sample_rows: 100000
 stats_histogram_buckets: 100
-auto_analyze_enabled: false
+auto_analyze_enabled: true
 auto_analyze_check_interval_ms: 60000
 auto_analyze_fraction_stale_rows: 0.20
 auto_analyze_min_stale_rows: 500
@@ -377,19 +655,57 @@ This affects planner statistics durability, not SQL correctness.
 `ANALYZE TABLE <name>` builds richer statistics used by the cost-based
 optimizer, including equi-depth histograms and distinct-value counts.
 
-Automatic analyze can refresh stale table statistics in the background when
-`auto_analyze_enabled` is `true`. See
+Automatic analyze refreshes stale table statistics in the background by
+default. See
 [Automatic Analyze](/docs/automatic-analyze) for staleness rules, resource
 limits, and per-table opt-out syntax.
 
-## Cost-Based Optimizer
+## Row-Level TTL
 
-The optimizer can use statistics to compare access paths, join algorithms, and
-eligible join orders.
+Row-level TTL deletes expired rows in the background. The node-level scheduler
+is enabled by default, but a table is swept only after it sets
+`ttl_expiration_expression`:
 
 ```yaml
-cost_based_access_path_enabled: false
-cost_based_join_order_enabled: false
+ttl_enabled: true
+ttl_default_job_cron: '@daily'
+ttl_default_select_batch_size: 500
+ttl_default_delete_batch_size: 100
+ttl_default_select_rate_limit: 0
+ttl_default_delete_rate_limit: 100
+ttl_spans_per_table: 64
+ttl_max_concurrent_spans_per_node: 1
+ttl_load_pause_threshold: 16
+ttl_span_lease_ms: 30000
+ttl_span_lease_renew_interval_ms: 10000
+```
+
+`ttl_enabled` is the node-level master switch. When it is `false`, no TTL sweep
+loop starts even if a table has TTL settings.
+
+Table settings such as `ttl_expiration_expression`, `ttl_job_cron`,
+`ttl_delete_batch_size`, and `ttl_delete_rate_limit` override the node defaults
+for one table. See [Row-Level TTL](/docs/row-level-ttl) for the SQL syntax and
+table-level parameters.
+
+Operational notes:
+
+- `ttl_default_job_cron` accepts `@hourly`, `@daily`, `@midnight`, `@weekly`,
+  and `@monthly`.
+- Batch sizes must be at least `1`.
+- Rate limits are rows per second; `0` means unlimited.
+- `ttl_load_pause_threshold <= 0` disables load backoff.
+- `ttl_span_lease_renew_interval_ms` must be less than `ttl_span_lease_ms`.
+
+## Cost-Based Optimizer
+
+The optimizer uses statistics to compare access paths, join algorithms, and
+eligible join orders. The broad cost-based search passes are enabled by
+default:
+
+```yaml
+cost_based_access_path_enabled: true
+cost_based_join_order_enabled: true
 plan_cache_enabled: false
 plan_cache_max_entries: 512
 ```
@@ -404,8 +720,8 @@ Values:
   dynamic program to choose a cheaper connected left-deep order for eligible
   inner joins. When `false`, it uses the heuristic join order.
 
-Both flags default to `false`. Missing statistics or unsupported query shapes
-fall back to the heuristic planner.
+Both cost-based flags default to `true`. Missing statistics or unsupported
+query shapes fall back to the heuristic planner.
 
 The plan cache is also opt-in:
 
@@ -554,6 +870,23 @@ These settings apply to `~`, `~*`, `!~`, `!~*`, and the `regexp_*` scalar
 functions. See [Regex Functions](/docs/functions-regex) for function syntax,
 flags, and matching rules.
 
+## Engine Metrics
+
+CamusDB observes embedded [Kahuna](https://kahunakv.github.io/) and
+[Kommander](https://kahunakv.github.io/kommander.github.io/) metrics for
+`SHOW ENGINE STATS` by default:
+
+```yaml
+engine_metrics_enabled: true
+```
+
+Set `engine_metrics_enabled: false` to detach the in-process engine metrics
+listener. `SHOW ENGINE STATS` still succeeds, but returns zero rows.
+
+This setting is independent from the standalone `diagnostics` exporters below.
+See [Engine Stats](/docs/engine-stats) for the SQL statement, permissions, and
+result columns.
+
 ## Diagnostics
 
 Standalone diagnostics are opt-in:
@@ -572,7 +905,9 @@ When disabled, CamusDB does not register a metrics exporter, scrape endpoint,
 trace exporter, or diagnostics collector. When enabled on a standalone node,
 the server can expose Prometheus metrics and optional OpenTelemetry traces for
 request handling, SQL execution, scans, query cache activity, transaction
-commit, Kahuna, Kommander, and runtime metrics.
+commit, [Kahuna](https://kahunakv.github.io/),
+[Kommander](https://kahunakv.github.io/kommander.github.io/), and runtime
+metrics.
 
 See [Performance Diagnostics](/docs/performance-diagnostics) for metric names,
 security notes, and workload snapshot scripts.
@@ -597,6 +932,12 @@ kahuna:
   wal_single_fsync_commit: false
   default_transaction_timeout_ms: 5000
   max_transaction_timeout_ms: 3600000
+  default_admission_wait_ms: 5000
+  max_admission_wait_ms: 30000
+  max_concurrent_sessions: 0
+  transaction_priority_reserved_slots: 0
+  transaction_priority_aging_threshold: 1000
+  transaction_priority_max_queued: 4096
   locks_workers: 8
   key_value_workers: 8
   background_writer_workers: 1
@@ -632,8 +973,12 @@ The allow-listed Kahuna keys are:
   `wal_revision`, `wal_sync_writes`, `wal_group_commit_linger_ms`, and
   `wal_single_fsync_commit`
 - transaction and worker settings: `default_transaction_timeout_ms`,
-  `max_transaction_timeout_ms`, `locks_workers`, `key_value_workers`,
-  `background_writer_workers`, `read_io_threads`, and `write_io_threads`
+  `max_transaction_timeout_ms`, `default_admission_wait_ms`,
+  `max_admission_wait_ms`, `max_concurrent_sessions`,
+  `transaction_priority_reserved_slots`,
+  `transaction_priority_aging_threshold`, `transaction_priority_max_queued`,
+  `locks_workers`, `key_value_workers`, `background_writer_workers`,
+  `read_io_threads`, and `write_io_threads`
 - Raft timing settings: `start_election_timeout_ms`,
   `end_election_timeout_ms`, `start_election_timeout_increment_ms`,
   `end_election_timeout_increment_ms`, `heartbeat_interval_ms`, and
@@ -646,6 +991,12 @@ The allow-listed Kahuna keys are:
 - RocksDB shared memory: `rocksdb_shared_memory`,
   `rocksdb_shared_memory_budget_mb`, and
   `rocksdb_shared_memtable_budget_mb`
+- backup and point-in-time recovery: `backup_dir`, `pitr_window_seconds`,
+  `base_snapshot_interval_seconds`, `restore_root`,
+  `allow_unconfined_remote_restore`, `backup_cluster_id`,
+  `backup_mac_key_file`, `backup_retention_max_chains`,
+  `backup_retention_max_age_seconds`, `backup_retention_max_bytes`,
+  `backup_gc_interval_seconds`, and `backup_restore_throttle_bytes_per_sec`
 
 Entry eviction has two controls. `max_entries_per_actor` and
 `max_bytes_per_actor` bound actor memory by size, while
@@ -656,6 +1007,36 @@ Raft log compaction is controlled by `compact_every_operations`,
 `compact_number_entries`, and `max_entries_per_compaction`. Tune them together:
 one controls how often compaction runs, one controls how many trailing log
 entries are retained, and one caps how much a single pass can remove.
+
+### Memory-Proportional Cache Defaults
+
+Four cache knobs are sized from the machine's available memory at startup when
+you leave them unset, rather than sitting at a fixed value. Container limits are
+respected.
+
+| Setting | Default when unset | Clamped to |
+| --- | --- | --- |
+| `rocksdb_shared_memory_budget_mb` | 10% of RAM | 320 MiB – 2 GiB |
+| `rocksdb_shared_memtable_budget_mb` | a quarter of the block cache | 128 MiB – 1 GiB |
+| `max_bytes_per_actor` | 6.25% of RAM (at least 64 MiB for the layer) ÷ `key_value_workers` | 8 MiB – 2 GiB per actor |
+| `max_entries_per_actor` | `max_bytes_per_actor` ÷ ~512 B | 10k – 4M |
+
+That comes to roughly 16% of RAM across both cache layers, and never more than
+4 GiB in total however large the machine is. On an 8 GiB, 8-core machine with none
+of them set: an 819 MiB block cache, a 204 MiB memtable sub-budget, and
+64 MiB × 8 = 512 MiB of actor caches — about 1.5 GiB.
+
+The fractions and the ceilings are deliberately modest. An unconfigured node is
+far more often a developer workstation or a CI container sharing the box with a
+compiler and an IDE than a machine whose only job is CamusDB. Treat the sizing
+above as a floor to build from: a dedicated server should raise all four
+explicitly. An explicit value always wins over the computed one.
+
+Note that the 6.25% share and its 64 MiB floor bound the actor-cache layer *as a
+whole* and are then divided by `key_value_workers`; only the 8 MiB per-actor
+minimum is per actor. Adding cores therefore splits the same budget more ways
+rather than growing it, so a machine with many cores relative to its RAM does not
+end up with a multiple of the intended share.
 
 ### WAL Durability And Throughput
 
@@ -713,6 +1094,47 @@ The feature changes only in-process RocksDB memory objects. It does not change
 on-disk format, WAL semantics, recovery behavior, SQL behavior, or wire
 protocols.
 
+### Backups And Point-In-Time Recovery
+
+Backups are off until `backup_dir` is set, and restore stays off until
+`restore_root` is set on top of that. Both roots must be owner-only (`0700`) and
+must not be symlinks.
+
+```yaml
+kahuna:
+  backup_dir: /opt/camusdb/backups
+  pitr_window_seconds: 3600
+  base_snapshot_interval_seconds: 1800
+  restore_root: /opt/camusdb/restores
+  allow_unconfined_remote_restore: false
+  backup_retention_max_chains: 0
+  backup_retention_max_age_seconds: 0
+  backup_retention_max_bytes: 0
+  backup_gc_interval_seconds: 3600
+  backup_restore_throttle_bytes_per_sec: 0
+  backup_cluster_id: prod-cluster-a
+  backup_mac_key_file: /etc/camusdb/backup.key
+```
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `kahuna.backup_dir` | unset | Directory holding manifests and artifacts. Unset disables backups entirely. |
+| `kahuna.pitr_window_seconds` | `3600` | How far back live WAL is retained for recovery. Must be `> 0` and `<= 21600`. |
+| `kahuna.base_snapshot_interval_seconds` | `1800` | Base-image cadence. Must be `> 0` and `<=` the PITR window. |
+| `kahuna.restore_root` | unset | Server-owned root that restore destinations are confined to. Unset keeps remote restore disabled. |
+| `kahuna.allow_unconfined_remote_restore` | `false` | Allows restore to any absolute path. Insecure; avoid in production. |
+| `kahuna.backup_retention_max_chains` | `0` | Keep at most N chains. `0` is unlimited. |
+| `kahuna.backup_retention_max_age_seconds` | `0` | Delete chains older than this. `0` is unlimited. |
+| `kahuna.backup_retention_max_bytes` | `0` | Cap total backup bytes. `0` is unlimited. |
+| `kahuna.backup_gc_interval_seconds` | `3600` | Background GC cadence. `0` disables the tick; GC still runs after each backup. |
+| `kahuna.backup_restore_throttle_bytes_per_sec` | `0` | Throughput budget for a restore's checkpoint copy. `0` is unlimited. |
+| `kahuna.backup_cluster_id` | empty | Cluster identity stamped into manifests. Set the same value on every node. |
+| `kahuna.backup_mac_key_file` | unset | HMAC-SHA-256 key file signing manifests. Same file on every node, kept outside `backup_dir`. |
+
+`backup_dir`, `restore_root`, and `backup_mac_key_file` must not be blank when
+the key is present. See [Backup And Restore](/docs/backup-and-restore) for the
+API, the restore runbook, and the `CADB07xx` error codes.
+
 Unknown `kahuna` keys are rejected at startup. Numeric worker, timeout, actor,
 eviction, and compaction settings must be greater than `0`; when both election
 timeout bounds are set, `start_election_timeout_ms` must be less than
@@ -734,6 +1156,8 @@ Important validation rules:
 - `schema_ack_live_node_lease_ms` must be `> 0` or `-1`
 - `default_isolation_level` must be `serializable` or `read_committed`
 - `default_transaction_locking` must be `pessimistic` or `optimistic`
+- `default_transaction_priority` must be `background`, `low`, `normal`,
+  `high`, or `critical`
 - `lock_escalation_threshold` and `lock_wait_deadline_ms` must be `> 0`
 - `transaction_reaper_interval_ms` must be `> 0`
 - `grpc_enabled` is boolean
@@ -744,7 +1168,15 @@ Important validation rules:
 - `diagnostics.trace_sample_ratio` must be in `0..1`
 - `diagnostics.prometheus_path` must start with `/`
 - `diagnostics.otlp_endpoint`, when set, must be an absolute URL
+- `engine_metrics_enabled` is boolean
 - `kahuna.wal_group_commit_linger_ms` must be `>= 0`
+- `kahuna.max_concurrent_sessions` must be `>= 0`
+- `kahuna.transaction_priority_reserved_slots`,
+  `kahuna.transaction_priority_aging_threshold`, and
+  `kahuna.transaction_priority_max_queued` must be `>= 0`
+- when `kahuna.max_concurrent_sessions` is greater than `0`,
+  `kahuna.transaction_priority_reserved_slots` must be less than
+  `kahuna.max_concurrent_sessions`
 - `kahuna.max_transaction_timeout_ms`, when set, must be `>=`
   `max_serializable_transaction_lifetime_ms`
 - `stats_flush_interval_ms` must be `>= 0` or `-1`
@@ -756,6 +1188,15 @@ Important validation rules:
   `auto_analyze_histogram_sample_rows` must be `>= 1`
 - `auto_analyze_hll_precision` must be in `4..16`
 - `auto_analyze_ownership_check_rows` must be `>= 1`
+- `ttl_enabled` is boolean
+- `ttl_default_job_cron` must be `@hourly`, `@daily`, `@midnight`, `@weekly`,
+  or `@monthly`
+- `ttl_default_select_batch_size`, `ttl_default_delete_batch_size`,
+  `ttl_spans_per_table`, `ttl_max_concurrent_spans_per_node`,
+  `ttl_span_lease_ms`, and `ttl_span_lease_renew_interval_ms` must be `>= 1`
+- `ttl_default_select_rate_limit` and `ttl_default_delete_rate_limit` must be
+  `>= 0`
+- `ttl_span_lease_renew_interval_ms` must be less than `ttl_span_lease_ms`
 - `cost_based_access_path_enabled` and `cost_based_join_order_enabled` are
   booleans
 - `regex_match_timeout_ms` must be `> 0`
@@ -790,7 +1231,7 @@ default_transaction_locking: pessimistic
 stats_flush_interval_ms: 5000
 stats_analyze_sample_rows: 100000
 stats_histogram_buckets: 100
-auto_analyze_enabled: false
+auto_analyze_enabled: true
 cost_based_access_path_enabled: true
 cost_based_join_order_enabled: true
 plan_cache_enabled: true
@@ -816,13 +1257,13 @@ kahuna:
 Start with the YAML values:
 
 ```bash
-dotnet run --project CamusDB
+camusdb --config /etc/camusdb/config.yml
 ```
 
 Override only the HTTP port:
 
 ```bash
-dotnet run --project CamusDB -- --http-port=5096
+camusdb --config /etc/camusdb/config.yml --http-port=5096
 ```
 
 ## Cluster Example
@@ -871,7 +1312,7 @@ port.
 The same node can be started with CLI overrides:
 
 ```bash
-dotnet run --project CamusDB -- \
+camusdb \
   --mode=cluster \
   --data-dir=/data \
   --http-port=5095 \

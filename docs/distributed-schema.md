@@ -8,7 +8,7 @@ CamusDB treats schema as distributed state, not as a local side table that each
 node updates independently. In cluster mode, table, column, and index changes
 flow through the same replicated system that protects data writes.
 
-This page explains what that means for users operating CamusDB clusters:
+For anyone operating a cluster, that comes down to five things:
 
 - Schema changes have one ordered source of truth.
 - Nodes converge on the same schema version, with bounded progress even if a

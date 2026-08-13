@@ -99,9 +99,18 @@ Current array rules:
 
 - Nested arrays such as `ARRAY(ARRAY(INT64))` are rejected.
 - Array columns cannot be used in a primary key or secondary index.
-- SQL does not currently have an inline array literal. Write array values
-  through parameters, the HTTP JSON API, or the gRPC `Value` model.
+- SQL supports inline `ARRAY[...]` literals in expressions and DML values.
+- Nested array literals such as `ARRAY[ARRAY[1]]` are rejected.
 - Array elements may be `NULL`.
+
+```camussql
+INSERT INTO measurements (id, samples, labels)
+VALUES (GEN_ID(), ARRAY[1.5, 2.0, 2.5], ARRAY['alpha', 'beta']);
+
+UPDATE measurements
+SET labels = ARRAY[]
+WHERE id = STR_ID('507f1f77bcf86cd799439011');
+```
 
 ## SQL Literal Formats
 
@@ -115,13 +124,108 @@ Current array rules:
 | `UUID` | Quoted UUID string, hyphenated or 32 hexadecimal digits | `"550e8400-e29b-41d4-a716-446655440000"` |
 | `DATE` | Quoted `yyyy-MM-dd` string | `"2026-03-15"` |
 | `DATETIME` | Quoted ISO-8601 UTC string | `"2026-03-15T12:00:00Z"` |
-| `BYTES` | `0x`-prefixed hexadecimal | `0xDEADBEEF` |
-| `ARRAY(T)` | No inline SQL literal | Use a parameter, HTTP JSON value, or gRPC `Value`. |
+| `BYTES` | `X'...'` hexadecimal bytes | `X'DEADBEEF'` |
+| `ARRAY(T)` | `ARRAY[...]` | `ARRAY[1, 2, 3]` |
 
 Numeric literals use invariant formatting, so `.` is the decimal separator
 regardless of server locale. Date and datetime text is parsed as UTC. UUID
 text is returned in canonical lowercase hyphenated form. Invalid date,
 datetime, UUID, byte, or cast inputs fail with `InvalidInput`.
+
+### String Literals
+
+CamusDB supports two string literal forms.
+
+Plain strings use single or double quotes and do not process backslash escapes.
+A backslash is stored as a normal character. Escape the active quote delimiter
+by doubling it:
+
+```camussql
+SELECT 'plain text';
+SELECT 'C:\Users\data';
+SELECT 'it''s ready';
+SELECT "say ""hello""";
+```
+
+Plain strings are the right form for most values, including regular expression
+patterns and Windows paths:
+
+```camussql
+SELECT name FROM files WHERE path = 'C:\Users\data';
+SELECT name FROM users WHERE email ~ '^[^@]+@example\.com$';
+```
+
+Escape strings use the `E'...'` or `E"..."` prefix. In this form, backslash
+introduces an escape sequence:
+
+| Escape | Meaning |
+| --- | --- |
+| `\\` | Backslash |
+| `\'`, `\"` | Quote character |
+| `\n`, `\r`, `\t`, `\0`, `\a`, `\b`, `\f`, `\v` | Control characters |
+| `\NNN` | Character from three octal digits |
+| `\xHH` | Character from two hexadecimal digits |
+| `\uHHHH`, `\UHHHHHHHH` | Unicode code point |
+
+```camussql
+COMMENT ON TABLE events IS E'first line\nsecond line';
+```
+
+Use escape strings when the value needs a control character such as a newline,
+tab, carriage return, or NUL. Malformed numeric escapes, out-of-range Unicode
+escapes, and unpaired surrogate escapes fail with `InvalidInput`.
+
+An unrecognized escape keeps only the escaped character, so `E'\d+'` stores
+`d+`. Use a plain string when you want a literal backslash.
+
+`SHOW CREATE TABLE` and other schema renderers emit a re-parseable literal.
+They prefer the plain form and use `E'...'` only when the value contains a
+control character.
+
+### Bytes Literals
+
+Use `X'...'` for typed bytes literals:
+
+```camussql
+INSERT INTO documents (id, attachment)
+VALUES (GEN_ID(), X'DEADBEEF');
+
+SELECT X'4d5a';
+SELECT X''; -- empty byte string
+```
+
+The hex digit count must be even. `x'...'` is also accepted.
+
+`0xFF` remains an integer literal, not a bytes literal. When a target type is
+known, CamusDB can still coerce string text such as `'0xDEADBEEF'` to `BYTES`,
+but `X'...'` carries the bytes type directly and is the preferred SQL literal.
+
+### Array Literals
+
+Use `ARRAY[...]` for inline array values:
+
+```camussql
+SELECT ARRAY[1, 2, 3];
+
+INSERT INTO measurements (id, samples)
+VALUES (GEN_ID(), ARRAY[1, 2, 3]);
+```
+
+The element type is inferred from the first non-`NULL` element. Other elements
+must be compatible with that type, and CamusDB coerces them to the target
+column's declared element type when needed.
+
+```camussql
+-- Accepted for ARRAY(FLOAT64): integer elements widen to float64.
+INSERT INTO measurements (id, samples)
+VALUES (GEN_ID(), ARRAY[1, 2, 3]);
+
+-- Empty arrays adopt the target column's element type.
+INSERT INTO measurements (id, samples)
+VALUES (GEN_ID(), ARRAY[]);
+```
+
+Nested array literals are rejected.
 
 ## Casts
 
@@ -132,7 +236,7 @@ SELECT
   CAST("2026-03-15" AS DATE) AS event_day,
   CAST("2026-03-15T12:00:00Z" AS DATETIME) AS happened_at,
   CAST("550e8400-e29b-41d4-a716-446655440000" AS UUID) AS external_id,
-  CAST("0xDEADBEEF" AS BYTES) AS payload,
+  CAST(X'DEADBEEF' AS BYTES) AS payload,
   CAST(score AS FLOAT32) AS compact_score
 FROM events;
 ```

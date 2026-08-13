@@ -41,6 +41,24 @@ const config = {
     locales: ['en'],
   },
 
+  plugins: [
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        redirects: [
+          // Merged into the SELECT and joins pages during the SQL section rewrite.
+          {from: '/docs/query-features', to: '/docs/sql-queries'},
+          // Folded into the SQL overview.
+          {from: '/docs/sql-comments', to: '/docs/sql'},
+          // Merged into the prepared statements page.
+          {from: '/docs/sql-parameters', to: '/docs/prepared-statements'},
+          // Folded into the cluster page during the operations section rewrite.
+          {from: '/docs/multi-active-availability', to: '/docs/cluster'},
+        ],
+      },
+    ],
+  ],
+
   presets: [
     [
       'classic',
@@ -119,20 +137,24 @@ const config = {
                 to: '/docs/sql',
               },
               {
-                label: 'Query Features',
-                to: '/docs/query-features',
+                label: 'SELECT',
+                to: '/docs/sql-queries',
+              },
+              {
+                label: 'Joins And Subqueries',
+                to: '/docs/joins-and-subqueries',
               },
               {
                 label: 'Functions',
                 to: '/docs/functions',
               },
               {
-                label: 'Serializable Transactions',
+                label: 'Transactions And Isolation',
                 to: '/docs/serializable-transactions',
               },
               {
-                label: 'Multi-Active Availability',
-                to: '/docs/multi-active-availability',
+                label: 'Cluster Mode',
+                to: '/docs/cluster',
               },
               {
                 label: 'HTTP API',

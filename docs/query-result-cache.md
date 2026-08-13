@@ -111,6 +111,18 @@ A query uses the result-cache path only when all of these are true:
 Explicit transactions always read live storage. Joins bypass the result cache
 even if a cache hint is present. A cache hint inside a subquery is ignored.
 
+A query that reads through a [view](/docs/views) also bypasses the cache, for
+the same reason joins do: an entry fences one physical table's row keyspace, and
+a view expands to a derived table with no keyspace of its own. The hint is
+accepted rather than rejected and reported as a `DerivedSource` bypass, so it
+stays visible. A [materialized view](/docs/materialized-views) is a real
+relation and caches exactly like a table.
+
+A query calling a [session function](/docs/functions-session) such as
+`current_user()` bypasses the cache too — the cache is per-node and shared
+across callers, so an entry keyed to one caller's identity must never be served
+to the next.
+
 ## Freshness
 
 The cache is correct before it is fast.
@@ -158,6 +170,11 @@ Responses for hinted queries include cache metadata:
 | `cachedAtHlc` | HLC timestamp when a served entry was computed. |
 | `ageMs` | Approximate age of a served entry in milliseconds. |
 
+REST responses include these fields in the response envelope. gRPC reports the
+same values too: unary query streams append a trailing `CacheMetadata` message
+after the last row, and `BatchExecute` puts the verdict on the `QueryComplete`
+terminator. If the metadata is absent, the statement had no cache hint.
+
 Common bypass reasons:
 
 | Reason | Meaning |
@@ -166,6 +183,7 @@ Common bypass reasons:
 | `cache-disabled` | The cache feature is disabled. |
 | `oversized-result` | The result exceeded row, byte, or total cache limits. |
 | `dependency-limit` | The query touched too many dependencies to cache safely. |
+| `DerivedSource` | The query read through a view or another derived table, which has no keyspace to fence. |
 
 Use `EXPLAIN` to see static cache eligibility:
 
@@ -211,5 +229,5 @@ reference, including advanced dependency limits.
 ## Related Pages
 
 - [Query Planning](/docs/query-planning)
-- [Explaining Queries And Commands](/docs/explain)
+- [EXPLAIN](/docs/explain)
 - [Configuration](/docs/configuration)

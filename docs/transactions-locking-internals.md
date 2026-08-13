@@ -4,8 +4,9 @@ sidebar_position: 6
 
 # Transaction Internals
 
-This page is for contributors and operators who want to understand how CamusDB
-uses Kahuna and Kommander to execute transactional SQL work.
+How CamusDB uses Kahuna and Kommander to execute transactional SQL work. This
+is the implementation behind the guarantees described in
+[Transactions And Isolation](/docs/serializable-transactions).
 
 ## Layering
 

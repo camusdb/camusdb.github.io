@@ -28,6 +28,13 @@ var options = new DbContextOptionsBuilder<AppDbContext>()
     .Options;
 ```
 
+The connection string accepts the same keys as the ADO.NET driver, including
+`Protocol=grpc`, `User`, `Password`, `AccessToken`, `MaxAutoPrepare`, and
+`AutoPrepareMinUsages`. See
+[.NET Driver](/docs/dotnet-driver#connection-string) for the full connection
+string reference and [.NET Driver Authentication](/docs/dotnet-driver#authentication)
+for authenticated connections.
+
 You can also configure it in `OnConfiguring`:
 
 ```csharp
@@ -294,6 +301,31 @@ camus.EnableRetryOnFailure(
 The execution strategy retries the entire EF operation. If you manage explicit
 transactions manually, replay the whole transaction from the beginning instead
 of retrying only the failed statement.
+
+## Prepared Statements
+
+EF Core queries and `SaveChangesAsync()` statements are prepared automatically
+by the underlying ADO.NET driver once the same SQL shape has executed enough
+times. No EF-specific configuration or manual `Prepare()` call is required.
+
+This works well with EF because LINQ queries and change-tracking writes usually
+produce deterministic parameterized SQL for a given operation. Prepared
+execution preserves the same transaction, Serializable isolation, retry, and
+query-result-cache behavior as inline execution.
+
+Tune the policy with the normal connection-string keys:
+
+```csharp
+var options = new DbContextOptionsBuilder<AppDbContext>()
+    .UseCamusDB(
+        "Endpoint=http://localhost:5095;Database=mydb;MaxAutoPrepare=256;AutoPrepareMinUsages=2")
+    .Options;
+```
+
+Set `MaxAutoPrepare=0` to disable automatic preparation.
+
+See [.NET Driver](/docs/dotnet-driver#prepared-statements) and
+[Prepared Statements](/docs/prepared-statements) for the full behavior.
 
 ## Query Result Cache
 

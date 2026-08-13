@@ -26,9 +26,10 @@ LIMIT 20;
 
 ## Current Status
 
-Automatic analyze is implemented and can be enabled in `Config/config.yml`.
-It is off by default. Manual `ANALYZE TABLE <name>` remains available when you
-want to force fresh statistics after loading or materially changing data.
+Automatic analyze is on by default. Manual `ANALYZE TABLE <name>` remains
+available when you want to force fresh statistics after loading or materially
+changing data. Set `auto_analyze_enabled` to `false` for manual-only
+statistics maintenance.
 
 ```yaml
 auto_analyze_enabled: true
@@ -137,7 +138,7 @@ Automatic analyze and statistics settings are configured in `config.yml`:
 | --- | --- | --- |
 | `stats_analyze_sample_rows` | `100000` | Manual `ANALYZE` full-scans tables up to this row count and samples the first N rows above it. `0` means always full scan. |
 | `stats_histogram_buckets` | `100` | Equi-depth histogram buckets built per column. |
-| `auto_analyze_enabled` | `false` | Master switch for the background scheduler. |
+| `auto_analyze_enabled` | `true` | Master switch for the background scheduler. |
 | `auto_analyze_check_interval_ms` | `60000` | Staleness sweep interval. Values `<= 0` disable the loop. |
 | `auto_analyze_fraction_stale_rows` | `0.20` | Proportional staleness threshold. |
 | `auto_analyze_min_stale_rows` | `500` | Minimum mutation count before a table is stale. |
@@ -162,5 +163,5 @@ Fresh statistics help CamusDB make better choices for:
 - estimated row and cost values shown by `EXPLAIN`
 
 See [Query Planning](/docs/query-planning) and
-[Explaining Queries And Commands](/docs/explain) for how these estimates affect
+[EXPLAIN](/docs/explain) for how these estimates affect
 plans.

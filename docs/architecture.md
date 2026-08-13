@@ -15,25 +15,10 @@ what happens under the hood.
 CamusDB cluster mode is alpha-quality. Use it for testing and development, not
 production workloads.
 
-## Goals
-
-CamusDB is designed around these goals:
-
-- Keep SQL as the user-facing model for schema, queries, writes, indexes, and
-  transactions.
-- Provide atomic durable transactions, committed reads, and distributed commit
-  coordination.
-- Run in standalone mode for local development and in cluster mode for
-  distributed testing.
-- Let multiple nodes accept client traffic while the storage layer routes each
-  key to its owning partition.
-- Replicate committed storage changes through Raft-backed partitions instead of
-  relying on a single primary process.
-- Persist committed changes through a write-ahead log so nodes can recover
-  after process crashes and restarts.
-- Keep relational data and distributed storage concerns separated: SQL remains
-  the application contract, while partitioning, consensus, WAL replay, and
-  persistence happen below it.
+The organizing idea is a clean split: SQL is the application contract, and
+partitioning, consensus, WAL replay, and persistence all happen below it. No
+layer above the KV mapping knows which node owns a key, and no layer below it
+knows what a table is.
 
 ## Overview
 
@@ -99,7 +84,7 @@ The query pipeline supports:
 - Scalar, `IN`, `NOT IN`, and `EXISTS` subqueries.
 - Index scans and explicit index hints.
 
-See [Query Features](/docs/query-features) for user-facing examples and
+See [SELECT](/docs/sql-queries) and [Joins And Subqueries](/docs/joins-and-subqueries) for user-facing examples, and
 [Functions](/docs/functions) for the scalar function reference.
 See [Query Planning](/docs/query-planning) and
 [Query Planner Internals](/docs/query-planner-internals) for the planner and
@@ -190,62 +175,21 @@ See [Cluster Mode](/docs/cluster) for startup commands and
 
 ## Terms
 
-### Cluster
-
-A group of CamusDB nodes configured to communicate with each other and share a
-distributed storage layer.
-
-### Node
-
-One running CamusDB process. In cluster mode, each node can expose the database
-API and participate in storage replication.
-
-### Partition
-
-A shard of the keyspace owned by the distributed KV layer. Each partition has
-its own consensus leadership and log ordering.
-
-### Partition Leader
-
-The node currently responsible for coordinating writes for a partition. Client
-requests do not need to know the leader ahead of time; the storage layer routes
-work to the owner.
-
-### Consensus
-
-The agreement process used by a partition so replicas commit the same ordered
-log entries. CamusDB relies on [Kommander](https://kahunakv.github.io/kommander.github.io/)
-for Raft-backed consensus.
-
-### Replication
-
-The process of copying committed partition log entries across nodes so the
-cluster can recover committed state after node failures or restarts.
-
-### Write-Ahead Log
-
-The durable ordered log of partition entries. The WAL is the source of recovery
-ordering: if a committed entry has not yet been materialized into KV storage,
-it can be replayed after restart.
-
-### Transaction
-
-A set of reads and writes committed or rolled back as one unit. CamusDB uses
-two-phase commit when a transaction spans multiple partitions.
-
-### Catalog
-
-The metadata that describes databases, tables, columns, indexes, constraints,
-and schema versions.
-
-### KV Mapping
-
-The encoding layer that turns relational data into deterministic key/value
-entries. This is how SQL rows, indexes, schema metadata, locks, and transaction
-records become storage-layer operations.
+| Term | Meaning |
+| --- | --- |
+| Node | One running CamusDB process. In cluster mode each node can expose the database API and participate in replication. |
+| Cluster | A group of nodes configured to reach each other and share a distributed storage layer. |
+| Partition | A shard of the keyspace owned by the distributed KV layer, with its own consensus leadership and log ordering. |
+| Partition leader | The node currently coordinating writes for a partition. Clients do not need to know which one it is — the storage layer routes work to the owner. |
+| Consensus | The agreement process that makes replicas in a partition commit the same ordered log entries. CamusDB uses [Kommander](https://kahunakv.github.io/kommander.github.io/) for Raft. |
+| Replication | Copying committed partition log entries across nodes so committed state survives node failures and restarts. |
+| Write-ahead log | The durable ordered log of partition entries, and the source of recovery ordering. A committed entry not yet materialized into KV storage can be replayed after restart. |
+| Transaction | A set of reads and writes committed or rolled back as one unit. Spanning multiple partitions triggers two-phase commit. |
+| Catalog | The metadata describing databases, tables, columns, indexes, constraints, and schema versions. |
+| KV mapping | The encoding layer that turns rows, indexes, schema metadata, locks, and transaction records into deterministic key/value entries. |
 
 ## What's Next?
 
-Start with [SQL](/docs/sql) and [Query Features](/docs/query-features) for the
+Start with [SQL Overview](/docs/sql) and [SELECT](/docs/sql-queries) for the
 user-facing model. Then read [Storage](/docs/storage), [WAL And Recovery](/docs/wal-recovery),
 and [Cluster Mode](/docs/cluster) for the lower-level distributed behavior.

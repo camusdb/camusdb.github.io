@@ -21,7 +21,9 @@ Successful responses use:
 }
 ```
 
-Failed responses use HTTP 500 and include a CamusDB error code when available:
+Failed responses include a CamusDB error code when available. Many domain
+errors map to HTTP 500, while authentication, authorization, validation, not
+found, conflict, and rate-limit errors use their matching HTTP status:
 
 ```json
 {
@@ -33,6 +35,44 @@ Failed responses use HTTP 500 and include a CamusDB error code when available:
 
 See [Error Codes](/docs/error-codes) for the reference list and when each code
 is generated.
+
+## Authentication
+
+When authentication is enabled, use `/login` to obtain a bearer token:
+
+```http
+POST /login
+Content-Type: application/json
+
+{ "user": "admin", "password": "secret" }
+```
+
+Successful response:
+
+```json
+{
+  "status": "ok",
+  "token": "camus_<id>.<secret>",
+  "expiresAtUnixMs": 1785270000000,
+  "expiresInSeconds": 900
+}
+```
+
+Send the token on later requests:
+
+```http
+Authorization: Bearer camus_<id>.<secret>
+```
+
+Use `/logout` with the same header to revoke the current token.
+
+`expiresAtUnixMs` is the absolute UTC token deadline. `expiresInSeconds` is the
+same deadline as a server-measured duration, useful for clients that renew on a
+timer instead of trusting local wall-clock time.
+
+See [Authentication And Authorization](/docs/sql-authentication) for
+environment variables, SQL user/grant statements, TLS requirements, and
+privilege enforcement.
 
 ## Column Values
 
@@ -70,7 +110,7 @@ objects:
 { "type": 11, "strValue": "550e8400-e29b-41d4-a716-446655440000", "longValue": 0, "uuidHigh": 0 }
 ```
 
-For bytes, SQL literals use `0x` hexadecimal while JSON uses base64 in
+For bytes, SQL literals use `X'...'` hexadecimal while JSON uses base64 in
 `bytesValue`. For date and datetime values, responses include `isoValue`; the
 stored value is represented by UTC ticks in `longValue`. For UUID request
 values, pass canonical hyphenated or 32-character hexadecimal text in
@@ -190,11 +230,12 @@ Autocommit SQL requests use Serializable isolation by default. For requests
 that start an autocommit transaction, `isolationLevel` can be set to
 `"Serializable"` or `"ReadCommitted"`, and `transactionMode` can be set to
 `"ReadWrite"` or `"ReadOnly"`. Writable autocommit requests can also set
-`locking` to `"Pessimistic"` or `"Optimistic"`. These fields are ignored when
-the request resumes an existing transaction with `txnIdPT` and `txnIdCounter`.
-`locking` is also ignored by read-only `/execute-sql-query` requests because
-they do not run a writable transaction that can acquire or validate write
-conflicts.
+`locking` to `"Pessimistic"` or `"Optimistic"`, and requests that start a
+transaction can set `priority` to `"Background"`, `"Low"`, `"Normal"`,
+`"High"`, or `"Critical"`. These fields are ignored when the request resumes an
+existing transaction with `txnIdPT` and `txnIdCounter`. `locking` is also
+ignored by read-only `/execute-sql-query` requests because they do not run a
+writable transaction that can acquire or validate write conflicts.
 
 ### `POST /execute-sql-ddl`
 
@@ -217,9 +258,12 @@ Server-level database statements can omit `databaseName`:
 }
 ```
 
+Operational server-level query statements such as `SHOW ENGINE STATS` can also
+omit `databaseName`.
+
 ### `POST /execute-sql-query`
 
-For `SELECT` statements:
+For `SELECT` and `SHOW` statements:
 
 ```json
 {
@@ -342,6 +386,65 @@ Response:
 }
 ```
 
+## Prepared Statements
+
+Prepared statements let a client register a SQL statement once, then execute it
+many times by handle with different positional values. They are useful for hot
+parameterized `SELECT`, `INSERT`, `UPDATE`, `DELETE`, and `SHOW` statements.
+
+Register a statement:
+
+```http
+POST /prepare-sql-statement
+Content-Type: application/json
+
+{
+  "databaseName": "app",
+  "sql": "SELECT id, name FROM robots WHERE year >= @year"
+}
+```
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "statementId": "opaque-node-local-handle",
+  "parameterNames": ["@year"]
+}
+```
+
+Execute it through `/execute-sql-query`, `/execute-sql-query-stream`, or
+`/execute-sql-non-query`:
+
+```json
+{
+  "statementId": "opaque-node-local-handle",
+  "positionalParameters": [
+    { "type": 2, "longValue": 1980 }
+  ],
+  "transactionMode": "ReadOnly"
+}
+```
+
+When `statementId` is present, omit `sql`, `databaseName`, and named
+`parameters`. `positionalParameters[i]` binds to `parameterNames[i]` from the
+prepare response.
+
+Close a handle:
+
+```http
+POST /close-sql-statement
+Content-Type: application/json
+
+{ "statementId": "opaque-node-local-handle" }
+```
+
+REST handles are scoped to the node and principal that prepared them. If an
+execution returns `CADB0520` `UnknownPreparedStatement`, prepare again and
+replay once. See [Prepared Statements](/docs/prepared-statements) for handle
+scope, authorization behavior, and limits.
+
 ## Direct Row Operations
 
 Direct endpoints accept filters instead of SQL strings. Filters contain a
@@ -452,20 +555,26 @@ Start a transaction:
   "databaseName": "app",
   "isolationLevel": "Serializable",
   "transactionMode": "ReadWrite",
-  "locking": "Pessimistic"
+  "locking": "Pessimistic",
+  "priority": "Normal"
 }
 ```
 
-`isolationLevel`, `transactionMode`, and `locking` are optional. If omitted, the
-transaction starts with the server default isolation level, which is
-Serializable, the default transaction mode, which is read-write, and the server
-default locking strategy, which is pessimistic.
+`isolationLevel`, `transactionMode`, `locking`, and `priority` are optional. If
+omitted, the transaction starts with the server default isolation level, which
+is Serializable, the default transaction mode, which is read-write, the server
+default locking strategy, which is pessimistic, and the server default
+transaction priority, which is normal.
 
 Use `"ReadCommitted"` only when you intentionally opt down from the default
 Serializable behavior. Use `"ReadOnly"` with `"Serializable"` for a stable
 snapshot transaction. Use `"Optimistic"` when you want conflicts detected at
 commit instead of taking explicit locks while the transaction runs.
-Unrecognized locking values are rejected with `InvalidInput`.
+Use priority only for admission ordering under a configured concurrency gate.
+Unrecognized locking or priority values are rejected with `InvalidInput`.
+
+See [Transaction Priority](/docs/transaction-priority) for priority levels and
+gate configuration.
 
 Response:
 

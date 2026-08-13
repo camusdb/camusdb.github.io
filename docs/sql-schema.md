@@ -2,7 +2,7 @@
 sidebar_position: 2.1
 ---
 
-# Tables And Schema
+# Tables And Columns
 
 Table DDL runs inside an existing database. Create or select the database first,
 then create tables, alter columns, rename schema objects, or drop tables.
@@ -26,6 +26,26 @@ CREATE TABLE IF NOT EXISTS robots (
   name STRING NOT NULL
 );
 ```
+
+Create a table from a query result:
+
+```camussql
+CREATE TABLE vintage_robots AS
+SELECT name, kind, year
+FROM robots
+WHERE year < 1990;
+
+CREATE TABLE empty_robot_archive AS
+SELECT *
+FROM robots
+WITH NO DATA;
+```
+
+`CREATE TABLE ... AS SELECT` adds its own generated primary key column and
+copies only the query result shape. It does not inherit source indexes,
+constraints, defaults, comments, or table settings. See
+[Copying Query Results](/docs/insert-select-and-ctas) for CTAS rules,
+time-travel copy, and limits.
 
 Inline constraints can define primary keys and unique columns directly in the
 column list:
@@ -244,8 +264,20 @@ refresh statistics for that table. It defaults to `true`. Setting it to `false`
 opts the table out of background statistics collection, but manual
 `ANALYZE TABLE application_logs` still runs.
 
-The setting name is case-insensitive and the value must be boolean. Unknown
-setting names are rejected.
+Tables can also enable row-level TTL with table settings:
+
+```camussql
+ALTER TABLE sessions
+SET (ttl_expiration_expression = 'expires_at', ttl_job_cron = '@hourly');
+
+ALTER TABLE sessions
+RESET (ttl);
+```
+
+See [Row-Level TTL](/docs/row-level-ttl) for supported TTL parameters,
+expiration-column rules, and sweep behavior.
+
+Setting names are case-insensitive. Unknown setting names are rejected.
 
 ## Drop Tables
 
@@ -288,5 +320,5 @@ recovery examples, and limits.
 - [Data Types](/docs/data-types)
 - [Check Constraints](/docs/check-constraints)
 - [Indexes](/docs/sql-indexes)
-- [Schema Inspection](/docs/sql-inspection)
+- [Inspecting The Database](/docs/sql-inspection)
 - [Error Codes](/docs/error-codes)
