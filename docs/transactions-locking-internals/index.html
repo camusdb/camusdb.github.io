@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Transaction Internals | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/transactions-locking-internals/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Transaction Internals | CamusDB"><meta data-rh="true" name="description" content="How CamusDB uses Kahuna and Kommander to execute transactional SQL work. This"><meta data-rh="true" property="og:description" content="How CamusDB uses Kahuna and Kommander to execute transactional SQL work. This"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/transactions-locking-internals/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/transactions-locking-internals/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/transactions-locking-internals/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Transaction Internals","item":"https://camusdb.github.io/docs/transactions-locking-internals"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.ac3f6328.css">
-<script src="/assets/js/runtime~main.c95cd84a.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.16cd831d.js" defer="defer"></script>
 <script src="/assets/js/main.a30682f6.js" defer="defer"></script>
 </head>
 <body>
@@ -233,7 +233,7 @@ receipts let recovery distinguish &quot;this participant already committed&quot;
 &quot;this participant still needs work&quot;, even after the original write intent is
 gone. Recovery operations are idempotent, so the request path and recovery actor
 can race without duplicating the committed effect.</p>
-<p>The boundary is deliberate: durable decision mode protects the transaction
+<p>The boundary is drawn on purpose: durable decision mode protects the transaction
 after the commit decision exists. It does not make the active coordinator
 session or every prepared participant independently durable from <code>BEGIN</code>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="mvcc-and-hlc">MVCC And HLC<a href="#mvcc-and-hlc" class="hash-link" aria-label="Direct link to MVCC And HLC" title="Direct link to MVCC And HLC" translate="no">​</a></h2>

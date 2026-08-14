@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Runtime Cluster Settings | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/runtime-cluster-settings/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Runtime Cluster Settings | CamusDB"><meta data-rh="true" name="description" content="A defined subset of CamusDB&#x27;s configuration can be changed while the cluster is"><meta data-rh="true" property="og:description" content="A defined subset of CamusDB&#x27;s configuration can be changed while the cluster is"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/runtime-cluster-settings/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/runtime-cluster-settings/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/runtime-cluster-settings/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Runtime Cluster Settings","item":"https://camusdb.github.io/docs/runtime-cluster-settings"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.ac3f6328.css">
-<script src="/assets/js/runtime~main.c95cd84a.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.16cd831d.js" defer="defer"></script>
 <script src="/assets/js/main.a30682f6.js" defer="defer"></script>
 </head>
 <body>
@@ -22,105 +22,104 @@ node received it.</p>
 node-defining values it is the only thing that works. For everything else, a
 cluster setting is the better tool:</p>
 <ul>
-<li class=""><strong>No restart, so no window of reduced capacity.</strong> A knob you would previously
-have rolled out node by node — a mutation cap, a TTL rate limit, the default
-isolation level — takes effect at the next statement boundary with the node
-still serving.</li>
-<li class=""><strong>One change, one value, everywhere.</strong> The change is committed through Raft, so
+<li class="">No restart, so no window of reduced capacity. A knob you would previously have
+rolled out node by node, such as a mutation cap, a TTL rate limit, or the
+default isolation level, takes effect at the next statement boundary with the
+node still serving.</li>
+<li class="">One change, one value, everywhere. The change is committed through Raft, so
 every node ends up on the same value in the same order. There is no partial
 rollout to reconcile and no node left behind because someone forgot a file.</li>
-<li class=""><strong>It survives the restart it replaces.</strong> The overlay is persisted, so a node
-that reboots — or one that was down when the change was made — comes back
-running the cluster&#x27;s value rather than its own stale YAML.</li>
-<li class=""><strong>Reversible in one statement.</strong> <code>RESET</code> drops the cluster&#x27;s entry and each
-node falls back to its own local configuration, which is a far shorter path
-back than re-editing files.</li>
-<li class=""><strong>The database tells you what is changeable.</strong> Every row of <code>SHOW VARIABLES</code>
+<li class="">It survives the restart it replaces. The overlay is persisted, so a node that
+reboots, or one that was down when the change was made, comes back running the
+cluster&#x27;s value rather than its own stale YAML.</li>
+<li class="">Reversible in one statement. <code>RESET</code> drops the cluster&#x27;s entry and each node
+falls back to its own local configuration, which is a far shorter path back
+than re-editing files.</li>
+<li class="">The database tells you what is changeable. Every row of <code>SHOW VARIABLES</code>
 carries the setting&#x27;s mutability and scope, so there is no hand-maintained list
 to fall out of date.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-two-axes-mutability-and-scope">The Two Axes: Mutability And Scope<a href="#the-two-axes-mutability-and-scope" class="hash-link" aria-label="Direct link to The Two Axes: Mutability And Scope" title="Direct link to The Two Axes: Mutability And Scope" translate="no">​</a></h2>
 <p>Every setting is classified on two axes, and both are visible in
-<a class="" href="/docs/show-variables/"><code>SHOW VARIABLES</code></a>:</p>
-<p><strong>Mutability</strong> — can this change without a restart?</p>
-<table><thead><tr><th></th><th>Meaning</th></tr></thead><tbody><tr><td><code>runtime</code></td><td>A new value takes effect at the reader&#x27;s next boundary: the next statement, the next transaction begin, the next iteration of a background loop. Only these can be changed live.</td></tr><tr><td><code>restart</code></td><td>The value is baked into something built once per process — the data directory, node identity, Raft ports and peers, the whole <code>kahuna.*</code> section. Changing it means editing configuration and restarting the node.</td></tr></tbody></table>
-<p><strong>Scope</strong> — must the fleet agree on this value?</p>
-<table><thead><tr><th></th><th>Meaning</th></tr></thead><tbody><tr><td><code>cluster</code></td><td>Nodes disagreeing changes what a user&#x27;s transaction does depending on which node accepted it: isolation defaults, mutation caps, TTL and lease policy.</td></tr><tr><td><code>node</code></td><td>Deliberately per-node: tracing switches, local cache sizes, whether <em>this</em> node runs materialized-view refreshes.</td></tr></tbody></table>
+<a class="" href="/docs/show-variables/"><code>SHOW VARIABLES</code></a>.</p>
+<p>Mutability answers whether the setting can change without a restart:</p>
+<table><thead><tr><th></th><th>Meaning</th></tr></thead><tbody><tr><td><code>runtime</code></td><td>A new value takes effect at the reader&#x27;s next boundary: the next statement, the next transaction begin, the next iteration of a background loop. Only these can be changed live.</td></tr><tr><td><code>restart</code></td><td>The value is baked into something built once per process, such as the data directory, node identity, Raft ports and peers, or the whole <code>kahuna.*</code> section. Changing it means editing configuration and restarting the node.</td></tr></tbody></table>
+<p>Scope answers whether the fleet must agree on the value:</p>
+<table><thead><tr><th></th><th>Meaning</th></tr></thead><tbody><tr><td><code>cluster</code></td><td>Nodes disagreeing changes what a user&#x27;s transaction does depending on which node accepted it: isolation defaults, mutation caps, TTL and lease policy.</td></tr><tr><td><code>node</code></td><td>Per-node by design: tracing switches, local cache sizes, whether <em>this</em> node runs materialized-view refreshes.</td></tr></tbody></table>
 <p>The two axes are independent. <code>data_dir</code> is <code>restart</code> and <code>node</code>.
 <code>max_mutations_per_transaction</code> is <code>runtime</code> and <code>cluster</code>.
-<code>query_tracing_enabled</code> is <code>runtime</code> and <code>node</code> — changeable live, and nodes are
-free to differ. <code>authentication_enabled</code> is <code>restart</code> and <code>cluster</code>: the fleet
-must agree on it, but not by way of a live change.</p>
+<code>query_tracing_enabled</code> is <code>runtime</code> and <code>node</code>, so it is changeable live and
+nodes are free to differ. <code>authentication_enabled</code> is <code>restart</code> and <code>cluster</code>:
+the fleet must agree on it, but not by way of a live change.</p>
 <p>Rather than keep a list of changeable settings by hand, ask the database:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">VARIABLES</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain">                     </span><span class="token comment" style="color:#999988;font-style:italic">-- value, type, default, source, mutability, scope</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">VARIABLES</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">LIKE</span><span class="token plain"> </span><span class="token string" style="color:#e3116c">&#x27;ttl_%&#x27;</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain">        </span><span class="token comment" style="color:#999988;font-style:italic">-- narrowed by name</span><br></div></code></pre></div></div>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="changing-a-setting">Changing A Setting<a href="#changing-a-setting" class="hash-link" aria-label="Direct link to Changing A Setting" title="Direct link to Changing A Setting" translate="no">​</a></h2>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">SET</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">CLUSTER</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">SETTING</span><span class="token plain"> max_mutations_per_transaction </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">40000</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SET</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">CLUSTER</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">SETTING</span><span class="token plain"> default_isolation_level </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> read_committed</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SET</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">CLUSTER</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">SETTING</span><span class="token plain"> query_tracing_enabled </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">true</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
 <p>Values use the same spelling <code>config.yml</code> uses: lowercase booleans, plain
 numbers, underscored enum members, durations as whole milliseconds. Enum values
-need no quotes. <strong>A value printed by <code>SHOW VARIABLES</code> pastes back unchanged</strong>,
-which is the property that keeps a file and a statement from meaning two
-different things.</p>
-<p>The statement may be sent to <strong>any node</strong>. A node that does not lead the settings
+need no quotes. A value printed by <code>SHOW VARIABLES</code> pastes back unchanged, which
+is the property that keeps a file and a statement from meaning two different
+things.</p>
+<p>The statement may be sent to any node. A node that does not lead the settings
 partition forwards the change to the one that does, over the authenticated
 internal route; the change is then committed through Raft and applied everywhere.
-Two conflicting <code>SET</code>s therefore resolve to the same winner on every node —
-commit order decides, never wall clocks. A node that is down during the change
-catches up by log replay when it returns.</p>
-<p>The change is validated <strong>before</strong> it is applied anywhere, against the
-configuration that would result — including cross-field invariants, such as a
-lease-renew interval having to sit under its lease. A value that would break one
-is rejected with the validator&#x27;s message, which names both sides of the check,
-and nothing is written.</p>
+Two conflicting <code>SET</code>s therefore resolve to the same winner on every node,
+because commit order decides, never wall clocks. A node that is down during the
+change catches up by log replay when it returns.</p>
+<p>The change is validated before it is applied anywhere, against the configuration
+that would result, including cross-field invariants such as a lease-renew
+interval having to sit under its lease. A value that would break one is rejected
+with the validator&#x27;s message, which names both sides of the check, and nothing is
+written.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="undoing-a-change">Undoing A Change<a href="#undoing-a-change" class="hash-link" aria-label="Direct link to Undoing A Change" title="Direct link to Undoing A Change" translate="no">​</a></h2>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">RESET</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">CLUSTER</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">SETTING</span><span class="token plain"> max_mutations_per_transaction</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
-<p><code>RESET</code> removes the cluster&#x27;s entry for the key. It does <strong>not</strong> write the
-built-in default — that would leave the cluster overriding every file with a
-value nobody chose. Each node instead resolves the key through its own local
-chain again (command line, environment, file, built-in default), so a node whose
+<p><code>RESET</code> removes the cluster&#x27;s entry for the key. It does not write the built-in
+default, because that would leave the cluster overriding every file with a value
+nobody chose. Each node instead resolves the key through its own local chain
+again (command line, environment, file, built-in default), so a node whose
 <code>config.yml</code> names that key returns to its file value.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="precedence-the-cluster-layer-wins">Precedence: The Cluster Layer Wins<a href="#precedence-the-cluster-layer-wins" class="hash-link" aria-label="Direct link to Precedence: The Cluster Layer Wins" title="Direct link to Precedence: The Cluster Layer Wins" translate="no">​</a></h2>
 <p>For a <code>runtime</code> key the cluster value overrides the node&#x27;s command line,
 environment, and <code>config.yml</code>:</p>
 <ol>
-<li class=""><strong>the cluster overlay</strong></li>
+<li class="">the cluster overlay</li>
 <li class="">command-line flags</li>
 <li class="">environment variables</li>
 <li class="">the selected YAML file</li>
 <li class="">built-in defaults</li>
 </ol>
-<p>This ordering is deliberate. If the local file won, a fleet-wide change would
-silently no-op on the one node whose YAML happens to name that key — invisible,
-and the hardest kind of drift to diagnose. <code>restart</code>-class keys are never
-cluster-overridable, so genuinely node-defining values keep their local
-provenance.</p>
+<p>The ordering is chosen so that a fleet-wide change cannot silently no-op on the
+one node whose YAML happens to name that key, which is the hardest kind of drift
+to diagnose. <code>restart</code>-class keys are never cluster-overridable, so genuinely
+node-defining values keep their local provenance.</p>
 <p>A node whose behavior contradicts its own <code>config.yml</code> explains itself: the
 <code>source</code> column in <code>SHOW VARIABLES</code> reads <code>cluster</code> for a key the cluster
 supplies, instead of <code>config</code>, <code>env</code>, <code>cli</code>, or <code>default</code>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="seeing-what-the-cluster-carries">Seeing What The Cluster Carries<a href="#seeing-what-the-cluster-carries" class="hash-link" aria-label="Direct link to Seeing What The Cluster Carries" title="Direct link to Seeing What The Cluster Carries" translate="no">​</a></h2>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">CLUSTER</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">SETTINGS</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">CLUSTER</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">SETTINGS</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">LIKE</span><span class="token plain"> </span><span class="token string" style="color:#e3116c">&#x27;ttl_%&#x27;</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
 <table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>setting</code></td><td>The configuration key.</td></tr><tr><td><code>value</code></td><td>The stored value text, in the same spelling <code>SET</code> and <code>config.yml</code> accept.</td></tr></tbody></table>
-<p>This lists <strong>the overlay itself</strong> — every key a <code>SET</code> put in force and no <code>RESET</code>
-dropped — which is a different question from what <code>SHOW VARIABLES</code> answers. The
+<p>This lists the overlay itself, every key a <code>SET</code> put in force and no <code>RESET</code>
+dropped, which is a different question from what <code>SHOW VARIABLES</code> answers. The
 overlay is what the fleet agreed on; the variables are what this node is actually
 running after merging that overlay over its local configuration. An empty result
 means the cluster carries no overrides at all.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="confirming-a-change-landed-everywhere">Confirming A Change Landed Everywhere<a href="#confirming-a-change-landed-everywhere" class="hash-link" aria-label="Direct link to Confirming A Change Landed Everywhere" title="Direct link to Confirming A Change Landed Everywhere" translate="no">​</a></h2>
-<p><code>SHOW VARIABLES</code> is deliberately node-local — it describes the node that served
+<p><code>SHOW VARIABLES</code> is node-local by design, since it describes the node that served
 the statement. Answering from the leader would hide exactly the drift you are
 looking for. So confirming a fleet-wide change means asking each node:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token comment" style="color:#999988;font-style:italic">-- run against every node:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">VARIABLES</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">LIKE</span><span class="token plain"> </span><span class="token string" style="color:#e3116c">&#x27;max_mutations_per_transaction&#x27;</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
 <p>Every node should report the new value with <code>source</code> = <code>cluster</code>. A node still
-showing its file value either has not applied the change yet — replication lag,
-so retry shortly — or cannot reach the cluster. If it persists, check that node&#x27;s
-connectivity to the settings-partition leader and its logs for failed-apply
-warnings.</p>
+showing its file value either has not applied the change yet, which is
+replication lag and clears on a retry, or cannot reach the cluster. If it
+persists, check that node&#x27;s connectivity to the settings-partition leader and its
+logs for failed-apply warnings.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-gets-rejected">What Gets Rejected<a href="#what-gets-rejected" class="hash-link" aria-label="Direct link to What Gets Rejected" title="Direct link to What Gets Rejected" translate="no">​</a></h2>
-<p>Three different mistakes produce three different errors, because they send you to
-three different places:</p>
-<table><thead><tr><th>Statement</th><th>Error</th><th>Why</th></tr></thead><tbody><tr><td><code>SET CLUSTER SETTING no_such_setting = 1</code></td><td><code>CADB0400</code> — unknown cluster setting</td><td>The key does not exist. Go hunt the typo.</td></tr><tr><td><code>SET CLUSTER SETTING data_dir = &#x27;/elsewhere&#x27;</code></td><td><code>CADB0400</code> — restart-bound</td><td>The key is real but <code>restart</code>-class. Edit configuration and restart the node.</td></tr><tr><td><code>SET CLUSTER SETTING max_mutations_per_transaction = banana</code></td><td><code>CADB0400</code>, naming the key</td><td>The value does not coerce to the setting&#x27;s type.</td></tr><tr><td><code>SET CLUSTER SETTING ttl_span_lease_renew_interval_ms = 999999999</code></td><td><code>CADB0600</code> <code>InvalidConfig</code></td><td>The value is well-formed but breaks a cross-field invariant. The message names both settings.</td></tr></tbody></table>
+<p>Four different mistakes produce distinct errors, because they send you to
+different places:</p>
+<table><thead><tr><th>Statement</th><th>Error</th><th>Why</th></tr></thead><tbody><tr><td><code>SET CLUSTER SETTING no_such_setting = 1</code></td><td><code>CADB0400</code>, unknown cluster setting</td><td>The key does not exist. Go hunt the typo.</td></tr><tr><td><code>SET CLUSTER SETTING data_dir = &#x27;/elsewhere&#x27;</code></td><td><code>CADB0400</code>, restart-bound</td><td>The key is real but <code>restart</code>-class. Edit configuration and restart the node.</td></tr><tr><td><code>SET CLUSTER SETTING max_mutations_per_transaction = banana</code></td><td><code>CADB0400</code>, naming the key</td><td>The value does not coerce to the setting&#x27;s type.</td></tr><tr><td><code>SET CLUSTER SETTING ttl_span_lease_renew_interval_ms = 999999999</code></td><td><code>CADB0600</code> <code>InvalidConfig</code></td><td>The value is well-formed but breaks a cross-field invariant. The message names both settings.</td></tr></tbody></table>
 <p>A <code>kahuna.*</code> key is reported as restart-bound rather than unknown, even though
-the section carries no per-key classification — reporting it as unknown would
-send an operator hunting for a typo that is not there.</p>
+the section carries no per-key classification. Reporting it as unknown would send
+an operator hunting for a typo that is not there.</p>
 <p>A rejected change leaves nothing behind: no overlay entry, and the node&#x27;s
 effective configuration is untouched.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="standalone-mode">Standalone Mode<a href="#standalone-mode" class="hash-link" aria-label="Direct link to Standalone Mode" title="Direct link to Standalone Mode" translate="no">​</a></h2>
@@ -130,7 +129,7 @@ agree with. A single-node deployment therefore gets live configuration changes
 without running in cluster mode.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="boot-behavior">Boot Behavior<a href="#boot-behavior" class="hash-link" aria-label="Direct link to Boot Behavior" title="Direct link to Boot Behavior" translate="no">​</a></h2>
 <p>A node necessarily boots on its file configuration and swaps to the merged
-cluster view as soon as its store is readable — before the query engine starts
+cluster view as soon as its store is readable, before the query engine starts
 serving. Components built before that point either react to the swap or hold only
 <code>restart</code>-class settings, so an ordinary restart cannot produce a node that
 permanently disagrees with the cluster.</p>

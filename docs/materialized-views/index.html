@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Materialized Views | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/materialized-views/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Materialized Views | CamusDB"><meta data-rh="true" name="description" content="A materialized view runs its query once, stores the rows, and answers every read"><meta data-rh="true" property="og:description" content="A materialized view runs its query once, stores the rows, and answers every read"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/materialized-views/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/materialized-views/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/materialized-views/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Materialized Views","item":"https://camusdb.github.io/docs/materialized-views"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.ac3f6328.css">
-<script src="/assets/js/runtime~main.c95cd84a.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.16cd831d.js" defer="defer"></script>
 <script src="/assets/js/main.a30682f6.js" defer="defer"></script>
 </head>
 <body>
@@ -18,27 +18,27 @@ from that stored copy until you refresh it. A plain <a class="" href="/docs/view
 storage for freshness; a materialized view trades freshness for speed.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">MATERIALIZED</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">VIEW</span><span class="token plain"> customer_totals </span><span class="token keyword" style="color:#00009f">AS</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token keyword" style="color:#00009f">SELECT</span><span class="token plain"> customer</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token function" style="color:#d73a49">SUM</span><span class="token punctuation" style="color:#393A34">(</span><span class="token plain">total</span><span class="token punctuation" style="color:#393A34">)</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">AS</span><span class="token plain"> total_spent</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> orders</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token keyword" style="color:#00009f">GROUP</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">BY</span><span class="token plain"> customer</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SELECT</span><span class="token plain"> </span><span class="token operator" style="color:#393A34">*</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> customer_totals </span><span class="token keyword" style="color:#00009f">WHERE</span><span class="token plain"> customer </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token string" style="color:#e3116c">&#x27;acme&#x27;</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain">  </span><span class="token comment" style="color:#999988;font-style:italic">-- does not touch orders</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">REFRESH</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">MATERIALIZED</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">VIEW</span><span class="token plain"> customer_totals</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain">              </span><span class="token comment" style="color:#999988;font-style:italic">-- re-runs the query</span><br></div></code></pre></div></div>
 <p>Inserting into <code>orders</code> afterwards changes nothing that <code>customer_totals</code>
-returns. That is the point, and it is the one behavior to internalize: <strong>a
-materialized view is a snapshot, and only <code>REFRESH</code> moves it forward.</strong>
+returns. That is the point, and it is the one behavior to internalize: a
+materialized view is a snapshot, and only <code>REFRESH</code> moves it forward.
 <code>SHOW MATERIALIZED VIEWS</code> reports how stale each one is.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-use-one">Why Use One<a href="#why-use-one" class="hash-link" aria-label="Direct link to Why Use One" title="Direct link to Why Use One" translate="no">​</a></h2>
 <p>A plain view re-runs its query on every read. When that query is a wide join or
 an aggregate over a large table, every reader pays for it every time. A
 materialized view pays once, at refresh, and hands out the answer afterwards.</p>
 <ul>
-<li class=""><strong>Read cost stops tracking the base table.</strong> A rollup over ten million orders
+<li class="">Read cost stops tracking the base table. A rollup over ten million orders
 answers from however many rows the rollup itself holds. Growth in <code>orders</code>
 makes the refresh longer, not the dashboard slower.</li>
-<li class=""><strong>It can be indexed, analyzed, and cached.</strong> The stored rows are an ordinary
+<li class="">It can be indexed, analyzed, and cached. The stored rows are an ordinary
 relation, so an index on the column you filter by turns the read into a lookup.
 A plain view has no rows of its own and so cannot offer that.</li>
-<li class=""><strong>Refreshing never blocks a reader.</strong> The rebuild happens beside the live copy
-and swaps in atomically, so there is no window in which reads are slow, locked,
-or looking at a half-built result.</li>
-<li class=""><strong>A snapshot is often what a report actually wants.</strong> Every panel reading the
-same materialized view sees the same instant, and re-running a query gives the
-same answer until you refresh — consistency that is harder to get from several
-live queries racing each other.</li>
+<li class="">Refreshing never blocks a reader. The rebuild happens beside the live copy and
+swaps in atomically, so there is no window in which reads are slow, locked, or
+looking at a half-built result.</li>
+<li class="">A snapshot is often what a report actually wants. Every panel reading the same
+materialized view sees the same instant, and re-running a query gives the same
+answer until you refresh, a consistency that is harder to get from several live
+queries racing each other.</li>
 </ul>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-worked-example">A Worked Example<a href="#a-worked-example" class="hash-link" aria-label="Direct link to A Worked Example" title="Direct link to A Worked Example" translate="no">​</a></h3>
 <p>An expensive rollup that a dashboard hits constantly:</p>
@@ -46,15 +46,15 @@ live queries racing each other.</li>
 <p>Every read after that is a lookup in a small indexed relation, whatever <code>orders</code>
 grows to:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">SELECT</span><span class="token plain"> total_spent </span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> customer_totals </span><span class="token keyword" style="color:#00009f">WHERE</span><span class="token plain"> customer </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token string" style="color:#e3116c">&#x27;acme&#x27;</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
-<p>Move it forward when you want it moved forward — from a nightly job, after a
-bulk load, or by hand:</p>
+<p>Move it forward when you want it moved forward, from a nightly job, after a bulk
+load, or by hand:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">REFRESH</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">MATERIALIZED</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">VIEW</span><span class="token plain"> customer_totals</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="which-one-do-i-want">Which One Do I Want<a href="#which-one-do-i-want" class="hash-link" aria-label="Direct link to Which One Do I Want" title="Direct link to Which One Do I Want" translate="no">​</a></h3>
-<table><thead><tr><th></th><th>Reads</th><th>Freshness</th><th>Storage</th><th>Indexable</th></tr></thead><tbody><tr><td><a class="" href="/docs/views/">View</a></td><td>Re-runs the query</td><td>Always current</td><td>None</td><td>No — it has no rows</td></tr><tr><td>Materialized view</td><td>Reads stored rows</td><td>As of the last <code>REFRESH</code></td><td>A full copy</td><td>Yes</td></tr><tr><td><a class="" href="/docs/insert-select-and-ctas/"><code>CREATE TABLE ... AS SELECT</code></a></td><td>Reads stored rows</td><td>Frozen; nothing regenerates it</td><td>A full copy</td><td>Yes</td></tr></tbody></table>
+<table><thead><tr><th></th><th>Reads</th><th>Freshness</th><th>Storage</th><th>Indexable</th></tr></thead><tbody><tr><td><a class="" href="/docs/views/">View</a></td><td>Re-runs the query</td><td>Always current</td><td>None</td><td>No, it has no rows</td></tr><tr><td>Materialized view</td><td>Reads stored rows</td><td>As of the last <code>REFRESH</code></td><td>A full copy</td><td>Yes</td></tr><tr><td><a class="" href="/docs/insert-select-and-ctas/"><code>CREATE TABLE ... AS SELECT</code></a></td><td>Reads stored rows</td><td>Frozen; nothing regenerates it</td><td>A full copy</td><td>Yes</td></tr></tbody></table>
 <p>Reach for a plain view when the query is cheap or the answer has to be current.
 Reach for a materialized view when the query is expensive and an answer of known
 age is acceptable. Reach for <code>CREATE TABLE ... AS SELECT</code> when you want a one-off
-copy that will never be regenerated — it produces a plain table with no link back
+copy that will never be regenerated; it produces a plain table with no link back
 to the query that filled it.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="it-is-a-real-relation">It Is A Real Relation<a href="#it-is-a-real-relation" class="hash-link" aria-label="Direct link to It Is A Real Relation" title="Direct link to It Is A Real Relation" translate="no">​</a></h2>
 <p>A materialized view is stored as an ordinary relation, so nearly everything that
@@ -71,7 +71,7 @@ refused rather than accepted and later erased.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="its-shape-is-fixed-at-creation">Its Shape Is Fixed At Creation<a href="#its-shape-is-fixed-at-creation" class="hash-link" aria-label="Direct link to Its Shape Is Fixed At Creation" title="Direct link to Its Shape Is Fixed At Creation" translate="no">​</a></h2>
 <p>The column list is derived from the query when the materialized view is created,
 and a refresh reuses it rather than re-deriving it. Adding a column to a base
-table therefore does not widen an existing materialized view — the same rule
+table therefore does not widen an existing materialized view, the same rule
 plain views follow, for the same reason.</p>
 <p>As with <a class="" href="/docs/insert-select-and-ctas/"><code>CREATE TABLE ... AS SELECT</code></a>, every
 output column needs a name, and the relation gets a generated <code>id</code> primary key
@@ -80,9 +80,8 @@ column list renames the stored columns:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">MATERIALIZED</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">VIEW</span><span class="token plain"> open_orders </span><span class="token punctuation" style="color:#393A34">(</span><span class="token plain">order_id</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> amount</span><span class="token punctuation" style="color:#393A34">)</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">AS</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token keyword" style="color:#00009f">SELECT</span><span class="token plain"> id</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> total </span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> orders </span><span class="token keyword" style="color:#00009f">WHERE</span><span class="token plain"> status </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token string" style="color:#e3116c">&#x27;open&#x27;</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="with-no-data"><code>WITH NO DATA</code><a href="#with-no-data" class="hash-link" aria-label="Direct link to with-no-data" title="Direct link to with-no-data" translate="no">​</a></h2>
 <p><code>WITH NO DATA</code> creates the materialized view without running the query. Reading
-one that has never been populated is an <strong>error, not an empty result</strong> — an
-empty result would make a forgotten <code>REFRESH</code> indistinguishable from a correct
-answer:</p>
+one that has never been populated is an error, not an empty result. An empty
+result would make a forgotten <code>REFRESH</code> indistinguishable from a correct answer:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">MATERIALIZED</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">VIEW</span><span class="token plain"> customer_totals </span><span class="token keyword" style="color:#00009f">AS</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">SELECT</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">.</span><span class="token punctuation" style="color:#393A34">.</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">WITH</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">NO</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">DATA</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SELECT</span><span class="token plain"> </span><span class="token operator" style="color:#393A34">*</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> customer_totals</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token comment" style="color:#999988;font-style:italic">-- CADB0531: materialized view &#x27;customer_totals&#x27; has not been populated</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">REFRESH</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">MATERIALIZED</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">VIEW</span><span class="token plain"> customer_totals</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain">   </span><span class="token comment" style="color:#999988;font-style:italic">-- now it reads</span><br></div></code></pre></div></div>
 <p><code>REFRESH MATERIALIZED VIEW ... WITH NO DATA</code> empties one again and returns it to
 that state.</p>
@@ -90,35 +89,35 @@ that state.</p>
 <p>Nothing. A refresh builds an entirely new relation, populates it, and then moves
 the materialized view&#x27;s name onto it in one atomic schema change. Readers
 already running keep reading the previous contents at their own snapshot;
-readers that start after the switch see the new contents whole. <strong>Nobody blocks,
-and nobody ever observes a half-built materialized view</strong> — not even briefly,
-and not on any node of a cluster.</p>
+readers that start after the switch see the new contents whole. Nobody blocks,
+and nobody ever observes a half-built materialized view, not even briefly, and
+not on any node of a cluster.</p>
 <p>That is why <code>REFRESH MATERIALIZED VIEW ... CONCURRENTLY</code> is refused (<code>CADB0533</code>)
 rather than accepted as a synonym. In PostgreSQL, <code>CONCURRENTLY</code> exists because
 the ordinary form takes an exclusive lock and blocks readers; CamusDB&#x27;s ordinary
-form already does not. What <code>CONCURRENTLY</code> additionally buys — writing only the
-rows that changed — is a genuine optimization that is not implemented, so the
+form already does not. What <code>CONCURRENTLY</code> additionally buys, writing only the
+rows that changed, is a genuine optimization that is not implemented, so the
 statement says so instead of quietly doing something else.</p>
-<p>The rebuild reads its source at <strong>one pinned snapshot</strong> for its whole duration,
+<p>The rebuild reads its source at one pinned snapshot for its whole duration,
 so the result is always a state the database actually was in, however long the
 rebuild takes. It writes in chunked transactions
 (<code>materialized_view_refresh_chunk_rows</code>), which is what lets a materialized view
-exceed the per-transaction mutation limit that would otherwise cap its size —
-see <a class="" href="/docs/transaction-limits/">Transaction Limits</a>.</p>
+exceed the per-transaction mutation limit that would otherwise cap its size. See
+<a class="" href="/docs/transaction-limits/">Transaction Limits</a>.</p>
 <p>If a refresh fails, the materialized view is left exactly as it was. A failed
 rebuild is discarded, never partially published.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="one-refresh-at-a-time">One Refresh At A Time<a href="#one-refresh-at-a-time" class="hash-link" aria-label="Direct link to One Refresh At A Time" title="Direct link to One Refresh At A Time" translate="no">​</a></h2>
 <p>Only one refresh of a given materialized view runs at a time anywhere in the
 cluster. A second one is refused with <code>CADB0532</code> while the first is in flight,
 whichever node it was issued on.</p>
-<p>A refresh that is <strong>interrupted</strong> rather than failed — the process died, or the
-node lost leadership part-way — is picked up by a background sweep and run again
-<strong>from the beginning</strong>, up to <code>materialized_view_refresh_takeover_attempts</code>
+<p>A refresh that is interrupted rather than failed, because the process died or
+the node lost leadership part-way, is picked up by a background sweep and run
+again from the beginning, up to <code>materialized_view_refresh_takeover_attempts</code>
 times. The sweep takes the same cluster-wide fence a <code>REFRESH</code> takes, so exactly
 one node finishes the work and no rebuild is ever running twice.</p>
 <p>It is a restart, not a resume. Continuing a half-finished scan would require the
 body to yield rows in the same order on every execution, which is true of a
-single-relation scan and not promised for a join or an aggregate — resuming one
+single-relation scan and not promised for a join or an aggregate. Resuming one
 of those would leave a materialized view with duplicated and missing rows.</p>
 <p>The view keeps serving its previous contents until a restart completes. When the
 attempts run out it is left stale, an error is logged naming it, and it is yours
@@ -128,17 +127,17 @@ to <code>REFRESH</code> again.</p>
 <p>A plain view may read a materialized view. Dropping the materialized view out
 from under it is refused unless you say <code>CASCADE</code>, exactly as for a table.
 Renaming one is invisible to the views that read it, since their bodies refer to
-it by id — see <a class="" href="/docs/views/#renames-are-transparent">Renames Are Transparent</a>.</p>
-<p>Tables, views, and materialized views share <strong>one namespace</strong>: a table and a
+it by id. See <a class="" href="/docs/views/#renames-are-transparent">Renames Are Transparent</a>.</p>
+<p>Tables, views, and materialized views share one namespace: a table and a
 materialized view cannot have the same name, and each kind is dropped by its own
-statement — <code>DROP TABLE</code> refuses a materialized view and names the statement to
+statement, so <code>DROP TABLE</code> refuses a materialized view and names the statement to
 use instead.</p>
 <p>Unlike a plain view, a materialized view is not a security boundary. Its rows
 were computed at refresh time, so reading one is an ordinary read of a relation,
 checked against the caller.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="introspection">Introspection<a href="#introspection" class="hash-link" aria-label="Direct link to Introspection" title="Direct link to Introspection" translate="no">​</a></h2>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">MATERIALIZED</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">VIEWS</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain">              </span><span class="token comment" style="color:#999988;font-style:italic">-- name, whether it holds data, and its snapshot</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">MATERIALIZED</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">VIEWS</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">LIKE</span><span class="token plain"> </span><span class="token string" style="color:#e3116c">&#x27;cust%&#x27;</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">MATERIALIZED</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">VIEW</span><span class="token plain"> customer_totals</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">COLUMNS</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> customer_totals</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">INDEXES</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> customer_totals</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
-<p><code>SHOW TABLES</code> lists tables only — neither views nor materialized views.
+<p><code>SHOW TABLES</code> lists tables only, neither views nor materialized views.
 <code>SHOW CREATE MATERIALIZED VIEW</code> prints <code>WITH NO DATA</code> for an unpopulated one, so
 its output recreates the same object rather than a populated lookalike.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="configuration">Configuration<a href="#configuration" class="hash-link" aria-label="Direct link to Configuration" title="Direct link to Configuration" translate="no">​</a></h2>
@@ -146,14 +145,14 @@ its output recreates the same object rather than a populated lookalike.</p>
 <p>All three appear in <a class="" href="/docs/show-variables/"><code>SHOW VARIABLES</code></a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="not-implemented-yet">Not Implemented Yet<a href="#not-implemented-yet" class="hash-link" aria-label="Direct link to Not Implemented Yet" title="Direct link to Not Implemented Yet" translate="no">​</a></h2>
 <ul>
-<li class=""><strong>Incremental refresh</strong> (<code>REFRESH MATERIALIZED VIEW ... CONCURRENTLY</code>), which
+<li class="">Incremental refresh (<code>REFRESH MATERIALIZED VIEW ... CONCURRENTLY</code>), which
 would write only the rows that changed instead of rebuilding. The plain form
 works and does not block readers.</li>
-<li class=""><strong>Resuming an interrupted refresh mid-scan.</strong> An interrupted refresh is
-restarted from the beginning rather than continued from where it stopped (see
-<a href="#one-refresh-at-a-time" class="">One Refresh At A Time</a>) — the work the dead run did is
-paid for again. The materialized view is untouched in the meantime, so nothing
-is left inconsistent.</li>
+<li class="">Resuming an interrupted refresh mid-scan. An interrupted refresh is restarted
+from the beginning rather than continued from where it stopped (see
+<a href="#one-refresh-at-a-time" class="">One Refresh At A Time</a>), so the work the dead run did
+is paid for again. The materialized view is untouched in the meantime, so
+nothing is left inconsistent.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="related-pages">Related Pages<a href="#related-pages" class="hash-link" aria-label="Direct link to Related Pages" title="Direct link to Related Pages" translate="no">​</a></h2>
 <p><a class="" href="/docs/views/">Views</a> for plain views and the rules both kinds share,

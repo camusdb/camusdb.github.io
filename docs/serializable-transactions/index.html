@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Transactions And Isolation | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/serializable-transactions/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Transactions And Isolation | CamusDB"><meta data-rh="true" name="description" content="Every statement CamusDB runs is inside a transaction. If you do not open one,"><meta data-rh="true" property="og:description" content="Every statement CamusDB runs is inside a transaction. If you do not open one,"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/serializable-transactions/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/serializable-transactions/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/serializable-transactions/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Transactions And Isolation","item":"https://camusdb.github.io/docs/serializable-transactions"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.ac3f6328.css">
-<script src="/assets/js/runtime~main.c95cd84a.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.16cd831d.js" defer="defer"></script>
 <script src="/assets/js/main.a30682f6.js" defer="defer"></script>
 </head>
 <body>
@@ -44,13 +44,13 @@ neither readers nor writers. What you no longer get:</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="read-only-and-read-write-modes">Read-Only And Read-Write Modes<a href="#read-only-and-read-write-modes" class="hash-link" aria-label="Direct link to Read-Only And Read-Write Modes" title="Direct link to Read-Only And Read-Write Modes" translate="no">​</a></h2>
 <p>Serializable has two execution modes, and picking the right one matters more
 than any other tuning decision here.</p>
-<p>A <strong>serializable read-only</strong> transaction pins one snapshot timestamp at <code>BEGIN</code>.
+<p>A serializable read-only transaction pins one snapshot timestamp at <code>BEGIN</code>.
 Every statement reads from it, later commits stay invisible, repeated reads are
 stable, and none of it needs a lock. CamusDB can hold that snapshot across
 several requests when the client resumes the same transaction id, so it works
 for a multi-query report, not just one statement.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">BEGIN</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SET</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">TRANSACTION</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">ISOLATION</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">LEVEL</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">SERIALIZABLE</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">READ</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">ONLY</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
-<p>A <strong>serializable read-write</strong> transaction adds locking on top of MVCC. Point
+<p>A serializable read-write transaction adds locking on top of MVCC. Point
 reads can hold shared point locks, scans can hold shared range locks, and writes
 take exclusive key-level protection. A key the transaction read cannot be
 changed underneath it and still commit. The cost is that conflicting
@@ -60,15 +60,15 @@ read-only for reports and consistency-sensitive reads that should not block
 writers.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="locking">Locking<a href="#locking" class="hash-link" aria-label="Direct link to Locking" title="Direct link to Locking" translate="no">​</a></h2>
 <p>Two kinds of lock are worth understanding as a user.</p>
-<p><strong>Per-key locks and write intents</strong> are taken by every write, for the keys it
+<p>Per-key locks and write intents are taken by every write, for the keys it
 modifies. They are what enforces row write-write conflict detection, unique
 index conflict detection, and atomic update of a row together with its index
 entries.</p>
-<p><strong>Point and range read locks</strong> are how serializable read-write transactions
+<p>Point and range read locks are how serializable read-write transactions
 protect what they read. A shared point lock covers the exact key read; a
 concurrent writer cannot modify it and still commit. If the same transaction
 later writes that key, the lock is promoted to write protection. For scans, a
-shared range lock covers the scanned span — overlapping scans still run
+shared range lock covers the scanned span, so overlapping scans still run
 concurrently, but conflicting writes into the range are held back or retried.</p>
 <p>When a transaction reads a very large number of rows, CamusDB escalates the
 point locks into one shared whole-table or whole-bucket lock. Bookkeeping stays
@@ -105,16 +105,16 @@ serializable snapshot across several queries.</p>
 serialization conflicts, changed read dependencies, transient cross-partition
 prepare or commit failures, schema catch-up fencing on a lagging node, and
 lifetime expiration.</p>
-<p>CamusDB does not replay aborted multi-statement transactions for you — the
-client restarts from <code>BEGIN</code>. For single-statement autocommit work, the .NET
+<p>CamusDB does not replay aborted multi-statement transactions for you; the client
+restarts from <code>BEGIN</code>. For single-statement autocommit work, the .NET
 client ships a retry helper. See
 <a class="" href="/docs/serializable-retries/">Retries And Conflicts</a> for the contract.</p>
 <p>One failure is not a retry signal: <code>TransactionMutationLimitExceeded</code> means the
 transaction is too big, so replaying the same batch just fails again. See
 <a class="" href="/docs/transaction-limits/">Transaction Limits</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="timestamps-and-schema-safety">Timestamps And Schema Safety<a href="#timestamps-and-schema-safety" class="hash-link" aria-label="Direct link to Timestamps And Schema Safety" title="Direct link to Timestamps And Schema Safety" translate="no">​</a></h2>
-<p>Every read-write transaction gets a Hybrid Logical Clock timestamp from Kahuna —
-clients never assign their own. It identifies the transaction, orders committed
+<p>Every read-write transaction gets a Hybrid Logical Clock timestamp from Kahuna,
+and clients never assign their own. It identifies the transaction, orders committed
 versions, and coordinates distributed commit. The resulting order is logically
 consistent, not a real-time wall-clock guarantee. See
 <a class="" href="/docs/distributed-transactions/">Distributed Transactions And HLC</a>.</p>
@@ -130,8 +130,8 @@ partitions, and optional key-range routing.</p>
 contiguous keys are routed together, a scan holding a shared range lock does not
 interfere with unrelated ranges. It only becomes meaningful once the cluster has
 at least two partitions.</p>
-<p>Serializable is not a single-node-only feature — anomaly coverage is exercised
-on both a single node and a three-node cluster, including multi-partition
+<p>Serializable is not a single-node-only feature. Anomaly coverage is exercised on
+both a single node and a three-node cluster, including multi-partition
 read-write transactions.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-is-guaranteed-today">What Is Guaranteed Today<a href="#what-is-guaranteed-today" class="hash-link" aria-label="Direct link to What Is Guaranteed Today" title="Direct link to What Is Guaranteed Today" translate="no">​</a></h2>
 <p>Serializable is fully implemented, acceptance-tested, and the default. Covered

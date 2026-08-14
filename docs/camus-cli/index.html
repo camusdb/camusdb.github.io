@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">camus-cli | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/camus-cli/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="camus-cli | CamusDB"><meta data-rh="true" name="description" content="camus-cli is the interactive command-line SQL shell for CamusDB."><meta data-rh="true" property="og:description" content="camus-cli is the interactive command-line SQL shell for CamusDB."><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/camus-cli/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/camus-cli/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/camus-cli/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"camus-cli","item":"https://camusdb.github.io/docs/camus-cli"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.ac3f6328.css">
-<script src="/assets/js/runtime~main.c95cd84a.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.16cd831d.js" defer="defer"></script>
 <script src="/assets/js/main.a30682f6.js" defer="defer"></script>
 </head>
 <body>
@@ -175,8 +175,9 @@ often enough to be registered. The statements that do get prepared are the ones
 a <code>source</code> file or an application repeats verbatim.</p>
 <p>Both thresholds come from the connection string:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">camus-cli -c &quot;Endpoint=http://localhost:5095;Database=demo;MaxAutoPrepare=512;AutoPrepareMinUsages=1&quot;</span><br></div></code></pre></div></div>
-<p><code>MaxAutoPrepare</code> is how many statements stay registered — <code>0</code> turns registration
-off — and <code>AutoPrepareMinUsages</code> is how many executions come first. See
+<p><code>MaxAutoPrepare</code> is how many statements stay registered, where <code>0</code> turns
+registration off, and <code>AutoPrepareMinUsages</code> is how many executions come first.
+See
 <a class="" href="/docs/prepared-statements/">Parameters And Prepared Statements</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="backups">Backups<a href="#backups" class="hash-link" aria-label="Direct link to Backups" title="Direct link to Backups" translate="no">​</a></h2>
 <p>The <code>backup</code> family drives the server&#x27;s online backup and point-in-time-recovery
@@ -192,34 +193,34 @@ actually restore?&quot; check. It prints the chain root-first and, underneath, t
 recoverable window a point-in-time restore may target.</p>
 <p>Things worth knowing:</p>
 <ul>
-<li class=""><strong>Backups are node-wide, not per-database.</strong> Every database on the server
+<li class="">Backups are node-wide, not per-database. Every database on the server
 shares one storage node. Nothing here is scoped to the current database, and
 the commands work with no database selected.</li>
-<li class=""><strong>The server must opt in.</strong> Backups are off until <code>kahuna.backup_dir</code> is set;
+<li class="">The server must opt in. Backups are off until <code>kahuna.backup_dir</code> is set;
 until then every command fails with <code>CADB0700 BackupNotConfigured</code>.</li>
-<li class=""><strong>Superuser only.</strong> With authentication enabled, connect as a superuser with
+<li class="">Superuser only. With authentication enabled, connect as a superuser with
 <code>-u</code> or <code>--token</code>. With authentication <em>disabled</em> the server restricts this
 surface to loopback callers, so a remote shell is refused rather than allowed
 to take an anonymous node-wide backup.</li>
-<li class=""><strong>An incremental can become a full.</strong> If the parent has aged past the
+<li class="">An incremental can become a full. If the parent has aged past the
 retention floor, the server takes a full backup instead. The command still
 succeeds and reports the substitution and its reason.</li>
-<li class=""><strong><code>backup coordinated</code> must reach the coordinator.</strong> Any other node refuses
+<li class=""><code>backup coordinated</code> must reach the coordinator. Any other node refuses
 with <code>CADB070E BackupNotCoordinator</code>. Pin <code>BackupEndpoint=</code> to the coordinator
 when <code>Endpoint=</code> names a multi-node pool.</li>
-<li class=""><strong>The API is REST-only.</strong> It has no SQL form and no gRPC service. The shell
+<li class="">The API is REST-only. It has no SQL form and no gRPC service. The shell
 points its default gRPC connection at the well-known HTTP port for you;
 against a <code>-c</code> connection string with an explicit <code>Protocol=grpc</code>, add
 <code>BackupEndpoint=</code> naming the server&#x27;s HTTP endpoint.</li>
-<li class=""><strong>Backup requests use their own timeout.</strong> <code>BackupTimeout=</code> in the connection
-string, 300 seconds by default, rather than the statement timeout — a full
-backup copies a whole node&#x27;s base image.</li>
+<li class="">Backup requests use their own timeout. <code>BackupTimeout=</code> in the connection
+string, 300 seconds by default, rather than the statement timeout, because a
+full backup copies a whole node&#x27;s base image.</li>
 </ul>
 <p>Retention runs automatically after each backup and on a periodic tick, so
 <code>backup gc</code> is only needed to reclaim space immediately after tightening the
 limits. Preview it first; the preview deletes nothing:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">camus&gt; backup gc preview</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">Retention preview: 2 backups, 0 orphans, 1.41 GB would reclaim (00:00:00.041)</span><br></div></code></pre></div></div>
-<p><strong>Restore is not here.</strong> A restore rebuilds into a fresh data root, after which
+<p>Restore is not here. A restore rebuilds into a fresh data root, after which
 the server is stopped and a new one booted against it. There is no hot in-place
 restore, so it stays an operator runbook step rather than something the shell can
 drive to completion. See <a class="" href="/docs/backup-and-restore/">Backup And Restore</a>.</p>
@@ -295,8 +296,8 @@ CLI knows how to color even if it does not affect server-side SQL support.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="autocompletion">Autocompletion<a href="#autocompletion" class="hash-link" aria-label="Direct link to Autocompletion" title="Direct link to Autocompletion" translate="no">​</a></h2>
 <p>Press <code>Tab</code> to autocomplete the word under the cursor. Press <code>Tab</code> again to
 cycle forward through matches, or <code>Ctrl+Tab</code> to cycle backward.</p>
-<p>Completion is context-aware. After a keyword that expects a relation name —
-<code>from</code>, <code>into</code>, <code>update</code>, <code>join</code>, <code>table</code>, <code>view</code>, <code>desc</code>, or <code>describe</code> — the
+<p>Completion is context-aware. After a keyword that expects a relation name
+(<code>from</code>, <code>into</code>, <code>update</code>, <code>join</code>, <code>table</code>, <code>view</code>, <code>desc</code>, or <code>describe</code>), the
 shell suggests the table and view names of the current database. Elsewhere it
 suggests SQL keywords, functions, constants, and shell commands.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">select</span><span class="token plain"> </span><span class="token operator" style="color:#393A34">*</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">from</span><span class="token plain"> us</span><span class="token operator" style="color:#393A34">&lt;</span><span class="token plain">Tab</span><span class="token operator" style="color:#393A34">&gt;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">insert</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">into</span><span class="token plain"> </span><span class="token operator" style="color:#393A34">&lt;</span><span class="token plain">Tab</span><span class="token operator" style="color:#393A34">&gt;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">sel</span><span class="token operator" style="color:#393A34">&lt;</span><span class="token plain">Tab</span><span class="token operator" style="color:#393A34">&gt;</span><br></div></code></pre></div></div>
@@ -310,7 +311,7 @@ after any statement that changes the set of relations: <code>CREATE</code>/<code
 <p>This rewrites the active connection string to replace the <code>Database=...</code> part,
 then opens a new connection to that database. The target database must already
 exist; <code>use</code> does not create it.</p>
-<p>The name may be bare, <code>`backticked`</code>, or <code>&quot;quoted&quot;</code> — the quoted forms are
+<p>The name may be bare, <code>`backticked`</code>, or <code>&quot;quoted&quot;</code>. The quoted forms are
 how a name that collides with a keyword or contains spaces is written.</p>
 <p><code>use</code> is handled by the shell, not the server, and works in script files and
 with <code>-e</code> as well as at the prompt. A dump can therefore switch databases

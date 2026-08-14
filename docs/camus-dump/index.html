@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">camus-dump | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/camus-dump/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="camus-dump | CamusDB"><meta data-rh="true" name="description" content="camus-dump is a logical backup utility for CamusDB. It connects to a"><meta data-rh="true" property="og:description" content="camus-dump is a logical backup utility for CamusDB. It connects to a"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/camus-dump/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/camus-dump/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/camus-dump/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"camus-dump","item":"https://camusdb.github.io/docs/camus-dump"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.ac3f6328.css">
-<script src="/assets/js/runtime~main.c95cd84a.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.16cd831d.js" defer="defer"></script>
 <script src="/assets/js/main.a30682f6.js" defer="defer"></script>
 </head>
 <body>
@@ -30,7 +30,7 @@ scale with row count rather than bytes on disk. The dump runs slower than the
 disk it is reading, and the SQL file is typically larger than the data it came
 from.</p>
 <p>The restore is the harder half. Replaying a dump means parsing every statement,
-re-checking every constraint, and rebuilding every index from scratch — hours or
+re-checking every constraint, and rebuilding every index from scratch: hours or
 days of work where a physical restore is a file copy plus a WAL replay. A dump
 that takes a long night to produce can take considerably longer to put back,
 which is precisely the wrong shape for a recovery path.</p>
@@ -90,19 +90,18 @@ so it makes each database internally consistent without tying them to a common
 snapshot.</p>
 <p>Each section opens with <code>CREATE DATABASE IF NOT EXISTS</code> and a <code>USE</code>, whether or
 not <code>--create-database</code> was passed, so one file restores every database in turn.</p>
-<p><code>USE</code> is not server-side SQL — CamusDB&#x27;s parser rejects it. A client reads it
+<p><code>USE</code> is not server-side SQL; CamusDB&#x27;s parser rejects it. A client reads it
 and points the statements that follow at that database, which is how <code>camus-cli</code>
 takes the whole file. For a client that does not, dump with
 <code>--output-directory</code>: it writes one <code>&lt;database&gt;.sql</code> per database, and each file
 replays on its own with <code>-d</code> naming the target.</p>
 <p>The remaining options apply per database. <code>-t</code> and <code>-x</code> match table names in
-every one of them, and <code>-w</code> filters rows in every table it names — so a
-condition referencing a column that only some tables have will fail on the
-others.</p>
+every one of them, and <code>-w</code> filters rows in every table it names, so a condition
+referencing a column that only some tables have will fail on the others.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="point-in-time">Point In Time<a href="#point-in-time" class="hash-link" aria-label="Direct link to Point In Time" title="Direct link to Point In Time" translate="no">​</a></h2>
-<p>By default the dump does <strong>not</strong> read the latest data. It fixes an instant when
-it starts — a second behind the wall clock, to stay clear of the server&#x27;s own
-clock — and reads every table with CamusDB&#x27;s
+<p>By default the dump does not read the latest data. It fixes an instant when it
+starts, a second behind the wall clock to stay clear of the server&#x27;s own clock,
+and reads every table with CamusDB&#x27;s
 <a class="" href="/docs/time-travel-reads/"><code>AS OF SYSTEM TIME</code></a> clause.</p>
 <p>That default exists for a reason. Without it, a row written between the first
 table&#x27;s scan and the last one&#x27;s lands in the dump without whatever it referenced
@@ -111,29 +110,29 @@ never in.</p>
 <p>The instant is recorded in the dump header, so a dump can be reproduced exactly:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">-- Point in time: 2026-07-29 19:15:35.277+00:00</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">-- Rows read with AS OF SYSTEM TIME &#x27;2026-07-29 19:15:35.277+00:00&#x27;; table definitions and indexes are current.</span><br></div></code></pre></div></div>
 <p><code>--as-of</code> picks a different instant, in any form the server accepts:</p>
-<div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain"># Five minutes ago</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">camus-dump -d factory --as-of -5m</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"># An absolute UTC instant — for example, the one a previous dump recorded</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">camus-dump -d factory --as-of &quot;2026-07-29 19:15:35.277+00:00&quot;</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"># Unix epoch milliseconds</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">camus-dump -d factory --as-of 1721420000000</span><br></div></code></pre></div></div>
+<div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain"># Five minutes ago</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">camus-dump -d factory --as-of -5m</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"># An absolute UTC instant, for example the one a previous dump recorded</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">camus-dump -d factory --as-of &quot;2026-07-29 19:15:35.277+00:00&quot;</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"># Unix epoch milliseconds</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">camus-dump -d factory --as-of 1721420000000</span><br></div></code></pre></div></div>
 <p>Offsets take <code>ms</code>, <code>s</code>, <code>m</code>, <code>h</code>, and <code>d</code>, and must be negative. A relative
 offset is resolved to an absolute instant once, before the first statement goes
-out, rather than passed through — otherwise the server would evaluate it afresh
+out, rather than passed through. Otherwise the server would evaluate it afresh
 for each table and the tables would not share a snapshot.</p>
 <p>Four things are worth knowing:</p>
 <ul>
-<li class=""><strong>Rows only.</strong> <code>SHOW CREATE TABLE</code> and <code>SHOW INDEXES</code> have no time-travel
+<li class="">Rows only. <code>SHOW CREATE TABLE</code> and <code>SHOW INDEXES</code> have no time-travel
 form, so the schema in the dump is the current one. A table created after the
 chosen instant appears with its definition and no rows.</li>
-<li class=""><strong>Retention bounds how far back you can look.</strong> An instant older than the
+<li class="">Retention bounds how far back you can look. An instant older than the
 history the storage layer still keeps reads as empty rather than as an error.</li>
-<li class=""><strong><code>--single-transaction</code> replaces it.</strong> CamusDB rejects <code>AS OF SYSTEM TIME</code>
+<li class=""><code>--single-transaction</code> replaces it. CamusDB rejects <code>AS OF SYSTEM TIME</code>
 inside an explicit transaction, which is already pinned to one snapshot.
 Passing <code>--single-transaction</code> turns the default off; passing it together with
 <code>--as-of</code> is an error.</li>
-<li class=""><strong><code>--no-as-of</code></strong> reads the latest committed data, with no consistency
+<li class=""><code>--no-as-of</code> reads the latest committed data, with no consistency
 guarantee across tables.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="shaping-the-output">Shaping The Output<a href="#shaping-the-output" class="hash-link" aria-label="Direct link to Shaping The Output" title="Direct link to Shaping The Output" translate="no">​</a></h2>
 <table><thead><tr><th>Option</th><th>Description</th></tr></thead><tbody><tr><td><code>-b</code>, <code>--batch</code></td><td>Rows per <code>INSERT</code> statement. Defaults to <code>1</code>.</td></tr><tr><td><code>-o</code>, <code>--output</code></td><td>Write to a file instead of standard output.</td></tr><tr><td><code>--output-directory</code></td><td>Write one <code>&lt;database&gt;.sql</code> file per database into this directory, creating it if missing. Cannot be combined with <code>-o</code>.</td></tr><tr><td><code>--defer-indexes</code></td><td>Emit each table&#x27;s <code>CREATE INDEX</code> statements after its data.</td></tr><tr><td><code>--add-drop-table</code></td><td>Emit <code>DROP TABLE IF EXISTS</code> before each <code>CREATE TABLE</code>.</td></tr><tr><td><code>--if-not-exists</code></td><td>Emit <code>CREATE TABLE IF NOT EXISTS</code>, useful when replaying onto an existing schema.</td></tr><tr><td><code>--create-database</code></td><td>Emit <code>CREATE DATABASE IF NOT EXISTS</code> for the dumped database, followed by <code>USE</code>. Implied by <code>--all-databases</code>.</td></tr><tr><td><code>--single-transaction</code></td><td>Read every table from one lock-free Serializable snapshot instead of a fixed past instant.</td></tr><tr><td><code>--strict</code></td><td>Fail instead of emitting <code>NULL</code> for values that have no exact SQL literal.</td></tr><tr><td><code>--no-header</code></td><td>Omit the leading comment header.</td></tr></tbody></table>
 <p><code>--single-transaction</code> is an alternative to the default point-in-time read, not
-an addition to it — both give a snapshot consistent across tables. Reach for it
+an addition to it, and both give a snapshot consistent across tables. Reach for it
 when you want the dump pinned to <em>now</em> rather than to a fixed instant in the
 past.</p>
 <p>Use <code>--defer-indexes</code> for large restores when you want table data loaded before

@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Configuration | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/configuration/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Configuration | CamusDB"><meta data-rh="true" name="description" content="CamusDB can start with no configuration file, which is the default experience"><meta data-rh="true" property="og:description" content="CamusDB can start with no configuration file, which is the default experience"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/configuration/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/configuration/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/configuration/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Configuration","item":"https://camusdb.github.io/docs/configuration"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.ac3f6328.css">
-<script src="/assets/js/runtime~main.c95cd84a.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.16cd831d.js" defer="defer"></script>
 <script src="/assets/js/main.a30682f6.js" defer="defer"></script>
 </head>
 <body>
@@ -56,11 +56,11 @@ directory are printed at startup.</p>
 fleet-wide on running nodes. If a local file outranked it, a fleet-wide change
 would silently no-op on the one node whose YAML happens to name that key. Only
 settings classified <code>runtime</code> can be overlaid this way; the values that define a
-node — data directory, identity, ports, peers, the whole <code>kahuna.*</code> section — are
-<code>restart</code>-class and are never cluster-overridable.</p>
+node, meaning the data directory, identity, ports, peers, and the whole
+<code>kahuna.*</code> section, are <code>restart</code>-class and are never cluster-overridable.</p>
 <p>After startup, inspect the effective engine configuration from SQL with
 <a class="" href="/docs/show-variables/"><code>SHOW VARIABLES</code></a>. This is useful when a CLI flag,
-environment variable, or cluster setting overrides the selected YAML file — the
+environment variable, or cluster setting overrides the selected YAML file: the
 <code>source</code> column names the layer that won, and the <code>mutability</code> column tells you
 whether the setting can be changed without a restart.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="default-files-and-directories">Default Files And Directories<a href="#default-files-and-directories" class="hash-link" aria-label="Direct link to Default Files And Directories" title="Direct link to Default Files And Directories" translate="no">​</a></h2>
@@ -215,11 +215,11 @@ point locks in the same bucket.</li>
 <li class=""><code>lock_wait_deadline_ms</code> limits how long a single lock acquisition waits before
 surfacing a Serializable conflict.</li>
 </ul>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="retry-budgets">Retry Budgets<a href="#retry-budgets" class="hash-link" aria-label="Direct link to Retry Budgets" title="Direct link to Retry Budgets" translate="no">  ​</a></h3>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="retry-budgets">Retry Budgets<a href="#retry-budgets" class="hash-link" aria-label="Direct link to Retry Budgets" title="Direct link to Retry Budgets" translate="no">​</a></h3>
 <p>Two settings bound how long the server keeps retrying an operation internally
 before handing the retry back to the caller. Both are wall-clock durations rather
-than attempt counts, because what they wait on — an election, a drain, a
-leadership handover — resolves on its own schedule: a saturated node makes each
+than attempt counts, because what they wait on, whether an election, a drain, or
+a leadership handover, resolves on its own schedule: a saturated node makes each
 attempt take longer without making it take more attempts, so an attempt cap
 shrinks the real budget exactly when the node most needs it.</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token key atrule" style="color:#00a4db">transaction_finalize_retry_budget_ms</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">15000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">sequence_retry_budget_ms</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">10000</span><br></div></code></pre></div></div>
@@ -228,12 +228,12 @@ shrinks the real budget exactly when the node most needs it.</p>
 that comes back &quot;outcome not known yet&quot; is retried on the same handle. The
 write may already have landed, so this is retried rather than reported. When
 the budget runs out the client sees <code>CADB0509</code>
-<code>TransactionFinalizeUnresolved</code> and resends the same finalize itself — see
+<code>TransactionFinalizeUnresolved</code> and resends the same finalize itself. See
 <a class="" href="/docs/serializable-retries/">Retries And Conflicts</a>. Raise it on nodes that run
 hot. <code>&lt;= 0</code> attempts the finalize once.</li>
 <li class=""><code>sequence_retry_budget_ms</code> is how long a call against a persistent monotonic
-counter — database ids, table ids, the registry&#x27;s cross-node generation stamp —
-is retried while its Raft partition has no confirmed leader. Every
+counter, such as database ids, table ids, or the registry&#x27;s cross-node
+generation stamp, is retried while its Raft partition has no confirmed leader. Every
 <code>CREATE TABLE</code>, <code>CREATE VIEW</code>, and <code>CREATE TABLE AS SELECT</code> allocates an id
 first, so this budget decides whether an election is invisible or fails the
 statement with <code>CADB0535</code> <code>SequenceUnavailable</code>. The default is sized against
@@ -245,7 +245,7 @@ an election, which runs in seconds. <code>&lt;= 0</code> attempts the call once.
 rather than every database it has ever touched:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token key atrule" style="color:#00a4db">database_idle_eviction_ms</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">900000</span><br></div></code></pre></div></div>
 <p>The default is fifteen minutes; <code>&lt;= 0</code> disables eviction entirely. Only the
-in-memory descriptor and its per-database state are released — nothing on disk
+in-memory descriptor and its per-database state are released; nothing on disk
 changes, and the next statement against that database reopens it transparently at
 the cost of one open.</p>
 <p>Eviction never takes a descriptor out from under running work. A database with an
@@ -277,7 +277,7 @@ engine work cannot be queued behind ordinary user traffic.</p>
 before being refused with a retryable <code>CADB0504</code>.
 <code>transaction_admission_wait_ms</code> is the CamusDB-side budget; <code>0</code> defers to
 <code>kahuna.default_admission_wait_ms</code>, and <code>kahuna.max_admission_wait_ms</code> clamps
-any caller-supplied value. Keep the budget in seconds — it is not the
+any caller-supplied value. Keep the budget in seconds. It is not the
 transaction lifetime, and a long door-wait makes a saturated node hold requests
 open instead of shedding them.</p>
 <p>See <a class="" href="/docs/transaction-priority/">Transaction Priority</a> for SQL/API usage,
@@ -573,12 +573,12 @@ entries are retained, and one caps how much a single pass can remove.</p>
 <p>Four cache knobs are sized from the machine&#x27;s available memory at startup when
 you leave them unset, rather than sitting at a fixed value. Container limits are
 respected.</p>
-<table><thead><tr><th>Setting</th><th>Default when unset</th><th>Clamped to</th></tr></thead><tbody><tr><td><code>rocksdb_shared_memory_budget_mb</code></td><td>10% of RAM</td><td>320 MiB – 2 GiB</td></tr><tr><td><code>rocksdb_shared_memtable_budget_mb</code></td><td>a quarter of the block cache</td><td>128 MiB – 1 GiB</td></tr><tr><td><code>max_bytes_per_actor</code></td><td>6.25% of RAM (at least 64 MiB for the layer) ÷ <code>key_value_workers</code></td><td>8 MiB – 2 GiB per actor</td></tr><tr><td><code>max_entries_per_actor</code></td><td><code>max_bytes_per_actor</code> ÷ ~512 B</td><td>10k – 4M</td></tr></tbody></table>
+<table><thead><tr><th>Setting</th><th>Default when unset</th><th>Clamped to</th></tr></thead><tbody><tr><td><code>rocksdb_shared_memory_budget_mb</code></td><td>10% of RAM</td><td>320 MiB to 2 GiB</td></tr><tr><td><code>rocksdb_shared_memtable_budget_mb</code></td><td>a quarter of the block cache</td><td>128 MiB to 1 GiB</td></tr><tr><td><code>max_bytes_per_actor</code></td><td>6.25% of RAM (at least 64 MiB for the layer) ÷ <code>key_value_workers</code></td><td>8 MiB to 2 GiB per actor</td></tr><tr><td><code>max_entries_per_actor</code></td><td><code>max_bytes_per_actor</code> ÷ ~512 B</td><td>10k to 4M</td></tr></tbody></table>
 <p>That comes to roughly 16% of RAM across both cache layers, and never more than
 4 GiB in total however large the machine is. On an 8 GiB, 8-core machine with none
 of them set: an 819 MiB block cache, a 204 MiB memtable sub-budget, and
-64 MiB × 8 = 512 MiB of actor caches — about 1.5 GiB.</p>
-<p>The fractions and the ceilings are deliberately modest. An unconfigured node is
+64 MiB × 8 = 512 MiB of actor caches, about 1.5 GiB in total.</p>
+<p>The fractions and the ceilings are modest on purpose. An unconfigured node is
 far more often a developer workstation or a CI container sharing the box with a
 compiler and an IDE than a machine whose only job is CamusDB. Treat the sizing
 above as a floor to build from: a dedicated server should raise all four

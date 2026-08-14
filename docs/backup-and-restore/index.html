@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Backup And Restore | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/backup-and-restore/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Backup And Restore | CamusDB"><meta data-rh="true" name="description" content="CamusDB takes physical, point-in-time-recoverable backups of its storage engine:"><meta data-rh="true" property="og:description" content="CamusDB takes physical, point-in-time-recoverable backups of its storage engine:"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/backup-and-restore/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/backup-and-restore/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/backup-and-restore/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Backup And Restore","item":"https://camusdb.github.io/docs/backup-and-restore"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.ac3f6328.css">
-<script src="/assets/js/runtime~main.c95cd84a.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.16cd831d.js" defer="defer"></script>
 <script src="/assets/js/main.a30682f6.js" defer="defer"></script>
 </head>
 <body>
@@ -17,11 +17,11 @@
 a base image plus the WAL written after it, so a restore can target any moment
 inside the retention window rather than only the instant the backup ran.</p>
 <p>Two things about it surprise people, so they are worth stating first.</p>
-<p><strong>A backup is node-wide.</strong> Every database on a node shares one Kahuna storage
+<p>A backup is node-wide. Every database on a node shares one Kahuna storage
 engine, so a backup captures all of them at once. There is no per-database or
-per-table backup, and no <code>BACKUP</code> SQL statement — these are server
-administration operations, exposed over HTTP.</p>
-<p><strong>Restore is offline.</strong> It rebuilds storage into a <em>fresh</em> directory and never
+per-table backup, and no <code>BACKUP</code> SQL statement; these are server administration
+operations, exposed over HTTP.</p>
+<p>Restore is offline. It rebuilds storage into a <em>fresh</em> directory and never
 touches the running server. There is no hot in-place restore; you restore, then
 boot a server against the restored directory.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-it-works-this-way">Why It Works This Way<a href="#why-it-works-this-way" class="hash-link" aria-label="Direct link to Why It Works This Way" title="Direct link to Why It Works This Way" translate="no">​</a></h2>
@@ -29,7 +29,7 @@ boot a server against the restored directory.</p>
 path for databases far too large to dump.</p>
 <p>A logical export like <a class="" href="/docs/camus-dump/">camus-dump</a> reads every row through the
 SQL layer and writes it back out as text. That is fine at gigabytes and
-impractical at terabytes — the dump is slower than the disk, the file is larger
+impractical at terabytes: the dump is slower than the disk, the file is larger
 than the data it came from, and restoring it means re-parsing every statement,
 re-checking every constraint, and rebuilding every index from scratch. The
 restore, not the backup, is where that cost really lands.</p>
@@ -40,11 +40,11 @@ replay instead of a full logical reload. Incrementals then keep the steady-state
 cost close to the volume of change rather than the size of the database.</p>
 <p>Both consequences follow from that:</p>
 <ul>
-<li class=""><strong>Node-wide, because the image is.</strong> The unit being copied is the storage
+<li class="">Node-wide, because the image is. The unit being copied is the storage
 engine&#x27;s on-disk state, and every database on the node lives inside it. Carving
-one database out would mean reading it row by row — which is the logical dump
+one database out would mean reading it row by row, which is the logical dump
 this design exists to avoid.</li>
-<li class=""><strong>Offline, because a live engine cannot be overwritten underneath itself.</strong>
+<li class="">Offline, because a live engine cannot be overwritten underneath itself.
 Restoring in place would mean replacing the files a running server holds open
 and has cached. Rebuilding into a fresh directory keeps the live node
 untouched and the restore verifiable before you commit to it.</li>
@@ -68,14 +68,14 @@ caller write to any absolute path. Do not use it in production.</p>
 symlinks. A root that fails that check is rejected with <code>CADB070F BackupInsecureRoot</code> before anything is written.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="authorization">Authorization<a href="#authorization" class="hash-link" aria-label="Direct link to Authorization" title="Direct link to Authorization" translate="no">​</a></h2>
 <p>When authentication is enabled, every backup and restore endpoint requires a
-<strong>superuser</strong> bearer token — the same bar as user administration:</p>
+superuser bearer token, the same bar as user administration:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">Authorization: Bearer &lt;token&gt;</span><br></div></code></pre></div></div>
 <p>Use HTTPS. A token sent over plaintext is refused when TLS is required. When
 authentication is disabled the endpoints are open, consistent with the rest of
 the engine. See <a class="" href="/docs/sql-authentication/">Authentication And Authorization</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-api">The API<a href="#the-api" class="hash-link" aria-label="Direct link to The API" title="Direct link to The API" translate="no">​</a></h2>
 <p>All endpoints live under <code>/v1</code> and speak JSON with camelCase fields.</p>
-<table><thead><tr><th>Method</th><th>Path</th><th>Body</th><th>Purpose</th></tr></thead><tbody><tr><td><code>POST</code></td><td><code>/v1/backups/full</code></td><td>—</td><td>Take a full backup now.</td></tr><tr><td><code>POST</code></td><td><code>/v1/backups/incremental</code></td><td><code>{ &quot;parentBackupId&quot;: &quot;&lt;guid&gt;&quot; }</code></td><td>Take an incremental on top of a parent.</td></tr><tr><td><code>POST</code></td><td><code>/v1/backups/coordinated</code></td><td>—</td><td>Take a cluster-wide consistent backup.</td></tr><tr><td><code>GET</code></td><td><code>/v1/backups</code></td><td>—</td><td>List the catalog.</td></tr><tr><td><code>GET</code></td><td><code>/v1/backups/{id}/chain</code></td><td>—</td><td>Resolve and validate the chain ending at <code>{id}</code>.</td></tr><tr><td><code>POST</code></td><td><code>/v1/backups/gc?dryRun=&lt;bool&gt;</code></td><td>—</td><td>Preview or run retention and the orphan sweep.</td></tr><tr><td><code>POST</code></td><td><code>/v1/restore</code></td><td><code>{ &quot;leafBackupId&quot;, &quot;targetDir&quot;, &quot;targetTimeMs&quot; }</code></td><td>Offline restore into a fresh data root.</td></tr></tbody></table>
+<table><thead><tr><th>Method</th><th>Path</th><th>Body</th><th>Purpose</th></tr></thead><tbody><tr><td><code>POST</code></td><td><code>/v1/backups/full</code></td><td>none</td><td>Take a full backup now.</td></tr><tr><td><code>POST</code></td><td><code>/v1/backups/incremental</code></td><td><code>{ &quot;parentBackupId&quot;: &quot;&lt;guid&gt;&quot; }</code></td><td>Take an incremental on top of a parent.</td></tr><tr><td><code>POST</code></td><td><code>/v1/backups/coordinated</code></td><td>none</td><td>Take a cluster-wide consistent backup.</td></tr><tr><td><code>GET</code></td><td><code>/v1/backups</code></td><td>none</td><td>List the catalog.</td></tr><tr><td><code>GET</code></td><td><code>/v1/backups/{id}/chain</code></td><td>none</td><td>Resolve and validate the chain ending at <code>{id}</code>.</td></tr><tr><td><code>POST</code></td><td><code>/v1/backups/gc?dryRun=&lt;bool&gt;</code></td><td>none</td><td>Preview or run retention and the orphan sweep.</td></tr><tr><td><code>POST</code></td><td><code>/v1/restore</code></td><td><code>{ &quot;leafBackupId&quot;, &quot;targetDir&quot;, &quot;targetTimeMs&quot; }</code></td><td>Offline restore into a fresh data root.</td></tr></tbody></table>
 <p>Taking, listing, and validating are online operations and safe while the server
 serves traffic.</p>
 <p><code>camus-cli</code> wraps everything except restore in a <code>backup</code> command family, which
@@ -87,24 +87,24 @@ is usually easier than curl for day-to-day work. See
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="chains-and-recoverable-coverage">Chains And Recoverable Coverage<a href="#chains-and-recoverable-coverage" class="hash-link" aria-label="Direct link to Chains And Recoverable Coverage" title="Direct link to Chains And Recoverable Coverage" translate="no">​</a></h3>
 <p>A restore replays one <em>chain</em>: a full backup at the root, then the incrementals
 layered on it. <code>GET /v1/backups/{id}/chain</code> returns that chain root-first and
-validates it — a chain that does not start at a full backup, has a gap, a broken
+validates it. A chain that does not start at a full backup, has a gap, a broken
 parent link, or a cycle is rejected with <code>CADB0701 BackupChainInvalid</code> rather
 than reconstructed into a state that never existed.</p>
 <p>The chain head reports <code>minRecoverablePhysicalMs</code> and
 <code>maxRecoverablePhysicalMs</code>. Those two numbers, not the clock, define what you
 can restore to.</p>
-<p>That distinction matters: <strong>recoverability is a property of the chain, not of
-how long ago it was taken.</strong> <code>pitr_window_seconds</code> bounds how much live WAL the
+<p>That distinction matters: recoverability is a property of the chain, not of how
+long ago it was taken. <code>pitr_window_seconds</code> bounds how much live WAL the
 running node retains, but a backup that has already been written keeps its own
 coverage. An archived chain from last month is still restorable to any point
 inside its own range.</p>
-<p><code>targetTimeMs</code> is Unix epoch <strong>milliseconds</strong>. <code>0</code> means &quot;the latest recoverable
+<p><code>targetTimeMs</code> is Unix epoch milliseconds. <code>0</code> means &quot;the latest recoverable
 point in this chain&quot;. A non-zero value outside the chain&#x27;s coverage is rejected
 with <code>CADB0703 RestorePointOutOfWindow</code> (HTTP 422).</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="verification-and-incremental-fallback">Verification And Incremental Fallback<a href="#verification-and-incremental-fallback" class="hash-link" aria-label="Direct link to Verification And Incremental Fallback" title="Direct link to Verification And Incremental Fallback" translate="no">​</a></h3>
 <p>Every artifact is verified by size and SHA-256 both before publish and before
 restore. A missing, truncated, duplicated, extra, or corrupt file fails the
-operation closed with <code>CADB0706 BackupCorruptArtifact</code> — the engine refuses to
+operation closed with <code>CADB0706 BackupCorruptArtifact</code>; the engine refuses to
 restore rather than guess.</p>
 <p>If an incremental&#x27;s parent has aged past the retention floor, a contiguous
 increment is impossible. Rather than fail, CamusDB takes a full backup instead
@@ -115,8 +115,8 @@ silently changing your chain&#x27;s shape.</p>
 <p>Restore is offline. The sequence is:</p>
 <ol>
 <li class="">
-<p><strong>Restore into a fresh data root.</strong> Call <code>POST /v1/restore</code> with a <code>targetDir</code>
-that is new or empty and is not the live <code>data_dir</code> — nor its <code>kv</code> or <code>wal</code>
+<p>Restore into a fresh data root. Call <code>POST /v1/restore</code> with a <code>targetDir</code>
+that is new or empty and is not the live <code>data_dir</code>, nor its <code>kv</code> or <code>wal</code>
 subdirectories, nor another job&#x27;s target. Overlap is rejected with
 <code>CADB0707 RestoreTargetConflict</code>. The running server is unaffected.</p>
 <div class="language-sh codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-sh codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">curl -sX POST http://localhost:5000/v1/restore \</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  -H &quot;Authorization: Bearer $TOKEN&quot; -H &#x27;Content-Type: application/json&#x27; \</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  -d &#x27;{&quot;leafBackupId&quot;:&quot;&lt;leaf-guid&gt;&quot;,&quot;targetDir&quot;:&quot;/data/restored&quot;,&quot;targetTimeMs&quot;:1750000000000}&#x27;</span><br></div></code></pre></div></div>
@@ -125,17 +125,17 @@ subdirectories, nor another job&#x27;s target. Overlap is rejected with
 recoverable range, and the resolved chain.</p>
 </li>
 <li class="">
-<p><strong>Stop the CamusDB server.</strong></p>
+<p>Stop the CamusDB server.</p>
 </li>
 <li class="">
-<p><strong>Start a fresh server with <code>data_dir</code> set to that <code>dataRoot</code>.</strong> CamusDB lays
+<p>Start a fresh server with <code>data_dir</code> set to that <code>dataRoot</code>. CamusDB lays
 the restored storage out as <code>{targetDir}/kv</code> and creates an empty
 <code>{targetDir}/wal</code>, so the target is already a complete, bootable data
 directory. No files need to be moved by hand. Keep the same
 <code>kahuna.storage</code> and revision settings the backup was taken with.</p>
 </li>
 <li class="">
-<p><strong>In a cluster</strong>, the restored node holds data as of the restore point and is
+<p>In a cluster, the restored node holds data as of the restore point and is
 caught up by ordinary Raft replication once it rejoins. Whole-cluster
 recovery means restoring every node to one coordinated point and bringing the
 cluster up together.</p>
@@ -147,12 +147,12 @@ something you care about.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="clusters">Clusters<a href="#clusters" class="hash-link" aria-label="Direct link to Clusters" title="Direct link to Clusters" translate="no">​</a></h2>
 <p>For a single embedded node, a coordinated backup and a full backup are
 effectively the same thing. Coordinated backups matter for real clusters, where
-they take one consistent HLC cut across every partition — so a cross-partition
+they take one consistent HLC cut across every partition, so a cross-partition
 transaction cannot be torn in half. Both capture and restore cut on the shared
 commit HLC rather than per-shard WAL time.</p>
 <p>Two rules follow:</p>
 <ul>
-<li class="">Issue coordinated backups <strong>on the coordinator node</strong>. Any other node answers
+<li class="">Issue coordinated backups on the coordinator node. Any other node answers
 <code>421</code> with <code>CADB070E BackupNotCoordinator</code>.</li>
 <li class="">If the topology changes mid-backup, the operation aborts with
 <code>CADB070D BackupTopologyChanged</code> and publishes nothing. Retry once membership
@@ -162,24 +162,24 @@ is stable.</li>
 it along with the coordinating node, listings surface both as <code>clusterId</code> and
 <code>coordinatorNode</code>, and a restore refuses to chain artifacts produced by a
 different cluster or a stale topology.</p>
-<p>For authenticity — detecting a <em>substituted</em> manifest, not just a damaged one —
-set <code>kahuna.backup_mac_key_file</code> to an HMAC-SHA-256 key file, identical on every
+<p>For authenticity, meaning detection of a <em>substituted</em> manifest and not just a
+damaged one, set <code>kahuna.backup_mac_key_file</code> to an HMAC-SHA-256 key file, identical on every
 node and stored outside <code>backup_dir</code>. Once a node has a key, it refuses
 unsigned or tampered manifests.</p>
-<p>There is <strong>no encryption at rest</strong>. Artifacts are plaintext, protected by
+<p>There is no encryption at rest. Artifacts are plaintext, protected by
 filesystem permissions and the integrity MAC. Keep <code>backup_dir</code> on an
 access-controlled and ideally encrypted volume.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="retention">Retention<a href="#retention" class="hash-link" aria-label="Direct link to Retention" title="Direct link to Retention" translate="no">​</a></h2>
 <p>Garbage collection is automatic. It runs after each backup and on a periodic
 tick, governed by:</p>
 <table><thead><tr><th>Setting</th><th>Default</th><th>Meaning</th></tr></thead><tbody><tr><td><code>kahuna.backup_retention_max_chains</code></td><td><code>0</code></td><td>Keep at most N chains. <code>0</code> is unlimited.</td></tr><tr><td><code>kahuna.backup_retention_max_age_seconds</code></td><td><code>0</code></td><td>Delete chains older than this. <code>0</code> is unlimited.</td></tr><tr><td><code>kahuna.backup_retention_max_bytes</code></td><td><code>0</code></td><td>Cap total backup bytes. <code>0</code> is unlimited.</td></tr><tr><td><code>kahuna.backup_gc_interval_seconds</code></td><td><code>3600</code></td><td>Background reaper cadence. <code>0</code> disables the tick.</td></tr></tbody></table>
-<p>GC deletes only <strong>whole chains</strong>, and always leaves a valid full root behind for
+<p>GC deletes only whole chains, and always leaves a valid full root behind for
 every retained leaf. It never strands a leaf that cannot be restored.</p>
 <p>Preview a pass before trusting it:</p>
 <div class="language-sh codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-sh codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">curl -sX POST &#x27;http://localhost:5000/v1/backups/gc?dryRun=true&#x27; \</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  -H &quot;Authorization: Bearer $TOKEN&quot;</span><br></div></code></pre></div></div>
 <p>The response reports <code>bytesReclaimed</code>, the <code>retentionDeletions</code> with a reason
-per backup, and any <code>orphanReclamations</code> — files in the backup directory that
-belong to no manifest. <code>dryRun=false</code> applies the same pass.</p>
+per backup, and any <code>orphanReclamations</code>, which are files in the backup
+directory that belong to no manifest. <code>dryRun=false</code> applies the same pass.</p>
 <p>Budget disk for roughly <code>pitr_window_seconds</code> times your write throughput of
 retained WAL, plus the base images overlapping that window. Pick the window from
 how far back you would realistically need to recover, not from how far back you
@@ -188,21 +188,21 @@ could imagine wanting to.</p>
 <p>CamusDB has four recovery mechanisms, and they answer different questions.</p>
 <table><thead><tr><th>You want to</th><th>Use</th></tr></thead><tbody><tr><td>Recover a node or cluster from data loss, to a chosen point in time</td><td>Backup and restore, this page</td></tr><tr><td>Read what a table looked like earlier, with the server running</td><td><a class="" href="/docs/time-travel-reads/">Time-Travel Reads</a></td></tr><tr><td>Undo a <code>DROP DATABASE</code> or <code>DROP TABLE</code></td><td><a class="" href="/docs/recover-dropped-objects/">Recover Dropped Objects</a></td></tr><tr><td>Move data to another cluster, or keep a readable SQL export</td><td><a class="" href="/docs/camus-dump/">camus-dump</a></td></tr></tbody></table>
 <p>The first three are all physical and stay inside the engine. <code>camus-dump</code> is
-logical: it writes SQL you can inspect, diff, and replay anywhere — which makes
+logical: it writes SQL you can inspect, diff, and replay anywhere, which makes
 it the right tool for migration and the wrong tool for disaster recovery, since
 replaying a large dump is far slower than restoring an image. See
 <a href="#why-it-works-this-way" class="">Why It Works This Way</a> for where that line falls.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="error-codes">Error Codes<a href="#error-codes" class="hash-link" aria-label="Direct link to Error Codes" title="Direct link to Error Codes" translate="no">​</a></h2>
 <table><thead><tr><th>Code</th><th>Name</th><th>HTTP</th><th>Meaning</th></tr></thead><tbody><tr><td><code>CADB0700</code></td><td><code>BackupNotConfigured</code></td><td>503</td><td><code>kahuna.backup_dir</code> is unset. Backups are opt-in.</td></tr><tr><td><code>CADB0701</code></td><td><code>BackupChainInvalid</code></td><td>422</td><td>The chain has no full root, a gap, a broken link, or a cycle.</td></tr><tr><td><code>CADB0702</code></td><td><code>BackupNeedsFullBackup</code></td><td>409</td><td>An incremental&#x27;s parent aged past the retention floor. Take a full backup.</td></tr><tr><td><code>CADB0703</code></td><td><code>RestorePointOutOfWindow</code></td><td>422</td><td><code>targetTimeMs</code> falls outside the chain&#x27;s recoverable coverage.</td></tr><tr><td><code>CADB0704</code></td><td><code>RestoreFailed</code></td><td>500</td><td>Restore failed copying the base image or replaying WAL.</td></tr><tr><td><code>CADB0705</code></td><td><code>BackupParentMissing</code></td><td>404</td><td>The named <code>parentBackupId</code> does not exist.</td></tr><tr><td><code>CADB0706</code></td><td><code>BackupCorruptArtifact</code></td><td>422</td><td>An artifact is missing, truncated, extra, duplicated, or fails its digest.</td></tr><tr><td><code>CADB0707</code></td><td><code>RestoreTargetConflict</code></td><td>409</td><td>The destination exists or overlaps a protected path.</td></tr><tr><td><code>CADB0708</code></td><td><code>BackupExactCheckpointUnavailable</code></td><td>409</td><td>The backend cannot cut an exact as-of checkpoint there.</td></tr><tr><td><code>CADB0709</code></td><td><code>BackupUnsupportedFormat</code></td><td>422</td><td>The manifest is in a legacy or unsupported format.</td></tr><tr><td><code>CADB070A</code></td><td><code>BackupRetryableLeadershipLoss</code></td><td>503</td><td>Partition leadership was lost mid-flight. Nothing durable was applied; retry.</td></tr><tr><td><code>CADB070B</code></td><td><code>BackupCancelled</code></td><td>499</td><td>The caller cancelled the operation.</td></tr><tr><td><code>CADB070C</code></td><td><code>RemoteRestoreDisabled</code></td><td>403</td><td>No <code>kahuna.restore_root</code> is configured and the unconfined opt-in is off.</td></tr><tr><td><code>CADB070D</code></td><td><code>BackupTopologyChanged</code></td><td>503</td><td>Topology changed during a coordinated backup. Nothing was published; retry.</td></tr><tr><td><code>CADB070E</code></td><td><code>BackupNotCoordinator</code></td><td>421</td><td>Coordinated backup requested on a non-coordinator node.</td></tr><tr><td><code>CADB070F</code></td><td><code>BackupInsecureRoot</code></td><td>500</td><td>The backup or restore root is a symlink or is group/world-writable.</td></tr></tbody></table>
-<p><code>CADB070A</code>, <code>CADB070D</code>, and <code>CADB070B</code> are the retryable ones — each leaves
+<p><code>CADB070A</code>, <code>CADB070D</code>, and <code>CADB070B</code> are the retryable ones, and each leaves
 nothing published. The rest need an operator decision first.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="current-limits">Current Limits<a href="#current-limits" class="hash-link" aria-label="Direct link to Current Limits" title="Direct link to Current Limits" translate="no">​</a></h2>
 <ul>
-<li class="">Backups target the <strong>local filesystem</strong> only. There is no object-storage
+<li class="">Backups target the local filesystem only. There is no object-storage
 target yet.</li>
 <li class="">No encryption at rest.</li>
 <li class="">No hot in-place restore, and no per-database or per-table restore.</li>
-<li class="">No SQL surface — backup and restore are HTTP admin operations, though
+<li class="">No SQL surface: backup and restore are HTTP admin operations, though
 <code>camus-cli</code> exposes everything but restore as shell commands.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="related-pages">Related Pages<a href="#related-pages" class="hash-link" aria-label="Direct link to Related Pages" title="Direct link to Related Pages" translate="no">​</a></h2>
