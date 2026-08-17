@@ -11,7 +11,7 @@ row, so it returns exactly one row:
 SELECT 1 + 1;
 ```
 
-Most often you reach for this without thinking about it — a connection health
+Most often you reach for this without thinking about it: a connection health
 probe, a cast you want to sanity-check, or the utility SQL an ORM emits on its
 own. It is also the shortest way to ask a yes/no question of the database:
 

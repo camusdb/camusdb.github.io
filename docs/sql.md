@@ -31,8 +31,8 @@ ORDER BY year DESC;
 ## Identifiers And Case
 
 Keywords are case-insensitive. Database, table, column, and index names are
-**stored in the case you create them in, and matched case-insensitively
-afterwards**:
+stored in the case you create them in, and matched case-insensitively
+afterwards:
 
 ```camussql
 CREATE TABLE Robots (
@@ -81,7 +81,7 @@ including temporal values, arrays, and object ids.
 
 ## Comments
 
-Both comment forms are accepted anywhere whitespace is valid — before a
+Both comment forms are accepted anywhere whitespace is valid: before a
 statement, between clauses, or at the end of a line.
 
 ```camussql
@@ -98,7 +98,7 @@ FROM robots /* or sit inline */
 WHERE active = true;
 ```
 
-Block comments do not nest — the first `*/` closes the comment, and an
+Block comments do not nest. The first `*/` closes the comment, and an
 unterminated one is a parse error. Comment markers inside string literals are
 just text:
 
@@ -111,7 +111,7 @@ One subtlety: `--` always starts a comment, so `SELECT 10 FROM t --5` parses as
 
 ## Statement Map
 
-**Schema**
+### Schema
 
 | Task | Page |
 | --- | --- |
@@ -126,7 +126,7 @@ One subtlety: `--` always starts a comment, so `SELECT 10 FROM t --5` parses as
 | Stored queries | [Views](/docs/views) |
 | Stored query results | [Materialized Views](/docs/materialized-views) |
 
-**Reading and writing**
+### Reading And Writing
 
 | Task | Page |
 | --- | --- |
@@ -139,14 +139,17 @@ One subtlety: `--` always starts a comment, so `SELECT 10 FROM t --5` parses as
 | Scalar functions | [Functions](/docs/functions) |
 | Row expiration | [Row-Level TTL](/docs/row-level-ttl) |
 
-**Transactions, performance, and inspection**
+### Transactions, Performance, And Inspection
 
 | Task | Page |
 | --- | --- |
 | `BEGIN`, `COMMIT`, isolation, locking | [Transactions In SQL](/docs/sql-transactions) |
 | How plans are chosen | [Query Planning](/docs/query-planning) |
 | Reading a plan | [EXPLAIN](/docs/explain) |
+| The estimates behind a plan | [SHOW STATISTICS](/docs/show-statistics) |
 | Caching repeated reads | [Result Cache](/docs/query-result-cache) |
+| Running a scan across the cluster | [Distributed Queries](/docs/distributed-queries) |
 | Placeholders and prepared handles | [Parameters And Prepared Statements](/docs/prepared-statements) |
 | `SHOW`, `DESCRIBE`, `ANALYZE` | [Inspecting The Database](/docs/sql-inspection) |
 | Grants and roles | [Authentication And Authorization](/docs/sql-authentication) |
+| `SET` / `RESET CLUSTER SETTING` | [Runtime Cluster Settings](/docs/runtime-cluster-settings) |

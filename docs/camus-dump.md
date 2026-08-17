@@ -27,7 +27,7 @@ disk it is reading, and the SQL file is typically larger than the data it came
 from.
 
 The restore is the harder half. Replaying a dump means parsing every statement,
-re-checking every constraint, and rebuilding every index from scratch — hours or
+re-checking every constraint, and rebuilding every index from scratch: hours or
 days of work where a physical restore is a file copy plus a WAL replay. A dump
 that takes a long night to produce can take considerably longer to put back,
 which is precisely the wrong shape for a recovery path.
@@ -197,22 +197,21 @@ snapshot.
 Each section opens with `CREATE DATABASE IF NOT EXISTS` and a `USE`, whether or
 not `--create-database` was passed, so one file restores every database in turn.
 
-`USE` is not server-side SQL — CamusDB's parser rejects it. A client reads it
+`USE` is not server-side SQL; CamusDB's parser rejects it. A client reads it
 and points the statements that follow at that database, which is how `camus-cli`
 takes the whole file. For a client that does not, dump with
 `--output-directory`: it writes one `<database>.sql` per database, and each file
 replays on its own with `-d` naming the target.
 
 The remaining options apply per database. `-t` and `-x` match table names in
-every one of them, and `-w` filters rows in every table it names — so a
-condition referencing a column that only some tables have will fail on the
-others.
+every one of them, and `-w` filters rows in every table it names, so a condition
+referencing a column that only some tables have will fail on the others.
 
 ## Point In Time
 
-By default the dump does **not** read the latest data. It fixes an instant when
-it starts — a second behind the wall clock, to stay clear of the server's own
-clock — and reads every table with CamusDB's
+By default the dump does not read the latest data. It fixes an instant when it
+starts, a second behind the wall clock to stay clear of the server's own clock,
+and reads every table with CamusDB's
 [`AS OF SYSTEM TIME`](/docs/time-travel-reads) clause.
 
 That default exists for a reason. Without it, a row written between the first
@@ -233,7 +232,7 @@ The instant is recorded in the dump header, so a dump can be reproduced exactly:
 # Five minutes ago
 camus-dump -d factory --as-of -5m
 
-# An absolute UTC instant — for example, the one a previous dump recorded
+# An absolute UTC instant, for example the one a previous dump recorded
 camus-dump -d factory --as-of "2026-07-29 19:15:35.277+00:00"
 
 # Unix epoch milliseconds
@@ -242,21 +241,21 @@ camus-dump -d factory --as-of 1721420000000
 
 Offsets take `ms`, `s`, `m`, `h`, and `d`, and must be negative. A relative
 offset is resolved to an absolute instant once, before the first statement goes
-out, rather than passed through — otherwise the server would evaluate it afresh
+out, rather than passed through. Otherwise the server would evaluate it afresh
 for each table and the tables would not share a snapshot.
 
 Four things are worth knowing:
 
-- **Rows only.** `SHOW CREATE TABLE` and `SHOW INDEXES` have no time-travel
+- Rows only. `SHOW CREATE TABLE` and `SHOW INDEXES` have no time-travel
   form, so the schema in the dump is the current one. A table created after the
   chosen instant appears with its definition and no rows.
-- **Retention bounds how far back you can look.** An instant older than the
+- Retention bounds how far back you can look. An instant older than the
   history the storage layer still keeps reads as empty rather than as an error.
-- **`--single-transaction` replaces it.** CamusDB rejects `AS OF SYSTEM TIME`
+- `--single-transaction` replaces it. CamusDB rejects `AS OF SYSTEM TIME`
   inside an explicit transaction, which is already pinned to one snapshot.
   Passing `--single-transaction` turns the default off; passing it together with
   `--as-of` is an error.
-- **`--no-as-of`** reads the latest committed data, with no consistency
+- `--no-as-of` reads the latest committed data, with no consistency
   guarantee across tables.
 
 ## Shaping The Output
@@ -275,7 +274,7 @@ Four things are worth knowing:
 | `--no-header` | Omit the leading comment header. |
 
 `--single-transaction` is an alternative to the default point-in-time read, not
-an addition to it — both give a snapshot consistent across tables. Reach for it
+an addition to it, and both give a snapshot consistent across tables. Reach for it
 when you want the dump pinned to *now* rather than to a fixed instant in the
 past.
 

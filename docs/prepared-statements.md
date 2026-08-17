@@ -17,8 +17,8 @@ UPDATE robots SET name = @name WHERE id = @id;
 SELECT id, name FROM robots WHERE year >= @year LIMIT @limit;
 ```
 
-Values are bound by whichever client submits the statement — `camus-cli`, an
-HTTP or gRPC request, or a driver. Over HTTP, they travel in a `parameters`
+Values are bound by whichever client submits the statement, whether `camus-cli`,
+an HTTP or gRPC request, or a driver. Over HTTP, they travel in a `parameters`
 object keyed by placeholder name:
 
 ```json
@@ -43,8 +43,9 @@ For binding details per client, see [HTTP API](/docs/http-api),
 ## Prepared Statements
 
 A prepared statement registers a SQL statement once so a client can execute it
-many times with different values — worth doing for a hot lookup, an insert loop,
-an update by primary key, or an ORM query that runs many times per process.
+many times with different values. It is worth doing for a hot lookup, an insert
+loop, an update by primary key, or an ORM query that runs many times per
+process.
 
 The saving is at the client/protocol boundary. After registration, each
 execution sends a handle and positional values instead of the full SQL text and
@@ -69,6 +70,11 @@ CamusDB can prepare:
 - `UPDATE`
 - `DELETE`
 - `SHOW ...`
+
+Every `SHOW` the grammar accepts can be prepared, including the node-scoped ones
+that run against no database at all: `SHOW ENGINE STATS`, `SHOW VARIABLES`, and
+`SHOW CLUSTER SETTINGS`. Monitoring clients poll those on a loop, and a prepared
+handle routes to the same no-database path an inline statement takes.
 
 Schema, database, and user administration statements are one-shot operations
 and cannot be prepared. `/execute-sql-ddl` and unary gRPC DDL calls reject

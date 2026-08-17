@@ -4,7 +4,7 @@ sidebar_position: 2.6
 
 # Inspecting The Database
 
-`SHOW` and `DESCRIBE` answer "what is actually in here?" — databases, tables,
+`SHOW` and `DESCRIBE` answer "what is actually in here?" for databases, tables,
 columns, indexes, and grants.
 
 ## Databases
@@ -41,7 +41,7 @@ DESC robots;
 SHOW CREATE TABLE robots;
 ```
 
-Reach for `SHOW CREATE TABLE` when you want the whole picture — it is the one
+Reach for `SHOW CREATE TABLE` when you want the whole picture. It is the one
 that renders comments on the table, its columns, and its secondary indexes, and
 it replays `INCLUDE (...)` for covering indexes, so its output is DDL you can
 run elsewhere.
@@ -57,8 +57,8 @@ SHOW MATERIALIZED VIEWS;
 SHOW CREATE MATERIALIZED VIEW customer_totals;
 ```
 
-`SHOW TABLES` lists tables only — neither views nor materialized views have
-their own row in it. `SHOW VIEWS` lists only what the caller can reach, and
+`SHOW TABLES` lists tables only; neither views nor materialized views have their
+own row in it. `SHOW VIEWS` lists only what the caller can reach, and
 `SHOW MATERIALIZED VIEWS` also reports whether each one holds data and which
 snapshot it holds. Both `SHOW CREATE` forms print the normalized definition
 rather than the text you typed, and both re-parse to the same object. See
@@ -111,35 +111,47 @@ EXPLAIN (ANALYZE) SELECT * FROM robots WHERE year = 2024 LIMIT 5;
 
 See [EXPLAIN](/docs/explain) for the output reference.
 
-## Refreshing Statistics
+## Statistics
 
 ```camussql
+SHOW STATISTICS FOR robots;
+SHOW STATISTICS FOR TABLE robots;
+
 ANALYZE robots;
 ANALYZE TABLE robots;
 ```
 
-`ANALYZE` rebuilds the table statistics the cost model reads — histograms and
-distinct-value counts. Run it after a bulk load or a large delete, when the
-planner's estimates no longer match the data. CamusDB also schedules this work
-itself; see [Automatic Analyze](/docs/automatic-analyze) and
+`SHOW STATISTICS` prints what the cost model currently believes about one table:
+row count, per-column bounds, histogram sizes, distinct-value estimates,
+per-index entry counts, and how stale all of it is. It needs only `SELECT` on
+the table. See [SHOW STATISTICS](/docs/show-statistics).
+
+`ANALYZE` rebuilds the parts of that picture a scan has to produce, meaning
+histograms and distinct-value counts. Run it after a bulk load or a large
+delete, when the planner's estimates no longer match the data. CamusDB also
+schedules this work itself; see [Automatic Analyze](/docs/automatic-analyze) and
 [Query Planning](/docs/query-planning).
 
 ## Node-Level State
 
-Two more `SHOW` commands report on the node that served the statement rather
-than on your data. Both require a superuser when authentication is enabled.
+Three more `SHOW` commands report on the server rather than on your data. All
+three require a superuser when authentication is enabled.
 
 | Command | Reports | Page |
 | --- | --- | --- |
-| `SHOW VARIABLES` | Effective configuration, with each value's default and source layer. | [SHOW VARIABLES](/docs/show-variables) |
+| `SHOW VARIABLES` | Effective configuration, with each value's default, source layer, mutability, and scope. | [SHOW VARIABLES](/docs/show-variables) |
 | `SHOW ENGINE STATS` | Kahuna and Kommander metrics: workload, Raft, WAL, storage. | [Engine Stats](/docs/engine-stats) |
+| `SHOW CLUSTER SETTINGS` | The settings the cluster currently overrides fleet-wide. | [Runtime Cluster Settings](/docs/runtime-cluster-settings) |
 
-Both accept a `LIKE` filter:
+All three accept a `LIKE` filter:
 
 ```camussql
 SHOW VARIABLES LIKE "query_result_cache_%";
 SHOW ENGINE STATS LIKE 'raft.executor%';
+SHOW CLUSTER SETTINGS LIKE 'ttl_%';
 ```
 
-`SHOW ENGINE STATS` does not require a selected database. Because both are
-node-local, run them against each node when comparing a cluster.
+None of them require a selected database. `SHOW VARIABLES` and
+`SHOW ENGINE STATS` are node-local, so run them against each node when comparing
+a cluster; `SHOW CLUSTER SETTINGS` reports the replicated overlay and reads the
+same on every node.

@@ -108,7 +108,7 @@ FROM users;
 First match wins. A `WHEN` condition that evaluates to `NULL` does not match. If
 nothing matches and there is no `ELSE`, the result is `NULL`.
 
-`CASE` is a scalar expression, so it works anywhere one is accepted — including
+`CASE` is a scalar expression, so it works anywhere one is accepted, including
 inside aggregates, which is the usual way to write a conditional total:
 
 ```camussql
@@ -169,7 +169,7 @@ FROM products
 WHERE sku !~ "\\s";
 ```
 
-Patterns are unanchored — they match anywhere in the value unless you write `^`
+Patterns are unanchored: they match anywhere in the value unless you write `^`
 and `$`. Both operands must be strings; if either is `NULL` the result is
 unknown, and the row does not survive a `WHERE`.
 
@@ -195,8 +195,8 @@ On an indexed column, the planner turns a value list into repeated index probes
 instead of a scan, which pays off for small and moderate lists.
 
 `NOT IN` follows SQL null semantics. If the list contains `NULL`, every
-non-matching comparison becomes unknown and the row is filtered out — so
-`NOT IN` against a nullable set often returns fewer rows than expected.
+non-matching comparison becomes unknown and the row is filtered out, so `NOT IN`
+against a nullable set often returns fewer rows than expected.
 
 `IN` also accepts a subquery; see
 [Joins And Subqueries](/docs/joins-and-subqueries).
@@ -259,7 +259,7 @@ HAVING total > 0;
 ```
 
 `HAVING` requires either a `GROUP BY` or an aggregate projection. To filter
-input rows rather than groups, use `WHERE` — it runs first and gives the
+input rows rather than groups, use `WHERE`, which runs first and gives the
 aggregate less work to do.
 
 ## Sorting And Pagination
@@ -287,7 +287,7 @@ ORDER BY cnt DESC, role;
 
 When an index already supplies the requested order, the planner skips the sort
 entirely. `ORDER BY` with `LIMIT` on an indexed column is therefore much cheaper
-than sorting the full table — see [Query Planning](/docs/query-planning).
+than sorting the full table. See [Query Planning](/docs/query-planning).
 
 ## Reading A Past Snapshot
 
@@ -318,7 +318,7 @@ WHERE year >= 1980;
 ```
 
 Confirm the effect with [`EXPLAIN`](/docs/explain) before leaving a hint in
-production code — a hint that outlives the data distribution it was tuned for
+production code. A hint that outlives the data distribution it was tuned for
 does more harm than good.
 
 ## Parameters

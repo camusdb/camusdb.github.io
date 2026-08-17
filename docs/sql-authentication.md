@@ -269,11 +269,18 @@ administration, plus database lifecycle DDL, require superuser.
 
 Some statements do not open a table and are allowed to any authenticated user,
 including `SHOW TABLES`, `SHOW DATABASE`, and `SELECT` statements without a
-`FROM` clause. Table-specific inspection such as `SHOW COLUMNS` and
-`SHOW CREATE TABLE` requires `SELECT` on the table.
+`FROM` clause. Table-specific inspection such as `SHOW COLUMNS`,
+`SHOW CREATE TABLE`, and [`SHOW STATISTICS`](/docs/show-statistics) requires
+`SELECT` on the table. `SHOW STATISTICS` reports bounds drawn from real column
+values, so it is held to the same bar as reading those columns, and to nothing
+higher.
 
 `SHOW ENGINE STATS` is node-level operational introspection and requires a
-superuser. It is not scoped to a database or table grant.
+superuser. It is not scoped to a database or table grant. The configuration
+surface is held to the same bar: `SHOW VARIABLES`, `SHOW CLUSTER SETTINGS`, and
+[`SET` / `RESET CLUSTER SETTING`](/docs/runtime-cluster-settings) all require a
+superuser. The last two also change how every node behaves, and several of the
+settings they reach bound memory, concurrency, and background work.
 
 Known conservative behavior: an `UPDATE` or `DELETE` whose subquery reads
 another table currently requires the write privilege on that read table rather

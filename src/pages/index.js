@@ -197,7 +197,7 @@ function HomepageHeader() {
             </Heading>
             <p className={styles.subtitle}>
               CamusDB partitions data, routes writes through Raft, and runs
-              Serializable transactions by default—while your application uses
+              Serializable transactions by default, while your application uses
               familiar SQL
             </p>
             <div className={styles.buttons}>
@@ -210,7 +210,7 @@ function HomepageHeader() {
             </div>
             <p className={styles.statusNote}>
               <span className={styles.statusDot} aria-hidden="true" />
-              Alpha software for evaluation—not production workloads yet
+              Alpha software for evaluation, not production workloads yet
             </p>
           </div>
           <PyramidNetwork className={styles.heroNetwork} />

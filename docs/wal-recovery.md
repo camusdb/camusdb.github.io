@@ -154,8 +154,8 @@ serving through one primary storage process. CamusDB separates those concerns:
 - Multi-active CamusDB nodes can accept client traffic while partition leaders
   still serialize writes safely.
 
-WAL recovery restores a node after a crash. To rebuild one from a captured image
-— or to rewind to a chosen point in time — see
+WAL recovery restores a node after a crash. To rebuild one from a captured
+image, or to rewind to a chosen point in time, see
 [Backup And Restore](/docs/backup-and-restore).
 
 For lower-level storage details, see [Storage](/docs/storage) and

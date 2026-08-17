@@ -119,8 +119,8 @@ stays visible. A [materialized view](/docs/materialized-views) is a real
 relation and caches exactly like a table.
 
 A query calling a [session function](/docs/functions-session) such as
-`current_user()` bypasses the cache too — the cache is per-node and shared
-across callers, so an entry keyed to one caller's identity must never be served
+`current_user()` bypasses the cache too, because the cache is per-node and
+shared across callers, so an entry keyed to one caller's identity must never be served
 to the next.
 
 ## Freshness

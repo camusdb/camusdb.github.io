@@ -88,5 +88,6 @@ that asks about another user.
 
 [Functions](/docs/functions) for the other categories,
 [Authentication And Authorization](/docs/sql-authentication) for users and
-grants, and [Views](/docs/views) — a view body may call these, and the session
-snapshot is taken from the caller's statement wherever the body is expanded.
+grants, and [Views](/docs/views), since a view body may call these and the
+session snapshot is taken from the caller's statement wherever the body is
+expanded.

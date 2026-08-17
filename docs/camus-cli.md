@@ -387,8 +387,9 @@ Both thresholds come from the connection string:
 camus-cli -c "Endpoint=http://localhost:5095;Database=demo;MaxAutoPrepare=512;AutoPrepareMinUsages=1"
 ```
 
-`MaxAutoPrepare` is how many statements stay registered — `0` turns registration
-off — and `AutoPrepareMinUsages` is how many executions come first. See
+`MaxAutoPrepare` is how many statements stay registered, where `0` turns
+registration off, and `AutoPrepareMinUsages` is how many executions come first.
+See
 [Parameters And Prepared Statements](/docs/prepared-statements).
 
 ## Backups
@@ -431,28 +432,28 @@ recoverable window a point-in-time restore may target.
 
 Things worth knowing:
 
-- **Backups are node-wide, not per-database.** Every database on the server
+- Backups are node-wide, not per-database. Every database on the server
   shares one storage node. Nothing here is scoped to the current database, and
   the commands work with no database selected.
-- **The server must opt in.** Backups are off until `kahuna.backup_dir` is set;
+- The server must opt in. Backups are off until `kahuna.backup_dir` is set;
   until then every command fails with `CADB0700 BackupNotConfigured`.
-- **Superuser only.** With authentication enabled, connect as a superuser with
+- Superuser only. With authentication enabled, connect as a superuser with
   `-u` or `--token`. With authentication *disabled* the server restricts this
   surface to loopback callers, so a remote shell is refused rather than allowed
   to take an anonymous node-wide backup.
-- **An incremental can become a full.** If the parent has aged past the
+- An incremental can become a full. If the parent has aged past the
   retention floor, the server takes a full backup instead. The command still
   succeeds and reports the substitution and its reason.
-- **`backup coordinated` must reach the coordinator.** Any other node refuses
+- `backup coordinated` must reach the coordinator. Any other node refuses
   with `CADB070E BackupNotCoordinator`. Pin `BackupEndpoint=` to the coordinator
   when `Endpoint=` names a multi-node pool.
-- **The API is REST-only.** It has no SQL form and no gRPC service. The shell
+- The API is REST-only. It has no SQL form and no gRPC service. The shell
   points its default gRPC connection at the well-known HTTP port for you;
   against a `-c` connection string with an explicit `Protocol=grpc`, add
   `BackupEndpoint=` naming the server's HTTP endpoint.
-- **Backup requests use their own timeout.** `BackupTimeout=` in the connection
-  string, 300 seconds by default, rather than the statement timeout — a full
-  backup copies a whole node's base image.
+- Backup requests use their own timeout. `BackupTimeout=` in the connection
+  string, 300 seconds by default, rather than the statement timeout, because a
+  full backup copies a whole node's base image.
 
 Retention runs automatically after each backup and on a periodic tick, so
 `backup gc` is only needed to reclaim space immediately after tightening the
@@ -463,7 +464,7 @@ camus> backup gc preview
 Retention preview: 2 backups, 0 orphans, 1.41 GB would reclaim (00:00:00.041)
 ```
 
-**Restore is not here.** A restore rebuilds into a fresh data root, after which
+Restore is not here. A restore rebuilds into a fresh data root, after which
 the server is stopped and a new one booted against it. There is no hot in-place
 restore, so it stays an operator runbook step rather than something the shell can
 drive to completion. See [Backup And Restore](/docs/backup-and-restore).
@@ -640,8 +641,8 @@ select gen_uuid_v7(), now();
 Press `Tab` to autocomplete the word under the cursor. Press `Tab` again to
 cycle forward through matches, or `Ctrl+Tab` to cycle backward.
 
-Completion is context-aware. After a keyword that expects a relation name —
-`from`, `into`, `update`, `join`, `table`, `view`, `desc`, or `describe` — the
+Completion is context-aware. After a keyword that expects a relation name
+(`from`, `into`, `update`, `join`, `table`, `view`, `desc`, or `describe`), the
 shell suggests the table and view names of the current database. Elsewhere it
 suggests SQL keywords, functions, constants, and shell commands.
 
@@ -669,7 +670,7 @@ This rewrites the active connection string to replace the `Database=...` part,
 then opens a new connection to that database. The target database must already
 exist; `use` does not create it.
 
-The name may be bare, `` `backticked` ``, or `"quoted"` — the quoted forms are
+The name may be bare, `` `backticked` ``, or `"quoted"`. The quoted forms are
 how a name that collides with a keyword or contains spaces is written.
 
 `use` is handled by the shell, not the server, and works in script files and

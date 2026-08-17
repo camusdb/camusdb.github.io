@@ -198,6 +198,10 @@ statistics from `ANALYZE`. The planner can use them to estimate:
 - Per-column histograms.
 - Distinct-value counts for columns and composite index prefixes.
 
+All of them are readable from a SQL prompt with
+[`SHOW STATISTICS FOR <table>`](/docs/show-statistics), which also reports when
+the table was last analyzed and how much it has changed since.
+
 Run `ANALYZE` after loading or materially changing data when you want to force
 better selectivity and join-cardinality estimates:
 
@@ -292,6 +296,27 @@ This works best when:
 - The scan already satisfies the requested ordering.
 - No extra filter must run after the scan.
 - No grouping, `HAVING`, or `DISTINCT` prevents early stop.
+
+## Parallel And Distributed Scans
+
+A full table scan can use more than one thread on a single node. Set
+`max_query_parallelism` above `1` and the scan streams once while rows decode in
+chunks on the thread pool:
+
+```camussql
+SET CLUSTER SETTING max_query_parallelism = 4;
+```
+
+Chunks are consumed in the order they were dispatched, so the rows a query
+returns are the same rows in the same order as with the default of `1`. The
+setting is per node and takes effect on the next query. It buys decode
+throughput on wide rows, at the cost of one buffer per worker and more
+concurrent storage reads.
+
+In a cluster, an eligible full scan can go further and run one fragment per
+partition on the node that owns the rows, applying filters and aggregates before
+anything crosses the network. That is off by default; see
+[Distributed Queries](/docs/distributed-queries).
 
 ## Joins
 

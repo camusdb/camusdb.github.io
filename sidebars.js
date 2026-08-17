@@ -141,8 +141,18 @@ const sidebars = {
             },
             {
               type: 'doc',
+              id: 'show-statistics',
+              label: 'SHOW STATISTICS',
+            },
+            {
+              type: 'doc',
               id: 'query-result-cache',
               label: 'Result Cache',
+            },
+            {
+              type: 'doc',
+              id: 'distributed-queries',
+              label: 'Distributed Queries',
             },
           ],
         },
@@ -190,6 +200,11 @@ const sidebars = {
           items: [
             'cluster',
             'configuration',
+            {
+              type: 'doc',
+              id: 'runtime-cluster-settings',
+              label: 'Runtime Cluster Settings',
+            },
             {
               type: 'doc',
               id: 'sql-authentication',

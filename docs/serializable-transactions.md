@@ -54,7 +54,7 @@ neither readers nor writers. What you no longer get:
 Serializable has two execution modes, and picking the right one matters more
 than any other tuning decision here.
 
-A **serializable read-only** transaction pins one snapshot timestamp at `BEGIN`.
+A serializable read-only transaction pins one snapshot timestamp at `BEGIN`.
 Every statement reads from it, later commits stay invisible, repeated reads are
 stable, and none of it needs a lock. CamusDB can hold that snapshot across
 several requests when the client resumes the same transaction id, so it works
@@ -65,7 +65,7 @@ BEGIN;
 SET TRANSACTION ISOLATION LEVEL SERIALIZABLE READ ONLY;
 ```
 
-A **serializable read-write** transaction adds locking on top of MVCC. Point
+A serializable read-write transaction adds locking on top of MVCC. Point
 reads can hold shared point locks, scans can hold shared range locks, and writes
 take exclusive key-level protection. A key the transaction read cannot be
 changed underneath it and still commit. The cost is that conflicting
@@ -79,16 +79,16 @@ writers.
 
 Two kinds of lock are worth understanding as a user.
 
-**Per-key locks and write intents** are taken by every write, for the keys it
+Per-key locks and write intents are taken by every write, for the keys it
 modifies. They are what enforces row write-write conflict detection, unique
 index conflict detection, and atomic update of a row together with its index
 entries.
 
-**Point and range read locks** are how serializable read-write transactions
+Point and range read locks are how serializable read-write transactions
 protect what they read. A shared point lock covers the exact key read; a
 concurrent writer cannot modify it and still commit. If the same transaction
 later writes that key, the lock is promoted to write protection. For scans, a
-shared range lock covers the scanned span — overlapping scans still run
+shared range lock covers the scanned span, so overlapping scans still run
 concurrently, but conflicting writes into the range are held back or retried.
 
 When a transaction reads a very large number of rows, CamusDB escalates the
@@ -145,8 +145,8 @@ serialization conflicts, changed read dependencies, transient cross-partition
 prepare or commit failures, schema catch-up fencing on a lagging node, and
 lifetime expiration.
 
-CamusDB does not replay aborted multi-statement transactions for you — the
-client restarts from `BEGIN`. For single-statement autocommit work, the .NET
+CamusDB does not replay aborted multi-statement transactions for you; the client
+restarts from `BEGIN`. For single-statement autocommit work, the .NET
 client ships a retry helper. See
 [Retries And Conflicts](/docs/serializable-retries) for the contract.
 
@@ -156,8 +156,8 @@ transaction is too big, so replaying the same batch just fails again. See
 
 ## Timestamps And Schema Safety
 
-Every read-write transaction gets a Hybrid Logical Clock timestamp from Kahuna —
-clients never assign their own. It identifies the transaction, orders committed
+Every read-write transaction gets a Hybrid Logical Clock timestamp from Kahuna,
+and clients never assign their own. It identifies the transaction, orders committed
 versions, and coordinates distributed commit. The resulting order is logically
 consistent, not a real-time wall-clock guarantee. See
 [Distributed Transactions And HLC](/docs/distributed-transactions).
@@ -178,8 +178,8 @@ contiguous keys are routed together, a scan holding a shared range lock does not
 interfere with unrelated ranges. It only becomes meaningful once the cluster has
 at least two partitions.
 
-Serializable is not a single-node-only feature — anomaly coverage is exercised
-on both a single node and a three-node cluster, including multi-partition
+Serializable is not a single-node-only feature. Anomaly coverage is exercised on
+both a single node and a three-node cluster, including multi-partition
 read-write transactions.
 
 ## What Is Guaranteed Today

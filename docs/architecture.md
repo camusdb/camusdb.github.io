@@ -180,7 +180,7 @@ See [Cluster Mode](/docs/cluster) for startup commands and
 | Node | One running CamusDB process. In cluster mode each node can expose the database API and participate in replication. |
 | Cluster | A group of nodes configured to reach each other and share a distributed storage layer. |
 | Partition | A shard of the keyspace owned by the distributed KV layer, with its own consensus leadership and log ordering. |
-| Partition leader | The node currently coordinating writes for a partition. Clients do not need to know which one it is — the storage layer routes work to the owner. |
+| Partition leader | The node currently coordinating writes for a partition. Clients do not need to know which one it is, because the storage layer routes work to the owner. |
 | Consensus | The agreement process that makes replicas in a partition commit the same ordered log entries. CamusDB uses [Kommander](https://kahunakv.github.io/kommander.github.io/) for Raft. |
 | Replication | Copying committed partition log entries across nodes so committed state survives node failures and restarts. |
 | Write-ahead log | The durable ordered log of partition entries, and the source of recovery ordering. A committed entry not yet materialized into KV storage can be replayed after restart. |

@@ -14,7 +14,7 @@ UPDATE accounts SET balance = balance + 100 WHERE id = @to;
 COMMIT;
 ```
 
-A statement sent without a transaction gets one anyway — CamusDB opens and
+A statement sent without a transaction gets one anyway: CamusDB opens and
 commits a single-operation transaction around it.
 
 This page is the SQL syntax. For the guarantees behind it, see

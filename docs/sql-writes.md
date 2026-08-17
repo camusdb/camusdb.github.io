@@ -27,16 +27,16 @@ A multi-row `INSERT` is atomic: either every row lands or none does.
 ### Defaults
 
 Write `DEFAULT` in the value list, or leave the column out of the column list
-entirely — both apply the column's default:
+entirely. Both apply the column's default:
 
 ```camussql
 INSERT INTO robots (id, name, year)
 VALUES (GEN_ID(), "K-2SO", DEFAULT);
 ```
 
-When the default is a generator — `DEFAULT (gen_id())`,
-`DEFAULT (gen_uuid_v4())`, `DEFAULT (gen_uuid_v7())` — the function is evaluated
-once per inserted row, so each row gets its own value. See
+When the default is a generator such as `DEFAULT (gen_id())`,
+`DEFAULT (gen_uuid_v4())`, or `DEFAULT (gen_uuid_v7())`, the function is
+evaluated once per inserted row, so each row gets its own value. See
 [Tables And Columns](/docs/sql-schema#column-defaults).
 
 Object ids can also be produced inline:
@@ -60,9 +60,9 @@ FROM robots
 WHERE year < 2000;
 ```
 
-The source is an ordinary `SELECT` — joins, subqueries, grouping, parameters,
-and time-travel sources all work. **Columns are matched by position, not by
-name**, so the projection order must line up with the target column list.
+The source is an ordinary `SELECT`: joins, subqueries, grouping, parameters, and
+time-travel sources all work. Columns are matched by position, not by name, so
+the projection order must line up with the target column list.
 
 Like any insert, it is all-or-nothing, and it enforces the same defaults,
 constraints, indexes, and transaction limits as `INSERT ... VALUES`. To create

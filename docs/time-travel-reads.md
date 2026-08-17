@@ -5,8 +5,8 @@ sidebar_position: 2.6
 # Time-Travel Reads
 
 `AS OF SYSTEM TIME` reads data as it existed at a point in the past. The query
-is an ordinary read-only `SELECT` — it is simply pinned to a historical
-committed snapshot rather than the latest one.
+is an ordinary read-only `SELECT`, simply pinned to a historical committed
+snapshot rather than the latest one.
 
 The usual reason to reach for it is that something changed and you need to see
 what was there before: diagnosing an incident, checking what a report was built

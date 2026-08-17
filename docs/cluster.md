@@ -110,6 +110,12 @@ See [Configuration](/docs/configuration) for every YAML key and flag.
 All rows for a table live under the same key prefix, so ordered table scans
 still work while the storage layer handles partition ownership and replication.
 
+By default a query is executed entirely by the node that received it, reading
+remote pages through the storage locator. Turning on
+[distributed queries](/docs/distributed-queries) instead splits an eligible scan
+into one fragment per partition and runs each fragment on the node that owns the
+rows, so filters and aggregates are applied before the data crosses the network.
+
 ## Multi-Active Availability
 
 There is no single active process to fail over. Applications talk to whichever
@@ -141,6 +147,12 @@ another copy of the same data. Availability is only useful while the data stays
 correct, so CamusDB takes the unavailable side of that trade.
 
 Serializable isolation is the default in a cluster exactly as it is on one
-node — see [Transactions And Isolation](/docs/serializable-transactions) for the
+node. See [Transactions And Isolation](/docs/serializable-transactions) for the
 guarantees and [Distributed Transactions And HLC](/docs/distributed-transactions)
 for the cross-partition commit protocol.
+
+Configuration rides the same machinery. A setting changed with
+[`SET CLUSTER SETTING`](/docs/runtime-cluster-settings) is committed through Raft
+on its own partition, so every node applies it in the same order and a node that
+was down catches up on replay. There is no rolling restart, and no node left on
+a stale value.

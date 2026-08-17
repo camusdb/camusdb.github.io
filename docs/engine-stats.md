@@ -47,8 +47,9 @@ Use engine stats for questions such as:
 - Are [Kahuna](https://kahunakv.github.io/) write batches growing as expected
   under concurrency?
 
-Use `ANALYZE`, `EXPLAIN`, and the query-planning pages when you need
-table/cardinality statistics for query plans.
+Use [`SHOW STATISTICS FOR <table>`](/docs/show-statistics), `ANALYZE`,
+`EXPLAIN`, and the query-planning pages when you need table and cardinality
+statistics for query plans.
 
 ## Result Columns
 
@@ -114,6 +115,17 @@ Useful starting points:
 | `ttl.runs_planned` | TTL runs planned on this node. |
 | `ttl.runs_completed` | TTL runs completed on this node. |
 | `ttl.table.state` | Per-table TTL state, tagged with database and table. |
+| `distributed.fragments_dispatched` | Query fragments this node sent to peers as a coordinator. |
+| `distributed.fragments_served` | Query fragments this node executed for a peer. |
+| `distributed.fragment_fallbacks` | Remote fragments that failed and were finished locally. |
+| `distributed.rows_shipped_in` | Rows received from peers, survivors plus partial-aggregate groups. |
+| `distributed.rows_shipped_out` | Rows this node returned to peers. |
+| `distributed.partial_aggregate_gathers` | Aggregations run as per-span partials with a coordinator merge. |
+
+The `distributed.*` rows appear only while `distributed_query_execution` is
+enabled. With the feature off they are absent rather than zero, so an empty
+result means distribution is off rather than idle. See
+[Distributed Queries](/docs/distributed-queries) for how to read them.
 
 ## Node-Local Semantics
 

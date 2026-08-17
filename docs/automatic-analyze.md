@@ -76,6 +76,10 @@ Automatic analyze refreshes the same optimizer-facing statistics used by manual
 These statistics are advisory. Missing or stale statistics do not change query
 correctness; they only affect how accurately CamusDB can estimate costs.
 
+To see what a table currently holds, including how stale it has become and
+whether this job has refreshed it yet, run
+[`SHOW STATISTICS FOR <table>`](/docs/show-statistics).
+
 ## How It Avoids Interference
 
 Automatic analyze is designed as background maintenance:

@@ -62,7 +62,9 @@ Behavior:
 These estimates come from CamusDB's lightweight planner statistics when they
 exist. Different deployments can produce different numbers depending on current
 row counts, observed indexed-column bounds, histograms, and distinct-value
-counts collected by manual or automatic `ANALYZE`.
+counts collected by manual or automatic `ANALYZE`. When an estimate looks wrong,
+[`SHOW STATISTICS FOR <table>`](/docs/show-statistics) prints the inputs that
+produced it, and whether they were ever collected at all.
 
 `estimated_rows` and `estimated_cost` are the same values used by CamusDB's
 cost-based optimizer. Because cost-based access-path and join-order search are
@@ -108,6 +110,7 @@ These are the main node names you will see:
 | `merge-join` | Inner equi-join that streams ordered inputs by join key. |
 | `derived-table-scan` | Scan of a derived table from `FROM (SELECT ...) alias`. |
 | `constant-source` | The single synthetic row used by a `SELECT` without `FROM`. |
+| `gather` | Exchange over one scan fragment per placement span, when [distributed queries](/docs/distributed-queries) are enabled. |
 
 ## Informational Rows
 
@@ -119,6 +122,11 @@ rows are not execution operators, so estimated and actual counters are usually
 | --- | --- |
 | `plan-info` | Plan-cache metadata such as the query shape id and schema dependencies. |
 | `cache` | Static eligibility for a query result cache hint. |
+| `distribution` | Whether the plan was fragmented across the cluster, and if not, the reason it stayed local. Present only while `distributed_query_execution` is on. |
+| `gather-span` | Per-span execution actuals, one row per placement span, emitted by `EXPLAIN (ANALYZE)` over a gather. |
+
+The `distribution` and `gather-span` rows are covered in
+[Distributed Queries](/docs/distributed-queries).
 
 The `cache` row appears when the query carries a `{cache=...}` or
 `@{cache=...}` hint:

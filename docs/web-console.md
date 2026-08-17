@@ -45,8 +45,8 @@ IP or add:
 --add-host=host.docker.internal:host-gateway
 ```
 
-On first load, the console uses its configured defaults. Use **Configure** in
-the app bar to change endpoint, database, protocol, timeout, max rows, or
+On first load, the console uses its configured defaults. Use Configure in the
+app bar to change endpoint, database, protocol, timeout, max rows, or
 credentials for the current browser session.
 
 ## Configuration
@@ -93,7 +93,7 @@ CamusDB authentication is off by default. With no credentials configured, the
 Web Console sends no `Authorization` header.
 
 Against a server started with `CAMUSDB_AUTH_ENABLED=true`, sign in through
-**Configure** in the app bar with either:
+Configure in the app bar with either:
 
 - a user and password
 - an access token minted elsewhere
@@ -105,12 +105,12 @@ token early.
 
 Session behavior:
 
-- Credentials entered in **Configure** are per browser session and live in that
+- Credentials entered in Configure are per browser session and live in that
   Blazor circuit's memory.
 - The console does not put per-session passwords into the connection string.
 - Only the user name is remembered in `localStorage` to prefill the dialog.
 - The password is not stored in `localStorage`.
-- **Sign out** from the identity chip in the app bar revokes a token minted by
+- Sign out from the identity chip in the app bar revokes a token minted by
   the console and drops the connection.
 - A supplied access token is forgotten on sign out but is not revoked, because
   the console did not mint it.
@@ -158,13 +158,13 @@ The Web Console provides:
 
 - dark console layout with app bar, schema sidebar, SQL editor, results grid,
   and connection footer
-- **Configure** dialog for endpoint, database, protocol, timeout, row cap, and
+- Configure dialog for endpoint, database, protocol, timeout, row cap, and
   credentials
 - schema browser using `SHOW DATABASES`, `SHOW TABLES`, `SHOW COLUMNS FROM`,
   `SHOW INDEXES FROM`, and branch metadata
 - Monaco SQL editor
 - CamusDB-specific SQL highlighting and keyword/function completion
-- **Run query** button and Ctrl/Cmd+Enter execution
+- Run query button and Ctrl/Cmd+Enter execution
 - multi-tab query workspace
 - cancellable query runs
 - execution timings and status bar

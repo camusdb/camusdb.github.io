@@ -199,9 +199,9 @@ behavior with your workload and have a clear overload-control goal.
 
 ### How Long A Transaction Waits At The Door
 
-A transaction that cannot be admitted queues for the **admission wait budget**,
-then fails with the retryable `CADB0504`. Nothing was started, so retrying is
-always safe — but the node is shedding load, and the retry should back off.
+A transaction that cannot be admitted queues for the admission wait budget, then
+fails with the retryable `CADB0504`. Nothing was started, so retrying is always
+safe, but the node is shedding load and the retry should back off.
 
 ```yaml
 transaction_admission_wait_ms: 0   # 0 = leave the node's own budget in force
@@ -211,14 +211,15 @@ kahuna:
   max_admission_wait_ms: 30000     # hard clamp on any caller-supplied budget
 ```
 
-This is deliberately not the transaction lifetime.
+This is not the transaction lifetime, and is not meant to be.
 `max_serializable_transaction_lifetime_ms` (one hour by default) bounds how long
 an *admitted* transaction may live, and doubles as the abandoned-session reaper
 window. The budget above bounds how long an *unadmitted* one waits to begin. A
 transaction meant to run for an hour is not thereby willing to wait an hour to
 start.
 
-Keep the budget short — seconds. Lengthening it does not increase throughput; it
+Keep the budget short, on the order of seconds. Lengthening it does not increase
+throughput; it
 converts a prompt, retryable refusal into a slow one, and every waiting
 transaction occupies a queue slot that `transaction_priority_max_queued` would
 otherwise give to someone else.

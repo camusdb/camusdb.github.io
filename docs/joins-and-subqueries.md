@@ -7,9 +7,9 @@ sidebar_position: 2.42
 Queries that read from more than one source: joins, subqueries in `WHERE`,
 subqueries in `FROM`.
 
-Everything on this page composes with the clauses in [SELECT](/docs/sql-queries)
-— filtering, grouping, sorting, and pagination behave the same way once the
-sources are combined.
+Everything on this page composes with the clauses in [SELECT](/docs/sql-queries):
+filtering, grouping, sorting, and pagination behave the same way once the sources
+are combined.
 
 ## Inner Joins
 
@@ -60,6 +60,11 @@ a slow join. Without one, every outer row scans the inner table.
 
 Oversized hash joins can partition intermediate rows to disk rather than growing
 memory without bound, when [spill to disk](/docs/spill-to-disk) is enabled.
+
+In a cluster with [distributed queries](/docs/distributed-queries) enabled, a
+small hash-join build side can be broadcast to the nodes that own the probe
+table's partitions, which probe locally and return only the rows that matched.
+The output is the same either way.
 
 ### Comma Joins
 
@@ -112,7 +117,7 @@ When the inner query is indexed and eligible, this runs as a semi-join
 first.
 
 `NOT IN` inherits SQL null semantics: if the inner result contains a single
-`NULL`, non-matching rows evaluate to unknown and are dropped — commonly
+`NULL`, non-matching rows evaluate to unknown and are dropped, commonly
 returning zero rows. Use `NOT EXISTS` when the inner column is nullable.
 
 Multi-column and correlated `IN` / `NOT IN` subqueries are rejected.
@@ -134,7 +139,7 @@ ORDER BY email;
 ```
 
 For a correlated `EXISTS`, an index on the inner table is used when the inner
-`WHERE` pins the leading index columns with equality predicates — against outer
+`WHERE` pins the leading index columns with equality predicates, against outer
 row values, literals, or parameters:
 
 ```camussql
@@ -185,7 +190,7 @@ ORDER BY u.email;
 ```
 
 The derived table's columns take their names from the inner projection, so alias
-every computed column — `COUNT(*) AS post_count` — or the outer query has no
+every computed column, as in `COUNT(*) AS post_count`, or the outer query has no
 usable name to reference.
 
 ## Checking The Plan

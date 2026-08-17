@@ -281,7 +281,7 @@ receipts let recovery distinguish "this participant already committed" from
 gone. Recovery operations are idempotent, so the request path and recovery actor
 can race without duplicating the committed effect.
 
-The boundary is deliberate: durable decision mode protects the transaction
+The boundary is drawn on purpose: durable decision mode protects the transaction
 after the commit decision exists. It does not make the active coordinator
 session or every prepared participant independently durable from `BEGIN`.
 

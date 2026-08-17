@@ -49,18 +49,29 @@ not, startup fails instead of silently falling through to another file.
 
 Precedence after a file is loaded is:
 
-1. command-line flags
-2. environment variables
-3. the selected YAML file
-4. built-in defaults
+1. the replicated cluster overlay
+2. command-line flags
+3. environment variables
+4. the selected YAML file
+5. built-in defaults
 
 Only flags you pass explicitly override YAML values. Omitting a flag keeps the
 value from the selected file. The resolved configuration source and data
 directory are printed at startup.
 
+The cluster overlay sits on top because it is written by
+[`SET CLUSTER SETTING`](/docs/runtime-cluster-settings), which changes a setting
+fleet-wide on running nodes. If a local file outranked it, a fleet-wide change
+would silently no-op on the one node whose YAML happens to name that key. Only
+settings classified `runtime` can be overlaid this way; the values that define a
+node, meaning the data directory, identity, ports, peers, and the whole
+`kahuna.*` section, are `restart`-class and are never cluster-overridable.
+
 After startup, inspect the effective engine configuration from SQL with
-[`SHOW VARIABLES`](/docs/show-variables). This is useful when a CLI flag or
-environment variable overrides the selected YAML file.
+[`SHOW VARIABLES`](/docs/show-variables). This is useful when a CLI flag,
+environment variable, or cluster setting overrides the selected YAML file: the
+`source` column names the layer that won, and the `mutability` column tells you
+whether the setting can be changed without a restart.
 
 ## Default Files And Directories
 
@@ -153,6 +164,9 @@ The remaining YAML settings do not currently have command-line flags:
 | `lock_escalation_threshold` | `50` | Shared point-lock count per bucket before escalation. |
 | `lock_wait_deadline_ms` | `500` | Per-operation Serializable conflict wait cap. |
 | `key_range_sharding` | `false` | Opt tables and eligible indexes into Kahuna key-range routing. |
+| `distributed_query_execution` | `false` | Plan eligible full scans as one fragment per placement span, executed on the node that owns the rows. Requires `key_range_sharding` and cluster mode. |
+| `max_query_parallelism` | `1` | Concurrent decode workers per full primary-row scan; `1` keeps the sequential pipeline. |
+| `broadcast_join_max_build_rows` | `10000` | Largest hash-join build side eligible to be broadcast to remote probe spans; `0` disables broadcast joins. |
 | `stats_flush_interval_ms` | `5000` | Advisory table-statistics flush interval. |
 | `stats_analyze_sample_rows` | `100000` | Manual `ANALYZE` full-scan/sample threshold; `0` means always full scan. |
 | `stats_histogram_buckets` | `100` | Histogram bucket count built per analyzed column. |
@@ -431,8 +445,8 @@ Operational notes:
 
 Two settings bound how long the server keeps retrying an operation internally
 before handing the retry back to the caller. Both are wall-clock durations rather
-than attempt counts, because what they wait on — an election, a drain, a
-leadership handover — resolves on its own schedule: a saturated node makes each
+than attempt counts, because what they wait on, whether an election, a drain, or
+a leadership handover, resolves on its own schedule: a saturated node makes each
 attempt take longer without making it take more attempts, so an attempt cap
 shrinks the real budget exactly when the node most needs it.
 
@@ -445,12 +459,12 @@ sequence_retry_budget_ms: 10000
   that comes back "outcome not known yet" is retried on the same handle. The
   write may already have landed, so this is retried rather than reported. When
   the budget runs out the client sees `CADB0509`
-  `TransactionFinalizeUnresolved` and resends the same finalize itself — see
+  `TransactionFinalizeUnresolved` and resends the same finalize itself. See
   [Retries And Conflicts](/docs/serializable-retries). Raise it on nodes that run
   hot. `<= 0` attempts the finalize once.
 - `sequence_retry_budget_ms` is how long a call against a persistent monotonic
-  counter — database ids, table ids, the registry's cross-node generation stamp —
-  is retried while its Raft partition has no confirmed leader. Every
+  counter, such as database ids, table ids, or the registry's cross-node
+  generation stamp, is retried while its Raft partition has no confirmed leader. Every
   `CREATE TABLE`, `CREATE VIEW`, and `CREATE TABLE AS SELECT` allocates an id
   first, so this budget decides whether an election is invisible or fails the
   statement with `CADB0535` `SequenceUnavailable`. The default is sized against
@@ -467,7 +481,7 @@ database_idle_eviction_ms: 900000
 ```
 
 The default is fifteen minutes; `<= 0` disables eviction entirely. Only the
-in-memory descriptor and its per-database state are released — nothing on disk
+in-memory descriptor and its per-database state are released; nothing on disk
 changes, and the next statement against that database reopens it transparently at
 the cost of one open.
 
@@ -522,7 +536,7 @@ The admission wait settings bound how long an *unadmitted* transaction queues
 before being refused with a retryable `CADB0504`.
 `transaction_admission_wait_ms` is the CamusDB-side budget; `0` defers to
 `kahuna.default_admission_wait_ms`, and `kahuna.max_admission_wait_ms` clamps
-any caller-supplied value. Keep the budget in seconds — it is not the
+any caller-supplied value. Keep the budget in seconds. It is not the
 transaction lifetime, and a long door-wait makes a saturated node hold requests
 open instead of shedding them.
 
@@ -733,6 +747,37 @@ The plan cache is also opt-in:
 The cache is per process and does not change query correctness. It may preserve
 an older access-path choice until schema changes invalidate the cached entry or
 the process restarts.
+
+## Parallel And Distributed Query Execution
+
+Three settings control how much of a scan runs at once, and where.
+
+```yaml
+max_query_parallelism: 1
+distributed_query_execution: false
+broadcast_join_max_build_rows: 10000
+```
+
+- `max_query_parallelism`: concurrent decode workers for one full primary-row
+  scan. Must be at least `1`, and `1` runs the sequential pipeline. Higher
+  values decode chunks on the thread pool while preserving sequential row order.
+  It needs no cluster and applies in standalone mode.
+- `distributed_query_execution`: when `true`, an eligible full scan is planned
+  as one fragment per placement span and executed on the node that owns the
+  rows. It requires `key_range_sharding: true` and cluster mode, and it is
+  restart-class and cluster-scoped, so every node must carry the same value.
+- `broadcast_join_max_build_rows`: the largest hash-join build side, in actual
+  rows, that may be shipped to remote probe spans. `0` turns broadcast joins off
+  while leaving the rest of distributed execution on.
+
+`max_query_parallelism` and `broadcast_join_max_build_rows` are runtime-class
+and node-scoped, so they can be changed with
+[`SET CLUSTER SETTING`](/docs/runtime-cluster-settings) and applied at the next
+query. Cluster deployments should also populate `http_peers`, which is how a
+peer's Raft endpoint resolves to the HTTP address fragments are sent to.
+
+See [Distributed Queries](/docs/distributed-queries) for eligibility rules,
+`EXPLAIN` output, and the `distributed.*` counters.
 
 ## Query Result Cache
 
@@ -1016,17 +1061,17 @@ respected.
 
 | Setting | Default when unset | Clamped to |
 | --- | --- | --- |
-| `rocksdb_shared_memory_budget_mb` | 10% of RAM | 320 MiB – 2 GiB |
-| `rocksdb_shared_memtable_budget_mb` | a quarter of the block cache | 128 MiB – 1 GiB |
-| `max_bytes_per_actor` | 6.25% of RAM (at least 64 MiB for the layer) ÷ `key_value_workers` | 8 MiB – 2 GiB per actor |
-| `max_entries_per_actor` | `max_bytes_per_actor` ÷ ~512 B | 10k – 4M |
+| `rocksdb_shared_memory_budget_mb` | 10% of RAM | 320 MiB to 2 GiB |
+| `rocksdb_shared_memtable_budget_mb` | a quarter of the block cache | 128 MiB to 1 GiB |
+| `max_bytes_per_actor` | 6.25% of RAM (at least 64 MiB for the layer) ÷ `key_value_workers` | 8 MiB to 2 GiB per actor |
+| `max_entries_per_actor` | `max_bytes_per_actor` ÷ ~512 B | 10k to 4M |
 
 That comes to roughly 16% of RAM across both cache layers, and never more than
 4 GiB in total however large the machine is. On an 8 GiB, 8-core machine with none
 of them set: an 819 MiB block cache, a 204 MiB memtable sub-budget, and
-64 MiB × 8 = 512 MiB of actor caches — about 1.5 GiB.
+64 MiB × 8 = 512 MiB of actor caches, about 1.5 GiB in total.
 
-The fractions and the ceilings are deliberately modest. An unconfigured node is
+The fractions and the ceilings are modest on purpose. An unconfigured node is
 far more often a developer workstation or a CI container sharing the box with a
 compiler and an IDE than a machine whose only job is CamusDB. Treat the sizing
 above as a floor to build from: a dedicated server should raise all four
@@ -1327,7 +1372,8 @@ camusdb \
 
 ## Related Pages
 
-See [Cluster Mode](/docs/cluster) for cluster startup,
-[Distributed Schema Changes](/docs/distributed-schema) for the schema ack gate,
-and [Transactions And Isolation](/docs/serializable-transactions) for
+See [Runtime Cluster Settings](/docs/runtime-cluster-settings) for changing a
+setting fleet-wide without a restart, [Cluster Mode](/docs/cluster) for cluster
+startup, [Distributed Schema Changes](/docs/distributed-schema) for the schema
+ack gate, and [Transactions And Isolation](/docs/serializable-transactions) for
 transaction behavior.

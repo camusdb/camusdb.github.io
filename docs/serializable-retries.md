@@ -8,7 +8,7 @@ A serializable read-write transaction can fail on purpose. When CamusDB detects
 a conflict that would break serial order, it aborts the transaction rather than
 committing something that violates isolation.
 
-That is correctness working, not a bug. No partial work is committed — the
+That is correctness working, not a bug. No partial work is committed, and the
 transaction has to be replayed.
 
 ## What Causes A Retry
@@ -30,7 +30,7 @@ Not every transaction error means the same thing. The recovery action differs:
 | `CADB0504` | `TransactionMustRetry` | Replay from `BEGIN` |
 | `CADB0505` | `TransactionLifetimeExceeded` | Replay from `BEGIN` |
 | `CADB0503` | `SchemaCatchingUp` | Retry, usually after the node catches up or against another node |
-| `CADB0509` | `TransactionFinalizeUnresolved` | Re-send the same finalize — see below |
+| `CADB0509` | `TransactionFinalizeUnresolved` | Re-send the same finalize; see below |
 | `CADB0506` | `TransactionMutationLimitExceeded` | Do not retry; split the workload |
 
 See [Error Codes](/docs/error-codes) for the full list.
@@ -41,8 +41,8 @@ For `CADB0502`, `CADB0504`, and `CADB0505`, restart the entire unit of work:
 begin again, rerun every read and write, commit again.
 
 Do not resume from the middle of an aborted transaction. Once it aborts, the
-only safe rule is to restart the whole thing — which is also why the retried
-body should be self-contained and free of non-idempotent side effects.
+only safe rule is to restart the whole thing, which is also why the retried body
+should be self-contained and free of non-idempotent side effects.
 
 In .NET, `CamusDB.Client` provides
 `SerializableRetryHelper.ExecuteAutocommitAsync(...)` for single-statement work,
@@ -67,8 +67,9 @@ transaction. An abandoned finalizing transaction is eventually bounded by the
 server-side session timeout.
 
 CamusDB retries this for you first. A finalize that comes back "outcome not known
-yet" — a leadership flip mid-finalize, an in-progress drain, a participant write
-shed under load — is retried on the same handle with backoff, bounded by a
+yet", whether from a leadership flip mid-finalize, an in-progress drain, or a
+participant write shed under load, is retried on the same handle with backoff,
+bounded by a
 wall-clock budget: `transaction_finalize_retry_budget_ms`, 15 seconds by default.
 `CADB0509` is what you see when that budget runs out.
 
@@ -83,7 +84,7 @@ sooner and retry it yourself.
 
 Read-write transactions hold locks. Kahuna's coordinator renews live range locks
 while the transaction is alive, so the initial range-lock TTL is not a ceiling
-on runtime — but there is a hard backstop, about one hour by default, after
+on runtime. There is still a hard backstop, about one hour by default, after
 which the transaction aborts with `TransactionLifetimeExceeded`.
 
 Shorter transactions mean less contention, less deadlock risk, fewer retries,
