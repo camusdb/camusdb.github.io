@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Query Result Cache | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/query-result-cache/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Query Result Cache | CamusDB"><meta data-rh="true" name="description" content="Audience: operators enabling and tuning the cache, developers who want to understand what"><meta data-rh="true" property="og:description" content="Audience: operators enabling and tuning the cache, developers who want to understand what"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/query-result-cache/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-result-cache/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-result-cache/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Result Cache","item":"https://camusdb.github.io/docs/query-result-cache"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.a54ad7a9.css">
-<script src="/assets/js/runtime~main.610125e5.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.acd58159.js" defer="defer"></script>
 <script src="/assets/js/main.f761faa8.js" defer="defer"></script>
 </head>
 <body>
@@ -31,7 +31,6 @@ before it becomes visible to a later probe, so a same-node reader never sees sta
 per-hit with the opt-in <code>strict</code> mode. It is enabled by default, but does nothing until a
 query opts in with a hint; set <code>query_result_cache_enabled: false</code> to turn it off entirely.</p>
 </blockquote>
-<hr>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="1-mental-model">1. Mental model<a href="#1-mental-model" class="hash-link" aria-label="Direct link to 1. Mental model" title="Direct link to 1. Mental model" translate="no">​</a></h2>
 <p>Four ideas are the whole story; the rest is detail.</p>
 <ul>
@@ -82,7 +81,6 @@ find affected entries. Buckets are coarse on purpose so the invalidation index s
 monotonically increasing generation counter per keyspace plus a set of in-flight write marks (§6).</p>
 <p><strong>T_cache:</strong> the HLC snapshot timestamp at which a strict entry was computed. Strict validation
 compares each dependency&#x27;s <code>LastModified</code> against it.</p>
-<hr>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="2-using-the-cache">2. Using the cache<a href="#2-using-the-cache" class="hash-link" aria-label="Direct link to 2. Using the cache" title="Direct link to 2. Using the cache" translate="no">​</a></h2>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-hint">The hint<a href="#the-hint" class="hash-link" aria-label="Direct link to The hint" title="Direct link to The hint" translate="no">​</a></h3>
 <p>Add <code>{cache=name}</code> immediately after a table reference (after the optional alias):</p>
@@ -139,7 +137,6 @@ keyspace), <code>cache-disabled</code> (the feature is off but the query was oth
 <code>dependency-limit</code> (too many dependencies to record completely, or a strict entry whose per-row
 dependencies were truncated). Other reason strings exist in the envelope schema but are not produced
 by the current code.</p>
-<hr>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="3-the-read-path">3. The read path<a href="#3-the-read-path" class="hash-link" aria-label="Direct link to 3. The read path" title="Direct link to 3. The read path" translate="no">​</a></h2>
 <p>For an eligible query, <code>QueryExecutor</code> runs this sequence (see <code>QueryWithCache</code>):</p>
 <ol>
@@ -180,7 +177,6 @@ out, or whose owner failed, simply executes independently.</p>
 <em>any</em> same-table write. An index scan is covered by the row-bucket fence too. (This is exactly why
 joins must not use this path: they touch more than one table&#x27;s buckets and the single-bucket fence
 would not cover the others.)</p>
-<hr>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="4-dependency-capture">4. Dependency capture<a href="#4-dependency-capture" class="hash-link" aria-label="Direct link to 4. Dependency capture" title="Direct link to 4. Dependency capture" translate="no">​</a></h2>
 <p>The scan and join operators feed a per-request collector (<code>QueryDependencyCollector</code>) as they read.
 The collector is attached only on the cached path; every recording call is guarded, so an uncached
@@ -201,7 +197,6 @@ and the range dep provides coverage (safe for non-strict entries because same-no
 matches on the range). A <strong>total</strong> dependency cap, if exceeded, marks the collector and the entry is
 not published at all (bypassing rather than storing an incomplete set). Missing coverage is never
 acceptable; over-coverage is.</p>
-<hr>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="5-invalidation-on-the-same-node">5. Invalidation on the same node<a href="#5-invalidation-on-the-same-node" class="hash-link" aria-label="Direct link to 5. Invalidation on the same node" title="Direct link to 5. Invalidation on the same node" translate="no">​</a></h2>
 <p>Invalidation is driven from the transaction boundary, not scattered across write methods, so batch
 and point writes are covered uniformly.</p>
@@ -220,7 +215,6 @@ with a pre-change entry regardless.</p>
 <p>The dependency index (<code>DependencyIndex</code>) maps buckets, point keys, and <code>(database, table)</code> schema
 keys to the entry ids that depend on them, so invalidation cost scales with the touched keyspaces
 and overlapping entries, not with the total number of cached entries.</p>
-<hr>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="6-the-publish-gate-commit-safe-ordering">6. The publish gate (commit-safe ordering)<a href="#6-the-publish-gate-commit-safe-ordering" class="hash-link" aria-label="Direct link to 6. The publish gate (commit-safe ordering)" title="Direct link to 6. The publish gate (commit-safe ordering)" translate="no">​</a></h2>
 <p>The dangerous race is: a query misses, executes, and publishes an entry at the same moment a write
 commits into the same keyspace. If the publish landed after the write&#x27;s invalidation ran, the stale
@@ -247,7 +241,6 @@ removed by it) or is rejected because the generation advanced. There is no inter
 <p>The lock is held only across in-memory bookkeeping, never across a Kahuna commit, so it stays
 cheap. False rejections (a query re-executing because an unrelated row in the same bucket changed)
 are acceptable; a stale entry surviving a committed write is not.</p>
-<hr>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="7-ttl-and-strict-validation-bounding-cross-node-staleness">7. TTL and strict validation (bounding cross-node staleness)<a href="#7-ttl-and-strict-validation-bounding-cross-node-staleness" class="hash-link" aria-label="Direct link to 7. TTL and strict validation (bounding cross-node staleness)" title="Direct link to 7. TTL and strict validation (bounding cross-node staleness)" translate="no">​</a></h2>
 <p>The same-node guarantees above say nothing about a write on a <em>different</em> node. That node&#x27;s commit
 never touches this node&#x27;s in-memory index. Two mechanisms bound the resulting staleness.</p>
@@ -280,7 +273,6 @@ meaningless and every <code>LastModified</code> comparison would fail; such stri
 </ul>
 <p>Strict validation can be as expensive as a range scan. It is an opt-in correctness mode for
 multi-node reads, not a general performance path.</p>
-<hr>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="8-fingerprinting">8. Fingerprinting<a href="#8-fingerprinting" class="hash-link" aria-label="Direct link to 8. Fingerprinting" title="Direct link to 8. Fingerprinting" translate="no">​</a></h2>
 <p>The fingerprint must never let two logically different queries share an entry. It is a 128-bit
 non-cryptographic hash (XxHash128) over an <strong>injective</strong> canonical string, not a security boundary,
@@ -299,7 +291,6 @@ culture-invariant so a node&#x27;s locale can&#x27;t change the fingerprint.</li
 replaced by placeholders; it is shared with the plan cache and identifies &quot;same query modulo
 constants.&quot; The result fingerprint always folds the literal values back in. The plan cache
 intentionally ignores them; the result cache must not.</p>
-<hr>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="9-configuration">9. Configuration<a href="#9-configuration" class="hash-link" aria-label="Direct link to 9. Configuration" title="Direct link to 9. Configuration" translate="no">​</a></h2>
 <p>The cache is <strong>on by default</strong> (it does nothing until a query opts in with a <code>{cache=…}</code> hint).
 All knobs are YAML-only (operational tuning), under the same <code>config.yml</code> the rest of the server
@@ -316,7 +307,6 @@ on the specific queries that must never lag (at the cost of a validation scan pe
 <code>max_bytes</code> / <code>max_entries</code> to the working set you actually want resident; oversized results simply
 won&#x27;t be cached. If a deployment never uses hints and you want to shave the small per-write gate
 bookkeeping, set <code>query_result_cache_enabled: false</code>.</p>
-<hr>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="10-limitations-and-non-goals">10. Limitations and non-goals<a href="#10-limitations-and-non-goals" class="hash-link" aria-label="Direct link to 10. Limitations and non-goals" title="Direct link to 10. Limitations and non-goals" translate="no">​</a></h2>
 <ul>
 <li class=""><strong>Single-node L1 only.</strong> No cross-node sharing, no eager cross-node invalidation, no persistence
