@@ -1,1 +1,0 @@
-"use strict";(globalThis.webpackChunkcamusdb_docs=globalThis.webpackChunkcamusdb_docs||[]).push([[1672],{3024(e){e.exports=JSON.parse('{"authors":[{"name":"Andres Gutierrez","title":"Creator of CamusDB","url":"https://github.com/andresgutierrez","imageURL":"https://github.com/andresgutierrez.png","key":"andresgutierrez","page":null,"count":3}]}')}}]);
