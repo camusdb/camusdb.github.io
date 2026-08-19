@@ -8,7 +8,7 @@
     <subtitle>CamusDB Blog</subtitle>
     <icon>https://camusdb.github.io/img/favicon.ico</icon>
     <entry>
-        <title type="html"><![CDATA[We Built A Dragon To Attack Our Own Database]]></title>
+        <title type="html"><![CDATA[We built a dragon to attack our own database]]></title>
         <id>https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/</id>
         <link href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/"/>
         <updated>2026-08-19T00:00:00.000Z</updated>
@@ -24,7 +24,7 @@ distributed database exists to survive.</p>
 <p>So we built a tool that creates them whenever we want. We named it Caraxes,
 after a dragon, because its only job is to attack our own cluster while we
 watch what happens.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="one-server-or-many-is-a-very-different-problem">One Server Or Many Is A Very Different Problem<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#one-server-or-many-is-a-very-different-problem" class="hash-link" aria-label="Direct link to One Server Or Many Is A Very Different Problem" title="Direct link to One Server Or Many Is A Very Different Problem" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="one-server-or-many-is-a-very-different-problem">One server or many is a very different problem<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#one-server-or-many-is-a-very-different-problem" class="hash-link" aria-label="Direct link to One server or many is a very different problem" title="Direct link to One server or many is a very different problem" translate="no">​</a></h2>
 <p>A database on a single server has a simple failure story. The process is either
 running or it is not. When it stops, everyone notices at the same time, and
 recovery means one thing: read the write-ahead log and continue.</p>
@@ -46,7 +46,7 @@ is the leader, and may still be accepting work.</p>
 missing information, while people are waiting for their queries. Every
 distributed database is a set of answers to that problem, and those answers are
 only as good as the conditions you tested them in.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="failing-loudly-is-fine-failing-quietly-is-not">Failing Loudly Is Fine. Failing Quietly Is Not.<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#failing-loudly-is-fine-failing-quietly-is-not" class="hash-link" aria-label="Direct link to Failing Loudly Is Fine. Failing Quietly Is Not." title="Direct link to Failing Loudly Is Fine. Failing Quietly Is Not." translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="failing-loudly-is-fine-failing-quietly-is-not">Failing loudly is fine. failing quietly is not.<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#failing-loudly-is-fine-failing-quietly-is-not" class="hash-link" aria-label="Direct link to Failing loudly is fine. failing quietly is not." title="Direct link to Failing loudly is fine. failing quietly is not." translate="no">​</a></h2>
 <p>A database that returns an error is annoying. A database that returns a wrong
 answer is dangerous, because nobody looks for a problem they were never told
 about.</p>
@@ -61,7 +61,7 @@ starts being about truth:</p>
 healthy machine, with plenty of disk and a perfect network. Those tests are
 still worth having. They simply cannot answer the questions that matter most in
 cluster mode.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-reliability-really-means">What Reliability Really Means<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#what-reliability-really-means" class="hash-link" aria-label="Direct link to What Reliability Really Means" title="Direct link to What Reliability Really Means" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-reliability-really-means">What reliability really means<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#what-reliability-really-means" class="hash-link" aria-label="Direct link to What reliability really means" title="Direct link to What reliability really means" translate="no">​</a></h2>
 <p>Reliability is not one thing. It is several, and each one needs its own proof.</p>
 <ul>
 <li class="">Durability. If we confirm your commit, it survives, even if the node that
@@ -78,7 +78,7 @@ run. Imagine a cluster that stays perfectly correct but needs two minutes to
 answer queries again after losing one node. It is correct, and it is still a bad
 afternoon for everyone waiting.</p>
 <p>This is why Caraxes measures all of them in a single run.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-caraxes-works">How Caraxes Works<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#how-caraxes-works" class="hash-link" aria-label="Direct link to How Caraxes Works" title="Direct link to How Caraxes Works" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-caraxes-works">How Caraxes works<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#how-caraxes-works" class="hash-link" aria-label="Direct link to How Caraxes works" title="Direct link to How Caraxes works" translate="no">​</a></h2>
 <p>A test is one YAML file. It says which cluster to build, what load to run, what
 to break, and what result we expect.</p>
 <div class="language-yml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yml codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token key atrule" style="color:#00a4db">name</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> kill</span><span class="token punctuation" style="color:#393A34">-</span><span class="token plain">follower</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">cluster</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">name</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> chaos</span><span class="token punctuation" style="color:#393A34">-</span><span class="token plain">kill</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">nodes</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">3</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">partitions</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">3</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">replication_factor</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">3</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">workload</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">database</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> caraxes</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">rows</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">20000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">mode</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> open</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">target_ops</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">300</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">workers</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">32</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">duration</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 60s</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">warmup</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 15s</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">nemesis</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">seed</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">7</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">events</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token punctuation" style="color:#393A34">-</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">at</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 20s</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">fault</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> kill</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">target</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> random</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">duration</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 20s </span><span class="token punctuation" style="color:#393A34">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">checks</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">max_recovery_seconds</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">45</span><br></div></code></pre></div></div>
@@ -97,7 +97,7 @@ in, it kills a node. Twenty seconds later, it brings the node back.</p>
 imagined.</p>
 <p>At the end, the run finishes with a pass or a fail, so a machine can read the
 result without a human in the loop.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-simple-rule-beats-a-long-discussion">A Simple Rule Beats A Long Discussion<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#a-simple-rule-beats-a-long-discussion" class="hash-link" aria-label="Direct link to A Simple Rule Beats A Long Discussion" title="Direct link to A Simple Rule Beats A Long Discussion" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-simple-rule-beats-a-long-discussion">A simple rule beats a long discussion<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#a-simple-rule-beats-a-long-discussion" class="hash-link" aria-label="Direct link to A simple rule beats a long discussion" title="Direct link to A simple rule beats a long discussion" translate="no">​</a></h2>
 <p>The strongest check in the whole tool is also the easiest one to explain.</p>
 <p>One of our test workloads moves money between random accounts. Every transfer
 takes an amount from one row and adds it to another, inside one transaction.</p>
@@ -113,7 +113,7 @@ whole idea. Our other workload avoids conflicts so it can measure speed and
 failover cleanly, but a test without conflicts will never catch a broken
 transaction. You have to make transactions fight over the same rows, and then
 kill a node while they are fighting.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-same-error-can-mean-two-things">The Same Error Can Mean Two Things<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#the-same-error-can-mean-two-things" class="hash-link" aria-label="Direct link to The Same Error Can Mean Two Things" title="Direct link to The Same Error Can Mean Two Things" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-same-error-can-mean-two-things">The same error can mean two things<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#the-same-error-can-mean-two-things" class="hash-link" aria-label="Direct link to The same error can mean two things" title="Direct link to The same error can mean two things" translate="no">​</a></h2>
 <p>An error means something different depending on what was happening at the time.</p>
 <p>If we injected no failure at all, an internal error has no excuse. Nothing was
 attacking the cluster, so we treat it as a real bug and the test fails.</p>
@@ -123,7 +123,7 @@ We count them and print them clearly, but they alone do not fail a test that
 stayed correct and recovered in time.</p>
 <p>This balance matters more than it sounds. A test that reports a problem every
 single time gets ignored, and an ignored test protects nothing.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="recovery-time-is-a-number-we-watch">Recovery Time Is A Number We Watch<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#recovery-time-is-a-number-we-watch" class="hash-link" aria-label="Direct link to Recovery Time Is A Number We Watch" title="Direct link to Recovery Time Is A Number We Watch" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="recovery-time-is-a-number-we-watch">Recovery time is a number we watch<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#recovery-time-is-a-number-we-watch" class="hash-link" aria-label="Direct link to Recovery time is a number we watch" title="Direct link to Recovery time is a number we watch" translate="no">​</a></h2>
 <p>While the failures happen, Caraxes writes down every break and every repair,
 with exact timestamps. At the same time, the workload records what happened each
 second: how many operations succeeded, how many failed, and how slow they were.</p>
@@ -135,14 +135,14 @@ back to normal?</p>
 <p>Reading that line: we killed a node, errors jumped, the cluster never stopped
 completely, and five and a half seconds after the node came back everything was
 normal again. That last number is what we compare from one build to the next.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="every-test-can-be-repeated">Every Test Can Be Repeated<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#every-test-can-be-repeated" class="hash-link" aria-label="Direct link to Every Test Can Be Repeated" title="Direct link to Every Test Can Be Repeated" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="every-test-can-be-repeated">Every test can be repeated<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#every-test-can-be-repeated" class="hash-link" aria-label="Direct link to Every test can be repeated" title="Direct link to Every test can be repeated" translate="no">​</a></h2>
 <p>Every random choice comes from a seed number. The same seed kills the same node
 at the same second, in the same order.</p>
 <p>This is what turns a demo into a test. When a run fails, we can run it again and
 watch it fail in exactly the same way. After we fix the cause, we run it once
 more and watch it pass. A failure you cannot reproduce is just a story you tell
 later.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-we-break-today">What We Break Today<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#what-we-break-today" class="hash-link" aria-label="Direct link to What We Break Today" title="Direct link to What We Break Today" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-we-break-today">What we break today<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#what-we-break-today" class="hash-link" aria-label="Direct link to What we break today" title="Direct link to What we break today" translate="no">​</a></h2>
 <p>Each test asks one clear question.</p>
 <ul>
 <li class="">A run with no failures at all, so we know the cluster and the traffic work
@@ -160,7 +160,7 @@ crashing, and starts accepting them again once there is space.</li>
 <li class="">A test for the leader balancer alone: kill the busiest node, restart it, and
 check that leadership actually comes back to it.</li>
 </ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="stopping-problems-from-coming-back">Stopping Problems From Coming Back<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#stopping-problems-from-coming-back" class="hash-link" aria-label="Direct link to Stopping Problems From Coming Back" title="Direct link to Stopping Problems From Coming Back" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="stopping-problems-from-coming-back">Stopping problems from coming back<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#stopping-problems-from-coming-back" class="hash-link" aria-label="Direct link to Stopping problems from coming back" title="Direct link to Stopping problems from coming back" translate="no">​</a></h2>
 <p>A quality that nobody measures slowly gets worse.</p>
 <p>Nobody breaks recovery time on purpose. Someone adds a cache, changes a timeout,
 or moves two lines in the commit path, and a fifteen second recovery becomes
@@ -172,7 +172,7 @@ table with every result and every recovery time side by side. When a change
 costs us reliability, it shows up as a row that used to pass and now does not.</p>
 <p>The result is a pass or fail code that CI can read, because a judgement that
 lives only in someone's memory of last month is not protection.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-comes-next">What Comes Next<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#what-comes-next" class="hash-link" aria-label="Direct link to What Comes Next" title="Direct link to What Comes Next" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-comes-next">What comes next<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#what-comes-next" class="hash-link" aria-label="Direct link to What comes next" title="Direct link to What comes next" translate="no">​</a></h2>
 <p>The plan is to keep adding tests until the questions we care about all have
 answers.</p>
 <ul>
@@ -193,7 +193,7 @@ hours.</li>
 <p>Every item is a question with a yes or no answer and a number next to it. We are
 not collecting a badge that says the software passed. We are building a list of
 questions we can answer with evidence instead of hope.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-this-matters-to-us">Why This Matters To Us<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#why-this-matters-to-us" class="hash-link" aria-label="Direct link to Why This Matters To Us" title="Direct link to Why This Matters To Us" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-this-matters-to-us">Why this matters to us<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#why-this-matters-to-us" class="hash-link" aria-label="Direct link to Why this matters to us" title="Direct link to Why this matters to us" translate="no">​</a></h2>
 <p>CamusDB is meant to run in cluster mode for people who will never read its
 source code.</p>
 <p>They will not know which failures we thought about, which ones we tested, and
@@ -214,7 +214,7 @@ and already decided we can accept.</p>]]></content>
         <category label="distributed-systems" term="distributed-systems"/>
     </entry>
     <entry>
-        <title type="html"><![CDATA[When Every Experiment Needs Its Own Database]]></title>
+        <title type="html"><![CDATA[When every experiment needs its own database]]></title>
         <id>https://camusdb.github.io/blog/database-branches-for-ai-agents/</id>
         <link href="https://camusdb.github.io/blog/database-branches-for-ai-agents/"/>
         <updated>2026-07-28T00:00:00.000Z</updated>
@@ -229,7 +229,7 @@ to damage the shared starting point.</p>
 <p>This is where database branching becomes more than a convenient development
 feature. It becomes a practical way to give every experiment a safe place to
 work.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="one-starting-point-many-possible-futures">One Starting Point, Many Possible Futures<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#one-starting-point-many-possible-futures" class="hash-link" aria-label="Direct link to One Starting Point, Many Possible Futures" title="Direct link to One Starting Point, Many Possible Futures" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="one-starting-point-many-possible-futures">One starting point, many possible futures<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#one-starting-point-many-possible-futures" class="hash-link" aria-label="Direct link to One starting point, many possible futures" title="Direct link to One starting point, many possible futures" translate="no">​</a></h2>
 <p>Imagine that an agent is asked to improve an online store's checkout flow. It
 may need to add a column, update existing orders, create an index, and test how
 the application behaves with the new structure.</p>
@@ -250,7 +250,7 @@ becomes much more visible when experiments are created by software, not only by
 people.</p>
 <p>An agent that can explore ten ideas should not spend most of its time waiting
 for ten full database copies.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-branch-is-a-private-timeline">A Branch Is A Private Timeline<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#a-branch-is-a-private-timeline" class="hash-link" aria-label="Direct link to A Branch Is A Private Timeline" title="Direct link to A Branch Is A Private Timeline" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-branch-is-a-private-timeline">A branch is a private timeline<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#a-branch-is-a-private-timeline" class="hash-link" aria-label="Direct link to A branch is a private timeline" title="Direct link to A branch is a private timeline" translate="no">​</a></h2>
 <p>A database branch starts from a known moment in another database. At the
 beginning, it sees the same schema and data. After that, it follows its own
 path.</p>
@@ -268,7 +268,7 @@ its own challenges. A database is often much larger than a source repository,
 and it changes while applications are running. Creating a branch must preserve
 a consistent view without turning every experiment into a full copy of all
 stored rows.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-creation-time-matters">Why Creation Time Matters<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#why-creation-time-matters" class="hash-link" aria-label="Direct link to Why Creation Time Matters" title="Direct link to Why Creation Time Matters" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-creation-time-matters">Why creation time matters<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#why-creation-time-matters" class="hash-link" aria-label="Direct link to Why creation time matters" title="Direct link to Why creation time matters" translate="no">​</a></h2>
 <p>Branching is useful only when it is cheap enough to become part of the normal
 workflow.</p>
 <p>If creating an isolated environment takes several minutes, an agent will avoid
@@ -286,7 +286,7 @@ state and move independently.</p>
 <p>In other words, branch speed is not just about saving a few seconds. It
 determines whether branching is an occasional manual action or a basic building
 block for automated work.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-explore-evaluate-discard-loop">The Explore, Evaluate, Discard Loop<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#the-explore-evaluate-discard-loop" class="hash-link" aria-label="Direct link to The Explore, Evaluate, Discard Loop" title="Direct link to The Explore, Evaluate, Discard Loop" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-explore-evaluate-discard-loop">The explore, evaluate, discard loop<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#the-explore-evaluate-discard-loop" class="hash-link" aria-label="Direct link to The explore, evaluate, discard loop" title="Direct link to The explore, evaluate, discard loop" translate="no">​</a></h2>
 <p>Many agent workflows follow a simple pattern:</p>
 <ol>
 <li class="">Start from a known state.</li>
@@ -312,7 +312,7 @@ results are easier to compare.</p>
 <p>The important part is not that an agent can write SQL. The important part is
 that it can try, observe, and fail without leaving a confusing trail in a
 shared database.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-camusdb-approaches-branching">How CamusDB Approaches Branching<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#how-camusdb-approaches-branching" class="hash-link" aria-label="Direct link to How CamusDB Approaches Branching" title="Direct link to How CamusDB Approaches Branching" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-camusdb-approaches-branching">How CamusDB approaches branching<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#how-camusdb-approaches-branching" class="hash-link" aria-label="Direct link to How CamusDB approaches branching" title="Direct link to How CamusDB approaches branching" translate="no">​</a></h2>
 <p>CamusDB creates an isolated, point-in-time branch with SQL:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">DATABASE</span><span class="token plain"> checkout_attempt </span><span class="token keyword" style="color:#00009f">BRANCH</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> prod</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
 <p>The new database begins with the schema and data view from <code>prod</code> at the fork
@@ -330,7 +330,7 @@ as the branch diverges, not simply because the branch exists.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">USE</span><span class="token plain"> checkout_data_repair</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">UPDATE</span><span class="token plain"> orders</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SET</span><span class="token plain"> status </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token string" style="color:#e3116c">"review"</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">WHERE</span><span class="token plain"> status </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token string" style="color:#e3116c">"payment_unknown"</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
 <p>Neither experiment changes <code>prod</code>, and neither branch can see the other
 branch's work.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="isolation-makes-results-easier-to-trust">Isolation Makes Results Easier To Trust<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#isolation-makes-results-easier-to-trust" class="hash-link" aria-label="Direct link to Isolation Makes Results Easier To Trust" title="Direct link to Isolation Makes Results Easier To Trust" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="isolation-makes-results-easier-to-trust">Isolation makes results easier to trust<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#isolation-makes-results-easier-to-trust" class="hash-link" aria-label="Direct link to Isolation makes results easier to trust" title="Direct link to Isolation makes results easier to trust" translate="no">​</a></h2>
 <p>Parallel execution is only helpful when the results remain understandable.</p>
 <p>When several workers share one mutable database, a successful test may depend
 on data created by another worker. A failed test may be caused by an unrelated
@@ -349,7 +349,7 @@ relationships:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">BRANCHES</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> prod</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">ANCESTORS</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> checkout_schema_test</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
 <p>These commands help answer simple but important questions: Which experiments
 still exist? Where did a branch come from? How deep is its history?</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="disposable-does-not-mean-careless">Disposable Does Not Mean Careless<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#disposable-does-not-mean-careless" class="hash-link" aria-label="Direct link to Disposable Does Not Mean Careless" title="Direct link to Disposable Does Not Mean Careless" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="disposable-does-not-mean-careless">Disposable does not mean careless<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#disposable-does-not-mean-careless" class="hash-link" aria-label="Direct link to Disposable does not mean careless" title="Direct link to Disposable does not mean careless" translate="no">​</a></h2>
 <p>Temporary branches still have a cost.</p>
 <p>A live CamusDB branch keeps its source snapshot available, so old history
 cannot always be reclaimed while the branch depends on it. Deep chains also
@@ -373,7 +373,7 @@ produce a reviewed migration, script, or application change that can be
 applied through the normal delivery process.</p>
 <p>That boundary is useful for safety. An experimental branch is evidence, not
 automatic permission to change the main database.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-better-default-for-automated-work">A Better Default For Automated Work<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#a-better-default-for-automated-work" class="hash-link" aria-label="Direct link to A Better Default For Automated Work" title="Direct link to A Better Default For Automated Work" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-better-default-for-automated-work">A better default for automated work<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#a-better-default-for-automated-work" class="hash-link" aria-label="Direct link to A better default for automated work" title="Direct link to A better default for automated work" translate="no">​</a></h2>
 <p>As software takes on more independent tasks, databases need to support more
 than one shared present. They need to represent several possible futures at the
 same time.</p>
@@ -401,7 +401,7 @@ move faster without giving up control.</p>]]></content>
         <category label="ai-agents" term="ai-agents"/>
     </entry>
     <entry>
-        <title type="html"><![CDATA[Teaching CamusDB To Choose Better Query Plans]]></title>
+        <title type="html"><![CDATA[Teaching CamusDB to choose better query plans]]></title>
         <id>https://camusdb.github.io/blog/dynamic-programming-query-optimizer/</id>
         <link href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/"/>
         <updated>2026-07-11T00:00:00.000Z</updated>
@@ -424,7 +424,7 @@ table, or a subquery. Each option can be correct, but not every option is fast.<
 <li class="">Then join <code>comments</code>.</li>
 </ol>
 <p>They are saying what result they want. The database must decide the how.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-join-order-matters">Why Join Order Matters<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#why-join-order-matters" class="hash-link" aria-label="Direct link to Why Join Order Matters" title="Direct link to Why Join Order Matters" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-join-order-matters">Why join order matters<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#why-join-order-matters" class="hash-link" aria-label="Direct link to Why join order matters" title="Direct link to Why join order matters" translate="no">​</a></h2>
 <p>For small queries, the difference may not look important. For larger tables, it
 can be huge.</p>
 <p>Imagine this:</p>
@@ -441,7 +441,7 @@ earlier. The final result is the same, but the amount of work can be very
 different.</p>
 <p>This is where the optimizer becomes more than a parser or a set of simple
 rules. It has to reason about cost.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-search-space-grows-fast">The Search Space Grows Fast<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#the-search-space-grows-fast" class="hash-link" aria-label="Direct link to The Search Space Grows Fast" title="Direct link to The Search Space Grows Fast" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-search-space-grows-fast">The search space grows fast<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#the-search-space-grows-fast" class="hash-link" aria-label="Direct link to The search space grows fast" title="Direct link to The search space grows fast" translate="no">​</a></h2>
 <p>The hard part is that join order has many possibilities.</p>
 <p>With two tables, there are only a few choices. With three tables, there are
 more. With five, six, or seven tables, the number of possible orders grows very
@@ -467,7 +467,7 @@ optimizer asks smaller questions first:</p>
 <p>Dynamic programming is useful here because it remembers the best answer for a
 smaller subset of tables and reuses it later. It avoids doing the same work
 again and again.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-small-mental-model">A Small Mental Model<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#a-small-mental-model" class="hash-link" aria-label="Direct link to A Small Mental Model" title="Direct link to A Small Mental Model" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-small-mental-model">A small mental model<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#a-small-mental-model" class="hash-link" aria-label="Direct link to A small mental model" title="Direct link to A small mental model" translate="no">​</a></h2>
 <p>Think of the optimizer as filling a table of partial plans.</p>
 <p>First, it estimates the best way to access each individual table. Maybe one
 table should use an index. Maybe another should use a full scan.</p>
@@ -484,7 +484,7 @@ on, always building from the best smaller plans it already found.</p>
 <p>At the end, it has a candidate plan for the full query.</p>
 <p>This does not mean the optimizer has perfect knowledge. It is still estimating.
 But it is estimating in a structured way.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-more-technical-view">A More Technical View<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#a-more-technical-view" class="hash-link" aria-label="Direct link to A More Technical View" title="Direct link to A More Technical View" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-more-technical-view">A more technical view<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#a-more-technical-view" class="hash-link" aria-label="Direct link to A more technical view" title="Direct link to A more technical view" translate="no">​</a></h2>
 <p>The dynamic programming part works by keeping a memo table. In CamusDB, the
 main idea is:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">dp[set of tables] = cheapest known left-deep plan for exactly that set</span><br></div></code></pre></div></div>
@@ -515,7 +515,7 @@ good option.</li>
 <p>If the new candidate is cheaper than the current <code>dp[S]</code>, it replaces it.</p>
 <!-- -->
 <p>The real implementation has more details, but this is the core shape.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-left-deep-plans">Why Left-Deep Plans?<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#why-left-deep-plans" class="hash-link" aria-label="Direct link to Why Left-Deep Plans?" title="Direct link to Why Left-Deep Plans?" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-left-deep-plans">Why left-deep plans?<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#why-left-deep-plans" class="hash-link" aria-label="Direct link to Why left-deep plans?" title="Direct link to Why left-deep plans?" translate="no">​</a></h2>
 <p>CamusDB currently searches left-deep join trees. A left-deep plan looks like
 this:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">(((users JOIN posts) JOIN comments) JOIN reactions)</span><br></div></code></pre></div></div>
@@ -536,7 +536,7 @@ That is a common and useful step for a database optimizer.</p>
 </ul>
 <p>These limits are not failures. They are part of making the optimizer safe and
 incremental.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="statistics-make-the-optimizer-smarter">Statistics Make The Optimizer Smarter<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#statistics-make-the-optimizer-smarter" class="hash-link" aria-label="Direct link to Statistics Make The Optimizer Smarter" title="Direct link to Statistics Make The Optimizer Smarter" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="statistics-make-the-optimizer-smarter">Statistics make the optimizer smarter<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#statistics-make-the-optimizer-smarter" class="hash-link" aria-label="Direct link to Statistics make the optimizer smarter" title="Direct link to Statistics make the optimizer smarter" translate="no">​</a></h2>
 <p>Dynamic programming gives CamusDB a better way to search. Statistics give it
 better numbers to search with.</p>
 <p>CamusDB can use table statistics, index counts, histograms, min/max values, and
@@ -557,7 +557,7 @@ questions like:</p>
 That makes the optimizer less mysterious. You can see whether CamusDB picked a
 hash join, merge join, indexed nested loop join, or a fallback nested loop
 join.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-this-is-hard-in-a-real-database">Why This Is Hard In A Real Database<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#why-this-is-hard-in-a-real-database" class="hash-link" aria-label="Direct link to Why This Is Hard In A Real Database" title="Direct link to Why This Is Hard In A Real Database" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-this-is-hard-in-a-real-database">Why this is hard in a real database<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#why-this-is-hard-in-a-real-database" class="hash-link" aria-label="Direct link to Why this is hard in a real database" title="Direct link to Why this is hard in a real database" translate="no">​</a></h2>
 <p>The clean explanation is only part of the story.</p>
 <p>In the real engine, the optimizer has to deal with many constraints:</p>
 <ul>
@@ -575,7 +575,7 @@ database must execute.</p>
 <p>When it works well, users should not have to think too much about it. They
 write SQL, create useful indexes, run <code>ANALYZE</code> when data changes, and the
 database does the best it can.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="keeping-the-system-practical">Keeping The System Practical<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#keeping-the-system-practical" class="hash-link" aria-label="Direct link to Keeping The System Practical" title="Direct link to Keeping The System Practical" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="keeping-the-system-practical">Keeping the system practical<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#keeping-the-system-practical" class="hash-link" aria-label="Direct link to Keeping the system practical" title="Direct link to Keeping the system practical" translate="no">​</a></h2>
 <p>CamusDB still keeps the cost-based optimizer behind configuration flags:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token key atrule" style="color:#00a4db">cost_based_access_path_enabled</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#36acaa">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">cost_based_join_order_enabled</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#36acaa">true</span><br></div></code></pre></div></div>
 <p>That is intentional. The rule-based planner remains stable and predictable.
@@ -584,7 +584,7 @@ plans and use statistics to make better choices.</p>
 <p>This is also useful while the database is still evolving. Query optimizers are
 not finished in one pass. They improve over time, as more query shapes, more
 statistics, and more execution strategies become available.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-i-like-this-feature">Why I Like This Feature<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#why-i-like-this-feature" class="hash-link" aria-label="Direct link to Why I Like This Feature" title="Direct link to Why I Like This Feature" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-i-like-this-feature">Why I like this feature<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#why-i-like-this-feature" class="hash-link" aria-label="Direct link to Why I like this feature" title="Direct link to Why I like this feature" translate="no">​</a></h2>
 <p>Dynamic programming is one of those ideas that feels elegant because it turns a
 large problem into smaller reusable pieces.</p>
 <p>It does not remove the complexity of query optimization. It gives the
@@ -605,7 +605,7 @@ makes sense?"</p>
         <category label="sql" term="sql"/>
     </entry>
     <entry>
-        <title type="html"><![CDATA[Why CamusDB Exists]]></title>
+        <title type="html"><![CDATA[Why CamusDB exists]]></title>
         <id>https://camusdb.github.io/blog/welcome/</id>
         <link href="https://camusdb.github.io/blog/welcome/"/>
         <updated>2026-07-03T00:00:00.000Z</updated>
