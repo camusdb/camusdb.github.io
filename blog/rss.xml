@@ -13,8 +13,9 @@
             <link>https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/</link>
             <guid>https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/</guid>
             <pubDate>Wed, 19 Aug 2026 00:00:00 GMT</pubDate>
-            <description><![CDATA[A database earns your trust on its worst day, not on its best one.]]></description>
-            <content:encoded><![CDATA[<p>A database earns your trust on its worst day, not on its best one.</p>
+            <description><![CDATA[A dragon burning a city of glowing pyramids at night]]></description>
+            <content:encoded><![CDATA[<p><img decoding="async" loading="lazy" alt="A dragon burning a city of glowing pyramids at night" src="https://camusdb.github.io/assets/images/caraxes-9a57025c06d564ba4f98da7fd2525b2c.png" width="1536" height="1024" class="img_ev3q"></p>
+<p>A database earns your trust on its worst day, not on its best one.</p>
 <p>When everything is healthy, almost any database looks correct. You insert rows,
 you read them back, and the numbers add up. The real question is what happens
 when a server dies in the middle of a commit, when the network starts losing
