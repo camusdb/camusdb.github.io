@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
-<title data-rh="true">Storage | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/storage/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Storage | CamusDB"><meta data-rh="true" name="description" content="CamusDB stores relational data on top of a distributed key/value layer provided"><meta data-rh="true" property="og:description" content="CamusDB stores relational data on top of a distributed key/value layer provided"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/storage/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/storage/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/storage/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Storage","item":"https://camusdb.github.io/docs/storage"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
+<title data-rh="true">Storage | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/storage/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Storage | CamusDB"><meta data-rh="true" name="description" content="CamusDB stores relational data on a distributed key/value layer."><meta data-rh="true" property="og:description" content="CamusDB stores relational data on a distributed key/value layer."><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/storage/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/storage/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/storage/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Storage","item":"https://camusdb.github.io/docs/storage"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.a54ad7a9.css">
-<script src="/assets/js/runtime~main.5158fc03.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.5b9223cd.js" defer="defer"></script>
 <script src="/assets/js/main.d73d7de1.js" defer="defer"></script>
 </head>
 <body>
@@ -13,229 +13,260 @@
 <symbol id="theme-svg-external-link" viewBox="0 0 24 24"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
 </defs></svg>
 <script>!function(){var t=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();document.documentElement.setAttribute("data-theme",t||"light"),document.documentElement.setAttribute("data-theme-choice",t||"light")}(),function(){try{const c=new URLSearchParams(window.location.search).entries();for(var[t,e]of c)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="theme-layout-navbar navbar navbar--fixed-top"><div class="navbar__inner"><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/"><div class="navbar__logo"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">CamusDB</b></a><a aria-current="page" class="navbar__item navbar__link navbar__link--active" href="/docs/intro/">Docs</a><a class="navbar__item navbar__link" href="/blog/">Blog</a></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"></path></svg></button></div><div class="navbarSearchContainer_Bca1"></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class="docsWrapper_hBAB"><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type="button"></button><div class="docRoot_UBD9"><aside class="theme-doc-sidebar-container docSidebarContainer_YfHR"><div class="sidebarViewport_aRkj"><div class="sidebar_njMd"><nav aria-label="Docs sidebar" class="menu thin-scrollbar menu_SIkG"><ul class="theme-doc-sidebar-menu menu__list"><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" href="/docs/intro/"><span class="categoryLinkLabel_W154">Start here</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/intro/"><span class="linkLabel_WmDU">CamusDB tutorial</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/why-camusdb/"><span class="linkLabel_WmDU">Why CamusDB?</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/databases/"><span class="linkLabel_WmDU">Databases</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/database-branching/"><span class="linkLabel_WmDU">Database branching</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/recover-dropped-objects/"><span class="linkLabel_WmDU">Recover dropped objects</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" href="/docs/sql/"><span class="categoryLinkLabel_W154">SQL</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql/"><span class="linkLabel_WmDU">SQL overview</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/data-types/"><span class="linkLabel_WmDU">Data types</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/sql-schema/"><span class="categoryLinkLabel_W154">Schema</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-schema/"><span class="linkLabel_WmDU">Tables and columns</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/check-constraints/"><span class="linkLabel_WmDU">Check constraints</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-indexes/"><span class="linkLabel_WmDU">Indexes</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/comment-on/"><span class="linkLabel_WmDU">Schema comments</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/sql-writes/"><span class="categoryLinkLabel_W154">Writing data</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-writes/"><span class="linkLabel_WmDU">Insert, update, delete</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/insert-select-and-ctas/"><span class="linkLabel_WmDU">Copying query results</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/sql-queries/"><span class="categoryLinkLabel_W154">Reading data</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-queries/"><span class="linkLabel_WmDU">SELECT</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/joins-and-subqueries/"><span class="linkLabel_WmDU">Joins and subqueries</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/vector-search/"><span class="linkLabel_WmDU">Vector search</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/time-travel-reads/"><span class="linkLabel_WmDU">Time-travel reads</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-fromless-select/"><span class="linkLabel_WmDU">SELECT without FROM</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/views/"><span class="categoryLinkLabel_W154">Views</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/views/"><span class="linkLabel_WmDU">Views</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/materialized-views/"><span class="linkLabel_WmDU">Materialized views</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="false" tabindex="0" href="/docs/functions/"><span class="categoryLinkLabel_W154">Functions</span></a></div></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-transactions/"><span class="linkLabel_WmDU">Transactions in SQL</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/query-planning/"><span class="categoryLinkLabel_W154">Query performance</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/query-planning/"><span class="linkLabel_WmDU">Query planning</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/explain/"><span class="linkLabel_WmDU">EXPLAIN</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/show-statistics/"><span class="linkLabel_WmDU">SHOW STATISTICS</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/query-result-cache/"><span class="linkLabel_WmDU">Result cache</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/distributed-queries/"><span class="linkLabel_WmDU">Distributed queries</span></a></li></ul></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/prepared-statements/"><span class="linkLabel_WmDU">Parameters and prepared statements</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-inspection/"><span class="linkLabel_WmDU">Inspecting the database</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" href="/docs/serializable-transactions/"><span class="categoryLinkLabel_W154">Operations</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/serializable-transactions/"><span class="categoryLinkLabel_W154">Transactions</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/serializable-transactions/"><span class="linkLabel_WmDU">Transactions and isolation</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/serializable-retries/"><span class="linkLabel_WmDU">Retries and conflicts</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/transaction-limits/"><span class="linkLabel_WmDU">Transaction limits</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/transaction-priority/"><span class="linkLabel_WmDU">Transaction priority</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/distributed-transactions/"><span class="linkLabel_WmDU">Distributed transactions and HLC</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/cluster/"><span class="categoryLinkLabel_W154">Deployment</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/cluster/"><span class="linkLabel_WmDU">Cluster mode</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/configuration/"><span class="linkLabel_WmDU">Configuration</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/runtime-cluster-settings/"><span class="linkLabel_WmDU">Runtime cluster settings</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-authentication/"><span class="linkLabel_WmDU">Authentication and authorization</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/backup-and-restore/"><span class="linkLabel_WmDU">Backup and restore</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/automatic-analyze/"><span class="categoryLinkLabel_W154">Background jobs</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/automatic-analyze/"><span class="linkLabel_WmDU">Automatic analyze</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/row-level-ttl/"><span class="linkLabel_WmDU">Row-level TTL</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/performance-diagnostics/"><span class="categoryLinkLabel_W154">Monitoring</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/performance-diagnostics/"><span class="linkLabel_WmDU">Performance diagnostics</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/engine-stats/"><span class="linkLabel_WmDU">Engine stats</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/show-variables/"><span class="linkLabel_WmDU">SHOW VARIABLES</span></a></li></ul></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret menu__link--active" role="button" aria-expanded="true" href="/docs/architecture/"><span class="categoryLinkLabel_W154">Internals</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/architecture/"><span class="linkLabel_WmDU">Architecture</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret menu__link--active" role="button" aria-expanded="true" tabindex="0" href="/docs/storage/"><span class="categoryLinkLabel_W154">Storage and durability</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link menu__link--active" aria-current="page" tabindex="0" href="/docs/storage/"><span class="linkLabel_WmDU">Storage</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/wal-recovery/"><span class="linkLabel_WmDU">WAL and recovery</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/spill-to-disk/"><span class="linkLabel_WmDU">Spill to disk</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/query-planner-internals/"><span class="categoryLinkLabel_W154">Execution and concurrency</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/query-planner-internals/"><span class="linkLabel_WmDU">Query planner internals</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/transactions-locking-internals/"><span class="linkLabel_WmDU">Transaction internals</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/distributed-schema/"><span class="linkLabel_WmDU">Distributed schema changes</span></a></li></ul></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" href="/docs/mcp-server/"><span class="categoryLinkLabel_W154">Reference</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/mcp-server/"><span class="linkLabel_WmDU">MCP server</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/web-console/"><span class="linkLabel_WmDU">Web console</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/camus-cli/"><span class="linkLabel_WmDU">camus-cli</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/camus-dump/"><span class="linkLabel_WmDU">camus-dump</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/workload-utility/"><span class="linkLabel_WmDU">Workload utility</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/caraxes/"><span class="linkLabel_WmDU">Caraxes</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/dotnet-driver/"><span class="categoryLinkLabel_W154">.NET</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/dotnet-driver/"><span class="linkLabel_WmDU">.NET driver</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/ef-core/"><span class="linkLabel_WmDU">EF Core provider</span></a></li></ul></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/error-codes/"><span class="linkLabel_WmDU">Error codes</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/http-api/"><span class="linkLabel_WmDU">HTTP API</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/grpc-api/"><span class="linkLabel_WmDU">gRPC API</span></a></li></ul></li></ul></nav></div></div></aside><main class="docMainContainer_TBSr"><div class="container padding-top--md padding-bottom--lg"><div class="row"><div class="col docItemCol_VOVn"><div class="docItemContainer_Djhp"><article><nav class="theme-doc-breadcrumbs breadcrumbsContainer_Z_bl" aria-label="Breadcrumbs"><ul class="breadcrumbs"><li class="breadcrumbs__item"><a aria-label="Home page" class="breadcrumbs__link" href="/"><svg viewBox="0 0 24 24" class="breadcrumbHomeIcon_YNFT"><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill="currentColor"></path></svg></a></li><li class="breadcrumbs__item"><span class="breadcrumbs__link">Internals</span></li><li class="breadcrumbs__item"><span class="breadcrumbs__link">Storage and durability</span></li><li class="breadcrumbs__item breadcrumbs__item--active"><span class="breadcrumbs__link">Storage</span></li></ul></nav><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type="button" class="clean-btn tocCollapsibleButton_TO0P">On this page</button></div><div class="theme-doc-markdown markdown"><header><h1>Storage</h1></header>
-<p>CamusDB stores relational data on top of a distributed key/value layer provided
-by <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a>. Tables, rows, indexes, schema
-metadata, locks, and transaction state are mapped to persistent key/value
-entries.</p>
-<p>The design keeps SQL as the user-facing model while using a storage layout that
-can be routed, replicated, locked, and committed by the distributed KV layer.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="storage-stack">Storage stack<a href="#storage-stack" class="hash-link" aria-label="Direct link to Storage stack" title="Direct link to Storage stack" translate="no">​</a></h2>
-<p>CamusDB&#x27;s storage path has three layers:</p>
-<table><thead><tr><th>Layer</th><th>Responsibility</th></tr></thead><tbody><tr><td>SQL engine</td><td>Plans statements, validates schema, applies constraints, and decides which rows or indexes are touched.</td></tr><tr><td>CamusDB KV mapping</td><td>Encodes table rows, index entries, and schema metadata as deterministic key/value entries.</td></tr><tr><td><a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a></td><td>Persists keys, coordinates locks and transactions, and relies on Raft-backed partition ownership in cluster mode.</td></tr></tbody></table>
-<p><a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> supports embedded storage backends such as
-<a href="https://rocksdb.org/" target="_blank" rel="noopener noreferrer" class="">RocksDB</a> and SQLite. CamusDB uses
-<a href="https://rocksdb.org/" target="_blank" rel="noopener noreferrer" class="">RocksDB</a> as its default persistent storage backend in
-standalone mode, and <a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a>
-uses a RocksDB-backed WAL adapter by default for Raft logs. SQLite remains an
-optional embedded backend when a deployment wants SQLite files instead of
-RocksDB directories; the in-memory backend is for development and tests only.</p>
-<p>This means CamusDB is not reinventing low-level storage. It maps SQL rows,
-indexes, schema metadata, locks, and transaction state into deterministic
-key/value entries, then delegates local persistence to proven embedded storage
-engines. RocksDB provides the ordered, durable key/value store; <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a>
-adds transactions, locks, range scans, and distributed KV behavior; and
-<a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a> adds Raft log
-replication, leader election, and recovery ordering.</p>
-<p>For the lower-level backend details, see
-<a href="https://kahunakv.github.io/docs/storage/overview/" target="_blank" rel="noopener noreferrer" class="">Kahuna&#x27;s storage overview</a>.
+<p>CamusDB stores relational data on a distributed key/value layer.
+<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> provides that layer. CamusDB maps six
+kinds of object to persistent key/value entries: a table, a row, an index, the
+schema metadata, a lock, and the transaction state.</p>
+<p>The design keeps SQL as the model that a user sees. It uses a storage layout
+that the distributed KV layer can route, replicate, lock, and commit.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-storage-stack">The storage stack<a href="#the-storage-stack" class="hash-link" aria-label="Direct link to The storage stack" title="Direct link to The storage stack" translate="no">​</a></h2>
+<p>The storage path of CamusDB has three layers:</p>
+<table><thead><tr><th>Layer</th><th>Responsibility</th></tr></thead><tbody><tr><td>SQL engine</td><td>Plans a statement, validates the schema, applies the constraints, and decides which rows and which indexes the statement touches.</td></tr><tr><td>CamusDB KV mapping</td><td>Encodes a table row, an index entry, and the schema metadata as deterministic key/value entries.</td></tr><tr><td><a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a></td><td>Persists the keys, coordinates the locks and the transactions, and uses partition ownership backed by Raft in cluster mode.</td></tr></tbody></table>
+<p><a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> supports embedded storage backends. Two
+examples are <a href="https://rocksdb.org/" target="_blank" rel="noopener noreferrer" class="">RocksDB</a> and SQLite.</p>
+<p>CamusDB uses <a href="https://rocksdb.org/" target="_blank" rel="noopener noreferrer" class="">RocksDB</a> as its default persistent backend
+in standalone mode.
+<a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a> uses a WAL adapter
+backed by RocksDB for the Raft logs, also by default.</p>
+<p>SQLite remains an optional embedded backend. Use it when a deployment prefers
+SQLite files to RocksDB directories. The in-memory backend serves development
+and tests only.</p>
+<p>CamusDB therefore does not build a low-level store again. It maps a SQL row, an
+index, the schema metadata, a lock, and the transaction state into deterministic
+key/value entries. It then delegates the local persistence to proven embedded
+storage engines. Three components divide that work:</p>
+<ul>
+<li class="">RocksDB gives the ordered durable key/value store.</li>
+<li class=""><a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> adds the transactions, the locks, the
+range scans, and the distributed KV behavior.</li>
+<li class=""><a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a> adds the
+replication of the Raft log, the election of a leader, and the order for a
+recovery.</li>
+</ul>
+<p>For the details of a backend at the lower level, see
+<a href="https://kahunakv.github.io/docs/storage/overview/" target="_blank" rel="noopener noreferrer" class="">the storage overview of Kahuna</a>.
 For the recovery path, see <a class="" href="/docs/wal-recovery/">WAL And Recovery</a>.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="rocksdb-backend">RocksDB backend<a href="#rocksdb-backend" class="hash-link" aria-label="Direct link to RocksDB backend" title="Direct link to RocksDB backend" translate="no">​</a></h2>
-<p><a href="https://rocksdb.org/" target="_blank" rel="noopener noreferrer" class="">RocksDB</a> is an embedded ordered key/value database based
-on a log-structured merge-tree. Writes go through memory tables and durable
-log/SSTable files, and background compaction keeps sorted on-disk files
-queryable over time. It is a native C++ storage engine created at Meta, so
-CamusDB&#x27;s high-level SQL, transaction, and distributed coordination logic can be
-written in C# while the local storage engine runs close to the hardware.</p>
-<p>CamusDB benefits from those RocksDB properties without exposing RocksDB as the
-user-facing model:</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-rocksdb-backend">The RocksDB backend<a href="#the-rocksdb-backend" class="hash-link" aria-label="Direct link to The RocksDB backend" title="Direct link to The RocksDB backend" translate="no">​</a></h2>
+<p><a href="https://rocksdb.org/" target="_blank" rel="noopener noreferrer" class="">RocksDB</a> is an embedded ordered key/value database. Its
+design is a log-structured merge-tree. A write passes through a memory table,
+and then through durable log files and SSTable files. A background compaction
+keeps the sorted files on disk usable over time.</p>
+<p>RocksDB is a native storage engine in C++, and Meta created it. Three parts of
+CamusDB can therefore stay in C#: the SQL logic, the transaction logic, and the
+distributed coordination. The local storage engine meanwhile runs close to the
+hardware.</p>
+<p>CamusDB uses five properties of RocksDB. It does not expose RocksDB as the model
+that a user sees:</p>
 <ul>
-<li class="">Durable local persistence for materialized KV state.</li>
-<li class="">Ordered key iteration, which CamusDB uses for row-bucket scans and index
-scans.</li>
-<li class="">Efficient write-heavy storage behavior from the LSM-tree design.</li>
-<li class="">Mature crash-recovery behavior for the local storage engine.</li>
-<li class="">A storage engine that can be replaced with SQLite when that tradeoff is more
-appropriate for a deployment.</li>
+<li class="">Durable local persistence for the materialized KV state.</li>
+<li class="">An ordered iteration of the keys. CamusDB uses it for a scan of a row bucket,
+and for an index scan.</li>
+<li class="">Efficient behavior under heavy writes, from the design of the LSM-tree.</li>
+<li class="">Mature recovery from a crash, for the local storage engine.</li>
+<li class="">A storage engine that you can replace with SQLite, when that trade suits a
+deployment better.</li>
 </ul>
-<p>RocksDB is local storage, not the distributed database by itself. Cluster
-replication, quorum commit, partition leadership, transaction coordination, and
-WAL replay are provided by <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> and
-<a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a>. In other words,
-RocksDB makes each node&#x27;s persisted state reliable; the distributed layer makes
+<p>RocksDB is local storage. It is not the distributed database by itself.
+<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> and
+<a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a> provide five other
+mechanisms: the replication in a cluster, the commit by a quorum, the leadership
+of a partition, the coordination of a transaction, and the WAL replay. RocksDB
+makes the persisted state of one node reliable. The distributed layer makes the
 commits consistent across the cluster.</p>
-<p>The relevant storage settings are:</p>
+<p>These are the relevant storage settings:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token key atrule" style="color:#00a4db">kahuna</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">storage</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> rocksdb</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">wal_storage</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> rocksdb</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">wal_sync_writes</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#36acaa">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">rocksdb_shared_memory</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#36acaa">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">rocksdb_shared_memory_budget_mb</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">320</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">rocksdb_shared_memtable_budget_mb</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">128</span><br></div></code></pre></div></div>
-<p><code>storage</code> controls the materialized KV backend. <code>wal_storage</code> controls the Raft
-write-ahead-log backend. <code>wal_sync_writes: true</code> keeps acknowledged durable WAL
-writes on the safer path; disabling it is useful only for benchmarks or tests
-where crash durability is not being evaluated.</p>
+<p><code>storage</code> controls the backend of the materialized KV state. <code>wal_storage</code>
+controls the backend of the Raft write-ahead log.</p>
+<p><code>wal_sync_writes: true</code> keeps an acknowledged durable WAL write on the safer
+path. A value of <code>false</code> helps in a benchmark or a test only, where you do not
+evaluate the durability across a crash.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="shared-rocksdb-memory">Shared RocksDB memory<a href="#shared-rocksdb-memory" class="hash-link" aria-label="Direct link to Shared RocksDB memory" title="Direct link to Shared RocksDB memory" translate="no">​</a></h2>
-<p>When RocksDB is used for both the materialized KV backend and the WAL backend,
-there are two separate embedded RocksDB databases in the CamusDB process:</p>
+<p>RocksDB can serve both the materialized KV backend and the WAL backend. The
+CamusDB process then holds two separate embedded RocksDB databases:</p>
 <ul>
-<li class="">the Kahuna KV/locks backend, used for SQL rows, indexes, metadata, locks, and
-transaction state</li>
-<li class="">the Kommander Raft WAL backend, used for consensus log entries</li>
+<li class="">The KV and locks backend of Kahuna. It holds the SQL rows, the indexes, the
+metadata, the locks, and the transaction state.</li>
+<li class="">The Raft WAL backend of Kommander. It holds the log entries of the consensus.</li>
 </ul>
-<p>The databases remain separate on disk. That separation protects the Raft log
-from being merged into the data-store lifecycle and keeps WAL recovery,
-checkpointing, compaction, and data files independently managed.</p>
-<p>However, separate RocksDB databases can otherwise allocate separate memory
-budgets. RocksDB memory is dominated by:</p>
+<p>The two databases stay separate on disk. That separation protects the Raft log
+from the lifecycle of the data store. It also keeps four things under
+independent management: the WAL recovery, the checkpoints, the compaction, and
+the data files.</p>
+<p>Two separate RocksDB databases can otherwise allocate two separate budgets of
+memory. Two structures dominate the memory of RocksDB:</p>
 <ul>
-<li class="">the block cache, which caches data blocks read from SST files</li>
-<li class="">memtables, which buffer recent writes in memory before they are flushed</li>
+<li class="">The block cache, which holds the data blocks that RocksDB read from the SST
+files.</li>
+<li class="">The memtables, which buffer the recent writes in memory before a flush.</li>
 </ul>
-<p>CamusDB&#x27;s RocksDB baselines enable shared RocksDB memory by default. Kahuna
-creates one shared block cache and one shared write-buffer manager and passes
-them to both RocksDB databases:</p>
+<p>The RocksDB baselines of CamusDB enable shared memory by default. Kahuna creates
+one shared block cache, and one shared manager of the write buffers. It passes
+both to the two RocksDB databases:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token key atrule" style="color:#00a4db">kahuna</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">rocksdb_shared_memory</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#36acaa">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">rocksdb_shared_memory_budget_mb</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">320</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">rocksdb_shared_memtable_budget_mb</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">128</span><br></div></code></pre></div></div>
-<p>The total budget bounds the shared block cache. The memtable sub-budget is
-charged into that same budget, so reads and writes across both RocksDB
-databases are governed by one process-level memory target instead of separate
-independent budgets.</p>
-<p>Operational notes:</p>
+<p>The total budget bounds the shared block cache. CamusDB charges the memtable
+sub-budget inside that same budget. One target of memory at process level
+therefore governs the reads and the writes of both RocksDB databases. Two
+independent budgets do not govern them.</p>
+<p>Note these operational points:</p>
 <ul>
-<li class="">Sharing is active only when both <code>storage</code> and <code>wal_storage</code> are <code>rocksdb</code>.</li>
-<li class="">If either backend is <code>sqlite</code> or <code>memory</code>, the setting is a no-op.</li>
+<li class="">The sharing is active only when <code>storage</code> and <code>wal_storage</code> are both
+<code>rocksdb</code>.</li>
+<li class="">The setting does nothing if either backend is <code>sqlite</code> or <code>memory</code>.</li>
 <li class=""><code>rocksdb_shared_memory_budget_mb</code> defaults to <code>320</code>.</li>
-<li class=""><code>rocksdb_shared_memtable_budget_mb</code> defaults to <code>128</code> and must be less than
-or equal to the total budget.</li>
-<li class="">Set <code>rocksdb_shared_memory: false</code> to return to independent RocksDB memory
-resources.</li>
-<li class="">The feature does not change persisted data formats, SQL behavior, transaction
-behavior, WAL semantics, or recovery ordering.</li>
+<li class=""><code>rocksdb_shared_memtable_budget_mb</code> defaults to <code>128</code>. It must not exceed the
+total budget.</li>
+<li class="">Set <code>rocksdb_shared_memory: false</code> to return to independent memory resources
+for each RocksDB database.</li>
+<li class="">The feature changes no persisted data format. It changes no SQL behavior, no
+transaction behavior, no WAL semantics, and no order during a recovery.</li>
 </ul>
-<p>Use a larger total budget for nodes with hot read working sets or heavy write
-bursts. If the memtable sub-budget is too small for the workload, RocksDB may
-flush more frequently. If it is too large, the deployment saves less memory.</p>
-<p>The main reason to keep two RocksDB databases while sharing memory resources is
-isolation: the WAL remains its own local database and the KV backend remains
-its own local database, but the expensive cache and memtable accounting are
-shared when both use RocksDB.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="database-create-and-open">Database create and open<a href="#database-create-and-open" class="hash-link" aria-label="Direct link to Database create and open" title="Direct link to Database create and open" translate="no">​</a></h2>
-<p>Databases must be created explicitly before use. <code>CREATE DATABASE</code> allocates a
-stable short base62 database id and stores the name-to-id mapping in CamusDB&#x27;s
-registry. <code>CREATE DATABASE IF NOT EXISTS</code> returns the existing database when
-the name is already registered.</p>
-<p>Both standalone and cluster modes use a single process-level
-<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> node. Creating a database does not create
-a separate storage engine, RocksDB instance, WAL, or per-database directory.
-Instead, every database is isolated inside the shared KV space by its database
-id.</p>
-<p>Opening a database is a metadata operation:</p>
+<p>Use a larger total budget for a node with a hot working set of reads, or with
+heavy bursts of writes. RocksDB can flush more often if the memtable sub-budget
+is too small for the workload. The deployment saves less memory if that
+sub-budget is too large.</p>
+<p>One reason keeps the two RocksDB databases separate while they share the memory
+resources: isolation. The WAL stays its own local database, and the KV backend
+stays its own local database. Only the expensive accounting of the cache and of
+the memtables is shared, and only while both use RocksDB.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="create-and-open-a-database">Create and open a database<a href="#create-and-open-a-database" class="hash-link" aria-label="Direct link to Create and open a database" title="Direct link to Create and open a database" translate="no">​</a></h2>
+<p>You must create a database explicitly before you use it. <code>CREATE DATABASE</code>
+allocates a stable short database id in base62. It stores the map from the name
+to that id in the registry of CamusDB. <code>CREATE DATABASE IF NOT EXISTS</code> returns
+the existing database when the name is registered already.</p>
+<p>Standalone mode and cluster mode both use one
+<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> node for each process. The creation of a
+database creates no separate storage engine, no separate RocksDB instance, no
+separate WAL, and no directory for that database. The database id instead
+isolates each database inside the shared KV space.</p>
+<p>To open a database is a metadata operation:</p>
 <ol>
 <li class="">CamusDB resolves the requested name through the registry.</li>
-<li class="">It loads the database&#x27;s schema metadata from the shared KV store.</li>
-<li class="">It registers schema-replication callbacks so future DDL changes are applied
-after Raft commit.</li>
-<li class="">Tables are opened lazily when statements first touch them.</li>
+<li class="">It loads the schema metadata of the database from the shared KV store.</li>
+<li class="">It registers the callbacks for the schema replication. A later DDL change
+therefore applies after the Raft commit.</li>
+<li class="">It opens each table lazily, when a statement first touches that table.</li>
 </ol>
-<p>Startup recovery happens at the shared storage-node level. <a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a>
-restores committed WAL entries, <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> makes the
-materialized KV state available, and then CamusDB opens database metadata from
+<p>The recovery at startup happens at the level of the shared storage node.
+<a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a> restores the
+committed WAL entries. <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> then makes the
+materialized KV state available. CamusDB then opens the database metadata from
 that recovered state.</p>
-<p>Renaming a database updates only the registry entry. The database id is
-preserved, so existing table ids, row keys, index keys, statistics keys, and
-schema metadata remain in the same keyspaces. Dropping a database unregisters
-the name, drains in-flight operations on the descriptor, and purges the
-database-id keyspaces from the shared KV store. Raft schema-log history is
-append-only and is not rewritten by a drop.</p>
+<p>A rename of a database updates the entry in the registry only. CamusDB keeps the
+database id. The existing table ids, row keys, index keys, statistics keys, and
+schema metadata therefore stay in the same key spaces.</p>
+<p>A drop of a database does three things. It removes the name from the registry.
+It drains the operations in flight on the descriptor. It then purges the key
+spaces of that database id from the shared KV store. The history of the Raft
+schema log only accepts new entries. A drop does not rewrite that history.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="key-layout">Key layout<a href="#key-layout" class="hash-link" aria-label="Direct link to Key layout" title="Direct link to Key layout" translate="no">​</a></h2>
-<p>Rows, indexes, schema metadata, statistics, and registry records are stored as
-key/value entries in the shared <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> keyspace.
-User data keys include the opaque database id first, so two databases can use
-the same table names without sharing storage keys.</p>
-<p>New tables receive short base62 table ids from a persistent monotonic sequence
-stored in the shared system keyspace. The id contains none of the KV key
-separators (<code>/</code>, <code>:</code>, or <code>~</code>), is not reused after a table is dropped, and is
-typically much shorter than the previous 24-character ObjectId-style table
-ids. Existing databases can still contain older 24-hex table ids; both formats
-coexist safely because the id is treated as an opaque key segment.</p>
-<table><thead><tr><th>Object</th><th>Key shape</th><th>Value</th></tr></thead><tbody><tr><td>Database registry entry</td><td><code>_system/dbregistry/db:{databaseName}</code></td><td>Database id, normalized name, and creation time.</td></tr><tr><td>Database id sequence</td><td><code>_system/dbregistry/seq</code></td><td>Monotonic sequence used to allocate database ids.</td></tr><tr><td>Table id sequence</td><td><code>_system/tableseq</code></td><td>Monotonic sequence used to allocate new short base62 table ids.</td></tr><tr><td>System metadata</td><td><code>{databaseId}/meta/system</code></td><td>Internal database metadata.</td></tr><tr><td>Schema version</td><td><code>{databaseId}/meta/version</code></td><td>Current applied schema version.</td></tr><tr><td>Table schema</td><td><code>{databaseId}/meta/table:{tableId}</code></td><td>Serialized schema for one table.</td></tr><tr><td>Table schema history</td><td><code>{databaseId}/meta/history:{tableId}:{version}</code></td><td>Historical table schema version used to decode older rows.</td></tr><tr><td>DDL coordinator state</td><td><code>{databaseId}/meta/coordinator:{tableId}~{element}</code></td><td>State for multi-step schema changes such as index backfill.</td></tr><tr><td>Table statistics</td><td><code>{databaseId}:stats:{tableId}</code></td><td>Persisted planner statistics for the table.</td></tr><tr><td>Row</td><td><code>{databaseId}:{tableId}:r/{rowId}</code></td><td>Serialized row bytes.</td></tr><tr><td>Unique index entry</td><td><code>{databaseId}:{tableId}:i:{indexId}/{encodedKey}</code></td><td>Row id as UTF-8 text.</td></tr><tr><td>Non-unique index entry</td><td><code>{databaseId}:{tableId}:i:{indexId}/{encodedKey}{rowId}</code></td><td>Row id as UTF-8 text.</td></tr></tbody></table>
-<p>The slash placement is intentional. Row keys share the bucket
-<code>{databaseId}:{tableId}:r</code>, and index keys share the bucket
-<code>{databaseId}:{tableId}:i:{indexId}</code>. That keeps scans, writes, and range
-locks aligned on the same routed keyspace. Metadata keys use the single
-<code>{databaseId}/meta</code> bucket so database metadata can be loaded and purged as a
-coherent group.</p>
-<p>Non-unique index keys append the row id directly after the encoded key. The row
-id has a fixed 24-character representation, so CamusDB can split it back out
-while preserving sortable index keys.</p>
-<p>Indexes use stable ids in the storage keyspace and keep the schema-visible
-index name as metadata. Tables and columns also have stable ids. New table ids
-are short base62 strings allocated before the schema change is committed, so
-every node applies the same table identity. Renaming tables, columns, or indexes
-does not require rewriting existing row or index data.</p>
+<p>CamusDB stores five kinds of record as key/value entries in the shared
+<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> key space: a row, an index, the schema
+metadata, the statistics, and a registry record.</p>
+<p>A key of user data starts with the opaque database id. Two databases can
+therefore use the same table names without shared storage keys.</p>
+<p>A new table receives a short table id in base62. The id comes from a persistent
+monotonic sequence in the shared system key space. The id contains none of the
+separators of a KV key, which are <code>/</code>, <code>:</code>, and <code>~</code>. CamusDB does not reuse an
+id after a drop of the table. An id is usually much shorter than the previous
+table id, which had the 24-character form of an ObjectId. An existing database
+can still hold an older table id of 24 hexadecimal characters. Both formats
+coexist safely, because CamusDB treats the id as an opaque segment of the key.</p>
+<table><thead><tr><th>Object</th><th>Key shape</th><th>Value</th></tr></thead><tbody><tr><td>Database registry entry</td><td><code>_system/dbregistry/db:{databaseName}</code></td><td>The database id, the normalized name, and the time of creation.</td></tr><tr><td>Database id sequence</td><td><code>_system/dbregistry/seq</code></td><td>The monotonic sequence that allocates a database id.</td></tr><tr><td>Table id sequence</td><td><code>_system/tableseq</code></td><td>The monotonic sequence that allocates a new short table id in base62.</td></tr><tr><td>System metadata</td><td><code>{databaseId}/meta/system</code></td><td>The internal metadata of the database.</td></tr><tr><td>Schema version</td><td><code>{databaseId}/meta/version</code></td><td>The schema version that CamusDB applied.</td></tr><tr><td>Table schema</td><td><code>{databaseId}/meta/table:{tableId}</code></td><td>The serialized schema of one table.</td></tr><tr><td>Table schema history</td><td><code>{databaseId}/meta/history:{tableId}:{version}</code></td><td>An earlier schema version of the table. CamusDB uses it to decode an older row.</td></tr><tr><td>DDL coordinator state</td><td><code>{databaseId}/meta/coordinator:{tableId}~{element}</code></td><td>The state of a schema change of several steps, such as the backfill of an index.</td></tr><tr><td>Table statistics</td><td><code>{databaseId}:stats:{tableId}</code></td><td>The persisted statistics of the planner, for that table.</td></tr><tr><td>Row</td><td><code>{databaseId}:{tableId}:r/{rowId}</code></td><td>The serialized bytes of the row.</td></tr><tr><td>Unique index entry</td><td><code>{databaseId}:{tableId}:i:{indexId}/{encodedKey}</code></td><td>The row id, as UTF-8 text.</td></tr><tr><td>Non-unique index entry</td><td><code>{databaseId}:{tableId}:i:{indexId}/{encodedKey}{rowId}</code></td><td>The row id, as UTF-8 text.</td></tr></tbody></table>
+<p>The position of the slash is intentional. The row keys share the bucket
+<code>{databaseId}:{tableId}:r</code>. The index keys share the bucket
+<code>{databaseId}:{tableId}:i:{indexId}</code>. A scan, a write, and a range lock
+therefore align on the same routed key space.</p>
+<p>A metadata key uses the single bucket <code>{databaseId}/meta</code>. CamusDB can therefore
+load and purge the metadata of a database as one coherent group.</p>
+<p>A non-unique index key holds the row id directly after the encoded key. The row
+id has a fixed form of 24 characters. CamusDB can therefore separate it again,
+and the index keys stay sortable.</p>
+<p>An index uses a stable id in the storage key space. It keeps the index name that
+the schema shows as metadata. A table and a column also have a stable id.</p>
+<p>CamusDB allocates a new table id in base62 before it commits the schema change.
+Every node therefore applies the same identity for that table. A rename of a
+table, of a column, or of an index needs no rewrite of the existing row data or
+index data.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="row-values">Row values<a href="#row-values" class="hash-link" aria-label="Direct link to Row values" title="Direct link to Row values" translate="no">​</a></h2>
-<p>Each row is stored as a compact binary value. The row payload includes:</p>
-<ul>
-<li class="">Schema version.</li>
-<li class="">Row object id.</li>
-<li class="">One encoded value for each column in schema order.</li>
-</ul>
-<p>The schema version lets CamusDB deserialize older row payloads through the
-schema history attached to the table. CamusDB compiles the row layout for each
-visible schema version, so scans and point reads can decode only the values the
-query needs instead of rebuilding every row through a generic path. This keeps
-the storage format stable while reducing CPU and allocation overhead for
-read-heavy queries, index lookups, updates, and backfills.</p>
-<p>Column values are encoded by type:</p>
-<table><thead><tr><th>Column type</th><th>Stored representation</th></tr></thead><tbody><tr><td><code>OID</code></td><td>12-byte object id.</td></tr><tr><td><code>UUID</code></td><td>16-byte UUID.</td></tr><tr><td><code>INT64</code></td><td>8-byte signed integer.</td></tr><tr><td><code>FLOAT64</code></td><td>8-byte double.</td></tr><tr><td><code>FLOAT32</code></td><td>4-byte single-precision value, exposed through the common numeric value path.</td></tr><tr><td><code>STRING</code></td><td>Length-prefixed UTF-16 string.</td></tr><tr><td><code>BOOL</code></td><td>Boolean marker byte.</td></tr><tr><td><code>DATE</code></td><td>UTC ticks truncated to midnight.</td></tr><tr><td><code>DATETIME</code></td><td>UTC ticks.</td></tr><tr><td><code>BYTES</code></td><td>Length-prefixed byte payload.</td></tr><tr><td><code>ARRAY(T)</code></td><td>Element type plus an ordered sequence of encoded element values.</td></tr><tr><td><code>NULL</code></td><td>Null marker byte.</td></tr></tbody></table>
+<p>CamusDB stores each row as one compact binary value. The payload of a row holds
+three parts:</p>
+<ol>
+<li class="">The schema version.</li>
+<li class="">The object id of the row.</li>
+<li class="">One encoded value for each column, in the order of the schema.</li>
+</ol>
+<p>The schema version lets CamusDB deserialize an older payload of a row. It uses
+the schema history that belongs to the table.</p>
+<p>CamusDB compiles the row layout of each visible schema version. A scan and a
+point read can therefore decode only the values that the query needs. Neither
+one rebuilds the whole row through a generic path. The storage format stays
+stable. The cost in CPU and in allocations falls for a query with many reads,
+for an index lookup, for an update, and for a backfill.</p>
+<p>CamusDB encodes a column value by its type:</p>
+<table><thead><tr><th>Column type</th><th>Stored representation</th></tr></thead><tbody><tr><td><code>OID</code></td><td>A 12-byte object id.</td></tr><tr><td><code>UUID</code></td><td>A 16-byte UUID.</td></tr><tr><td><code>INT64</code></td><td>An 8-byte signed integer.</td></tr><tr><td><code>FLOAT64</code></td><td>An 8-byte double.</td></tr><tr><td><code>FLOAT32</code></td><td>A 4-byte value with single precision. CamusDB exposes it through the common path for a numeric value.</td></tr><tr><td><code>STRING</code></td><td>A UTF-16 string, with a length prefix.</td></tr><tr><td><code>BOOL</code></td><td>One marker byte for the boolean.</td></tr><tr><td><code>DATE</code></td><td>UTC ticks, truncated to midnight.</td></tr><tr><td><code>DATETIME</code></td><td>UTC ticks.</td></tr><tr><td><code>BYTES</code></td><td>A byte payload, with a length prefix.</td></tr><tr><td><code>ARRAY(T)</code></td><td>The element type, and then an ordered sequence of the encoded element values.</td></tr><tr><td><code>NULL</code></td><td>One marker byte for the null.</td></tr></tbody></table>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="index-encoding">Index encoding<a href="#index-encoding" class="hash-link" aria-label="Direct link to Index encoding" title="Direct link to Index encoding" translate="no">​</a></h2>
-<p>Index keys must sort the same way SQL values sort. CamusDB uses an
-order-preserving encoder for composite index values:</p>
+<p>An index key must sort in the same order as a SQL value. CamusDB uses an encoder
+that preserves the order of a composite index value:</p>
 <ul>
-<li class=""><code>NULL</code> sorts before present values.</li>
-<li class=""><code>INT64</code> flips the sign bit and stores fixed-width hexadecimal text.</li>
-<li class=""><code>FLOAT64</code> and <code>FLOAT32</code> apply order-preserving transforms to IEEE-754 bits.</li>
-<li class=""><code>BOOL</code> stores <code>0</code> or <code>1</code>.</li>
-<li class=""><code>DATE</code> and <code>DATETIME</code> sort by their UTC tick values.</li>
-<li class=""><code>UUID</code> stores the 128-bit value in a fixed-width order-preserving encoding.</li>
-<li class=""><code>BYTES</code> values use an order-preserving byte encoding.</li>
-<li class=""><code>STRING</code> and <code>OID</code> values use terminators and escaping so prefixes sort
-correctly.</li>
+<li class="">A <code>NULL</code> sorts before a value that is present.</li>
+<li class="">An <code>INT64</code> inverts the sign bit. CamusDB stores the result as hexadecimal text
+of a fixed width.</li>
+<li class="">A <code>FLOAT64</code> and a <code>FLOAT32</code> receive a transform of their IEEE-754 bits. The
+transform preserves the order.</li>
+<li class="">A <code>BOOL</code> stores <code>0</code> or <code>1</code>.</li>
+<li class="">A <code>DATE</code> and a <code>DATETIME</code> sort by their value in UTC ticks.</li>
+<li class="">A <code>UUID</code> stores its 128-bit value in an encoding of a fixed width. The
+encoding preserves the order.</li>
+<li class="">A <code>BYTES</code> value uses a byte encoding that preserves the order.</li>
+<li class="">A <code>STRING</code> and an <code>OID</code> value use a terminator and an escape. A prefix
+therefore sorts correctly.</li>
 </ul>
-<p>This lets CamusDB scan index keys in lexicographic KV order and get SQL-order
-results for the indexed columns.</p>
-<p>All scalar column types are indexable. <code>ARRAY(T)</code> columns are stored in rows,
-but they cannot be used in primary keys or secondary indexes.</p>
-<p>For UUID identifiers, prefer <code>UUID</code> columns over <code>STRING</code> columns. A UUID
-column stores the value as 16 bytes in rows and uses compact fixed-width index
-keys, while a UUID saved as text carries the larger string representation
-through memory, disk, and index entries.</p>
+<p>CamusDB can therefore scan the index keys in the lexicographic order of the KV
+layer. The result follows the SQL order of the indexed columns.</p>
+<p>Every scalar column type accepts an index. CamusDB stores an <code>ARRAY(T)</code> column
+in a row. You cannot use such a column in a primary key, and you cannot use it
+in a secondary index.</p>
+<p>For a UUID identifier, prefer a <code>UUID</code> column to a <code>STRING</code> column. A <code>UUID</code>
+column stores 16 bytes in a row, and it uses compact index keys of a fixed
+width. A UUID saved as text carries the larger string form through the memory,
+the disk, and the index entries.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="writes-and-locks">Writes and locks<a href="#writes-and-locks" class="hash-link" aria-label="Direct link to Writes and locks" title="Direct link to Writes and locks" translate="no">​</a></h2>
-<p>Write paths use persistent KV entries and a server-owned transaction
-coordinator:</p>
+<p>A write path uses persistent KV entries, and a transaction coordinator that the
+server owns:</p>
 <ol>
 <li class="">Start a transaction.</li>
-<li class="">Acquire an exclusive lock for each row, index, or metadata key that will be
-written.</li>
-<li class="">Write or delete the affected keys.</li>
-<li class="">Register confirmed writes and locks with the Kahuna transaction coordinator.</li>
-<li class="">Commit or roll back the transaction handle through <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a>&#x27;s
-transaction API.</li>
+<li class="">Acquire an exclusive lock for each row key, index key, and metadata key that
+the transaction will write.</li>
+<li class="">Write the affected keys, or delete them.</li>
+<li class="">Register the confirmed writes and the locks with the transaction coordinator
+of Kahuna.</li>
+<li class="">Commit the transaction handle through the transaction API of
+<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a>. You can also roll the handle back.</li>
 </ol>
-<p>Cross-partition writes use two-phase commit. CamusDB uses Serializable
-transactions by default, plus committed MVCC reads, conflict detection, and
-tracked write intents for atomic commit coordination.</p>
+<p>A write across partitions uses two-phase commit. CamusDB uses Serializable
+transactions by default. It adds committed MVCC reads, the detection of a
+conflict, and a record of the write intents for the coordination of an atomic
+commit.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="scans">Scans<a href="#scans" class="hash-link" aria-label="Direct link to Scans" title="Direct link to Scans" translate="no">​</a></h2>
-<p>Full table scans read the row bucket prefix:</p>
+<p>A full table scan reads the prefix of the row bucket:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">{databaseId}:{tableId}:r</span><br></div></code></pre></div></div>
-<p>Index scans read the index bucket prefix:</p>
+<p>An index scan reads the prefix of the index bucket:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">{databaseId}:{tableId}:i:{indexId}</span><br></div></code></pre></div></div>
-<p>Because row ids and encoded index keys preserve sort order, CamusDB can stream
-rows or index entries from KV storage in deterministic order before applying
-query filtering, projection, sorting, limits, and aggregation.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="standalone-vs-cluster-mode">Standalone vs cluster mode<a href="#standalone-vs-cluster-mode" class="hash-link" aria-label="Direct link to Standalone vs cluster mode" title="Direct link to Standalone vs cluster mode" translate="no">​</a></h2>
+<p>A row id and an encoded index key both preserve the sort order. CamusDB can
+therefore stream a row or an index entry from the KV storage in a determinate
+order. It applies the filters, the projection, the sort, the limits, and the
+aggregation after that.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="standalone-mode-and-cluster-mode">Standalone mode and cluster mode<a href="#standalone-mode-and-cluster-mode" class="hash-link" aria-label="Direct link to Standalone mode and cluster mode" title="Direct link to Standalone mode and cluster mode" translate="no">​</a></h2>
 <p>Standalone mode creates one embedded <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> node
-for the CamusDB process. All databases share that local node and are separated
-by database-id key prefixes. This is the simplest setup for tutorials and local
-development.</p>
-<p>Cluster mode creates one process-level shared storage node and wires it to real
-inter-node communication and static discovery. Data is partitioned across Raft
-partitions, and each partition elects its own leader through
+for the CamusDB process. Every database shares that local node. The prefix of
+the database id separates them. This is the simplest setup for a tutorial and
+for local development.</p>
+<p>Cluster mode creates one shared storage node for the process. It connects that
+node to real communication between the nodes, and to static discovery. CamusDB
+divides the data across the Raft partitions. Each partition elects its own
+leader, through
 <a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a>.</p>
-<p>See <a class="" href="/docs/cluster/">Cluster Mode</a> for startup commands and configuration.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/storage.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/architecture/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Architecture</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/wal-recovery/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">WAL and recovery</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#storage-stack" class="table-of-contents__link toc-highlight">Storage stack</a></li><li><a href="#rocksdb-backend" class="table-of-contents__link toc-highlight">RocksDB backend</a></li><li><a href="#shared-rocksdb-memory" class="table-of-contents__link toc-highlight">Shared RocksDB memory</a></li><li><a href="#database-create-and-open" class="table-of-contents__link toc-highlight">Database create and open</a></li><li><a href="#key-layout" class="table-of-contents__link toc-highlight">Key layout</a></li><li><a href="#row-values" class="table-of-contents__link toc-highlight">Row values</a></li><li><a href="#index-encoding" class="table-of-contents__link toc-highlight">Index encoding</a></li><li><a href="#writes-and-locks" class="table-of-contents__link toc-highlight">Writes and locks</a></li><li><a href="#scans" class="table-of-contents__link toc-highlight">Scans</a></li><li><a href="#standalone-vs-cluster-mode" class="table-of-contents__link toc-highlight">Standalone vs cluster mode</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Getting Started</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/databases/">Databases</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-cli/">camus-cli</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/sql/">SQL</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/sql-queries/">SELECT</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/joins-and-subqueries/">Joins And Subqueries</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/functions/">Functions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Transactions And Isolation</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster Mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/grpc-api/">gRPC API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET Driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core Provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-dump/">camus-dump</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/configuration/">Configuration</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/storage/">Storage</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/wal-recovery/">WAL &amp; Recovery</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">Source<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/camusdb/camusdb.github.io" target="_blank" rel="noopener noreferrer" class="footer__link-item">Docs Repo<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 CamusDB.</div></div></div></footer></div>
+<p>See <a class="" href="/docs/cluster/">Cluster Mode</a> for the startup commands and the
+configuration.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/storage.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/architecture/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Architecture</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/wal-recovery/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">WAL and recovery</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#the-storage-stack" class="table-of-contents__link toc-highlight">The storage stack</a></li><li><a href="#the-rocksdb-backend" class="table-of-contents__link toc-highlight">The RocksDB backend</a></li><li><a href="#shared-rocksdb-memory" class="table-of-contents__link toc-highlight">Shared RocksDB memory</a></li><li><a href="#create-and-open-a-database" class="table-of-contents__link toc-highlight">Create and open a database</a></li><li><a href="#key-layout" class="table-of-contents__link toc-highlight">Key layout</a></li><li><a href="#row-values" class="table-of-contents__link toc-highlight">Row values</a></li><li><a href="#index-encoding" class="table-of-contents__link toc-highlight">Index encoding</a></li><li><a href="#writes-and-locks" class="table-of-contents__link toc-highlight">Writes and locks</a></li><li><a href="#scans" class="table-of-contents__link toc-highlight">Scans</a></li><li><a href="#standalone-mode-and-cluster-mode" class="table-of-contents__link toc-highlight">Standalone mode and cluster mode</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Getting Started</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/databases/">Databases</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-cli/">camus-cli</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/sql/">SQL</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/sql-queries/">SELECT</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/joins-and-subqueries/">Joins And Subqueries</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/functions/">Functions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Transactions And Isolation</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster Mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/grpc-api/">gRPC API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET Driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core Provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-dump/">camus-dump</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/configuration/">Configuration</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/storage/">Storage</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/wal-recovery/">WAL &amp; Recovery</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">Source<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/camusdb/camusdb.github.io" target="_blank" rel="noopener noreferrer" class="footer__link-item">Docs Repo<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 CamusDB.</div></div></div></footer></div>
 </body>
 </html>

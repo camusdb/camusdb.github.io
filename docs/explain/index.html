@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">EXPLAIN | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/explain/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="EXPLAIN | CamusDB"><meta data-rh="true" name="description" content="Stability notice: EXPLAIN output is diagnostic only and may change while the query"><meta data-rh="true" property="og:description" content="Stability notice: EXPLAIN output is diagnostic only and may change while the query"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/explain/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/explain/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/explain/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"EXPLAIN","item":"https://camusdb.github.io/docs/explain"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.a54ad7a9.css">
-<script src="/assets/js/runtime~main.5158fc03.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.5b9223cd.js" defer="defer"></script>
 <script src="/assets/js/main.d73d7de1.js" defer="defer"></script>
 </head>
 <body>
@@ -56,7 +56,7 @@ includes a network term (<code>NetworkFactor</code>) for range-sharded deploymen
 Single-table estimates are accurate; join-node estimates are accurate when the cost-based
 join-order flag is on and otherwise remain heuristic. <code>(LOGICAL)</code> and <code>(PHYSICAL)</code> currently
 render the same physical tree, differing only in the <code>stage</code> label. See
-<a class="" href="/docs/query-planner-internals/#statistics-and-costing">the query planner guide → Part V</a> for the
+<a class="" href="/docs/query-planner-internals/#statistics-and-cost">the query planner guide → Part V</a> for the
 cost model itself.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="explain-analyze">EXPLAIN ANALYZE<a href="#explain-analyze" class="hash-link" aria-label="Direct link to EXPLAIN ANALYZE" title="Direct link to EXPLAIN ANALYZE" translate="no">​</a></h3>
 <p>All columns from plain <code>EXPLAIN</code>, plus:</p>
@@ -86,7 +86,7 @@ rule-based, so <code>EXPLAIN</code> shows the heuristic plan. With <code>cost_ba
 <code>cost_based_join_order_enabled</code> turned on <strong>and</strong> statistics collected (run <code>ANALYZE &lt;table&gt;</code>),
 the same query may show a different (cheaper) index or join order. The output is correct for
 whatever configuration produced it. See
-<a class="" href="/docs/query-planner-internals/#statistics-and-costing">the query planner guide → Part V</a>.</p>
+<a class="" href="/docs/query-planner-internals/#statistics-and-cost">the query planner guide → Part V</a>.</p>
 </blockquote>
 <p>The examples below focus on the <code>stage</code> / <code>node</code> / <code>detail</code> columns (the stable part of the
 output). Every row also carries <code>estimated_rows</code> / <code>estimated_cost</code> as described above; the
