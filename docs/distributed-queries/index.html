@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Distributed queries | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/distributed-queries/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Distributed queries | CamusDB"><meta data-rh="true" name="description" content="In a cluster, CamusDB spreads the rows of a table across the partitions. Each"><meta data-rh="true" property="og:description" content="In a cluster, CamusDB spreads the rows of a table across the partitions. Each"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/distributed-queries/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-queries/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-queries/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Distributed queries","item":"https://camusdb.github.io/docs/distributed-queries"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.a54ad7a9.css">
-<script src="/assets/js/runtime~main.0d7fc245.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.ab18f85f.js" defer="defer"></script>
 <script src="/assets/js/main.d73d7de1.js" defer="defer"></script>
 </head>
 <body>
@@ -156,11 +156,14 @@ coordinator then assembles the output from its own copy of the build side.</p>
 the build exists. The decision therefore uses the true count of the rows of the
 build. It does not use an estimate. A join that the optimizer expected to be
 small, and that is not small, simply probes locally.</p>
-<p>CamusDB uses a broadcast under four conditions. The distributed execution is on.
-The probe side is a plain base table of primary rows, with a placement of
-several spans, and with at least one leader that is not local. The <code>ON</code>
-predicate is shippable under the rules above. The filter of the probe is
-shippable too.</p>
+<p>CamusDB uses a broadcast under four conditions:</p>
+<ol>
+<li class="">The distributed execution is on.</li>
+<li class="">The probe side is a plain base table of primary rows. It has a placement of
+several spans, and at least one leader that is not local.</li>
+<li class="">The <code>ON</code> predicate is shippable under the rules above.</li>
+<li class="">The filter of the probe is shippable too.</li>
+</ol>
 <p>Every condition that fails leads to the ordinary local probe. A remote failure
 in the middle leads there as well. The output is identical in every case.</p>
 <p>Set <code>broadcast_join_max_build_rows</code> to <code>0</code> to turn a broadcast join off. The
@@ -173,8 +176,15 @@ when CamusDB did not:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">physical  distribution  distributed=yes</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">physical  gather        gather(spans: 4, remote_leader_fraction: 0.75)</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">physical  table-scan    table=orders</span><br></div></code></pre></div></div>
 <p>A plan that stayed local names the condition that it missed:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">physical  distribution  distributed=no (placement has a single span)</span><br></div></code></pre></div></div>
-<p>The reasons map directly to the list of the eligibility: <code>key-range sharding is off</code>, <code>not a primary-row full scan</code>, <code>standalone node</code>, <code>placement has a single span</code>, <code>transaction folds reads (optimistic read-set needs one session stream)</code>,
-and <code>exclusive predicate locks (DML write path)</code>.</p>
+<p>The reasons map directly to the list of the eligibility:</p>
+<ul>
+<li class=""><code>key-range sharding is off</code></li>
+<li class=""><code>not a primary-row full scan</code></li>
+<li class=""><code>standalone node</code></li>
+<li class=""><code>placement has a single span</code></li>
+<li class=""><code>transaction folds reads (optimistic read-set needs one session stream)</code></li>
+<li class=""><code>exclusive predicate locks (DML write path)</code></li>
+</ul>
 <p><code>EXPLAIN (ANALYZE)</code> adds one <code>gather-span</code> row for each span. Each row therefore
 attributes its rows to the partition and to the node that produced them:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">analyze  gather-span  partition 1: mode=local, rows_delivered=25000</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">analyze  gather-span  partition 2: mode=remote, node=10.0.0.2:7070, rows_delivered=31, rows_shipped=31, remote_rows_scanned=24180</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">analyze  gather-span  partition 3: mode=remote-fallback, node=10.0.0.3:7070, rows_delivered=24903, rows_shipped=12</span><br></div></code></pre></div></div>
