@@ -2,26 +2,31 @@
 sidebar_position: 2.45
 ---
 
-# SELECT Without FROM
+# SELECT without FROM
 
-A `SELECT` with no `FROM` evaluates its projection list against one synthetic
-row, so it returns exactly one row:
+A `SELECT` without a `FROM` clause evaluates its list of projections against one
+synthetic row. It therefore returns exactly one row:
 
 ```camussql
 SELECT 1 + 1;
 ```
 
-Most often you reach for this without thinking about it: a connection health
-probe, a cast you want to sanity-check, or the utility SQL an ORM emits on its
-own. It is also the shortest way to ask a yes/no question of the database:
+You usually use this form without a thought about it. Three examples follow:
+
+- A probe of the health of a connection.
+- A check of a cast.
+- The utility SQL that an ORM emits on its own.
+
+It is also the shortest way to ask the database a question with a yes or a no
+answer:
 
 ```camussql
 SELECT EXISTS (SELECT 1 FROM accounts WHERE email = @email);
 ```
 
-## Supported Forms
+## The supported forms
 
-Evaluate scalar expressions:
+Evaluate a scalar expression:
 
 ```camussql
 SELECT 1 + 1;
@@ -31,22 +36,22 @@ SELECT CASE WHEN 1 = 1 THEN "ok" ELSE "fail" END;
 SELECT regexp_split_to_array("one,two,three", ",");
 ```
 
-Bind parameters:
+Bind a parameter:
 
 ```camussql
 SELECT @value;
 ```
 
-Return multiple projections:
+Return several projections:
 
 ```camussql
 SELECT 41 + 1 AS answer, "ok" AS status;
 ```
 
-When a projection is not aliased, CamusDB uses ordinal column names such as
-`0`, `1`, and `2`.
+A projection can have no alias. CamusDB then uses the ordinal names of the
+columns, such as `0`, `1`, and `2`.
 
-Use `LIMIT` and `OFFSET` to keep or skip the single synthetic row:
+Use `LIMIT` and `OFFSET` to keep or to skip the one synthetic row:
 
 ```camussql
 SELECT 1 LIMIT 0;
@@ -55,10 +60,10 @@ SELECT 1 LIMIT 1 OFFSET 1;
 
 Both examples return zero rows.
 
-## Projection Subqueries
+## A subquery in a projection
 
-A subquery inside the projection of a `SELECT` without `FROM` is evaluated first and
-then replaced with its scalar result:
+CamusDB evaluates a subquery inside the projection of a `SELECT` without a
+`FROM` clause first. It then replaces the subquery with its scalar result:
 
 ```camussql
 SELECT EXISTS (
@@ -68,7 +73,7 @@ SELECT EXISTS (
 );
 ```
 
-`NOT EXISTS` is also supported:
+`NOT EXISTS` also works:
 
 ```camussql
 SELECT NOT EXISTS (
@@ -78,7 +83,7 @@ SELECT NOT EXISTS (
 );
 ```
 
-Scalar subqueries can be compared or returned directly:
+You can compare a scalar subquery. You can also return it directly:
 
 ```camussql
 SELECT (SELECT COUNT(*) FROM accounts) > 0;
@@ -99,41 +104,43 @@ SELECT (
 ) > 0;
 ```
 
-Because a `SELECT` without `FROM` has no outer row, these projection subqueries are
-uncorrelated. Correlated projection subqueries in table-backed `SELECT`
-statements are a separate query shape.
+A `SELECT` without a `FROM` clause has no outer row. Such a subquery in a
+projection is therefore not correlated. A correlated subquery in the projection
+of a `SELECT` with a table is a different shape of query.
 
-## Rejected Shapes
+## The rejected shapes
 
-A `SELECT` without `FROM` is intentionally limited to projection evaluation plus
-optional `LIMIT` and `OFFSET`.
+A `SELECT` without a `FROM` clause is limited by design. It evaluates a
+projection, and it accepts an optional `LIMIT` and an optional `OFFSET`.
 
-| Query shape | Result |
+| Shape of the query | Result |
 | --- | --- |
-| `SELECT *` | Rejected because `*` requires a table source. |
-| `SELECT COUNT(*)` | Rejected because aggregates require a table source. Use a scalar subquery such as `SELECT (SELECT COUNT(*) FROM accounts)`. |
-| `SELECT 1 WHERE ...` | Rejected. Add a `FROM` clause when you need `WHERE`. |
-| `SELECT 1 GROUP BY ...` | Rejected. Aggregation requires a table source. |
-| `SELECT 1 HAVING ...` | Rejected. Aggregation requires a table source. |
-| `SELECT 1 ORDER BY ...` | Rejected. There is only one synthetic row. |
-| `SELECT missing_name` | Fails with `UnknownColumn` because the identifier cannot be resolved. |
+| `SELECT *` | CamusDB rejects it, because `*` needs a table source. |
+| `SELECT COUNT(*)` | CamusDB rejects it, because an aggregate needs a table source. Use a scalar subquery instead, such as `SELECT (SELECT COUNT(*) FROM accounts)`. |
+| `SELECT 1 WHERE ...` | CamusDB rejects it. Add a `FROM` clause when you need a `WHERE` clause. |
+| `SELECT 1 GROUP BY ...` | CamusDB rejects it. An aggregation needs a table source. |
+| `SELECT 1 HAVING ...` | CamusDB rejects it. An aggregation needs a table source. |
+| `SELECT 1 ORDER BY ...` | CamusDB rejects it. There is only one synthetic row. |
+| `SELECT missing_name` | It fails with `UnknownColumn`, because CamusDB cannot resolve the identifier. |
 
 ## EXPLAIN
 
-Plain `EXPLAIN` for a `SELECT` without `FROM` returns a fixed plan shape:
+A plain `EXPLAIN` of a `SELECT` without a `FROM` clause returns a fixed shape of
+plan:
 
 ```camussql
 EXPLAIN SELECT 41 + 1 AS answer;
 ```
 
-Typical output shape:
+The output has this typical shape:
 
 ```text
 physical  project          answer
 physical  constant-source  1 row
 ```
 
-When `LIMIT` or `OFFSET` is present, a `limit` node is included.
+The plan includes a `limit` node when the query has a `LIMIT` or an `OFFSET`.
 
-`EXPLAIN (ANALYZE)` is rejected for a `SELECT` without `FROM` because there is no table
-access to measure. Use plain `EXPLAIN` for this query shape.
+CamusDB rejects `EXPLAIN (ANALYZE)` for a `SELECT` without a `FROM` clause.
+There is no access to a table to measure. Use a plain `EXPLAIN` for this shape
+of query.

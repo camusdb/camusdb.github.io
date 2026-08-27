@@ -4,464 +4,481 @@ sidebar_position: 3.2
 
 # EXPLAIN
 
-`EXPLAIN` shows how CamusDB plans a query. It is the main user-facing tool for
-understanding whether a query uses a table scan, index lookup, index range
-scan, join plan, sort, aggregation stage, or limit stage.
-
-Use it when you want to answer questions like:
-
-- Did CamusDB use my index?
-- Is this query scanning the full table?
-- Did `ORDER BY` require an explicit sort?
-- Is a join using indexed lookups, hash join, merge join, or a broader nested
-  loop?
-- Will a `{cache=...}` query result hint be eligible for result caching?
-- How many KV lookups or scan entries did `EXPLAIN (ANALYZE)` observe?
+The output of `EXPLAIN` is diagnostic only. It can change while the query planner
+is an alpha feature. The names of the nodes, the names of the columns, and the
+formats of the detail on this page are stable inside one minor version. The
+changelog names any change that breaks them. Do not build production logic that
+parses this output.
 
 ## Syntax
 
 ```camussql
 EXPLAIN SELECT ...
-EXPLAIN (PHYSICAL) SELECT ...
-EXPLAIN (LOGICAL) SELECT ...
-EXPLAIN (ANALYZE) SELECT ...
+EXPLAIN (PHYSICAL) SELECT ...   -- identical to plain EXPLAIN
+EXPLAIN (LOGICAL)  SELECT ...   -- same plan, stage column = "logical"
+EXPLAIN (ANALYZE)  SELECT ...   -- executes the query and adds actual counters
 ```
 
-Behavior:
+An `EXPLAIN` without `ANALYZE` builds the physical plan. It opens no cursor on a
+table, and it reads no data of a row.
 
-- Plain `EXPLAIN` and `EXPLAIN (PHYSICAL)` build the plan and return plan rows.
-- `EXPLAIN (LOGICAL)` currently returns the same physical tree with a different
-  stage label.
-- `EXPLAIN (ANALYZE)` executes the query, drains the result, and adds runtime
-  counters.
-- Unrecognized options such as `EXPLAIN (VERBOSE)` are rejected.
+`EXPLAIN (ANALYZE)` executes the full query. It drains the result. It then
+reports the true counters of the runtime, beside the columns of the estimates.
 
-## Important Limits
+CamusDB rejects an option word that it does not know, such as
+`EXPLAIN (VERBOSE) ...`. It reports an error. It does not treat the statement as
+a plain `EXPLAIN` in silence.
 
-- `EXPLAIN` output is diagnostic. It is useful for people, not a stable format
-  for application logic.
-- `EXPLAIN (ANALYZE)` is not supported for `JOIN` queries yet.
-- `EXPLAIN (ANALYZE)` is not supported for `SELECT` statements without a `FROM` clause
-  because there is no table access to measure.
-- Queries with uncorrelated subqueries can still read storage during planning,
-  because CamusDB may evaluate the inner subquery before producing the final
-  plan output.
+Three limits are worth your attention:
 
-## Result Columns
+- A join. `EXPLAIN (ANALYZE)` does not support a query with a `JOIN` yet. It
+  raises an error. Use a plain `EXPLAIN` to inspect the plan of a join. Full
+  instrumentation of a join is planned for a future release.
+- A subquery. The plan of a statement with a subquery without a correlation
+  executes that inner subquery one time. CamusDB materializes it during the
+  plan. An `EXPLAIN` of such a statement therefore reads the storage for the
+  inner query. A plain `EXPLAIN` never executes the outer query.
+- A `SELECT` without a `FROM` clause. Such a
+  [statement](/docs/sql-fromless-select) has no tree of a plan. A plain
+  `EXPLAIN` therefore renders a fixed shape: a `constant-source`, then a
+  `project`, and then a `limit` where one exists. It renders no costed plan.
+  CamusDB rejects `EXPLAIN (ANALYZE)` for it, because there is no access to a
+  table to measure. Use the plain form. Unlike a real query, an `EXPLAIN` of
+  such a statement does not materialize the subqueries of its projection first.
+  They appear only as the names of their output columns.
 
-### Plain EXPLAIN
+## The schema of a result row
 
-| Column | Type | Meaning |
-| --- | --- | --- |
-| `stage` | `STRING` | `physical` for plain/physical explain, `logical` for logical explain. |
-| `node` | `STRING` | Canonical plan node name. |
-| `detail` | `STRING` | Node-specific summary such as index name or bounds. |
-| `estimated_rows` | `INT64` or `NULL` | Estimated output rows when available. |
-| `estimated_cost` | `FLOAT64` or `NULL` | Estimated planner cost when available. |
+### A plain EXPLAIN
 
-These estimates come from CamusDB's lightweight planner statistics when they
-exist. Different deployments can produce different numbers depending on current
-row counts, observed indexed-column bounds, histograms, and distinct-value
-counts collected by manual or automatic `ANALYZE`. When an estimate looks wrong,
-[`SHOW STATISTICS FOR <table>`](/docs/show-statistics) prints the inputs that
-produced it, and whether they were ever collected at all.
+| Column           | Type      | Description |
+|------------------|-----------|-------------|
+| `stage`          | `STRING`  | It is `"physical"` for an `EXPLAIN` and for an `EXPLAIN (PHYSICAL)`. It is `"logical"` for an `EXPLAIN (LOGICAL)`. |
+| `node`           | `STRING`  | The canonical name of the node. See the table below. |
+| `detail`         | `STRING`  | The key facts of that node. See the table below. |
+| `estimated_rows` | `INT64`   | The estimate of the cost model, for the output cardinality of the node. It is `NULL` when CamusDB did not cost the plan. |
+| `estimated_cost` | `FLOAT64` | The weighted cost of the node, from the cost model. It has no unit, and a lower value is cheaper. It is `NULL` without a cost. |
 
-`estimated_rows` and `estimated_cost` are the same values used by CamusDB's
-cost-based optimizer. Because cost-based access-path and join-order search are
-enabled by default, they help explain why the optimizer chose one index, full
-scan, join algorithm, or join order over another. If a cost-based flag is
-disabled or a query falls outside the current CBO search envelope, the same
-columns explain the heuristic plan that CamusDB selected.
+`estimated_rows` and `estimated_cost` come from the cost model. An estimate uses
+the statistics of the table where they are available:
 
-### EXPLAIN ANALYZE
+- The row count.
+- The minimum and the maximum of each column.
+- The equi-depth histograms, after an `ANALYZE`.
+- The counts of the distinct values, after an `ANALYZE`.
 
-All plain `EXPLAIN` columns, plus:
+An estimate falls back to a fixed default without them. The exact numbers
+therefore depend on the statistics that CamusDB collected. They differ between
+two deployments.
 
-| Column | Type | Meaning |
-| --- | --- | --- |
-| `actual_rows` | `INT64` or `NULL` | Rows emitted by that operator. |
-| `rows_read` | `INT64` or `NULL` | Primary rows decoded from storage before filtering. Covered index scans can report `0` because the needed values came from the index entry. |
-| `actual_time_ms` | `FLOAT64` or `NULL` | Total wall-clock time for the root node only. |
-| `kv_lookups` | `INT64` or `NULL` | KV point lookups issued. |
-| `kv_scan_entries` | `INT64` or `NULL` | KV entries visited during scans. |
+[`SHOW STATISTICS FOR <table>`](/docs/show-statistics) shows the inputs of an
+estimate that looks wrong. It also shows whether CamusDB collected them at all.
 
-## Canonical Node Names
+`estimated_cost` also holds a term for the network, the `NetworkFactor`. That
+term applies to a deployment with sharding by key range. It is 0 on one node.
 
-These are the main node names you will see:
+An estimate for one table is accurate. An estimate of a node of a join is
+accurate while the flag of the order of a join by cost is on. Otherwise it stays
+heuristic.
 
-| Node | Meaning |
-| --- | --- |
-| `table-scan` | Full table scan or forced index scan. |
-| `index-lookup` | Point lookup on a unique index. |
-| `index-range-scan` | Range scan on an index, including non-unique equality. |
-| `filter` | Residual predicate not absorbed by the scan bounds. |
-| `aggregate` | Grouped or global aggregation. |
-| `having-filter` | `HAVING` filter after aggregation. |
-| `sort` | Explicit in-memory sort. |
-| `limit` | `LIMIT` / `OFFSET` stage. |
-| `project` | Projection and alias shaping. |
-| `distinct` | Duplicate elimination. |
-| `semi-join` | Indexed `IN (SELECT ...)` rewrite. |
-| `anti-join` | Indexed `NOT IN (SELECT ...)` rewrite over a non-null inner key. |
-| `null-aware-anti-join` | `NOT IN` rewrite that preserves SQL null semantics. |
-| `nested-loop-join` | Join without a usable right-side index. |
-| `index-nested-loop-join` | Join that probes the right side through an index. |
-| `hash-join` | Inner equi-join using an in-memory hash table. |
-| `merge-join` | Inner equi-join that streams ordered inputs by join key. |
-| `derived-table-scan` | Scan of a derived table from `FROM (SELECT ...) alias`. |
-| `constant-source` | The single synthetic row used by a `SELECT` without `FROM`. |
-| `gather` | Exchange over one scan fragment per placement span, when [distributed queries](/docs/distributed-queries) are enabled. |
+`(LOGICAL)` and `(PHYSICAL)` currently render the same physical tree. Only the
+label of the `stage` differs. See
+[the query planner guide](/docs/query-planner-internals#statistics-and-cost) for
+the cost model itself.
 
-## Informational Rows
+### An EXPLAIN with ANALYZE
 
-After the physical plan rows, `EXPLAIN` may append informational rows. These
-rows are not execution operators, so estimated and actual counters are usually
-`NULL`.
+The result holds every column of a plain `EXPLAIN`, plus these:
 
-| Node | Meaning |
-| --- | --- |
-| `plan-info` | Plan-cache metadata such as the query shape id and schema dependencies. |
-| `cache` | Static eligibility for a query result cache hint. |
-| `distribution` | Whether the plan was fragmented across the cluster, and if not, the reason it stayed local. Present only while `distributed_query_execution` is on. |
-| `gather-span` | Per-span execution actuals, one row per placement span, emitted by `EXPLAIN (ANALYZE)` over a gather. |
+| Column            | Type       | Description |
+|-------------------|------------|-------------|
+| `actual_rows`     | `INT64`    | The rows that this operator gave to its parent. |
+| `rows_read`       | `INT64`    | The rows that an operator of a scan fetched and decoded from the storage, before a filter. It is `0` for an operator of the pipeline, because such an operator reads from a cursor, and not from the storage. |
+| `actual_time_ms`  | `FLOAT64`  | The total wall-clock milliseconds of the whole plan. Only the root node carries it. It is `NULL` on every other node. A time for each node is planned for a future release. |
+| `kv_lookups`      | `INT64`    | The point lookups that CamusDB issued to the KV layer, for a lookup on a unique index. |
+| `kv_scan_entries` | `INT64`    | The entries of the KV layer that a scan visited, for a scan of a table or of a range of an index. |
 
-The `distribution` and `gather-span` rows are covered in
-[Distributed Queries](/docs/distributed-queries).
+On a node of a scan, `actual_rows` is at or below `rows_read`. `rows_read`
+counts the rows that CamusDB decoded from the storage, before the evaluation of
+a predicate. `actual_rows` counts the rows that passed every filter, and that
+the node gave upward.
 
-The `cache` row appears when the query carries a `{cache=...}` or
-`@{cache=...}` hint:
+## The canonical names of the nodes
 
-```camussql
-EXPLAIN
-SELECT id, total
-FROM orders {cache=recent_orders, ttl=30s}
-WHERE status = "paid";
-```
+CamusDB emits one row for each node of the physical plan. The order is
+depth-first, and a parent comes before its children.
 
-Typical cache row detail:
+| Node name                | When it appears | Key fields of the detail |
+|--------------------------|-----------------|-------------------|
+| `table-scan`             | A full scan of a table, or a scan of a forced index | `table=<name>`. A forced index adds `, forced-index=<name>`. |
+| `index-lookup`           | An equality on a unique index | `index=<name>, key=<value>` |
+| `index-range-scan`       | A predicate of a range, with `<`, `>`, or `BETWEEN`. Also an equality on a non-unique index. | `index=<name>, from>=<val>, to<<val>` |
+| `index-in-list`          | An `x IN (v1, v2, …)` on an indexed column. CamusDB seeks the index one time for each distinct value, and it unions the results. | `index=<name>, values=<n>`, which is the count of the values of the seek |
+| `filter`                 | A residual predicate that the selected index does not satisfy | `<expr>` |
+| `aggregate`              | A `GROUP BY`, or an aggregate function | `group=[<exprs>], aggs=[<calls>]` |
+| `having-filter`          | A `HAVING` clause, after the aggregation | `<expr>` |
+| `sort`                   | An `ORDER BY` that the order of the scan does not satisfy | `<col> ASC/DESC, ...` |
+| `topk`                   | An `ORDER BY` that a `LIMIT` bounds. It keeps `offset + limit` rows only, and it never spills. See [Vector search](/docs/vector-search). | `k: <n>, <col> ASC/DESC, ...` |
+| `limit`                  | A `LIMIT` or an `OFFSET` | `<n>`, or `<n> offset <m>` |
+| `project`                | The projection of the columns, after the other stages of the pipeline | (no detail) |
+| `distinct`               | A `SELECT DISTINCT` | `streaming: true` for the ordered form, which needs constant memory. Otherwise `hash`. |
+| `semi-join`              | An `IN (subquery)` that CamusDB rewrote to a semi-join, over an indexed inner column | `outer=<col>, inner=<table>.<col>, index=<name>` |
+| `anti-join`              | A `NOT IN (subquery)` over an indexed inner column of `NOT NULL` | `outer=<col>, inner=<table>.<col>, index=<name>` |
+| `null-aware-anti-join`   | A `NOT IN (subquery)` over an indexed inner column that accepts a `NULL`. It follows the semantics of SQL, with three values. | `outer=<col>, inner=<table>.<col>, index=<name>` |
+| `nested-loop-join`       | An inner join without a usable index on the right side | `on=<expr>, right=<alias>` |
+| `index-nested-loop-join` | An inner join where an index covers the join key of the right side | `on=<expr>, index=<name>, left=<col>, right=<col>` |
+| `hash-join`              | An inner equi-join with a hash table in memory. CamusDB selects it over an indexed nested loop when the outer side is large against the inner side. | `on=<left>=<right>, build=<alias>`. A filter that CamusDB pushed down appends to the detail. |
+| `merge-join`             | An inner equi-join with a streaming merge of two pointers. CamusDB selects it when both sides have a free order of the join key, from an index. | `on=<left>=<right>`. A filter on the right side appends to the detail. |
+| `derived-table-scan`     | A subquery in the `FROM` clause | `alias=<alias>` |
+| `constant-source`        | The one synthetic row of a `SELECT` without a `FROM` clause. It touches no table. | `1 row` |
 
-```text
-cache  family=recent_orders, eligible=true, ttl=30000ms, strict=false
-```
+Note these four points:
 
-If the hint is present but the result will not use the cache, `eligible=false`
-includes a reason. Current reasons include:
+- An `IN` or a `NOT IN` without a correlation, over an indexed inner column,
+  becomes a `semi-join`, an `anti-join`, or a `null-aware-anti-join`. With an
+  inner column that has no index, CamusDB materializes the subquery instead. No
+  node of a join appears.
+- A `distinct` row reports `streaming: true` when two conditions hold. The input
+  arrives in the order of an index, and that order covers every column of the
+  `DISTINCT`. Those columns must also be `NOT NULL`. Otherwise the row reports
+  `hash`.
+- The `build=<alias>` of a `hash-join` names the side that CamusDB materialized
+  into the hash table in memory. The planner selects the side with the smaller
+  estimate as the build side, to keep the memory low.
+- A `merge-join` streams both inputs when both arrive in order already. That
+  order comes from a scan of a forced index, or from a sort above. The join
+  buffers only the current run of equal keys. It therefore needs memory for the
+  size of a run, and not for the size of both inputs.
 
-| Reason | Meaning |
-| --- | --- |
-| `join` | Joins bypass the result cache. |
-| `cache-disabled` | `query_result_cache_enabled` is `false`. |
+The plan reflects the active configuration of the planner. Two things depend on
+the cost-based optimizer: the access path of a table, and the order of the nodes
+of a join.
 
-This row is a static plan property. It does not probe the cache, populate the
-cache, or tell you whether a matching entry currently exists. Runtime cache
-outcomes are reported in the query response metadata, such as `cacheStatus` and
-`cacheBypassReason`. See [Query Result Cache](/docs/query-result-cache).
+`EXPLAIN` shows the heuristic plan while the planner works from its rules only.
+The same query can show a different index, or a different order of a join, when
+two things hold: `cost_based_access_path_enabled` or
+`cost_based_join_order_enabled` is on, and CamusDB collected the statistics with
+an `ANALYZE <table>`. That plan is cheaper.
 
-## Cost-Based Optimizer Notes
+The output is correct for the configuration that produced it. See
+[the query planner guide](/docs/query-planner-internals#statistics-and-cost).
 
-The plan shown by `EXPLAIN` reflects the active optimizer configuration.
-CamusDB always annotates planned nodes with estimated row counts and costs when
-it can. The broader search passes are enabled by default:
+The examples below use the `stage`, the `node`, and the `detail` columns. Those
+columns are the stable part of the output. Every row also carries an
+`estimated_rows` and an `estimated_cost`, as above. The examples with an
+`EXPLAIN ANALYZE` show the full set of the columns.
 
-```yaml
-cost_based_access_path_enabled: true
-cost_based_join_order_enabled: true
-```
+## The informational rows at the end
 
-For best results, collect statistics first:
+`EXPLAIN` can add a few informational rows after the rows of the nodes. Such a
+row is not an operator of the plan. Its `estimated_rows` and its
+`estimated_cost` are both `NULL`. It reports a fact at the level of the plan.
 
-```camussql
-ANALYZE TABLE robots;
-```
+| Node name   | When it appears | Detail |
+|-------------|-----------------|--------|
+| `plan-info` | The plan carries an id of its shape, which is metadata of the plan cache. | `shape=<id>, schema-deps=[table@version, ...]` |
+| `cache`     | The query carries a hint of the result cache, in the form `{cache=…}` or `@{cache=…}`. | `family=<name>, eligible=<true\|false>[, reason=<why>], ttl=<n>ms\|default, strict=<true\|false>` |
 
-Automatic analyze also keeps stale table statistics fresh in the background by
-default. See [Automatic Analyze](/docs/automatic-analyze).
+The `cache` row answers one question: will CamusDB cache this result? The answer
+is a static property of the plan.
 
-With cost-based access paths enabled, a query may choose a different index or a
-full table scan than the rule-based planner would have chosen. With cost-based
-join ordering enabled, an eligible inner join may be reordered so a more
-selective table is joined earlier or a cheaper indexed probe path is used.
+The row does not probe the cache. It also does not report whether a live entry
+exists at that moment. Such a report is inherently a race. The authoritative
+outcome at runtime is the `cacheStatus` of the response of the query.
 
-If statistics are missing or a query shape is outside the current CBO search
-envelope, CamusDB falls back to the rule-based plan.
+`eligible=true` means two things. The shape of the query is cacheable, and the
+feature is on.
 
-## Reading Common Plans
+`eligible=false` names the reason for the hint to have no effect:
 
-### Full table scan
+- `reason=join` means that the query is a join. CamusDB caches the result of one
+  table only. The hint is therefore inert.
+- `reason=cache-disabled` means that the result cache is off, from
+  `query_result_cache_enabled: false`.
+
+`ttl` and `strict` repeat the options of the hint. `ttl=default` appears when
+you gave no `ttl=`.
+
+The eligibility here is the view at the level of the plan. At runtime, the cache
+also applies to a read in autocommit mode only. An explicit transaction always
+reads the live storage. A query without a `{cache=…}` hint emits no `cache` row.
+See the [query result cache](/docs/query-result-cache) for the whole feature.
+
+## Worked examples
+
+### A full scan of a table
 
 ```camussql
 EXPLAIN SELECT * FROM robots;
 ```
 
-Typical output shape:
-
-```text
+```
+stage     node        detail
 physical  table-scan  table=robots
 ```
 
-This means CamusDB did not find a better indexed access path for the query.
+The planner selected a full scan of the table. The `WHERE` clause is empty, so
+no index is usable.
 
-### Unique primary-key lookup
-
-```camussql
-EXPLAIN
-SELECT *
-FROM robots
-WHERE id = "507f1f77bcf86cd799439011";
-```
-
-Typical output shape:
-
-```text
-physical  index-lookup  index=~pk, key="507f1f77bcf86cd799439011"
-```
-
-This is the best-case point lookup plan.
-
-### Non-unique equality becomes a range scan
+### An equality on a non-unique index
 
 ```camussql
-EXPLAIN
-SELECT *
-FROM robots
-WHERE year = 2024;
+EXPLAIN SELECT * FROM robots WHERE year = 2023;
 ```
 
-Typical output shape:
+The example assumes a non-unique index `year_idx`, on the column `year`.
 
-```text
-physical  index-range-scan  index=year_idx, from>=2024, to<2025
+```
+stage     node               detail
+physical  index-range-scan   index=year_idx, from>=2023, to<2024
 ```
 
-For non-unique indexes, equality is still a range of matching keys.
+For a non-unique index, CamusDB rewrites a predicate of an equality into a scan
+of a range.
 
-### Covered index scan
+For a numeric type and for another ordinal type, that range is half-open. It
+covers `>= value` and `< successor(value)`, as above.
+
+For a `String` column and for an `Id` column, there is no successor to compute.
+CamusDB therefore uses a range that includes both ends, from `value` to `value`.
+The detail then reads `from>=value, to<=value`. The engine of the scan appends a
+high sentinel internally. It therefore captures every index entry of the form
+`encode(value)+rowId`. It then trims the result to the exact matches of the key.
+
+Both forms give the same set of rows. Only the rendering of the bounds differs.
+
+The node `index-lookup` appears for an equality on a unique index only. That
+index is a primary key, or a `UNIQUE` constraint. At most one row can match.
+
+### An equality on a primary key
 
 ```camussql
-CREATE INDEX orders_customer_idx
-ON orders (customer_id)
-INCLUDE (status, total);
-
-EXPLAIN (ANALYZE)
-SELECT customer_id, status, total
-FROM orders
-WHERE customer_id = 42;
+EXPLAIN SELECT * FROM robots WHERE id = '507f1f77bcf86cd799439011';
 ```
 
-For covered `index-lookup` or `index-range-scan` nodes, `rows_read = 0` means
-CamusDB did not fetch primary rows after reading the index entries. The query's
-required columns were available from the index key and `INCLUDE` payload.
+```
+stage     node          detail
+physical  index-lookup  index=~pk, key='507f1f77bcf86cd799439011'
+```
 
-### Range scan plus residual filter
+`~pk` is unique. The planner therefore issues one point lookup. It does not
+issue a scan of a range.
+
+### A scan of a range, with a residual filter
 
 ```camussql
-EXPLAIN
-SELECT *
-FROM robots
-WHERE year >= 2020 AND name = "R2";
+EXPLAIN SELECT * FROM robots WHERE year >= 2020 AND name = 'Bishop';
 ```
 
-Typical output shape:
-
-```text
-physical  filter            name = "R2"
-physical  index-range-scan  index=year_idx, from>=2020
+```
+stage     node               detail
+physical  filter             name = 'Bishop'
+physical  index-range-scan   index=year_idx, from>=2020
 ```
 
-The index narrows the scan on `year`, and `name = "R2"` remains a residual
-filter.
+The predicate `year >= 2020` drives the scan of the range on the index. CamusDB
+cannot push `name = 'Bishop'` into the index. That predicate therefore appears
+as a residual `filter`, above the scan.
 
-### Aggregate plan
+The `node` column holds the bare name of the node. It holds no space at the
+start. The order of the rows carries the depth of the tree, with a parent before
+its child. The real result set holds no indentation.
+
+### An aggregate with a GROUP BY
 
 ```camussql
-EXPLAIN
-SELECT year, COUNT(*)
-FROM robots
-GROUP BY year;
+EXPLAIN SELECT year, COUNT(*) FROM robots GROUP BY year;
 ```
 
-Typical output shape:
-
-```text
-physical  aggregate  group=[year], aggs=[count(*)]
-physical  table-scan table=robots
+```
+stage     node        detail
+physical  aggregate   group=[year], aggs=[count(*)]
+physical  table-scan  table=robots
 ```
 
-### Sort elision
+### A SELECT DISTINCT, streaming and hash
 
 ```camussql
-EXPLAIN
-SELECT *
-FROM robots
-ORDER BY year;
+EXPLAIN SELECT DISTINCT code FROM teams;   -- code is NOT NULL with an index
 ```
 
-Typical output shape:
-
-```text
-physical  index-range-scan  index=year_idx
 ```
-
-No `sort` node appears when the scan order already satisfies `ORDER BY`.
-
-### LIMIT pushdown shape
-
-```camussql
-EXPLAIN
-SELECT *
-FROM robots
-LIMIT 10;
-```
-
-Typical output shape:
-
-```text
-physical  limit      10
-physical  table-scan table=robots
-```
-
-CamusDB may also stop the scan early when the query shape allows safe pushdown.
-
-### DISTINCT: streaming vs hash
-
-```camussql
-EXPLAIN
-SELECT DISTINCT code
-FROM teams
-ORDER BY code;
-```
-
-Typical output shape:
-
-```text
+stage     node              detail
 physical  distinct          streaming: true
 physical  index-range-scan  index=code_idx
 ```
 
-When the distinct columns are covered by a compatible `NOT NULL` index, CamusDB
-can deduplicate adjacent rows as they stream from the scan. Otherwise the
-`distinct` detail reports `hash`.
+The columns of the `DISTINCT` can form a prefix of the set of an index, and
+every one of them can be `NOT NULL`. The scan then emits the rows in the order
+of the index. The `distinct` node removes an adjacent duplicate, with constant
+memory. Otherwise the `distinct` row shows `hash`, and CamusDB uses a set in a
+hash table.
 
-### IN subquery rewritten to a semi-join
-
-```camussql
-EXPLAIN
-SELECT *
-FROM robots
-WHERE owner_id IN (SELECT id FROM owners);
-```
-
-Typical output shape:
-
-```text
-physical  semi-join   outer=owner_id, inner=owners.id, index=~pk
-physical  table-scan  table=robots
-```
-
-`NOT IN` can similarly appear as `anti-join` or `null-aware-anti-join`.
-
-### Hash join
+### A hash join, for an equi-join without an index on the join key
 
 ```camussql
-EXPLAIN
-SELECT o.name, li.product
-FROM orders o
-JOIN line_items li ON li.order_id = o.id;
+EXPLAIN SELECT o.name, li.product
+        FROM orders o
+        JOIN line_items li ON li.order_id = o.id;
+-- orders.id is the PK; line_items.order_id has no secondary index
 ```
 
-Typical output shape:
-
-```text
+```
+stage     node        detail
 physical  hash-join   on=o.id=order_id, build=li
 physical  table-scan  table=orders
 physical  table-scan  table=line_items
 ```
 
-`build=li` means `line_items` is materialized into the in-memory hash table.
-The other side streams as probes. CamusDB usually chooses the smaller estimated
-side as the build side. If the build side grows past the configured hash-join
-build limit, CamusDB can use [spill to disk](/docs/spill-to-disk) to partition
-the join and keep memory bounded. If spill is disabled, execution falls back to
-nested-loop behavior for that query.
+`build=li` means that CamusDB materializes `line_items` into the hash table in
+memory. It streams `orders` as the probe side. The planner selected `li` as the
+build side, because its estimate held fewer rows than `orders`.
 
-### Merge join
+The build side can exceed `HashJoinMaxBuildRows`, whose default is 1,000,000.
+The executor then falls back to a nested-loop join, for that query.
 
-```camussql
-EXPLAIN
-SELECT o.name, li.product
-FROM orders o
-JOIN line_items li ON li.order_id = o.ext_key;
-```
-
-Typical output shape:
-
-```text
-physical  merge-join  on=o.ext_key=order_id
-physical  table-scan  table=orders, forced-index=orders_ext_key_idx
-physical  table-scan  table=line_items, forced-index=li_order_id_idx
-```
-
-Merge join appears for inner equality joins when both sides can be read in
-join-key order. The executor advances both inputs together and buffers only the
-current equal-key run.
-
-## EXPLAIN ANALYZE
-
-`EXPLAIN (ANALYZE)` runs the query and adds actual counters.
-
-Example:
+### A merge join, with a secondary index on the join key of both sides
 
 ```camussql
-EXPLAIN (ANALYZE)
-SELECT *
-FROM robots
-WHERE year = 2022
-LIMIT 5;
+EXPLAIN SELECT o.name, li.product
+        FROM orders o
+        JOIN line_items li ON li.order_id = o.ext_key;
+-- orders has index orders_ext_key_idx on (ext_key)
+-- line_items has index li_order_id_idx on (order_id)
+-- both sides estimated > 100 rows → cost model picks merge
 ```
 
-Typical shape:
-
-```text
-analyze  limit             limit(5)                               ... actual_rows=3 actual_time_ms=14.2
-analyze  index-range-scan  index=year_idx, from>=2022, to<2023   ... actual_rows=3 rows_read=3 kv_scan_entries=3
+```
+stage     node              detail
+physical  merge-join        on=o.ext_key=order_id
+physical  table-scan        table=orders, forced-index=orders_ext_key_idx
+physical  table-scan        table=line_items, forced-index=li_order_id_idx
 ```
 
-Interpretation:
+Both scans use a `forced-index`. Their rows therefore arrive in the order of the
+join key. The executor streams both sides together. It buffers only the current
+run of equal keys, and it materializes neither side in full. The `MergeJoinNode`
+holds `LeftIsOrdered = RightIsOrdered = true`.
 
-- `actual_rows` tells you how many rows flowed out of that operator.
-- `rows_read` tells you how many rows were decoded from storage.
-- `kv_lookups` and `kv_scan_entries` show storage access shape.
-- `actual_time_ms` is currently populated on the root node only.
+### An IN subquery that CamusDB rewrote to a semi-join
 
-For scan nodes, `actual_rows` can be less than `rows_read` when rows are read
-and then filtered out.
+```camussql
+EXPLAIN SELECT * FROM robots WHERE owner_id IN (SELECT id FROM owners);
+```
 
-## Using EXPLAIN Effectively
+```
+stage     node        detail
+physical  semi-join   outer=owner_id, inner=owners.id, index=~pk
+physical  table-scan  table=robots
+```
 
-Use `EXPLAIN` when you are designing indexes or investigating slow queries.
+An index covers the inner column `owners.id`. CamusDB therefore executes the
+`IN` as a semi-join with probes of that index. It does not materialize the
+subquery.
 
-Good questions to ask:
+A `NOT IN` produces an `anti-join` for an inner column of `NOT NULL`. It
+produces a `null-aware-anti-join` for an inner column that accepts a `NULL`.
+With an inner column that has no index, no node of a join appears, and CamusDB
+materializes the subquery.
 
-- Did CamusDB choose `index-lookup` instead of `table-scan`?
-- Did a non-unique equality use `index-range-scan`?
-- Is an unexpected `sort` node present?
-- Did a join use `index-nested-loop-join`?
-- Did a larger equality join use `hash-join` or `merge-join`?
-- Are `rows_read` and `kv_scan_entries` much larger than expected?
+### An ORDER BY that an index satisfies
 
-If the plan is not what you want, the usual fixes are:
+```camussql
+EXPLAIN SELECT * FROM robots ORDER BY year;
+```
 
-- Add or adjust an index.
-- Reorder composite index columns to match query predicates.
-- Add a join-key index on the right-hand table.
-- Add compatible indexes on both join keys when you want merge join to be
-  available for larger joins.
-- Simplify the query shape.
-- Use `@{FORCE_INDEX=...}` temporarily to confirm whether a specific index helps.
+```
+stage     node              detail
+physical  index-range-scan  index=year_idx
+```
 
-## Related Pages
+No `sort` node appears. The scan of the index already guarantees the requested
+order. CamusDB therefore omits the sort.
 
-Read [Query Planning](/docs/query-planning) for user-facing planner behavior,
-[SELECT](/docs/sql-queries) for the SQL surface, and
-[Query Planner Internals](/docs/query-planner-internals) for the internal
-pipeline and implementation model.
+### The pushdown of a LIMIT
+
+```camussql
+EXPLAIN SELECT * FROM robots LIMIT 10;
+```
+
+```
+stage     node        detail
+physical  limit       10
+physical  table-scan  table=robots
+```
+
+The scan stops after the first 10 rows. It does not scan the whole table.
+
+### EXPLAIN ANALYZE, for a full scan of a table
+
+```camussql
+EXPLAIN (ANALYZE) SELECT * FROM robots;
+```
+
+```
+stage    node        detail        estimated_rows  estimated_cost  actual_rows  rows_read  actual_time_ms  kv_lookups  kv_scan_entries
+analyze  table-scan  table=robots  42              42.0            42           42         3.1             0           42
+```
+
+The table holds 42 rows, and there is no filter. `actual_rows`, `rows_read`, and
+`kv_scan_entries` are therefore all 42. Only the root node carries an
+`actual_time_ms`. The root node is the outermost operator.
+
+### EXPLAIN ANALYZE, for a scan of a range on a non-unique index, with a limit
+
+```camussql
+EXPLAIN (ANALYZE) SELECT * FROM robots WHERE year = 2022 LIMIT 5;
+```
+
+The example assumes a non-unique index `year_idx` on `year`. Three robots hold
+`year = 2022`.
+
+```
+stage    node               detail                                estimated_rows  estimated_cost  actual_rows  rows_read  actual_time_ms  kv_scan_entries  kv_lookups
+analyze  limit              5                                     5               6.0             3            0          14.2             0                0
+analyze  index-range-scan   index=year_idx, from>=2022, to<2023   ...             ...             3            3          NULL             3                0
+```
+
+- The `limit` node emits 3 rows, which is below its cap of 5. Its
+  `actual_time_ms` is 14.2 ms. That value is the total time of the plan, on the
+  root node only.
+- The `index-range-scan` node reports 3 entries in `kv_scan_entries`, which are
+  the index entries in the range from 2022 to 2023. It reports 3 in `rows_read`,
+  which are the rows that it fetched. It reports 3 in `actual_rows`, because
+  every row passed. There is no residual predicate.
+
+The `estimated_*` columns are estimates of the cost model. They vary with the
+statistics that CamusDB collected.
+
+## The mode with the properties of a distributed plan
+
+`PlanRenderer.Render(plan, includeDistributedProperties: true)` adds metadata
+for a distributed plan to the line of each node:
+
+```
+table-scan(table=robots) order=[year ASC] decomposable=true dist=partitioned(id)
+```
+
+| Suffix            | Meaning |
+|-------------------|---------|
+| `order=[...]`     | The order that this node guarantees on its output. One example is a scan of an index that satisfies an `ORDER BY`. The suffix is absent when the order is undefined. |
+| `decomposable=true/false` | Whether CamusDB can divide the work of the node into a local computation for each partition, plus a merge on the coordinator. It is always `false` for a node of a sort, and for a node of a limit. An `aggregate` is `true` for a `COUNT`, a `SUM`, a `MIN`, and a `MAX` only. An `AVG` is `false`. |
+| `dist=...`        | The distribution of the output rows of this node across the cluster. The value is `gathered` for one node, for a point lookup, and with the sharding off. It is `partitioned(col1,col2)` for a shard by the range of those key columns. It is also `replicated`. CamusDB sets the suffix on a leaf of a scan only. It is absent on a node of the pipeline. With the sharding by key range off, every scan is `gathered`. |
+
+Internal tools and tests use that mode. The SQL statement `EXPLAIN` does not
+expose it.
+
+## Notes on the statistics of a filter in EXPLAIN ANALYZE
+
+CamusDB folds a `filter` into the scan during the execution. It evaluates the
+predicate inside the loop of the scan. The filter is not a separate stage of the
+pipeline. Three results follow:
+
+- A `filter` row of an `EXPLAIN ANALYZE` shows an `actual_rows` equal to the
+  count that the scan emitted after the filter. That count is the rows that
+  passed the predicate.
+- The `kv_lookups` and the `kv_scan_entries` of a filter row are `0`. CamusDB
+  attributes every cost of the storage to the node of the scan directly below.
+- The `actual_time_ms` is `NULL`. CamusDB does not measure the time of the
+  filter separately. That time is part of the wall clock of the scan, and
+  CamusDB reports it on the root node only.

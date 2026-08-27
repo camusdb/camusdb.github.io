@@ -2,34 +2,35 @@
 sidebar_position: 4.4
 ---
 
-# JSON Functions
+# JSON functions
 
-JSON functions operate on JSON text stored in `STRING` values. Invalid JSON
-usually returns `NULL` instead of failing the query. `json_valid` is the
-exception: it returns `false` for invalid JSON and for `NULL`.
+A JSON function operates on JSON text inside a `STRING` value. Invalid JSON
+usually returns `NULL`. It usually does not make the query fail. `json_valid` is
+the exception. It returns `false` for invalid JSON, and for a `NULL`.
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `json_valid(json)` | `BOOL` | Returns whether `json` is valid JSON text. |
-| `json_type(json)` | `STRING` | Returns `object`, `array`, `string`, `number`, `boolean`, or `null`. Invalid JSON returns `NULL`. |
-| `json_extract(json, path)` | `STRING` | Returns the JSON text at `path`. Missing paths and invalid JSON return `NULL`. |
-| `json_value(json, path)` | typed scalar | Returns a scalar value at `path` as `STRING`, `INT64`, `FLOAT64`, `BOOL`, or `NULL`. Objects and arrays return `NULL`. |
-| `json_array_length(json)` | `INT64` | Returns the length of a root JSON array, or `NULL` when the root is not an array. |
-| `json_array_length(json, path)` | `INT64` | Returns the length of the array at `path`, or `NULL` when the path is missing or not an array. |
-| `json_contains(value, candidate)` | `BOOL` | Returns whether `value` structurally contains `candidate`. |
+| `json_valid(json)` | `BOOL` | Whether `json` is valid JSON text. |
+| `json_type(json)` | `STRING` | It returns `object`, `array`, `string`, `number`, `boolean`, or `null`. Invalid JSON returns `NULL`. |
+| `json_extract(json, path)` | `STRING` | The JSON text at `path`. A path that is absent returns `NULL`. Invalid JSON also returns `NULL`. |
+| `json_value(json, path)` | A typed scalar | The scalar value at `path`, as a `STRING`, an `INT64`, a `FLOAT64`, a `BOOL`, or a `NULL`. An object and an array both return `NULL`. |
+| `json_array_length(json)` | `INT64` | The length of the JSON array at the root. It returns `NULL` when the root is not an array. |
+| `json_array_length(json, path)` | `INT64` | The length of the array at `path`. It returns `NULL` when the path is absent, and when the value is not an array. |
+| `json_contains(value, candidate)` | `BOOL` | Whether `value` holds `candidate`, by structure. |
 
-## JSON Paths
+## The paths of JSON
 
-Supported paths are intentionally small and predictable:
+The supported paths are small and predictable, by design:
 
-- `$` for the root value.
-- `.name` for object properties made of letters, digits, and underscores.
-- `[0]` for zero-based array indexes.
+- `$` is the value at the root.
+- `.name` is a property of an object. The name holds a letter, a digit, and an
+  underscore.
+- `[0]` is an index of an array. The first index is 0.
 
-Examples: `$`, `$.name`, `$.meta.enabled`, and `$.tags[1]`.
+Four examples are `$`, `$.name`, `$.meta.enabled`, and `$.tags[1]`.
 
-Quoted property names, wildcards, recursive descent, filters, and negative
-array indexes are not supported.
+CamusDB does not support five other forms: a quoted name of a property, a
+wildcard, a recursive descent, a filter, and a negative index of an array.
 
 ## Examples
 
@@ -60,15 +61,14 @@ SELECT json_contains(
 -- true
 ```
 
-## Containment Rules
+## The rules of containment
 
-`json_contains(value, candidate)` compares JSON structurally:
+`json_contains(value, candidate)` compares the JSON by its structure:
 
-- Object candidates match when every candidate property is present and
-  contained in the value object.
-- Array candidates match when every candidate element is contained by at least
-  one element in the value array.
-- Scalar candidates match by value and JSON type.
+- A candidate that is an object matches when the value object holds every
+  property of the candidate, and contains each one.
+- A candidate that is an array matches when at least one element of the value
+  array contains each element of the candidate.
+- A candidate that is a scalar matches by its value and by its JSON type.
 
-If either input is invalid JSON, `json_contains` returns `NULL`.
-
+`json_contains` returns `NULL` when either input is invalid JSON.

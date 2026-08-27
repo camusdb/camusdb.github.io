@@ -190,7 +190,6 @@ function HomepageHeader() {
           <div className={styles.heroCopy}>
             <div className={styles.eyebrowRow}>
               <span className={styles.eyebrow}>Open-source distributed SQL</span>
-              <span className={styles.alphaBadge}>Alpha</span>
             </div>
             <Heading as="h1" className={styles.title}>
               Scale SQL writes across nodes without manual sharding
@@ -210,7 +209,7 @@ function HomepageHeader() {
             </div>
             <p className={styles.statusNote}>
               <span className={styles.statusDot} aria-hidden="true" />
-              Alpha software for evaluation, not production workloads yet
+              Actively used in production — some features are alpha
             </p>
           </div>
           <PyramidNetwork className={styles.heroNetwork} />
@@ -341,7 +340,7 @@ export default function Home() {
   return (
     <Layout
       title={siteConfig.title}
-      description="Explore CamusDB, an open-source alpha distributed SQL database with partitioned writes, Serializable transactions, database branching, and recoverable drops.">
+      description="Explore CamusDB, an open-source distributed SQL database with partitioned writes, Serializable transactions, database branching, and recoverable drops.">
       <HomepageHeader />
       <main>
         <OutcomeSection />

@@ -2,27 +2,27 @@
 sidebar_position: 4.1
 ---
 
-# String Functions
+# String functions
 
-String functions operate on `STRING` values unless otherwise noted. They return
-`NULL` when any required argument is `NULL`, except for `concat`, which has its
-own null handling.
+A string function operates on a `STRING` value, unless the table below states
+another type. It returns `NULL` when a necessary argument is `NULL`. `concat` is
+the exception. It handles a null in its own way.
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `length(text)` | `INT64` | Number of characters in `text`. |
-| `lower(text)` | `STRING` | Lowercase text using invariant casing. |
-| `upper(text)` | `STRING` | Uppercase text using invariant casing. |
-| `trim(text)` | `STRING` | Removes leading and trailing whitespace. |
-| `ltrim(text)` | `STRING` | Removes leading whitespace. |
-| `rtrim(text)` | `STRING` | Removes trailing whitespace. |
-| `substring(text, start)` | `STRING` | Returns text from a 1-based start position through the end. |
-| `substring(text, start, length)` | `STRING` | Returns up to `length` characters from a 1-based start position. |
-| `replace(text, search, replacement)` | `STRING` | Replaces every ordinal match of `search` with `replacement`. |
-| `contains(text, search)` | `BOOL` | Returns whether `text` contains `search`, using ordinal comparison. |
-| `starts_with(text, prefix)` | `BOOL` | Returns whether `text` starts with `prefix`, using ordinal comparison. |
-| `ends_with(text, suffix)` | `BOOL` | Returns whether `text` ends with `suffix`, using ordinal comparison. |
-| `concat(value, ...)` | `STRING` | Concatenates one or more scalar values as text. |
+| `length(text)` | `INT64` | The number of characters in `text`. |
+| `lower(text)` | `STRING` | The text in lowercase, with the invariant rules of the case. |
+| `upper(text)` | `STRING` | The text in uppercase, with the invariant rules of the case. |
+| `trim(text)` | `STRING` | It removes the space at the start and at the end. |
+| `ltrim(text)` | `STRING` | It removes the space at the start. |
+| `rtrim(text)` | `STRING` | It removes the space at the end. |
+| `substring(text, start)` | `STRING` | It returns the text from the start position to the end. The first position is 1. |
+| `substring(text, start, length)` | `STRING` | It returns at most `length` characters, from the start position. The first position is 1. |
+| `replace(text, search, replacement)` | `STRING` | It replaces every ordinal match of `search` with `replacement`. |
+| `contains(text, search)` | `BOOL` | Whether `text` holds `search`. It uses an ordinal comparison. |
+| `starts_with(text, prefix)` | `BOOL` | Whether `text` starts with `prefix`. It uses an ordinal comparison. |
+| `ends_with(text, suffix)` | `BOOL` | Whether `text` ends with `suffix`. It uses an ordinal comparison. |
+| `concat(value, ...)` | `STRING` | It joins one or more scalar values as text. |
 
 ## Examples
 
@@ -46,15 +46,16 @@ SELECT concat("robot-", 7, "-", true);
 -- "robot-7-true"
 ```
 
-## Substring Rules
+## The rules of substring
 
-`substring` uses 1-based positions. A start position below `1` is invalid. A
-negative length is invalid. If the start position is beyond the end of the
-string, the function returns an empty string.
+`substring` counts a position from 1. A start position below `1` is invalid. A
+negative length is invalid. The start position can be past the end of the
+string. The function then returns an empty string.
 
-## Concat Rules
+## The rules of concat
 
-`concat` accepts `STRING`, `OID`, `UUID`, `INT64`, `FLOAT64`, and `BOOL`
-values. UUID values are formatted as canonical lowercase hyphenated text.
-`NULL` arguments are skipped. If every argument is `NULL`, the result is
-`NULL`.
+`concat` accepts six types: `STRING`, `OID`, `UUID`, `INT64`, `FLOAT64`, and
+`BOOL`. It formats a UUID as canonical text: lowercase, and with hyphens.
+
+`concat` skips an argument that is `NULL`. The result is `NULL` only when every
+argument is `NULL`.

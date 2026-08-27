@@ -2,323 +2,359 @@
 sidebar_position: 6
 ---
 
-# Transaction Internals
+# Transaction internals
 
-How CamusDB uses Kahuna and Kommander to execute transactional SQL work. This
-is the implementation behind the guarantees described in
+This page describes how CamusDB uses Kahuna and Kommander to execute
+transactional SQL work. It is the implementation behind the guarantees in
 [Transactions And Isolation](/docs/serializable-transactions).
 
-## Layering
+## The layers
 
-CamusDB does not implement storage, MVCC, or replication from scratch.
+CamusDB does not implement the storage, the MVCC, or the replication from the
+start.
 
-The data path is split into three layers:
+The data path has three layers:
 
-- CamusDB: SQL parsing, planning, catalog, row/index key mapping, schema pins
-- [Kahuna](https://kahunakv.github.io/): transactional KV, MVCC versions,
-  locks, write intents, transaction coordination, and two-phase commit
-- [Kommander](https://kahunakv.github.io/kommander.github.io/): Raft
-  replication and ordered durable commit across nodes
+- CamusDB parses the SQL. It plans the statement, holds the catalog, maps the
+  row keys and the index keys, and pins the schema.
+- [Kahuna](https://kahunakv.github.io/) gives the transactional KV store, the
+  MVCC versions, the locks, the write intents, the coordination of a
+  transaction, and the two-phase commit.
+- [Kommander](https://kahunakv.github.io/kommander.github.io/) gives the Raft
+  replication, and an ordered durable commit across the nodes.
 
-The isolation story in CamusDB is mostly about how SQL operations are mapped
-onto Kahuna transactions.
+The isolation of CamusDB is therefore mostly a question of one map: how CamusDB
+maps a SQL operation onto a Kahuna transaction.
 
-## KV Key Model
+## The model of a KV key
 
-CamusDB rows and indexes are encoded as deterministic keys:
+CamusDB encodes a row and an index as a deterministic key:
 
-- primary rows: `{databaseId}:{tableId}:r/{rowId}`
-- unique indexes: `{databaseId}:{tableId}:i:{indexId}/{value}`
-- non-unique indexes: `{databaseId}:{tableId}:i:{indexId}/{value}{rowId}`
-- schema metadata: `{databaseId}/meta/...`
+- A primary row is `{databaseId}:{tableId}:r/{rowId}`.
+- A unique index entry is `{databaseId}:{tableId}:i:{indexId}/{value}`.
+- A non-unique index entry is
+  `{databaseId}:{tableId}:i:{indexId}/{value}{rowId}`.
+- The schema metadata is `{databaseId}/meta/...`.
 
-Database ids and table ids are stable storage identities. SQL names can be
-renamed without rewriting every row because rows and indexes are keyed by ids.
+A database id and a table id are stable identities in the storage. You can
+rename a SQL object without a rewrite of every row, because the keys of the rows
+and of the indexes use the ids.
 
-That layout matters for:
+That layout matters for five mechanisms:
 
-- partition routing
-- write-intent placement
-- range-lock scope
-- row and index maintenance inside one transaction
-- schema-version validation at commit
+1. The routing to a partition.
+2. The placement of a write intent.
+3. The scope of a range lock.
+4. The maintenance of the rows and the indexes inside one transaction.
+5. The validation of the schema version at the commit.
 
-## Coordinator-Owned Transactions
+## Transactions that a coordinator owns
 
-Every read-write transaction is represented by a Kahuna transaction handle.
-The handle contains:
+A Kahuna transaction handle represents every read-write transaction. The handle
+holds two fields:
 
-- `TransactionId`: a Hybrid Logical Clock timestamp allocated by Kahuna
-- `CoordinatorKey`: a stable routing key for the server-side coordinator
-  session
+- `TransactionId` is a Hybrid Logical Clock timestamp. Kahuna allocates it.
+- `CoordinatorKey` is a stable routing key. It points at the coordinator session
+  on the server.
 
-CamusDB passes the handle through the transaction lifetime. The Kahuna
-coordinator owns the authoritative working set for the transaction: modified
-keys, held locks, read observations when enabled, and two-phase commit state.
+CamusDB passes the handle through the whole life of the transaction. The Kahuna
+coordinator owns the authoritative working set of the transaction. That set
+holds the modified keys, the held locks, the read observations where they are
+enabled, and the state of the two-phase commit.
 
 Each transactional operation registers its confirmed effect with the
-coordinator by sending:
+coordinator. It sends three values:
 
-- the transaction id
-- the coordinator key
-- a per-operation id
+- The transaction id.
+- The coordinator key.
+- The id of that operation.
 
-Registration is idempotent. If the same operation is retried with the same
-operation id, Kahuna can replay the cached completion instead of applying the
-operation twice. If a batch retry sends a different pending subset, CamusDB uses
-a fresh operation id because that attempt represents different work.
+A second registration of the same operation is harmless. Kahuna can replay the
+cached completion when a retry uses the same operation id. It therefore does not
+apply the operation twice.
 
-The operation id also protects the acknowledgement-loss window. A participant
-can apply a write and lose the response before the coordinator records
-completion. Retrying the same operation id lets the participant replay the
-cached response and completion payload, so the coordinator can fold the effect
-without the participant applying it again.
+A retry of a batch can send a different subset of the pending work. CamusDB then
+uses a new operation id, because that attempt represents different work.
 
-Finalization is idempotent as well. Commit, rollback, and abandoned-session
-cleanup share one finalize slot for the session. Concurrent callers observe the
-same attempt, and a retryable `MustRetry` result does not reopen the session to
-new data operations.
+The operation id also protects the window where an acknowledgement is lost. A
+participant can apply a write, and it can then lose the response before the
+coordinator records the completion. A retry with the same operation id lets the
+participant replay the cached response and the payload of the completion. The
+coordinator can therefore fold the effect. The participant does not apply the
+write again.
 
-## What Folds Into The Working Set
+The finalization is also safe to repeat. A commit, a rollback, and the cleanup
+of an abandoned session share one slot for the finalize of a session. Two
+concurrent callers observe the same attempt. A retryable `MustRetry` result does
+not open the session again for a new data operation.
 
-The coordinator folds successful transactional operations into the server-owned
-working set.
+## What folds into the working set
 
-| Operation | Coordinator state |
+The coordinator folds every successful transactional operation into the working
+set that the server owns.
+
+| Operation | State at the coordinator |
 | --- | --- |
-| write or delete | modified key plus its implicit point lock |
-| explicit point lock | held point-lock descriptor |
-| range lock | held range-lock descriptor with bounds and mode |
-| latest committed read with read folding enabled | key existence and base revision |
-| registered scan | read observations for rows returned by the scan |
+| A write or a delete | The modified key, plus its implicit point lock |
+| An explicit point lock | The descriptor of the held point lock |
+| A range lock | The descriptor of the held range lock, with its bounds and its mode |
+| A read of the latest committed value, while the fold of the reads is enabled | The existence of the key, and its base revision |
+| A registered scan | The read observations of the rows that the scan returned |
 
-Commit and rollback finalize from that accumulated server state. CamusDB does
-not send a client-built list of modified keys or locks at the end of the
+The commit and the rollback finalize from that accumulated state on the server.
+CamusDB sends no list of modified keys, and no list of locks, at the end of the
+transaction. The client builds neither list.
+
+## The life of a transaction
+
+A read-write transaction has this internal shape:
+
+1. CamusDB starts a Kahuna transaction. It receives a transaction handle.
+2. The SQL statements read rows, write rows, maintain the indexes, and acquire
+   locks.
+3. Each successful write, each delete, each relevant lock, and each tracked read
+   registers with the coordinator.
+4. CamusDB validates the schema pins of the tables that the transaction touched.
+   It does so before the commit.
+5. CamusDB calls the commit with the transaction handle.
+6. Kahuna validates the registered read observations, where that check is
+   necessary.
+7. Kahuna prepares the registered mutations, with a fresh commit timestamp.
+8. Kahuna commits the prepared mutations on every participant. It rolls them
+   back if the prepare step fails.
+9. The coordinator releases the locks. It then completes the session.
+
+A rollback uses the same handle. The coordinator owns the working set already.
+The rollback can therefore undo the registered state of the transaction. It
+needs no list of keys from the client.
+
+## Serializable read-only transactions
+
+A serializable read-only transaction uses one pinned HLC snapshot timestamp.
+Every statement of that transaction reads the same MVCC view. The transaction
+takes no write lock, and it produces no write.
+
+A client can resume such a transaction across requests, with the transaction id.
+The server keeps enough state to identify the snapshot. It also keeps enough
+state to finalize the empty transaction when the client commits or rolls back.
+
+A read-only snapshot transaction is the preferred path for a report of several
+statements. It is also the preferred path for another stable read that needs no
+write.
+
+## The fast path with zero identity
+
+Some read paths use a transaction identity of zero, for a cheap committed read.
+That path performs a read-committed point read. It starts no full Kahuna
+transaction, and it registers no operation with a coordinator.
+
+CamusDB uses the path with zero identity only when no working set on the server
+is necessary. A commit and a rollback do nothing for that synthetic shape of a
 transaction.
 
-## Transaction Lifecycle
+## The modes of a lock
 
-A read-write transaction follows this internal shape:
+Kahuna supports two strategies for the locks of a transaction. CamusDB defaults
+to pessimistic locking.
 
-1. CamusDB starts a Kahuna transaction and receives a transaction handle.
-2. SQL statements read rows, write rows, maintain indexes, and acquire locks.
-3. Each successful write, delete, relevant lock, and tracked read registers
-   with the coordinator.
-4. CamusDB validates schema pins for touched tables before commit.
-5. CamusDB calls commit with the transaction handle.
-6. Kahuna validates the registered read observations when required.
-7. Kahuna prepares the registered mutations with a fresh commit timestamp.
-8. Kahuna commits the prepared mutations on all participants, or rolls them
-   back if prepare fails.
-9. The coordinator releases locks and completes the session.
+### Pessimistic locking
 
-Rollback uses the same handle. Since the coordinator already owns the working
-set, rollback can undo the registered transaction state without a client-side
-key list.
+A pessimistic transaction acquires a lock before any conflicting work
+continues.
 
-## Serializable Read-Only Transactions
+Note this behavior:
 
-Serializable read-only transactions use a pinned HLC snapshot timestamp. Every
-statement in the transaction reads the same MVCC view without taking write
-locks or producing writes.
+- A write acquires an exclusive point lock before it modifies a key.
+- A write in contention blocks, retries, or aborts. The conflict rules of Kahuna
+  decide.
+- CamusDB usually resolves a conflict at the moment of the lock acquisition.
+- The protection of a serializable scan uses a point lock or a range lock. The
+  shape of the read decides which one.
 
-These transactions can be resumed across requests by transaction id. The server
-keeps enough transaction state to identify the snapshot and finalize the empty
-transaction when the client commits or rolls back.
+This mode is the default for an ordinary SQL transaction. You can select it
+explicitly in three ways: with `SET TRANSACTION LOCKING PESSIMISTIC`, with the
+`locking` field of an HTTP or a gRPC request, or with
+`default_transaction_locking: pessimistic`.
 
-Read-only snapshot transactions are the preferred path for multi-statement
-reports and other stable reads that do not need to write.
+### Optimistic locking
 
-## Zero-Identity Fast Path
+An optimistic transaction skips an explicit exclusive write lock during the
+normal execution. It validates at the commit instead.
 
-Some read paths use a zero transaction identity for cheap committed reads. This
-path performs read-committed point reads without starting a full Kahuna
-transaction and without registering operations with a coordinator.
+Note this behavior:
 
-The zero-identity path is used only when no server-owned working set is needed.
-Commit and rollback are no-ops for that synthetic transaction shape.
+- A write still registers the modified key and an implicit point lock.
+- A read folds its observation, while the validation of the reads is active.
+- CamusDB detects a write-write conflict during the prepare step.
+- CamusDB detects a read-write conflict through the validation of the registered
+  read observations.
 
-## Locking Modes
+The optimistic validation uses the rows that the transaction actually observed.
 
-Kahuna supports two transaction locking strategies. CamusDB defaults to
-pessimistic locking.
+Read Committed with optimistic locking takes no lock. It gives no protection
+against a new row that another transaction inserts, and that an earlier
+predicate would have matched.
 
-### Pessimistic Locking
+Serializable with optimistic locking is a hybrid. The writes are optimistic. A
+read and a scan nevertheless take the shared point locks or range locks that a
+predicate needs, for the protection against a phantom.
 
-Pessimistic transactions acquire locks before conflicting work proceeds.
+Optimistic locking is available in three ways: with `SET TRANSACTION LOCKING
+OPTIMISTIC`, with the `locking` field of an HTTP or a gRPC request, and with
+`default_transaction_locking: optimistic`. Kahuna pins the mode of the locks
+when the coordinator session opens. In an explicit transaction, SQL can
+therefore apply the mode only before the first data statement.
 
-Important behavior:
+## The fold and the validation of a read
 
-- writes acquire exclusive point locks before modifying keys
-- contending writes block, retry, or abort according to Kahuna's conflict rules
-- conflicts are usually resolved when acquiring the lock
-- serializable scan protection uses point or range locks depending on the read
-  shape
+The fold of a read is the mechanism behind one check. It lets the coordinator
+validate at the commit that the rows of the transaction are still compatible.
 
-This is the default for ordinary SQL transactions. It can be selected
-explicitly with `SET TRANSACTION LOCKING PESSIMISTIC`, the HTTP/gRPC
-`locking` request field, or `default_transaction_locking: pessimistic`.
+CamusDB folds a read only when the transaction needs the validation of its
+reads:
 
-### Optimistic Locking
+- An optimistic transaction folds its reads.
+- A transaction that requests the tracked validation of its reads folds its
+  reads.
+- A read of a pinned historical snapshot does not fold its reads.
+- A read with zero identity does not fold its reads.
 
-Optimistic transactions skip explicit exclusive write locks during normal
-execution and validate at commit.
+Five kinds of read must pass the coordinator key while the fold of the reads is
+active: a point read, a batch fetch of rows, a table scan, an index scan, and a
+merge scan of a branch. Otherwise the coordinator would not know which committed
+revisions the transaction depended on.
 
-Important behavior:
+## Range locks
 
-- writes still register modified keys and implicit point locks
-- reads fold observations when read validation is active
-- write-write conflicts are detected during prepare
-- read-write conflicts are detected by validating registered read observations
+A serializable read that has the shape of a scan uses a range lock. That lock
+protects the predicate.
 
-Optimistic validation is based on rows the transaction actually observed.
-`Read Committed + Optimistic` is lock-free and does not protect against a newly
-inserted row that would have matched an earlier predicate. `Serializable +
-Optimistic` is a hybrid: writes are optimistic, but reads and scans still take
-the shared point or range predicate locks required for phantom protection.
+The coordinator owns a range lock:
 
-Optimistic locking is available through `SET TRANSACTION LOCKING OPTIMISTIC`,
-the HTTP/gRPC `locking` request field, and `default_transaction_locking:
-optimistic`. Because Kahuna pins the locking mode when the coordinator session
-opens, SQL can apply it only before the first data statement of an explicit
-transaction.
+- The acquisition registers with the transaction coordinator.
+- The coordinator renews a live range lock on the tick of its collection
+  interval.
+- The final commit or the final rollback releases the locks.
+- The lifetime of the transaction, and the timeout of the session, bound an
+  abandoned session.
 
-## Read Folding And Validation
+`range_lock_expires_ms` is the initial TTL that CamusDB requests at the
+acquisition of a range lock. The validation at startup requires a value at least
+twice the effective collection interval of Kahuna. The default value is `150000`
+milliseconds. The default collection interval of Kahuna is `60000`
+milliseconds.
 
-Read folding is the mechanism that lets the coordinator validate that rows read
-by a transaction are still compatible at commit.
+## Point read locks
 
-CamusDB folds reads only when the transaction needs read validation:
+A serializable read-write transaction can also protect a point read. Two
+examples are a lookup by row id, and a lookup on a unique index.
 
-- optimistic transactions fold reads
-- transactions that explicitly request tracked read validation fold reads
-- pinned historical snapshot reads do not fold reads
-- zero-identity reads do not fold reads
+Note this behavior:
 
-Point reads, batch row fetches, table scans, index scans, and branch merge scans
-all need to pass the coordinator key when read folding is active. Otherwise the
-coordinator would not know which committed revisions the transaction depended
-on.
+- A shared point lock permits concurrent readers.
+- A writer that conflicts with an active read lock waits, retries, or aborts.
+- CamusDB can promote the lock to the write protection that a commit needs, when
+  the same transaction later writes the key.
 
-## Range Locks
+## Lock escalation
 
-Serializable scan-style reads use range locks for predicate protection.
-
-Range locks are coordinator-owned:
-
-- acquisition registers with the transaction coordinator
-- the coordinator renews live range locks on its collection-interval tick
-- final commit or rollback releases the locks
-- an abandoned session is bounded by the transaction lifetime/session timeout
-
-`range_lock_expires_ms` is the initial TTL requested when the range lock is
-acquired. Startup validation requires it to be at least twice the effective
-Kahuna collection interval. The default is `150000` milliseconds, while the
-default Kahuna collection interval is `60000` milliseconds.
-
-## Point Read Locks
-
-Serializable read-write transactions can also protect point reads such as
-row-id lookups and unique-index lookups.
-
-Important behavior:
-
-- shared point locks allow concurrent readers
-- a writer that conflicts with an active read lock waits, retries, or aborts
-- if the same transaction later writes the key, the lock can be upgraded to the
-  write protection needed for commit
-
-## Lock Escalation
-
-Serializable read-write transactions can escalate many point locks in the same
-table or index bucket into one shared whole-bucket lock.
+A serializable read-write transaction can escalate many point locks into one
+shared lock over a whole bucket. The point locks must belong to the same table
+bucket, or to the same index bucket.
 
 The default threshold is `50`.
 
-That means:
+That behavior gives four results:
 
-- smaller reads keep precise point locks
-- large reads avoid unbounded lock bookkeeping
-- later reads in the same bucket are already covered
-- the transaction may protect more of the table or index than the exact rows it
-  read
+- A smaller read keeps precise point locks.
+- A large read avoids unbounded bookkeeping of the locks.
+- A later read in the same bucket is covered already.
+- The transaction can protect more of the table or of the index than the exact
+  rows that it read.
 
-## Commit-Decision Durability
+## The durability of a commit decision
 
-Transactions have a commit-decision durability policy.
+A transaction has a policy for the durability of its commit decision:
 
-- `BestEffort`: the coordinator can keep the decision in memory. This is the
-  default.
-- `Durable`: the coordinator writes the decision to durable storage before
-  returning the result, so recovery can finish the transaction's participants
-  after coordinator loss.
+- `BestEffort` lets the coordinator keep the decision in memory. This policy is
+  the default.
+- `Durable` makes the coordinator write the decision to durable storage before
+  it returns the result. A recovery can therefore finish the participants of the
+  transaction after the loss of the coordinator.
 
-Durable decisions are selected per transaction by the internal begin path. They
-are not currently exposed as a YAML startup setting.
+The internal path of the begin selects a durable decision, for each transaction.
+CamusDB does not expose that choice as a YAML setting at startup today.
 
 For a durable decision, Kahuna anchors the decision to the first confirmed
-persistent modified key in the transaction. The anchor is used for placement of
-internal decision metadata; it is not a user-visible SQL row.
+persistent key that the transaction modified. The anchor decides the placement
+of the internal metadata of the decision. It is not a SQL row that a user sees.
 
-The durable commit flow is:
+The flow of a durable commit has five steps:
 
-1. Prepare non-anchor participants.
-2. Prepare the anchor participant with the transaction's frozen participant
-   set.
-3. Commit the anchor first, installing the durable commit decision.
+1. Prepare each participant that is not the anchor.
+2. Prepare the anchor participant, with the frozen set of the participants of
+   the transaction.
+3. Commit the anchor first. That step installs the durable commit decision.
 4. Commit the remaining participants.
-5. Persist acknowledgement progress and mark the decision completed after every
-   participant is acknowledged.
+5. Persist the progress of the acknowledgements. Mark the decision as complete
+   after every participant acknowledges.
 
-Once the anchor commit decision is installed, rollback is no longer a valid
-outcome for that transaction. If the coordinator loses leadership, the process
-stops, or the commit response is lost, recovery must continue driving
-participants until the committed decision is completed.
+A rollback is no longer a valid outcome after CamusDB installs the commit
+decision of the anchor. Three events can follow: the coordinator loses its
+leadership, the process stops, or the response to the commit is lost. In every
+case, the recovery must continue to drive the participants until the committed
+decision completes.
 
-Persistent participants record completion receipts when committed. Those
-receipts let recovery distinguish "this participant already committed" from
-"this participant still needs work", even after the original write intent is
-gone. Recovery operations are idempotent, so the request path and recovery actor
-can race without duplicating the committed effect.
+A persistent participant records a receipt of completion at its commit. That
+receipt lets a recovery separate two states: "this participant committed
+already", and "this participant still needs work". The separation holds even
+after the original write intent disappears.
 
-The boundary is drawn on purpose: durable decision mode protects the transaction
-after the commit decision exists. It does not make the active coordinator
-session or every prepared participant independently durable from `BEGIN`.
+The operations of a recovery are safe to repeat. The path of a request and the
+actor of the recovery can therefore race. They do not duplicate the committed
+effect.
 
-## MVCC And HLC
+The boundary here is intentional. The durable mode of a decision protects the
+transaction after the commit decision exists. It does not make the active
+coordinator session durable from `BEGIN`. It also does not make every prepared
+participant durable from `BEGIN`.
 
-Kahuna stores committed versions and in-flight write intents. Readers see
-committed versions and skip dirty data. Writers coordinate through locks and
-write intents.
+## MVCC and the HLC
 
-Each read-write transaction starts with an HLC transaction id. At commit, Kahuna
-uses a fresh commit timestamp that is at least as new as the transaction start
-timestamp and the values the transaction modified or depended on.
+Kahuna stores the committed versions, and the write intents that are in flight.
+A reader sees a committed version, and it skips dirty data. A writer coordinates
+through the locks and the write intents.
 
-This gives CamusDB a logical transaction order across nodes without requiring
-clients to assign timestamps.
+Each read-write transaction starts with an HLC transaction id. At the commit,
+Kahuna uses a fresh commit timestamp. That timestamp is at least as new as two
+values: the start timestamp of the transaction, and the values that the
+transaction modified or depended on.
 
-## Lifetime And Abandoned Transactions
+CamusDB therefore has a logical order of the transactions across the nodes. A
+client never assigns a timestamp.
 
-Serializable read-write transactions have a wall-clock lifetime cap. The
-default is `3600000` milliseconds, or one hour.
+## The lifetime, and an abandoned transaction
 
-The lifetime cap is checked during range-lock acquisition and commit. If the
-transaction exceeds the cap, CamusDB raises `TransactionLifetimeExceeded` and
-the application should retry the whole transaction from `BEGIN`.
+A serializable read-write transaction has a cap on its lifetime, in wall-clock
+time. The default is `3600000` milliseconds, which is one hour.
 
-The same value is supplied to Kahuna as the coordinator session timeout. That
-gives abandoned sessions a server-side cleanup bound even when a client opens a
-transaction and disappears without calling commit or rollback.
+CamusDB checks the cap at the acquisition of a range lock, and at the commit. It
+raises `TransactionLifetimeExceeded` when the transaction passes the cap. The
+application must then retry the whole transaction from `BEGIN`.
 
-Explicit client transactions are also tracked by a CamusDB-side abandoned
-transaction reaper. It rolls back transactions that sit idle with no client
-statement long enough to be considered abandoned, while Kahuna's session
-timeout remains the final cleanup backstop.
+CamusDB gives the same value to Kahuna, as the timeout of the coordinator
+session. An abandoned session therefore has a bound for its cleanup on the
+server. That bound holds even when a client opens a transaction and then
+disappears, without a commit and without a rollback.
 
-## Configuration Touchpoints
+CamusDB also tracks an explicit client transaction with its own reaper for an
+abandoned transaction. The reaper rolls a transaction back after it stays idle
+long enough, with no statement from the client. The session timeout of Kahuna
+remains the final backstop for the cleanup.
 
-The public transaction and locking settings are:
+## The settings that touch this area
+
+These are the public settings for a transaction and for the locks:
 
 ```yaml
 default_isolation_level: serializable
@@ -330,65 +366,67 @@ lock_wait_deadline_ms: 500
 key_range_sharding: false
 ```
 
-Important details:
+Note these details:
 
 - `default_isolation_level` accepts `serializable` and `read_committed`.
 - `default_transaction_locking` accepts `pessimistic` and `optimistic`.
-- `range_lock_expires_ms` is an initial range-lock TTL; `<= 0` disables
-  expiry. When positive, it must be at least `2x` the effective Kahuna
-  collection interval.
-- `max_serializable_transaction_lifetime_ms` bounds Serializable read-write
-  transaction lifetime and also supplies the Kahuna session timeout; `<= 0`
-  disables the CamusDB lifetime cap.
-- `lock_escalation_threshold` controls when many point read locks in one bucket
-  become a single bucket lock.
-- `lock_wait_deadline_ms` caps one lock-acquisition wait before surfacing a
-  conflict.
-- `key_range_sharding` opts table row spaces and eligible secondary indexes
-  into Kahuna key-range routing.
+- `range_lock_expires_ms` is the initial TTL of a range lock. A value of `0` or
+  below disables the expiry. A positive value must be at least twice the
+  effective collection interval of Kahuna.
+- `max_serializable_transaction_lifetime_ms` bounds the life of a serializable
+  read-write transaction. It also supplies the session timeout of Kahuna. A
+  value of `0` or below disables the cap of CamusDB on the lifetime.
+- `lock_escalation_threshold` decides when many point read locks in one bucket
+  become one lock over that bucket.
+- `lock_wait_deadline_ms` caps one wait for a lock acquisition, before CamusDB
+  reports a conflict.
+- `key_range_sharding` opts the row spaces of the tables, and the eligible
+  secondary indexes, into the key-range routing of Kahuna.
 
-Internal defaults also exist for read validation and commit-decision
-durability:
+Two internal defaults also exist:
 
-- read validation: none, except optimistic transactions validate reads
-- decision durability: best effort
+- The validation of a read is off, except in an optimistic transaction, which
+  validates its reads.
+- The durability of a decision is best effort.
 
-Those internal defaults are selected by the transaction begin path and are not
-currently YAML startup settings.
+The begin path of a transaction selects those internal defaults. They are not
+YAML settings at startup today.
 
-## Cluster Behavior
+## Behavior in a cluster
 
-Cluster mode preserves the same SQL transaction model while distributing the
+Cluster mode keeps the same SQL model of a transaction. It distributes the
 mechanics:
 
-- each partition has its own Raft leader
-- writes are routed to the owning partition leader
-- multi-partition writes use two-phase commit across participant leaders
-- HLC timestamps provide cluster-wide transaction ordering
-- optional key-range routing gives scans more precise range-lock boundaries
+- Each partition has its own Raft leader.
+- CamusDB routes a write to the leader of the owning partition.
+- A write across several partitions uses two-phase commit, across the leaders of
+  the participants.
+- HLC timestamps give the order of the transactions across the cluster.
+- Optional key-range routing gives a scan more precise bounds for its range
+  lock.
 
-Serializable behavior is not a single-node-only feature. The transaction suite
-covers read skew, phantoms, write skew, and lost updates on single-node and
-cluster topologies.
+Serializable behavior is not a single-node feature. The transaction suite covers
+read skew, phantoms, write skew, and lost updates. It covers them on a single
+node, and on a cluster.
 
-## Schema Interaction
+## Interaction with the schema
 
-Transactions pin schema versions for touched tables.
+A transaction pins the schema version of each table that it touches.
 
-Commit validates:
+The commit validates two conditions:
 
-- the table identity is still valid
-- the pinned schema version is still compatible with the transaction
+1. The identity of the table is still valid.
+2. The pinned schema version is still compatible with the transaction.
 
-This prevents DML from committing against a dropped, replaced, or incompatible
-table definition after DDL changed the schema.
+That check stops a DML statement from a commit against a table definition that a
+DDL statement dropped, replaced, or made incompatible.
 
-## Code Map
+## A map of the code
 
-Contributors should start with these areas:
+A contributor must start in these areas:
 
 - `CamusDB.Core/Transactions/`
 - `CamusDB.Core/Storage/Kv/KvTableStore.cs`
 - `CamusDB.Core/Commands/Executor/Controllers/Queries/`
 - `CamusDB.Core/Commands/Executor/QueryExecutor.cs`
-- Kahuna transaction and storage code behind `IKahuna`
+- The transaction code and the storage code of Kahuna, behind `IKahuna`

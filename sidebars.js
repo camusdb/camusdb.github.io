@@ -16,7 +16,7 @@ const sidebars = {
   tutorialSidebar: [
     {
       type: 'category',
-      label: 'Start Here',
+      label: 'Start here',
       collapsed: false,
       items: [
         'intro',
@@ -34,7 +34,7 @@ const sidebars = {
         {
           type: 'doc',
           id: 'sql',
-          label: 'SQL Overview',
+          label: 'SQL overview',
         },
         'data-types',
         {
@@ -45,37 +45,42 @@ const sidebars = {
             {
               type: 'doc',
               id: 'sql-schema',
-              label: 'Tables And Columns',
+              label: 'Tables and columns',
             },
             'check-constraints',
             'sql-indexes',
             {
               type: 'doc',
               id: 'comment-on',
-              label: 'Schema Comments',
+              label: 'Schema comments',
             },
           ],
         },
         {
           type: 'category',
-          label: 'Writing Data',
+          label: 'Writing data',
           collapsed: false,
           items: [
             {
               type: 'doc',
               id: 'sql-writes',
-              label: 'Insert, Update, Delete',
+              label: 'Insert, update, delete',
             },
             {
               type: 'doc',
               id: 'insert-select-and-ctas',
-              label: 'Copying Query Results',
+              label: 'Copying query results',
+            },
+            {
+              type: 'doc',
+              id: 'truncate-table',
+              label: 'Emptying a table',
             },
           ],
         },
         {
           type: 'category',
-          label: 'Reading Data',
+          label: 'Reading data',
           collapsed: false,
           items: [
             {
@@ -84,11 +89,12 @@ const sidebars = {
               label: 'SELECT',
             },
             'joins-and-subqueries',
+            'vector-search',
             'time-travel-reads',
             {
               type: 'doc',
               id: 'sql-fromless-select',
-              label: 'SELECT Without FROM',
+              label: 'SELECT without FROM',
             },
           ],
         },
@@ -126,11 +132,11 @@ const sidebars = {
         {
           type: 'doc',
           id: 'sql-transactions',
-          label: 'Transactions In SQL',
+          label: 'Transactions in SQL',
         },
         {
           type: 'category',
-          label: 'Query Performance',
+          label: 'Query performance',
           collapsed: false,
           items: [
             'query-planning',
@@ -147,24 +153,24 @@ const sidebars = {
             {
               type: 'doc',
               id: 'query-result-cache',
-              label: 'Result Cache',
+              label: 'Result cache',
             },
             {
               type: 'doc',
               id: 'distributed-queries',
-              label: 'Distributed Queries',
+              label: 'Distributed queries',
             },
           ],
         },
         {
           type: 'doc',
           id: 'prepared-statements',
-          label: 'Parameters And Prepared Statements',
+          label: 'Parameters and prepared statements',
         },
         {
           type: 'doc',
           id: 'sql-inspection',
-          label: 'Inspecting The Database',
+          label: 'Inspecting the database',
         },
       ],
     },
@@ -181,12 +187,12 @@ const sidebars = {
             {
               type: 'doc',
               id: 'serializable-transactions',
-              label: 'Transactions And Isolation',
+              label: 'Transactions and isolation',
             },
             {
               type: 'doc',
               id: 'serializable-retries',
-              label: 'Retries And Conflicts',
+              label: 'Retries and conflicts',
             },
             'transaction-limits',
             'transaction-priority',
@@ -203,23 +209,23 @@ const sidebars = {
             {
               type: 'doc',
               id: 'runtime-cluster-settings',
-              label: 'Runtime Cluster Settings',
+              label: 'Runtime cluster settings',
             },
             {
               type: 'doc',
               id: 'sql-authentication',
-              label: 'Authentication And Authorization',
+              label: 'Authentication and authorization',
             },
             {
               type: 'doc',
               id: 'backup-and-restore',
-              label: 'Backup And Restore',
+              label: 'Backup and restore',
             },
           ],
         },
         {
           type: 'category',
-          label: 'Background Jobs',
+          label: 'Background jobs',
           collapsed: false,
           items: [
             'automatic-analyze',
@@ -250,7 +256,7 @@ const sidebars = {
         'architecture',
         {
           type: 'category',
-          label: 'Storage And Durability',
+          label: 'Storage and durability',
           collapsed: false,
           items: [
             'storage',
@@ -260,7 +266,7 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: 'Execution And Concurrency',
+          label: 'Execution and concurrency',
           collapsed: false,
           items: [
             'query-planner-internals',
@@ -280,6 +286,7 @@ const sidebars = {
         'camus-cli',        
         'camus-dump',
         'workload-utility',
+        'caraxes',
         {
           type: 'category',
           label: '.NET',

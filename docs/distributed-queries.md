@@ -2,189 +2,225 @@
 sidebar_position: 3.3
 ---
 
-# Distributed Queries
+# Distributed queries
 
-In a cluster, the rows of a table are spread across partitions, and each
-partition has a leader that already holds its data. Distributed query execution
-lets a scan run where the rows are instead of pulling every page to the node
-that received the statement.
+In a cluster, CamusDB spreads the rows of a table across the partitions. Each
+partition has a leader, and that leader already holds its data.
+
+Distributed execution lets a scan run at the position of the rows. The node that
+received the statement does not pull every page to itself.
 
 ```yaml
 key_range_sharding: true
 distributed_query_execution: true
 ```
 
-The feature is off by default. With it off, planning and execution are exactly
-what a single node does today. With it on, an eligible scan is split into one
-fragment per placement span, fragments whose data lives elsewhere run on the
-node that owns them, and the coordinator concatenates what comes back.
+The feature is off by default. While it is off, the plan and the execution are
+exactly the plan and the execution of one node today.
 
-Results are identical either way. This is a performance feature, and every part
-of it falls back to local execution rather than failing.
+While it is on, CamusDB divides an eligible scan into one fragment for each span
+of the placement. A fragment whose data lives elsewhere runs on the node that
+owns that data. The coordinator then joins the results together.
 
-## Why Use It
+The results are identical in both cases. This is a feature of the performance.
+Every part of it falls back to a local execution. No part of it fails.
 
-- Filters run at the data. A peer executing a fragment applies the residual
-  predicate before shipping anything, so a scan that keeps one row in a thousand
-  moves one row in a thousand across the network instead of the whole table.
-- Spans run concurrently. A four-span table scans on four leaders at once, so
-  the wall-clock cost of a full scan tracks the largest span rather than the sum
-  of all of them.
-- Aggregates collapse before they travel. `COUNT`, `SUM`, `MIN`, `MAX`, and
-  `AVG` are computed per span and merged on the coordinator, so a rollup over a
-  hundred million rows ships one row per group per span.
-- The coordinator keeps less in memory. It merges streams instead of decoding
-  every row of the table itself.
-- Nothing about correctness depends on it. Placement snapshots are advisory,
-  spans always cover the whole key space, and a failed fragment resumes locally,
-  so a stale view or a dead peer costs a retry rather than a wrong answer.
+## Why you use it
 
-## Turning It On
+- A filter runs at the data. A peer that executes a fragment applies the
+  residual predicate before it ships anything. A scan that keeps one row in a
+  thousand therefore moves one row in a thousand across the network. It does not
+  move the whole table.
+- The spans run at the same time. A table of four spans scans on four leaders at
+  once. The wall-clock cost of a full scan therefore follows the largest span.
+  It does not follow the sum of every span.
+- An aggregate collapses before it travels. CamusDB computes `COUNT`, `SUM`,
+  `MIN`, `MAX`, and `AVG` for each span. It then merges them on the coordinator.
+  A rollup over one hundred million rows therefore ships one row for each group
+  of each span.
+- The coordinator keeps less in memory. It merges the streams. It does not
+  decode every row of the table itself.
+- Correctness depends on none of this. A snapshot of a placement is advisory. A
+  set of spans always covers the whole key space. A failed fragment continues
+  locally. A stale view and a dead peer therefore cost a retry. Neither one
+  gives a wrong answer.
+
+## Turn it on
 
 | Setting | Default | Scope | Meaning |
 | --- | --- | --- | --- |
-| `key_range_sharding` | `false` | cluster | Required. Distribution slices a table by key range, so the table has to be key-range routed. |
-| `distributed_query_execution` | `false` | cluster | Enables planner fragmentation and the peer fragment transport. |
-| `max_query_parallelism` | `1` | node | Concurrent decode workers per full scan. Applies with or without distribution, including standalone. |
-| `broadcast_join_max_build_rows` | `10000` | node | Largest hash-join build side eligible to be broadcast to remote probe spans. `0` disables broadcast joins. |
+| `key_range_sharding` | `false` | cluster | Necessary. The distribution divides a table by the range of the key. The table must therefore use the routing by key range. |
+| `distributed_query_execution` | `false` | cluster | It enables the fragments of the planner, and the transport of a fragment to a peer. |
+| `max_query_parallelism` | `1` | node | The number of concurrent workers that decode rows, for each full scan. It applies with the distribution and without it. It also applies on a standalone node. |
+| `broadcast_join_max_build_rows` | `10000` | node | The largest build side of a hash join that CamusDB may broadcast to a remote span of the probe. A `0` disables a broadcast join. |
 
-`distributed_query_execution` is restart-class and cluster-scoped: every node
-has to agree on it, because a statement planned on one node assumes an execution
-model its peers will be asked to honor. Set it in `config.yml` and restart the
-node.
+`distributed_query_execution` is a setting of the class `restart`, and of the
+scope `cluster`. Every node must agree on it. A statement that one node plans
+assumes a model of the execution, and CamusDB will ask the peers of that node to
+honor the model. Set the value in `config.yml`. Then restart the node.
 
-The other two are runtime-class and node-scoped, so they can be changed live and
-nodes are free to differ:
+The other two settings are of the class `runtime`, and of the scope `node`. You
+can therefore change them while a node runs, and two nodes may differ:
 
 ```camussql
 SET CLUSTER SETTING max_query_parallelism = 4;
 SET CLUSTER SETTING broadcast_join_max_build_rows = 50000;
 ```
 
-See [Runtime Cluster Settings](/docs/runtime-cluster-settings) for how a live
-change propagates, and [`SHOW VARIABLES`](/docs/show-variables) for the value a
-given node is running.
+See [Runtime Cluster Settings](/docs/runtime-cluster-settings) for the
+propagation of a live change. See [`SHOW VARIABLES`](/docs/show-variables) for
+the value that one node runs.
 
-Cluster deployments should populate `http_peers` alongside `peers`. Fragments
-travel over HTTP, and CamusDB resolves a peer's Raft endpoint to its HTTP
-address through those two parallel lists. Without them it assumes every node
-uses the same HTTP port as this one, which is true of the Docker Compose
-topology and often not true of a hand-rolled one. See
+A cluster deployment must fill `http_peers`, together with `peers`. A fragment
+travels over HTTP. CamusDB resolves the Raft endpoint of a peer to its HTTP
+address, through those two parallel lists.
+
+Without those lists, CamusDB assumes that every node uses the same HTTP port as
+this node. That assumption is true of the topology of Docker Compose. It is
+often false of a topology that you build by hand. See
 [Cluster Mode](/docs/cluster).
 
-## What Becomes Eligible
+## What becomes eligible
 
-The planner wraps a scan in a `gather` when all of the following hold:
+The planner puts a scan inside a `gather` when every one of these conditions
+holds:
 
-- the statement is a full primary-row table scan, not an index lookup, an index
-  range scan, or a forced-index scan
-- the node is in cluster mode with key-range sharding on
-- the table's current placement reports more than one span
-- the transaction is not an optimistic one, whose read set has to be built from
-  a single session stream
-- the statement is not the read half of an `UPDATE` or `DELETE`, which takes
-  exclusive predicate locks
+- The statement is a full scan of the primary rows. It is not a point lookup on
+  an index, a scan of a range of an index, or a scan of a forced index.
+- The node is in cluster mode, with the sharding by key range on.
+- The current placement of the table reports more than one span.
+- The transaction is not optimistic. CamusDB must build the read set of such a
+  transaction from one stream of the session.
+- The statement is not the read half of an `UPDATE` or a `DELETE`. That half
+  takes exclusive locks on a predicate.
 
-Anything else plans exactly as it would with the feature off. Eligibility is
-decided per statement against live placement, so a fragmented plan is never
-served from the plan cache; a table that splits into more spans starts using
-them on the next query.
+Every other statement plans exactly as it plans with the feature off.
 
-## How A Fragment Runs
+CamusDB decides the eligibility for each statement, against the live placement.
+It therefore never serves a plan with fragments from the plan cache. A table
+that divides into more spans starts to use them at the next query.
 
-A `gather` executes its scan once per span, with each execution bounded to that
-span's row-id range, and concatenates the results in span order. Spans are
-contiguous and ascending and together cover the whole key space, so
-concatenation reproduces exactly the row stream an unbounded scan produces.
-`ORDER BY`, `LIMIT`, and every streaming operator above the gather behave the
-same as they always did.
+## How a fragment runs
 
-A span is sent to a peer when its leader is another node and the query's
-residual filter can be evaluated remotely. A shippable filter is a pure function
-of the row, which rules out three things:
+A `gather` executes its scan one time for each span. Each execution stays inside
+the range of the row ids of that span. The `gather` then joins the results in
+the order of the spans.
+
+The spans are contiguous, they ascend, and together they cover the whole key
+space. The join therefore reproduces exactly the stream of rows of a scan
+without a bound. An `ORDER BY`, a `LIMIT`, and every streaming operator above
+the gather behave as they always did.
+
+CamusDB sends a span to a peer under two conditions: the leader of that span is
+another node, and a peer can evaluate the residual filter of the query.
+
+A filter that CamusDB can ship is a pure function of the row. That rule excludes
+three things:
 
 | Not shippable | Why |
 | --- | --- |
-| Subqueries and `EXISTS` | Evaluating one would mean re-entering the coordinator's executor from a peer. |
-| Parameter placeholders | Bound values live in the coordinator's ticket, not on the peer. |
-| Volatile functions such as `NOW()` | They have to be evaluated once, in one place, or two nodes disagree. |
+| A subquery, and an `EXISTS` | An evaluation would make a peer enter the executor of the coordinator again. |
+| A placeholder of a parameter | The bound values live in the ticket of the coordinator. They do not live on the peer. |
+| A volatile function, such as `NOW()` | CamusDB must evaluate such a function one time, in one place. Otherwise two nodes disagree. |
 
-A query with no filter at all is also left local. There is nothing to push down,
-and the storage locator already streams a remote span's pages. Queries that are
-[result cache](/docs/query-result-cache) candidates stay local too: cache
-dependencies are recorded per scanned row on the coordinator, and remote
-filtering would drop the rows the filter rejected, so a later update to one of
-them would fail to invalidate the entry.
+CamusDB also leaves a query with no filter at all on the local node. There is
+nothing to push down, and the locator of the storage already streams the pages
+of a remote span.
 
-Spans that are not shipped are scanned locally through the ordinary routed read
-path, in the same gather, at the same time as the remote ones.
+A query that is a candidate for the [result cache](/docs/query-result-cache)
+also stays local. The coordinator records the dependencies of the cache for each
+scanned row. A remote filter would drop the rows that the filter rejected. A
+later update of one of those rows would then fail to invalidate the entry.
 
-When a `LIMIT` is present, the gather caps each span at `limit + offset`
-surviving rows. Span order matches global row order, so the final cut can never
-need more than that from any one span, and a remote fragment stops shipping when
-it reaches the cap.
+A span that CamusDB does not ship scans locally, through the ordinary routed
+path of a read. It scans inside the same gather, at the same time as the remote
+spans.
 
-### When A Peer Fails
+With a `LIMIT` present, the gather caps each span at `limit + offset` surviving
+rows. The order of the spans matches the global order of the rows. The final cut
+can therefore never need more than that number from one span. A remote fragment
+stops the shipment when it reaches the cap.
 
-If a remote fragment fails part-way, for any reason at all, the coordinator
-resumes that span locally starting after the last row it received. No row is
-lost and none is delivered twice. The cached placement for the table is
-invalidated so the next query re-resolves it, and the fallback is counted in
+### When a peer fails
+
+A remote fragment can fail in the middle, for any reason at all. The coordinator
+then continues that span locally. It starts after the last row that it received.
+CamusDB loses no row, and it delivers no row twice.
+
+CamusDB also invalidates the cached placement of the table. The next query
+therefore resolves that placement again. It counts the event in
 `distributed.fragment_fallbacks`.
 
-A coordinator that cancels or dies takes its fragments with it: remote execution
-is bound to the lifetime of the request that started it, so no fragment outlives
-its caller.
+A coordinator that cancels, and a coordinator that dies, takes its fragments
+with it. A remote execution is bound to the life of the request that started it.
+No fragment therefore outlives its caller.
 
 ## Aggregates
 
-An aggregate sitting directly above a gather can run as per-span partials with a
-merge on the coordinator. Each fragment aggregates its own span, ships one row
-per group, and the coordinator re-aggregates those rows into the final answer.
-`COUNT` merges by summing, `SUM`, `MIN`, and `MAX` merge by themselves, and
-`AVG` is carried as an internal sum and count pair that is divided after the
-merge, so an average over an integer column is not silently integer-divided.
+An aggregate directly above a gather can run as a partial result for each span,
+with a merge on the coordinator. Each fragment aggregates its own span. It ships
+one row for each group. The coordinator then aggregates those rows again, into
+the final answer.
 
-Both halves run through the engine's own aggregator, which is what keeps
-`NULL` and empty-input semantics identical to sequential execution.
+`COUNT` merges by a sum. `SUM`, `MIN`, and `MAX` each merge with themselves.
+`AVG` travels as an internal pair of a sum and a count. CamusDB divides that
+pair after the merge. An average over a column of integers therefore does not
+become an integer division in silence.
 
-The split applies to simple aliased aggregates whose group keys are plain
-column names present in the projection. It is declined, and the aggregate runs
-over gathered rows instead, for:
+Both halves run through the aggregator of the engine itself. That is what keeps
+two semantics identical to a sequential execution: the semantics of a `NULL`,
+and the semantics of an empty input.
 
-- `HAVING`, whose hidden-aggregate expansion needs the original rows
-- expressions rather than plain columns as group keys
-- global aggregates with more than one projection, or a global `AVG`
-- `EXPLAIN (ANALYZE)`, which reports the row-gather strategy it instrumented
-- result-cache dependency collection
+The division applies to a simple aggregate with an alias, whose keys of the
+group are plain names of columns in the projection.
 
-## Broadcast Hash Join
+CamusDB declines the division in five cases. The aggregate then runs over the
+gathered rows:
 
-When one side of a hash join is small, shipping it is cheaper than shipping the
-other side. After the build phase finishes, a build side under
-`broadcast_join_max_build_rows` is sent to the leaders of the probe table's
-spans. Each peer scans its span, applies the probe-side filter and the `ON`
-predicate against the build rows it was given, and returns only the probe rows
-that matched, together with the build rows they matched. The coordinator
-assembles the output from its own copy of the build side.
+- A `HAVING` clause. Its expansion of a hidden aggregate needs the original
+  rows.
+- An expression as a key of the group, instead of a plain column.
+- A global aggregate with more than one projection, and a global `AVG`.
+- An `EXPLAIN (ANALYZE)`. It reports the strategy of the gather of the rows that
+  it measured.
+- The collection of the dependencies of the result cache.
 
-The decision is made at execution time, after the build hash table exists, so it
-gates on the build's actual row count rather than an estimate. A join that the
-optimizer expected to be small but was not simply probes locally.
+## A broadcast hash join
 
-Broadcast is used when distributed execution is on, the probe side is a plain
-primary-row base table with a multi-span placement and at least one non-local
-leader, and both the `ON` predicate and the probe filter are shippable under the
-rules above. Every condition that fails falls back to the ordinary local probe,
-and so does a remote failure mid-flight. Output is identical in all cases.
+One side of a hash join can be small. A shipment of that side is then cheaper
+than a shipment of the other side.
 
-Set `broadcast_join_max_build_rows` to `0` to turn broadcast joins off while
-leaving the rest of distributed execution on.
+After the build phase finishes, CamusDB sends a build side below
+`broadcast_join_max_build_rows` to the leaders of the spans of the probe table.
+Each peer scans its span. It applies the filter of the probe side, and the `ON`
+predicate, against the build rows that it received. It returns only the rows of
+the probe that matched, together with the build rows that they matched. The
+coordinator then assembles the output from its own copy of the build side.
 
-## Seeing It In EXPLAIN
+CamusDB makes the decision at the time of the execution, after the hash table of
+the build exists. The decision therefore uses the true count of the rows of the
+build. It does not use an estimate. A join that the optimizer expected to be
+small, and that is not small, simply probes locally.
 
-With distribution enabled, every `EXPLAIN` gains a `distribution` row that says
-whether the plan was fragmented, and if not, why:
+CamusDB uses a broadcast under four conditions:
+
+1. The distributed execution is on.
+2. The probe side is a plain base table of primary rows. It has a placement of
+   several spans, and at least one leader that is not local.
+3. The `ON` predicate is shippable under the rules above.
+4. The filter of the probe is shippable too.
+
+Every condition that fails leads to the ordinary local probe. A remote failure
+in the middle leads there as well. The output is identical in every case.
+
+Set `broadcast_join_max_build_rows` to `0` to turn a broadcast join off. The
+rest of the distributed execution stays on.
+
+## See it in EXPLAIN
+
+With the distribution enabled, every `EXPLAIN` gains a `distribution` row. That
+row says whether CamusDB divided the plan into fragments. It gives the reason
+when CamusDB did not:
 
 ```camussql
 EXPLAIN SELECT * FROM orders WHERE status = "open";
@@ -196,19 +232,23 @@ physical  gather        gather(spans: 4, remote_leader_fraction: 0.75)
 physical  table-scan    table=orders
 ```
 
-A plan that stayed local names the condition it missed:
+A plan that stayed local names the condition that it missed:
 
 ```text
 physical  distribution  distributed=no (placement has a single span)
 ```
 
-The reasons map directly to the eligibility list: `key-range sharding is off`,
-`not a primary-row full scan`, `standalone node`, `placement has a single span`,
-`transaction folds reads (optimistic read-set needs one session stream)`, and
-`exclusive predicate locks (DML write path)`.
+The reasons map directly to the list of the eligibility:
 
-`EXPLAIN (ANALYZE)` adds one `gather-span` row per span, so rows are attributed
-to the partition and the node that produced them:
+- `key-range sharding is off`
+- `not a primary-row full scan`
+- `standalone node`
+- `placement has a single span`
+- `transaction folds reads (optimistic read-set needs one session stream)`
+- `exclusive predicate locks (DML write path)`
+
+`EXPLAIN (ANALYZE)` adds one `gather-span` row for each span. Each row therefore
+attributes its rows to the partition and to the node that produced them:
 
 ```text
 analyze  gather-span  partition 1: mode=local, rows_delivered=25000
@@ -216,23 +256,29 @@ analyze  gather-span  partition 2: mode=remote, node=10.0.0.2:7070, rows_deliver
 analyze  gather-span  partition 3: mode=remote-fallback, node=10.0.0.3:7070, rows_delivered=24903, rows_shipped=12
 ```
 
-Read `mode` first. A `local` span delivers every row it scanned, because its
-filter runs above the gather on the coordinator. A `remote` span delivers only
-survivors, and `remote_rows_scanned` says how many rows it read to find them.
-The gap between those two numbers is the shipping win. `remote-fallback` means
-the peer failed after shipping `rows_shipped` rows and the coordinator finished
-the span itself.
+Read `mode` first.
 
-The row's `actual_rows` column carries `rows_delivered` and `rows_read` carries
-`remote_rows_scanned`, so the numbers are also available without parsing the
-detail text.
+A `local` span delivers every row that it scanned. Its filter runs above the
+gather, on the coordinator.
 
-See [EXPLAIN](/docs/explain) for the rest of the output format.
+A `remote` span delivers the survivors only. `remote_rows_scanned` gives the
+number of rows that the peer read to find them. The difference between those two
+numbers is the benefit of the shipment.
+
+`remote-fallback` means two things. The peer failed after it shipped
+`rows_shipped` rows. The coordinator then finished the span itself.
+
+The `actual_rows` column of the row carries `rows_delivered`. The `rows_read`
+column carries `remote_rows_scanned`. The numbers are therefore also available
+without a parse of the text of the detail.
+
+See [EXPLAIN](/docs/explain) for the rest of the format of the output.
 
 ## Counters
 
-`SHOW ENGINE STATS` reports six process-lifetime counters under the `camusdb`
-source, and only while distributed execution is enabled:
+`SHOW ENGINE STATS` reports six counters. Each one accumulates over the life of
+the process. They are under the source `camusdb`, and they appear only while the
+distributed execution is enabled:
 
 ```camussql
 SHOW ENGINE STATS LIKE 'distributed.%';
@@ -240,70 +286,85 @@ SHOW ENGINE STATS LIKE 'distributed.%';
 
 | Metric | Meaning |
 | --- | --- |
-| `distributed.fragments_dispatched` | Remote fragments this node started as a coordinator. |
-| `distributed.fragment_fallbacks` | Remote fragments that failed and were finished locally. |
-| `distributed.fragments_served` | Fragments this node executed on behalf of a peer. |
-| `distributed.partial_aggregate_gathers` | Aggregations that ran as per-span partials with a coordinator merge. |
-| `distributed.rows_shipped_in` | Rows received from peers, survivors plus partial-aggregate groups. |
-| `distributed.rows_shipped_out` | Rows this node returned to peers. |
+| `distributed.fragments_dispatched` | The remote fragments that this node started as a coordinator. |
+| `distributed.fragment_fallbacks` | The remote fragments that failed, and that this node finished locally. |
+| `distributed.fragments_served` | The fragments that this node executed for a peer. |
+| `distributed.partial_aggregate_gathers` | The aggregations that ran as partial results for each span, with a merge on the coordinator. |
+| `distributed.rows_shipped_in` | The rows that this node received from a peer. That count holds the survivors, plus the groups of a partial aggregate. |
+| `distributed.rows_shipped_out` | The rows that this node returned to a peer. |
 
-Every node is both a coordinator and a server, so the interesting readings are
-comparative. Collect all six from every node: one node serving everybody, or
-fallbacks concentrating on one peer, is visible as asymmetry between the
-dispatched and served columns across the fleet.
+Every node is both a coordinator and a server. The interesting readings are
+therefore comparative. Collect all six counters from every node.
 
-Counters are cumulative since process start. Run the statement twice and
-subtract to get a rate. With the feature disabled the rows are absent rather
-than zero, so an empty result means distribution is off, not idle.
+Two patterns then become visible as an asymmetry, between the column of the
+dispatched fragments and the column of the served fragments: one node that
+serves everybody, and a group of fallbacks that concentrate on one peer.
 
-## Node-To-Node Traffic
+Each counter accumulates from the start of the process. Run the statement twice,
+and subtract, to get a rate. With the feature disabled, the rows are absent
+rather than zero. An empty result therefore means that the distribution is off.
+It does not mean that the node is idle.
 
-Fragments travel over an internal HTTP route, `POST /internal/query-fragment`,
-which streams surviving rows back as NDJSON. It is authenticated by the node
-secret and never by a client token, so it needs `CAMUSDB_NODE_SECRET` set
-consistently across the fleet when authentication is enabled. See
+## The traffic between two nodes
+
+A fragment travels over an internal HTTP route,
+`POST /internal/query-fragment`. That route streams the surviving rows back as
+NDJSON.
+
+The secret of the node authenticates the route. A token of a client never
+authenticates it. The route therefore needs `CAMUSDB_NODE_SECRET`, with the same
+value across the fleet, while authentication is enabled. See
 [Authentication And Authorization](/docs/sql-authentication).
 
-The route is internal machinery. It is not a client API and carries no
-compatibility promise.
+The route is internal machinery. It is not an API for a client, and it carries
+no promise of compatibility.
 
-## Parallel Scans Without A Cluster
+## A parallel scan without a cluster
 
-`max_query_parallelism` is a separate knob that needs neither a cluster nor
-key-range sharding. Above `1`, a full primary-row scan streams once but decodes
-rows in fixed-size chunks on the thread pool, with chunks consumed in dispatch
-order:
+`max_query_parallelism` is a separate setting. It needs no cluster, and it needs
+no sharding by key range.
+
+Above `1`, a full scan of the primary rows streams one time. It nevertheless
+decodes the rows in chunks of a fixed size, on the thread pool. The consumer
+takes the chunks in the order of their dispatch:
 
 ```camussql
 SET CLUSTER SETTING max_query_parallelism = 4;
 ```
 
-Row order is identical to the sequential scan for every plan shape, because the
-producer reads in scan order and the consumer awaits chunks in that same order.
-Filtering and all bookkeeping stay on the single consumer thread. What the
-setting buys is decode throughput on wide rows; what it costs is one bounded
-buffer per worker and more concurrent storage reads. The default of `1` keeps
-the sequential pipeline.
+The order of the rows is identical to the order of a sequential scan, for every
+shape of a plan. The producer reads in the order of the scan. The consumer waits
+for the chunks in that same order.
+
+The filter and every record stay on the single thread of the consumer.
+
+The setting buys throughput of the decode, on a wide row. It costs one bounded
+buffer for each worker, and more concurrent reads of the storage. The default of
+`1` keeps the sequential pipeline.
 
 ## Limits
 
-- Only full primary-row scans fragment. Index scans, point lookups, and forced
-  index scans plan locally.
-- Writes never fragment. `UPDATE` and `DELETE` read under exclusive predicate
-  locks, and those stay on the coordinator.
-- Optimistic transactions never fragment, since the read set has to be built
-  from one session stream.
-- Result-cache candidates stay local so their dependencies stay complete.
-- `EXPLAIN (ANALYZE)` disables partial aggregation, so the plan it reports is
-  the one it instrumented rather than the one an uninstrumented run would use.
-- Fragmented plans bypass the plan cache, because their shape depends on live
+- Only a full scan of the primary rows divides into fragments. A scan of an
+  index, a point lookup, and a scan of a forced index all plan locally.
+- A write never divides into fragments. An `UPDATE` and a `DELETE` read under
+  exclusive locks on a predicate. Those reads stay on the coordinator.
+- An optimistic transaction never divides into fragments. CamusDB must build its
+  read set from one stream of the session.
+- A candidate of the result cache stays local. Its dependencies therefore stay
+  complete.
+- `EXPLAIN (ANALYZE)` disables the partial aggregation. The plan that it reports
+  is therefore the plan that it measured. It is not the plan of a run without
+  the measurement.
+- A plan with fragments bypasses the plan cache. Its shape depends on the live
   placement.
-- Distribution is alpha alongside [cluster mode](/docs/cluster) itself.
+- The distribution is an alpha feature, together with
+  [cluster mode](/docs/cluster) itself. The APIs and the behavior can change
+  between versions.
 
-## Related Pages
+## Related pages
 
-[Cluster Mode](/docs/cluster) for how nodes find each other,
-[Query Planning](/docs/query-planning) for plan selection generally,
-[EXPLAIN](/docs/explain) for reading a plan,
-[Engine Stats](/docs/engine-stats) for the rest of the metric surface, and
-[Configuration](/docs/configuration) for every setting named here.
+- [Cluster Mode](/docs/cluster) for the way that nodes find each other.
+- [Query Planning](/docs/query-planning) for the selection of a plan in general.
+- [EXPLAIN](/docs/explain) for the way that you read a plan.
+- [Engine Stats](/docs/engine-stats) for the rest of the surface of the metrics.
+- [Configuration](/docs/configuration) for every setting on this page.

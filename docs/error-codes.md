@@ -2,12 +2,13 @@
 sidebar_position: 6
 ---
 
-# Error Codes
+# Error codes
 
-CamusDB surfaces structured error codes through `CamusDBException`, HTTP API
-error responses, and gRPC error metadata.
+CamusDB reports a structured code of an error in three places: a
+`CamusDBException`, the response of an error of the HTTP API, and the metadata
+of an error of gRPC.
 
-Example failed HTTP response:
+Here is an example of a failed response of HTTP:
 
 ```json
 {
@@ -17,11 +18,11 @@ Example failed HTTP response:
 }
 ```
 
-gRPC unary and streaming calls include the same domain code in the
-`camus-error-code` trailer. Batched gRPC operations carry it in the in-band
-`BatchError` message.
+A unary call of gRPC, and a call that streams, both hold the same code of the
+domain. It travels in the trailer `camus-error-code`. An operation of a batch of
+gRPC carries the code inside the message `BatchError`.
 
-## How To Read Them
+## How to read them
 
 - `CADB00xx`: catalog, metadata, or storage-state problems
 - `CADB03xx`: data integrity constraint failures
@@ -31,10 +32,11 @@ gRPC unary and streaming calls include the same domain code in the
 - `CADB06xx`: startup or configuration validation errors
 - `CADB07xx`: backup and point-in-time-recovery operations
 
-Some codes are ordinary user-facing errors. Others mainly indicate corruption,
-unexpected internal state, or storage-layer inconsistencies.
+Some codes are ordinary errors that a user sees. Another code mostly reports one
+of three conditions: a corruption, an unexpected internal state, or an
+inconsistency of the layer of the storage.
 
-## Common User-Facing Errors
+## Common user-facing errors
 
 | Code | Name | When it is generated |
 | --- | --- | --- |
@@ -59,6 +61,9 @@ unexpected internal state, or storage-layer inconsistencies.
 | `CADB0407` | `InvalidAstStmt` | The parser succeeded, but the resulting AST shape is invalid, unsupported, or semantically unusable for the requested executor path. |
 | `CADB0408` | `SchemaLimitExceeded` | A database, table, column, or index name is longer than `max_identifier_length`, or a schema operation would exceed `max_columns_per_table`, `max_indexes_per_table`, or `max_tables_per_database`. |
 | `CADB0409` | `InvalidAsOfSystemTime` | An `AS OF SYSTEM TIME` query uses a malformed value, a future or non-positive timestamp, an incompatible parameter, or a transaction shape that cannot be pinned to an arbitrary historical snapshot. |
+| `CADB0410` | `MalformedVector` | A `BYTES` value is used where a packed float32 vector is required, but its byte count is not a whole number of 4-byte elements, or the vector has zero elements. |
+| `CADB0411` | `VectorDimensionMismatch` | Two vector operands of a distance function have different dimensions. The message names both dimensions. |
+| `CADB0412` | `InvalidVectorValue` | A vector element is `NaN` or an infinity, or `cosine_distance` receives a zero-magnitude vector, for which the metric is undefined. |
 | `CADB0501` | `TransactionAlreadyCompleted` | The caller tries to commit or roll back a transaction that is already committed, already rolled back, or otherwise no longer active. It is also used when Kahuna returns a permanent non-retryable commit failure and the transaction is already dead. |
 | `CADB0502` | `TransactionConflict` | The transaction cannot acquire the needed lock or hits a conflicting concurrent write. Conflict messages include bounded diagnostic context such as the table/database, a small sample of contended keys, and the waiting transaction mode when available. |
 | `CADB0503` | `SchemaCatchingUp` | The node is more than one schema version behind the committed schema head for that database, so it temporarily rejects reads and DML until schema apply catches up. Retry on another node or retry later. |
@@ -94,13 +99,16 @@ unexpected internal state, or storage-layer inconsistencies.
 | `CADB0533` | `FeatureNotSupported` | A statement CamusDB parses but has not implemented, such as `REFRESH MATERIALIZED VIEW ... CONCURRENTLY`. Distinct from a syntax error: the statement is well-formed, and the message names the missing capability and the form that works today. |
 | `CADB0534` | `ConcurrentSchemaChange` | An operation that derives a new definition from one it read found that definition changed underneath it, and refused to publish over the change. Nothing was applied; run it again against the current definition. |
 | `CADB0535` | `SequenceUnavailable` | A monotonic counter, such as a database id, a table id, or the registry generation stamp, could not be reached: its Raft partition reported no confirmed leader for the whole `sequence_retry_budget_ms` window, because a node is still joining or an election is in flight. Nothing was allocated and nothing was written, so it is classified as a retryable condition rather than a corruption error. Maps to HTTP 503; run the statement again. |
+| `CADB0537` | `SnapshotPrecedesContentsGeneration` | An `AS OF SYSTEM TIME` read named a point before the start of the current contents of the table. A [`TRUNCATE`](/docs/truncate-table) replaced the key space that holds the rows, so the live schema can no longer locate the old rows. An empty result would be the same as a correct empty answer, which is the failure that this code prevents. Read at the cut or after it, or recover the retired contents with `CREATE TABLE ... RELINK TO`. |
+| `CADB0538` | `StatementNotAllowedInTransaction` | A statement that owns its own internal transaction ran inside an explicit transaction of the caller. [`TRUNCATE`](/docs/truncate-table) is the one statement of that class today. It commits a replicated schema entry, and a later `ROLLBACK` cannot undo that entry. Commit first, or roll back first. Then run the statement. |
 | `CADB0600` | `InvalidConfig` | Configuration is invalid: an explicit `--config` or `CAMUS_CONFIG_PATH` file does not exist, the mode is wrong, a listener or Raft port is invalid, peer lists are malformed, schema-ack settings are invalid, transaction/locking/priority settings are invalid, prepared-statement settings are invalid, statistics, automatic-analyze, row-level TTL, spill, diagnostics, parser-cache, or regex settings are invalid, config keys are unknown, or `kahuna` options are unsupported. Also raised at runtime when a [`SET CLUSTER SETTING`](/docs/runtime-cluster-settings) value breaks a cross-field invariant; the message names both settings, and nothing is applied. |
 
-## Backup And Restore Errors
+## Backup and restore errors
 
-The `CADB07xx` family is raised only by the backup and point-in-time-recovery
-admin API. Each one maps to a specific HTTP status; see
-[Backup And Restore](/docs/backup-and-restore) for the full reference.
+Only the API of the administration of a backup and of a recovery to a point in
+time raises a code of the family `CADB07xx`. Each code maps to a specific status
+of HTTP. See [Backup And Restore](/docs/backup-and-restore) for the full
+reference.
 
 | Code | Name | When it is generated |
 | --- | --- | --- |
@@ -121,10 +129,11 @@ admin API. Each one maps to a specific HTTP status; see
 | `CADB070E` | `BackupNotCoordinator` | A coordinated backup was requested on a node that does not lead the backup meta partition. |
 | `CADB070F` | `BackupInsecureRoot` | The backup or restore root is a symlink, or is group- or world-writable. |
 
-## Corruption And Internal-State Errors
+## Corruption and internal-state errors
 
-These usually indicate storage corruption, schema metadata inconsistency, or an
-unexpected engine state rather than a normal application mistake.
+These codes usually report one of three conditions: a corruption of the storage,
+an inconsistency of the metadata of a schema, or an unexpected state of the
+engine. They rarely report an ordinary mistake of an application.
 
 | Code | Name | When it is generated |
 | --- | --- | --- |
@@ -137,9 +146,9 @@ unexpected engine state rather than a normal application mistake.
 | `CADB0098` | `InvalidPageChecksum` | Reserved for low-level page checksum mismatches. |
 | `CADB0099` | `InvalidInternalOperation` | CamusDB reached an unexpected internal state: impossible planner state, invalid replicated index shape, row disappearance during update, unexpected forwarder response, or other invariants that should not fail in normal use. |
 
-## Retry Guidance
+## Retry guidance
 
-These codes are usually retryable:
+You can usually retry after these codes:
 
 - `CADB0502` `TransactionConflict`
 - `CADB0503` `SchemaCatchingUp`
@@ -154,12 +163,15 @@ These codes are usually retryable:
 - `CADB070A` `BackupRetryableLeadershipLoss` once a leader is elected
 - `CADB070D` `BackupTopologyChanged` once cluster membership is stable
 
-`CADB0509` `TransactionFinalizeUnresolved` is a different kind of retry: resend
-the same `COMMIT` or `ROLLBACK` for the same transaction id. Do not start a new
-transaction and replay the statements, because the original commit may already
-have succeeded server-side.
+`CADB0509` `TransactionFinalizeUnresolved` needs a different kind of retry. Send
+the same `COMMIT` or the same `ROLLBACK` again, for the same id of the
+transaction.
 
-These codes are usually not retryable without changing the request:
+Do not start a new transaction, and do not replay the statements. The original
+commit may have succeeded already, on the server.
+
+You usually cannot retry after these codes. You must change the request
+first:
 
 - `CADB0010` `DatabaseDoesntExist`
 - `CADB0012` `DatabaseAlreadyExists`
@@ -169,6 +181,9 @@ These codes are usually not retryable without changing the request:
 - `CADB0406` `SqlSyntaxError`
 - `CADB0408` `SchemaLimitExceeded`
 - `CADB0409` `InvalidAsOfSystemTime`
+- `CADB0410` `MalformedVector`
+- `CADB0411` `VectorDimensionMismatch`
+- `CADB0412` `InvalidVectorValue`
 - `CADB0300` `DuplicateUniqueKeyValue`
 - `CADB0301` `NotNullViolation`
 - `CADB0302` `ValueTooLong`
@@ -196,6 +211,8 @@ These codes are usually not retryable without changing the request:
 - `CADB0530` `DependentObjectsExist`
 - `CADB0531` `MaterializedViewNotPopulated`
 - `CADB0533` `FeatureNotSupported`
+- `CADB0537` `SnapshotPrecedesContentsGeneration`
+- `CADB0538` `StatementNotAllowedInTransaction`
 - `CADB0700` `BackupNotConfigured`
 - `CADB0702` `BackupNeedsFullBackup`
 - `CADB0703` `RestorePointOutOfWindow`
@@ -204,7 +221,8 @@ These codes are usually not retryable without changing the request:
 - `CADB070C` `RemoteRestoreDisabled`
 - `CADB070E` `BackupNotCoordinator`
 
-These codes usually need operator investigation rather than blind retries:
+These codes usually need an investigation by an operator. A retry without that
+investigation rarely helps:
 
 - `CADB0014` `SystemSpaceCorrupt`
 - `CADB0099` `InvalidInternalOperation`
@@ -213,7 +231,7 @@ These codes usually need operator investigation rather than blind retries:
 - `CADB0706` `BackupCorruptArtifact`
 - `CADB070F` `BackupInsecureRoot`
 
-## Related Pages
+## Related pages
 
 - [HTTP API](/docs/http-api)
 - [gRPC API](/docs/grpc-api)

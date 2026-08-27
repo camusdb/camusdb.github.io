@@ -2,10 +2,10 @@
 sidebar_position: 2.6
 ---
 
-# Inspecting The Database
+# Inspecting the database
 
-`SHOW` and `DESCRIBE` answer "what is actually in here?" for databases, tables,
-columns, indexes, and grants.
+`SHOW` and `DESCRIBE` report what the database holds. They cover a database, a
+table, a column, an index, and a grant.
 
 ## Databases
 
@@ -14,8 +14,8 @@ SHOW DATABASES;
 SHOW DATABASE;
 ```
 
-`SHOW DATABASES` lists registered databases. `SHOW DATABASE` reports the current
-database context and its comment, if one is set.
+`SHOW DATABASES` lists the registered databases. `SHOW DATABASE` reports the
+current database, and its comment where you set one.
 
 ### Branches
 
@@ -24,14 +24,16 @@ SHOW BRANCHES FROM prod;
 SHOW ANCESTORS FROM feature_checkout;
 ```
 
-`SHOW BRANCHES` lists every branch below a database, including branches of
-branches, returning the descendant name, stable internal id, depth, immediate
-parent, and fork timestamp. `SHOW ANCESTORS` walks the other direction and
-returns the parent chain, nearest first; a root database returns nothing.
+`SHOW BRANCHES` lists every branch below a database. That list includes a branch
+of a branch. Each row holds five values: the name of the descendant, its stable
+internal id, its depth, its immediate parent, and the time of the fork.
+
+`SHOW ANCESTORS` walks in the other direction. It returns the chain of the
+parents, with the nearest one first. A database at the root returns nothing.
 
 See [Database Branching](/docs/database-branching).
 
-## Tables And Columns
+## Tables and columns
 
 ```camussql
 SHOW TABLES;
@@ -41,10 +43,10 @@ DESC robots;
 SHOW CREATE TABLE robots;
 ```
 
-Reach for `SHOW CREATE TABLE` when you want the whole picture. It is the one
-that renders comments on the table, its columns, and its secondary indexes, and
-it replays `INCLUDE (...)` for covering indexes, so its output is DDL you can
-run elsewhere.
+Use `SHOW CREATE TABLE` when you want the whole picture. It is the statement
+that renders the comment of the table, of its columns, and of its secondary
+indexes. It also replays an `INCLUDE (...)` of a covering index. Its output is
+therefore DDL that you can run elsewhere.
 
 ## Views
 
@@ -57,15 +59,19 @@ SHOW MATERIALIZED VIEWS;
 SHOW CREATE MATERIALIZED VIEW customer_totals;
 ```
 
-`SHOW TABLES` lists tables only; neither views nor materialized views have their
-own row in it. `SHOW VIEWS` lists only what the caller can reach, and
-`SHOW MATERIALIZED VIEWS` also reports whether each one holds data and which
-snapshot it holds. Both `SHOW CREATE` forms print the normalized definition
-rather than the text you typed, and both re-parse to the same object. See
+`SHOW TABLES` lists a table only. A view has no row in it, and a materialized
+view has no row in it either.
+
+`SHOW VIEWS` lists only the views that the caller can reach.
+`SHOW MATERIALIZED VIEWS` also reports two facts about each view: whether it
+holds data, and which snapshot it holds.
+
+Both forms of `SHOW CREATE` print the normalized definition. They do not print
+the text that you typed. Both outputs parse again into the same object. See
 [Views](/docs/views) and [Materialized Views](/docs/materialized-views).
 
-`SHOW COLUMNS` and `DESCRIBE` work on either kind; `SHOW INDEXES` works on a
-materialized view, which is a real relation.
+`SHOW COLUMNS` and `DESCRIBE` work on both kinds of view. `SHOW INDEXES` works
+on a materialized view, which is a real relation.
 
 ## Indexes
 
@@ -74,20 +80,21 @@ SHOW INDEXES FROM robots;
 SHOW INDEX FROM robots;
 ```
 
-The `Include` column lists covering-index payload columns. See
+The `Include` column lists the payload columns of a covering index. See
 [Indexes](/docs/sql-indexes).
 
-## Recoverable Objects
+## Recoverable objects
 
 ```camussql
 SHOW ORPHAN DATABASES;
 SHOW ORPHAN TABLES;
 ```
 
-Both list dropped objects that are still recoverable. Pass the returned `id` to
-`CREATE DATABASE ... RELINK TO` or `CREATE TABLE ... RELINK TO` to bring one
-back. See [Recover Dropped Objects](/docs/recover-dropped-objects) for the
-workflow and retention settings.
+Both statements list a dropped object that is still recoverable. Pass the `id`
+of a row to `CREATE DATABASE ... RELINK TO`, or to `CREATE TABLE ... RELINK TO`.
+That statement brings the object back. See
+[Recover Dropped Objects](/docs/recover-dropped-objects) for the workflow, and
+for the settings of the retention.
 
 ## Grants
 
@@ -96,11 +103,11 @@ SHOW GRANTS;
 SHOW GRANTS FOR myapp;
 ```
 
-`SHOW GRANTS` lists the current authenticated user's grants. The `FOR` form
-targets another user and requires superuser privileges. See
+`SHOW GRANTS` lists the grants of the authenticated user. The `FOR` form targets
+another user, and it needs the privileges of a superuser. See
 [Authentication And Authorization](/docs/sql-authentication).
 
-## Query Plans
+## The plan of a query
 
 ```camussql
 EXPLAIN SELECT * FROM robots WHERE year = 2024;
@@ -109,7 +116,7 @@ EXPLAIN (PHYSICAL) SELECT * FROM robots WHERE year = 2024;
 EXPLAIN (ANALYZE) SELECT * FROM robots WHERE year = 2024 LIMIT 5;
 ```
 
-See [EXPLAIN](/docs/explain) for the output reference.
+See [EXPLAIN](/docs/explain) for the reference of the output.
 
 ## Statistics
 
@@ -121,27 +128,37 @@ ANALYZE robots;
 ANALYZE TABLE robots;
 ```
 
-`SHOW STATISTICS` prints what the cost model currently believes about one table:
-row count, per-column bounds, histogram sizes, distinct-value estimates,
-per-index entry counts, and how stale all of it is. It needs only `SELECT` on
-the table. See [SHOW STATISTICS](/docs/show-statistics).
+`SHOW STATISTICS` prints the current belief of the cost model about one table.
+It reports six things:
 
-`ANALYZE` rebuilds the parts of that picture a scan has to produce, meaning
-histograms and distinct-value counts. Run it after a bulk load or a large
-delete, when the planner's estimates no longer match the data. CamusDB also
-schedules this work itself; see [Automatic Analyze](/docs/automatic-analyze) and
+1. The row count.
+2. The bounds of each column.
+3. The size of each histogram.
+4. The estimates of the distinct values.
+5. The count of the entries of each index.
+6. The staleness of all of it.
+
+The statement needs `SELECT` on the table only. See
+[SHOW STATISTICS](/docs/show-statistics).
+
+`ANALYZE` rebuilds the parts of that picture that need a scan. Those parts are
+the histograms and the counts of the distinct values.
+
+Run `ANALYZE` after a bulk load, and after a large delete. Run it when the
+estimates of the planner no longer match the data. CamusDB also schedules that
+work itself. See [Automatic Analyze](/docs/automatic-analyze) and
 [Query Planning](/docs/query-planning).
 
-## Node-Level State
+## The state of a node
 
-Three more `SHOW` commands report on the server rather than on your data. All
-three require a superuser when authentication is enabled.
+Three more `SHOW` statements report on the server, not on your data. All three
+need a superuser while authentication is enabled.
 
-| Command | Reports | Page |
+| Statement | It reports | Page |
 | --- | --- | --- |
-| `SHOW VARIABLES` | Effective configuration, with each value's default, source layer, mutability, and scope. | [SHOW VARIABLES](/docs/show-variables) |
-| `SHOW ENGINE STATS` | Kahuna and Kommander metrics: workload, Raft, WAL, storage. | [Engine Stats](/docs/engine-stats) |
-| `SHOW CLUSTER SETTINGS` | The settings the cluster currently overrides fleet-wide. | [Runtime Cluster Settings](/docs/runtime-cluster-settings) |
+| `SHOW VARIABLES` | The effective configuration. Each value carries its default, its source layer, its mutability, and its scope. | [SHOW VARIABLES](/docs/show-variables) |
+| `SHOW ENGINE STATS` | The metrics of Kahuna and of Kommander: the workload, Raft, the WAL, and the storage. | [Engine Stats](/docs/engine-stats) |
+| `SHOW CLUSTER SETTINGS` | The settings that the cluster overrides across the fleet. | [Runtime Cluster Settings](/docs/runtime-cluster-settings) |
 
 All three accept a `LIKE` filter:
 
@@ -151,7 +168,8 @@ SHOW ENGINE STATS LIKE 'raft.executor%';
 SHOW CLUSTER SETTINGS LIKE 'ttl_%';
 ```
 
-None of them require a selected database. `SHOW VARIABLES` and
-`SHOW ENGINE STATS` are node-local, so run them against each node when comparing
-a cluster; `SHOW CLUSTER SETTINGS` reports the replicated overlay and reads the
-same on every node.
+None of the three needs a selected database.
+
+`SHOW VARIABLES` and `SHOW ENGINE STATS` are local to one node. Run them against
+each node when you compare a cluster. `SHOW CLUSTER SETTINGS` reports the
+replicated overlay. It reads the same on every node.

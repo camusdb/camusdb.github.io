@@ -2,51 +2,60 @@
 sidebar_position: 3.05
 ---
 
-# Transaction Priority
+# Transaction priority
 
-Priority decides queueing order. When a node is at its configured concurrency
-ceiling and transactions have to wait to start, the higher-priority ones go
-first.
+CamusDB can give each transaction a relative importance. When a node is
+saturated, the work that matters to you then starts before the work that does
+not.
 
-Priority is recorded by default, but it does not delay any transaction unless
-the [Kahuna](https://kahunakv.github.io/) admission gate is enabled with
-`kahuna.max_concurrent_sessions`. With the default
-`max_concurrent_sessions: 0`, every transaction is admitted immediately and
-priority is only observable in engine metrics.
+The feature is off by default. It does nothing until you configure a ceiling on
+concurrency. CamusDB records the priority from the first release, and you can
+observe it. CamusDB defers no transaction until an operator sets
+`kahuna.max_concurrent_sessions`. Read [Turn the gate on](#turn-the-gate-on)
+before you set it.
 
-## What Priority Does
+## What it does, and what it does not do
 
-Priority decides which queued transaction starts next when the local node is at
-its configured concurrent-session ceiling.
+Priority decides which queued transaction starts next when the node is at its
+configured ceiling. That is the whole feature.
 
-It does not:
+Three consequences are worth a plain statement, because each one surprises
+people:
 
-- preempt a transaction that already started
-- reduce CPU, I/O, memory, or lock usage for a running transaction
-- make a lower-priority lock holder yield to a higher-priority waiter
-- change isolation, two-phase commit, durability, or conflict detection
-- provide cluster-wide fairness across nodes
+- It orders the starts, not the execution. An admitted transaction competes for
+  CPU, for I/O, and for locks like any other transaction. CamusDB preempts
+  nothing, throttles nothing, and deschedules nothing. For a long statement,
+  priority decides one instant, and nothing after that instant.
+- It does not affect a lock conflict. A `Background` transaction that holds an
+  exclusive lock blocks a `Critical` transaction as hard as a `Normal` one does.
+  Priority does not touch isolation, two-phase commit, or the commit semantics.
+- It applies per node. Each node orders only the work that it receives. There is
+  no fairness across the cluster.
 
-Think of priority as admission ordering, not runtime scheduling. If the goal is
-to make background work consume less, use rate limits and load backoff instead.
+Priority is the wrong control if your goal is to reduce the resources that
+background work consumes. Priority only decides who starts first under
+contention. A rate limit is the correct control. See
+[What makes background work cheap](#what-makes-background-work-cheap).
 
-## Priority Levels
+## The scale
 
-| Priority | Use For |
-| --- | --- |
-| `Background` | Bulk or deferrable work that should yield to ordinary traffic. |
-| `Low` | Below-normal work that is still latency-relevant. |
-| `Normal` | Default application traffic. |
-| `High` | Latency-sensitive work that should start ahead of ordinary traffic. |
-| `Critical` | Work that should avoid deferral when reserved admission slots exist. |
+| Priority | Use for |
+|---|---|
+| `Background` | Bulk work that you can defer. It yields to everything. |
+| `Low` | Below ordinary traffic, but still relevant to latency. |
+| `Normal` | The default. Everything that does not state another value. |
+| `High` | Latency-critical work that must start before ordinary traffic. |
+| `Critical` | Work that CamusDB must not defer. |
 
-Do not mark ordinary application traffic as `Critical`. If everything is
-critical, priority stops carrying useful information and any reserved capacity
-is consumed by ordinary work.
+Do not tag ordinary application traffic as `Critical`. The order carries no
+information if everything is critical. `Critical` can also claim reserved
+capacity. Too much use of it therefore destroys the reserve that makes the
+setting useful.
 
-## SQL Usage
+## Set a priority
 
-Set priority at the start of an explicit transaction:
+In SQL, the statement must be the first one of the transaction. It must come
+before any data statement:
 
 ```camussql
 BEGIN;
@@ -55,228 +64,161 @@ DELETE FROM events WHERE created_at < '2026-01-01';
 COMMIT;
 ```
 
-Accepted values are case-insensitive:
+The accepted values are `BACKGROUND`, `LOW`, `NORMAL`, `HIGH`, and `CRITICAL`.
+Case does not matter. You can combine the statement with `SET TRANSACTION
+LOCKING` and `SET TRANSACTION ISOLATION LEVEL`, in any order. All of them must
+come before the first data statement.
 
-- `BACKGROUND`
-- `LOW`
-- `NORMAL`
-- `HIGH`
-- `CRITICAL`
+CamusDB consumes the priority when the coordinator session opens. You therefore
+cannot change the priority after the first statement of the transaction. CamusDB
+rejects a later `SET TRANSACTION PRIORITY`. It does not ignore it in silence.
 
-`SET TRANSACTION PRIORITY` must run before the first data statement and before
-the coordinator session starts. CamusDB rejects the statement with
-`CADB0400 InvalidInput` if the transaction has already executed work or if the
-priority no longer has a coordinator admission point to affect.
-
-It can be combined with isolation and locking settings as part of the
-transaction setup:
-
-```camussql
-BEGIN;
-SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
-SET TRANSACTION LOCKING OPTIMISTIC;
-SET TRANSACTION PRIORITY HIGH;
-UPDATE orders SET status = "processing" WHERE id = @id;
-COMMIT;
-```
-
-## HTTP Usage
-
-HTTP SQL requests can set `priority` when they start an autocommit transaction:
+Over HTTP, use the `priority` field. It is available on `/start-transaction` and
+on the `execute-sql-*` endpoints:
 
 ```json
-{
-  "databaseName": "factory",
-  "sql": "UPDATE jobs SET status = @status WHERE id = @id",
-  "priority": "high",
-  "parameters": {
-    "status": { "type": 1, "strValue": "running" },
-    "id": { "type": 0, "strValue": "6a3dd713d615ae230488d7f2" }
-  }
-}
+{ "databaseName": "mydb", "priority": "background" }
 ```
 
-Explicit transactions can set priority on `/start-transaction`:
+CamusDB rejects an unknown value with `InvalidInput`. It treats `priority` like
+`locking` and `isolationLevel`.
 
-```json
-{
-  "databaseName": "factory",
-  "isolationLevel": "Serializable",
-  "transactionMode": "ReadWrite",
-  "locking": "Pessimistic",
-  "priority": "background"
-}
+Over gRPC, use the `priority` field. It is available on `SqlRequest`, on
+`StartTxnRequest`, and on the row-level CRUD requests. An unset field means the
+server default. It never means `Background`.
+
+The server default is `default_transaction_priority` in `config.yml`:
+
+```yml
+default_transaction_priority: normal   # background | low | normal | high | critical
 ```
 
-When a request resumes an existing transaction id, `priority` is ignored because
-the transaction was already admitted. Unknown values fail with
-`CADB0400 InvalidInput`.
+The order of precedence is `SET TRANSACTION PRIORITY`, then the per-request
+field, then `default_transaction_priority`, then `Normal`.
 
-## gRPC Usage
+## Turn the gate on
 
-The gRPC API has a `TransactionPriority` enum:
+Take care with this part. All the settings are under `kahuna:` in `config.yml`:
 
-```text
-TRANSACTION_PRIORITY_UNSPECIFIED = 0
-TRANSACTION_PRIORITY_BACKGROUND  = 1
-TRANSACTION_PRIORITY_LOW         = 2
-TRANSACTION_PRIORITY_NORMAL      = 3
-TRANSACTION_PRIORITY_HIGH        = 4
-TRANSACTION_PRIORITY_CRITICAL    = 5
-```
-
-`TRANSACTION_PRIORITY_UNSPECIFIED` means "use the server default". It never
-means `Background`.
-
-Priority is available on:
-
-- `SqlRequest`
-- `StartTxnRequest`
-- row-level insert, query, update, and delete requests
-
-As with HTTP, priority applies only when the request starts a transaction. It is
-ignored when a request resumes an existing transaction handle.
-
-## Server Default
-
-The server default priority is `normal`:
-
-```yaml
-default_transaction_priority: normal
-```
-
-Accepted values are:
-
-- `background`
-- `low`
-- `normal`
-- `high`
-- `critical`
-
-Precedence is:
-
-1. `SET TRANSACTION PRIORITY`
-2. HTTP/gRPC request priority
-3. `default_transaction_priority`
-4. built-in `Normal`
-
-Changing the default priority only changes the tag applied to transactions that
-do not choose one. It still has no admission effect unless
-`kahuna.max_concurrent_sessions` is greater than `0`.
-
-## Admission Gate Settings
-
-The admission gate is configured under `kahuna:`:
-
-```yaml
+```yml
 kahuna:
-  max_concurrent_sessions: 0
-  transaction_priority_reserved_slots: 0
+  max_concurrent_sessions: 64             # 0 (default) = no gate at all
+  transaction_priority_reserved_slots: 2  # slots only High/Critical may use
   transaction_priority_aging_threshold: 1000
   transaction_priority_max_queued: 4096
 ```
 
-| Setting | Default | Meaning |
-| --- | --- | --- |
-| `kahuna.max_concurrent_sessions` | `0` | Maximum coordinator sessions admitted concurrently on this node. `0` disables the gate. |
-| `kahuna.transaction_priority_reserved_slots` | `0` | Slots reserved for `High` and `Critical` transactions when a ceiling is active. |
-| `kahuna.transaction_priority_aging_threshold` | `1000` | Milliseconds a queued transaction waits before gaining one effective priority level. `0` disables aging. |
-| `kahuna.transaction_priority_max_queued` | `4096` | Maximum transactions that may wait at the gate. `0` means unbounded. |
+### max_concurrent_sessions is a ceiling on work, not on connections
 
-`max_concurrent_sessions` is a ceiling on concurrent transaction work, not on
-client connections. CamusDB opens coordinator sessions for user transactions
-and for some internal work such as schema checkpoints, catalog lookups,
-statistics publication, and index backfill.
+CamusDB opens a coordinator session for every transaction. That includes its own
+catalog writes, its schema checkpoints, and its index backfill. The setting
+therefore bounds the total concurrent engine work on the node.
 
-Use this gate carefully. A ceiling below normal healthy concurrency turns a
-healthy node into a queueing node. If you enable it, size it at or above
-observed healthy concurrency and reserve at least one slot for high-priority
-work. A reserved-slot value greater than or equal to the ceiling is rejected at
-startup.
+A ceiling below your normal concurrency makes a healthy node into a node that
+queues. It adds latency for no benefit. Set the value at or above the
+concurrency that you observe when the node is healthy. The purpose of the
+setting is to shed and to order surplus load.
 
-Keep `max_concurrent_sessions` at `0` unless you have tested the admission
-behavior with your workload and have a clear overload-control goal.
+The Kahuna admission guide describes this setting for a client that holds one
+session per user session. It bounds connections in that case. That advice does
+not apply to CamusDB.
 
-### How Long A Transaction Waits At The Door
+### A reserve is almost always necessary
 
-A transaction that cannot be admitted queues for the admission wait budget, then
-fails with the retryable `CADB0504`. Nothing was started, so retrying is always
-safe, but the node is shedding load and the retry should back off.
+Engine-internal work shares the same ceiling. Set
+`transaction_priority_reserved_slots` to 1 or more whenever you set a ceiling.
+Without a reserve, a flood of user traffic can put a schema checkpoint or a
+registry lookup in the queue behind it.
 
-```yaml
-transaction_admission_wait_ms: 0   # 0 = leave the node's own budget in force
+A reserve of 1 or 2 is usually enough. CamusDB subtracts the reserve from the
+slots that ordinary traffic may use. A large reserve therefore throttles your
+common case. CamusDB rejects a reserve at or above the ceiling at startup.
+
+### Aging bounds starvation, and erodes separation quickly
+
+The effective priority of a waiter rises one level for each
+`transaction_priority_aging_threshold` of wait time. Low-priority work therefore
+cannot starve forever.
+
+The default threshold is 1,000 ms. A `Background` transaction therefore reaches
+`High` after about three seconds of wait time. `Background` is a soft yield
+measured in seconds. It is not a class that runs only when the node is idle.
+
+Raise the threshold to tens of seconds to make background work genuinely
+patient. The threshold is one global rate. A higher value therefore also
+lengthens the worst-case wait of an ordinary transaction that is genuinely
+starved. A value of `0` disables aging, and it permits starvation without limit.
+
+### How long a transaction waits at the door
+
+A transaction that CamusDB cannot admit waits in a queue for the admission wait
+budget. It then fails with the retryable code `CADB0504`. CamusDB started
+nothing, so a retry is always safe. The node sheds load in this state, so your
+retry must use a backoff.
+
+```yml
+transaction_admission_wait_ms: 0          # 0 = leave the node's own budget in force
 
 kahuna:
-  default_admission_wait_ms: 5000  # node-side default when a caller asks for nothing
-  max_admission_wait_ms: 30000     # hard clamp on any caller-supplied budget
+  default_admission_wait_ms: 5000         # node-side default when a caller asks for nothing
+  max_admission_wait_ms: 30000            # hard clamp on any caller-supplied budget
 ```
 
-This is not the transaction lifetime, and is not meant to be.
-`max_serializable_transaction_lifetime_ms` (one hour by default) bounds how long
-an *admitted* transaction may live, and doubles as the abandoned-session reaper
-window. The budget above bounds how long an *unadmitted* one waits to begin. A
-transaction meant to run for an hour is not thereby willing to wait an hour to
-start.
+This budget is not the transaction lifetime, and the difference is intentional.
+`max_serializable_transaction_lifetime_ms`, one hour by default, bounds the life
+of an admitted transaction. It is also the window of the reaper that removes an
+abandoned session. The budget above bounds the wait of a transaction that
+CamusDB has not admitted yet.
 
-Keep the budget short, on the order of seconds. Lengthening it does not increase
-throughput; it
-converts a prompt, retryable refusal into a slow one, and every waiting
-transaction occupies a queue slot that `transaction_priority_max_queued` would
-otherwise give to someone else.
+A transaction that must run for an hour is not therefore willing to wait an hour
+to start. A long wait at the door also makes a saturated node hold requests open
+instead of a shed of that load.
 
-## Aging And Starvation
+Keep the budget short, in seconds. A longer budget does not increase throughput.
+It only converts a prompt retryable refusal into a slow one. Each transaction in
+the queue also occupies a slot that `transaction_priority_max_queued` would
+otherwise give to another transaction.
 
-Aging prevents low-priority work from starving forever. A queued transaction's
-effective priority rises one level per
-`kahuna.transaction_priority_aging_threshold` milliseconds of waiting.
+## What makes background work cheap
 
-At the default `1000` milliseconds, a `Background` transaction reaches `High`
-after roughly three seconds in the queue. That means `Background` is a soft
-yield measured in seconds, not a "run only when idle" class.
+Priority decides who starts first. It does not reduce what an admitted
+transaction consumes. For that purpose CamusDB uses a rate limit and a backoff
+that reacts to load. Both work while the gate is off:
 
-Increase the threshold if background work should wait longer. Setting it to
-`0` disables aging and allows indefinite starvation of low-priority work.
+- `auto_analyze_max_rows_per_second` caps the row rate of the background
+  statistics scan.
+- `auto_analyze_load_pause_threshold` pauses or cancels a background analyze
+  when the foreground transactions in flight exceed a threshold. CamusDB checks
+  the threshold again during the scan, not only at the start.
 
-## Internal Priorities
+The auto-analyze scan itself passes through no admission gate. It runs on a
+snapshot with zero identity, and it holds no coordinator session. No ceiling
+applies to it. Only its short write that publishes the statistics passes through
+the gate.
 
-CamusDB also tags internal maintenance work:
+The same is true of any read-committed autocommit `SELECT`. Such a statement
+holds no session, and CamusDB never defers it.
 
-| Work | Priority | Why |
-| --- | --- | --- |
-| User statements | `Normal` | Default application behavior. |
-| Index backfill | `Background` | Bulk, batched, deferrable work. |
-| Statistics flush and analyze publish | `Background` | Maintenance where delay affects optimizer freshness, not correctness. |
-| Schema checkpoint persist | `High` | A stalled checkpoint can block distributed DDL progress. |
-| Database-registry cache-miss lookup | `High` | Runs under already-admitted user work and should avoid priority inversion. |
+## What CamusDB tags internally
 
-CamusDB does not tag internal work as `Critical`.
+| Work | Priority | Reason |
+|---|---|---|
+| User statements | `Normal` | The default. |
+| Index backfill | `Background` | Bulk work, in batches, which CamusDB can defer. It is the best fit for the gate, because it enters admission again for each batch. |
+| Statistics flush and analyze publish | `Background` | Maintenance work. A deferred flush costs only the freshness of the optimizer statistics. |
+| Schema checkpoint persist | `High` | A stalled checkpoint blocks DDL across the cluster, and a deadline already bounds its commit. |
+| Cache-miss lookup in the database registry | `High` | It runs under a user request that CamusDB already admitted. A queue for it would stall work that the gate already let in. |
+
+CamusDB tags nothing as `Critical`.
 
 ## Observability
 
-Use [`SHOW ENGINE STATS`](/docs/engine-stats) to inspect admission metrics:
+The Kahuna node exposes admission gauges under `kahuna.tx_admission.*`. Each
+gauge carries a tag for the priority. The gauges are `in_flight`, `queued`,
+`max_queue_depth`, `admitted`, `aged_promotions`, `abandoned_while_waiting`, and
+`rejected_queue_full`.
 
-```camussql
-SHOW ENGINE STATS LIKE 'kahuna.tx_admission%';
-```
-
-Admission metrics are tagged by priority. Useful signals include:
-
-- `kahuna.tx_admission.in_flight`
-- `kahuna.tx_admission.queued`
-- `kahuna.tx_admission.max_queue_depth`
-- `kahuna.tx_admission.admitted`
-- `kahuna.tx_admission.aged_promotions`
-- `kahuna.tx_admission.abandoned_while_waiting`
-- `kahuna.tx_admission.rejected_queue_full`
-
-`queued` is the first metric to check. If it is zero, the gate is transparent
-and your ceiling is not binding. Sustained non-zero values at `High` or
-`Critical` usually mean the ceiling is too low for the offered load or reserved
-capacity is too small.
-
-## Related Pages
-
-- [Transactions In SQL](/docs/sql-transactions)
-- [Transactions And Isolation](/docs/serializable-transactions)
-- [Transaction Limits](/docs/transaction-limits)
-- [Engine Stats](/docs/engine-stats)
+Watch `queued` first. A value of zero means that the gate is transparent, and
+that your ceiling does not bind. A value above zero at `High` or `Critical`, over
+a long period, means one of two things. The ceiling is too low for the offered
+load, or the configuration needs a reserve.

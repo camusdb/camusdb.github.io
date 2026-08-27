@@ -2,16 +2,17 @@
 sidebar_position: 4.6
 ---
 
-# Object Id Functions
+# Object ID functions
 
-Object id functions create and convert CamusDB `OID` values. They are useful in
-primary keys, inserts, filters, and parameterized queries.
+An object id function creates or converts an `OID` value of CamusDB. These
+functions are useful in a primary key, in an insert, in a filter, and in a query
+with a parameter.
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `gen_id()` | `OID` | Generates a new object id. This function is volatile. |
-| `to_id(value)` | `OID` | Converts an `OID` or 24-character lowercase hex string to an object id. |
-| `str_id(value)` | `OID` | Alias for `to_id(value)`. |
+| `gen_id()` | `OID` | It generates a new object id. The function is volatile. |
+| `to_id(value)` | `OID` | It converts an `OID` to an object id. It also converts a hexadecimal string of 24 lowercase characters. |
+| `str_id(value)` | `OID` | An alias of `to_id(value)`. |
 
 ## Examples
 
@@ -36,11 +37,13 @@ FROM robots
 LIMIT 1;
 ```
 
-`gen_id()` returns a 24-character object id string. When used as
-`DEFAULT (gen_id())` on an `OID` column, CamusDB evaluates it once per inserted
-row, so omitted ids and `DEFAULT` values get distinct ObjectIds.
+`gen_id()` returns a string of an object id, with 24 characters.
 
-`to_id` and `str_id` accept existing `OID` values and strings that are exactly
-24 lowercase hexadecimal characters.
+`DEFAULT (gen_id())` on an `OID` column runs one time for each inserted row. An
+omitted id and a `DEFAULT` value therefore both receive their own ObjectId.
 
-For the full conversion rules, see [Conversion Functions](/docs/functions-conversion).
+`to_id` and `str_id` accept an existing `OID` value. They also accept a string
+of exactly 24 lowercase hexadecimal characters.
+
+For the full rules of a conversion, see
+[Conversion Functions](/docs/functions-conversion).

@@ -4,37 +4,44 @@ sidebar_position: 7.3
 
 # camus-dump
 
-`camus-dump` is a logical backup utility for CamusDB. It connects to a
-database, reads schema metadata and rows, and writes SQL that can be replayed
-later through `camus-cli` or another CamusDB SQL client.
+`camus-dump` is a utility for a logical backup of CamusDB. It connects to a
+database. It reads the metadata of the schema, and the rows. It then writes SQL.
+You can replay that SQL later, through `camus-cli`, or through another client of
+SQL for CamusDB.
 
-Use it when you want an inspectable SQL backup, a table-level export, or a
-consistent logical snapshot of a database.
+Use the utility for one of three purposes: a backup in SQL that you can inspect,
+an export of one table, or a consistent logical snapshot of a database.
 
-The dump is consistent across tables by default: it fixes one instant when it
-starts and reads every table as of that instant. See
-[Point In Time](#point-in-time) before turning that off.
+The dump is consistent across the tables, by default. It fixes one instant at
+its start. It then reads every table as of that instant. Read
+[Point in time](#point-in-time) before you turn that behavior off.
 
-## Not For Large Databases
+## Not for large databases
 
-`camus-dump` is not the right tool for a database of dozens or hundreds of
-gigabytes. Use [Backup And Restore](/docs/backup-and-restore) for anything at
-that scale.
+`camus-dump` is the wrong tool for a database of tens of gigabytes, and of
+hundreds of gigabytes. Use [Backup And Restore](/docs/backup-and-restore) at that
+scale.
 
-Every row travels through the SQL layer and comes back out as text, so both ends
-scale with row count rather than bytes on disk. The dump runs slower than the
-disk it is reading, and the SQL file is typically larger than the data it came
-from.
+Every row travels through the layer of the SQL. It comes back out as text. Both
+ends therefore grow with the count of the rows. They do not grow with the bytes
+on the disk.
 
-The restore is the harder half. Replaying a dump means parsing every statement,
-re-checking every constraint, and rebuilding every index from scratch: hours or
-days of work where a physical restore is a file copy plus a WAL replay. A dump
-that takes a long night to produce can take considerably longer to put back,
-which is precisely the wrong shape for a recovery path.
+The dump runs slower than the disk that it reads. The file of the SQL is usually
+larger than the data of its source.
 
-Reach for `camus-dump` when the output being readable, portable SQL is the
-point, and for datasets small enough that replaying them is quick. Reach for a
-physical backup when the point is getting the data back.
+The restore is the harder half. A replay of a dump parses every statement,
+checks every constraint again, and builds every index from the start. That work
+takes hours, and it can take days. A physical restore is a copy of some files,
+plus a replay of the WAL.
+
+A dump can need a long night for its creation. It can then need much longer for
+its restore. That shape is exactly wrong for a path of a recovery.
+
+Use `camus-dump` for two purposes. The output must be readable SQL that you can
+carry to another system. The data set must also be small enough for a quick
+replay.
+
+Use a physical backup when your purpose is the return of the data.
 
 ## Install
 
@@ -50,7 +57,7 @@ The executable name is:
 camus-dump
 ```
 
-## Basic Usage
+## Basic usage
 
 Dump a database to standard output:
 
@@ -90,11 +97,14 @@ camus-dump \
   --output-directory backup/
 ```
 
-By default, `camus-dump` uses the gRPC protocol and `http://localhost:5096`,
-which is CamusDB's default client gRPC port. Use `--protocol rest` with the
-REST endpoint when you want REST/JSON instead.
+By default, `camus-dump` uses the protocol of gRPC, and the address
+`http://localhost:5096`. That port is the default port of gRPC for a client of
+CamusDB.
 
-## Connection Options
+Use a `--protocol rest`, with the endpoint of REST, when you want REST with JSON
+instead.
+
+## Connection options
 
 | Option | Description |
 | --- | --- |
@@ -115,8 +125,8 @@ camus-dump \
 
 ## Authentication
 
-CamusDB authentication is off by default. Against an authenticated server, pass
-credentials or a bearer token:
+The authentication of CamusDB is off by default. Against a server with
+authentication, pass a credential, or a bearer token:
 
 ```bash
 CAMUSDB_PASSWORD=app-secret \
@@ -143,17 +153,21 @@ camus-dump -e https://camus.internal:5096 -d factory --access-token "camus_..."
 | `--access-token` | Bearer token obtained elsewhere, used instead of logging in. |
 | `--token-lifetime` | Seconds to reuse a minted token when the server reports no expiry. Defaults to `600`. |
 
-The password is exchanged once for a short-lived bearer token. Statements use
-the token, not the password. Over gRPC, authentication uses the `CamusAuth`
-service on the same channel that carries dump queries.
+The utility exchanges the password one time, for a bearer token with a short
+life. A statement then uses the token. It does not use the password.
 
-The dump reads schema and table data. With authentication enabled, the user
-needs privileges that allow the relevant `SHOW` and `SELECT` operations.
+Over gRPC, the authentication uses the service `CamusAuth`. That service runs on
+the same channel as the queries of the dump.
 
-Use `https://` for non-loopback authenticated deployments. CamusDB rejects
-credential-bearing plaintext requests outside loopback when TLS is required.
+The dump reads the schema, and the data of a table. While authentication is
+enabled, the user needs the privileges of the relevant `SHOW` operations, and of
+the relevant `SELECT` operations.
 
-## Choosing What To Dump
+Use an `https://` address for a deployment with authentication, outside
+loopback. While TLS is necessary, CamusDB rejects a plaintext request with a
+credential from outside loopback.
+
+## Choosing what to dump
 
 | Option | Description |
 | --- | --- |
@@ -175,10 +189,11 @@ camus-dump -e http://localhost:5096 -d factory \
   --output open-orders.sql
 ```
 
-## Dumping Every Database
+## Dumping every database
 
-`--all-databases` asks the server for its databases with `SHOW DATABASES` and
-dumps each one in turn, skipping anything `--exclude-database` names:
+`--all-databases` asks the server for its databases, with a `SHOW DATABASES`. It
+then dumps each database in turn. It skips every database that an
+`--exclude-database` names:
 
 ```bash
 # Every database, as one stream of sections
@@ -188,45 +203,55 @@ camus-dump -A -o server.sql
 camus-dump -A -X scratch,tempdb --output-directory backup/
 ```
 
-Every database is read as of the same instant, because the point in time is
-fixed once before the first statement goes out. `--single-transaction` is the
-exception: a transaction belongs to a connection and each database gets its own,
-so it makes each database internally consistent without tying them to a common
+The utility reads every database as of the same instant. It fixes the point in
+time one time, before the first statement leaves.
+
+`--single-transaction` is the exception. A transaction belongs to a connection,
+and each database receives its own connection. That option therefore makes each
+database internally consistent. It does not bind the databases to one common
 snapshot.
 
-Each section opens with `CREATE DATABASE IF NOT EXISTS` and a `USE`, whether or
-not `--create-database` was passed, so one file restores every database in turn.
+Each section opens with a `CREATE DATABASE IF NOT EXISTS`, and with a `USE`.
+That happens with a `--create-database`, and without one. One file therefore
+restores every database, in turn.
 
-`USE` is not server-side SQL; CamusDB's parser rejects it. A client reads it
-and points the statements that follow at that database, which is how `camus-cli`
-takes the whole file. For a client that does not, dump with
-`--output-directory`: it writes one `<database>.sql` per database, and each file
-replays on its own with `-d` naming the target.
+A `USE` is not SQL of the server. The parser of CamusDB rejects it. A client
+reads that statement, and it points the statements after it at that database.
+`camus-cli` therefore takes the whole file.
 
-The remaining options apply per database. `-t` and `-x` match table names in
-every one of them, and `-w` filters rows in every table it names, so a condition
-referencing a column that only some tables have will fail on the others.
+Another client may not read a `USE`. Dump with an `--output-directory` for such a
+client. The utility then writes one `<database>.sql` for each database. Each file
+replays on its own, and a `-d` names its target.
 
-## Point In Time
+The other options apply to each database. A `-t` and an `-x` match the names of
+the tables of every database. A `-w` filters the rows of every table that it
+names.
 
-By default the dump does not read the latest data. It fixes an instant when it
-starts, a second behind the wall clock to stay clear of the server's own clock,
-and reads every table with CamusDB's
-[`AS OF SYSTEM TIME`](/docs/time-travel-reads) clause.
+A condition can reference a column that only some tables hold. That condition
+then fails on the other tables.
 
-That default exists for a reason. Without it, a row written between the first
-table's scan and the last one's lands in the dump without whatever it referenced
-in a table already written, and the dump restores into a state the database was
-never in.
+## Point in time
 
-The instant is recorded in the dump header, so a dump can be reproduced exactly:
+By default, the dump does not read the latest data. It fixes an instant at its
+start. That instant is one second behind the wall clock, and it therefore stays
+clear of the clock of the server. The dump then reads every table with the
+[`AS OF SYSTEM TIME`](/docs/time-travel-reads) clause of CamusDB.
+
+That default exists for a reason. Without it, a problem appears. A user writes a
+row between the scan of the first table and the scan of the last one. That row
+arrives in the dump. The rows that it references, in a table that the dump wrote
+already, do not. The dump then restores a state that the database never held.
+
+The utility records the instant in the header of the dump. You can therefore
+repeat a dump exactly:
 
 ```text
 -- Point in time: 2026-07-29 19:15:35.277+00:00
 -- Rows read with AS OF SYSTEM TIME '2026-07-29 19:15:35.277+00:00'; table definitions and indexes are current.
 ```
 
-`--as-of` picks a different instant, in any form the server accepts:
+An `--as-of` selects a different instant. It takes any form that the server
+accepts:
 
 ```bash
 # Five minutes ago
@@ -239,12 +264,14 @@ camus-dump -d factory --as-of "2026-07-29 19:15:35.277+00:00"
 camus-dump -d factory --as-of 1721420000000
 ```
 
-Offsets take `ms`, `s`, `m`, `h`, and `d`, and must be negative. A relative
-offset is resolved to an absolute instant once, before the first statement goes
-out, rather than passed through. Otherwise the server would evaluate it afresh
-for each table and the tables would not share a snapshot.
+An offset takes `ms`, `s`, `m`, `h`, and `d`. It must be negative.
 
-Four things are worth knowing:
+The utility resolves a relative offset to an absolute instant one time, before
+the first statement leaves. It does not pass the offset through. The server would
+otherwise evaluate that offset again for each table. The tables would then share
+no snapshot.
+
+Four points are worth your attention:
 
 - Rows only. `SHOW CREATE TABLE` and `SHOW INDEXES` have no time-travel
   form, so the schema in the dump is the current one. A table created after the
@@ -258,7 +285,7 @@ Four things are worth knowing:
 - `--no-as-of` reads the latest committed data, with no consistency
   guarantee across tables.
 
-## Shaping The Output
+## Shaping the output
 
 | Option | Description |
 | --- | --- |
@@ -273,17 +300,19 @@ Four things are worth knowing:
 | `--strict` | Fail instead of emitting `NULL` for values that have no exact SQL literal. |
 | `--no-header` | Omit the leading comment header. |
 
-`--single-transaction` is an alternative to the default point-in-time read, not
-an addition to it, and both give a snapshot consistent across tables. Reach for it
-when you want the dump pinned to *now* rather than to a fixed instant in the
-past.
+`--single-transaction` is an alternative to the default read at a point in time.
+It is not an addition to that read. Both forms give a snapshot that is consistent
+across the tables.
 
-Use `--defer-indexes` for large restores when you want table data loaded before
-secondary indexes are built.
+Use the option when you want the dump pinned to the present moment. The default
+pins the dump to a fixed instant of the past.
 
-## Dump Contents
+Use a `--defer-indexes` for a large restore. CamusDB then loads the data of a
+table before it builds the secondary indexes.
 
-Depending on the selected options, the dump can include:
+## Dump contents
+
+The dump can include these parts. Your selected options decide:
 
 - optional header comments, including the point in time the rows were read at
 - `CREATE DATABASE IF NOT EXISTS` followed by `USE`
@@ -310,10 +339,10 @@ VALUES
   (STR_ID('507f1f77bcf86cd799439012'), 'second order');
 ```
 
-## Literal Encoding
+## Literal encoding
 
-`camus-dump` emits values as CamusSQL literals that parse back to the same
-stored value:
+`camus-dump` writes a value as a literal of CamusSQL. That literal parses back
+to the same stored value:
 
 | Type | Dump form |
 | --- | --- |
@@ -329,19 +358,22 @@ stored value:
 | `ARRAY` | `ARRAY[...]` |
 | `NULL` | `NULL` |
 
-Strings round-trip even when they contain a backslash, a trailing backslash,
-both quote characters, a newline, or a NUL. See
-[Data Types](/docs/data-types#string-literals) for the literal rules.
+A string returns unchanged, even with five difficult characters inside it: a
+backslash, a backslash at its end, both kinds of quotation mark, a new line, and
+a NUL. See [Data Types](/docs/data-types#string-literals) for the rules of a
+literal.
 
-Indexes are dumped both inline in `CREATE TABLE` and as separate
-`CREATE INDEX IF NOT EXISTS` statements. This keeps index definitions available
-when `--no-create-table` is used and lets `--defer-indexes` build indexes after
-row loading.
+The dump writes an index two times: inline, inside the `CREATE TABLE`, and as a
+separate `CREATE INDEX IF NOT EXISTS` statement.
 
-## Lossy Values
+That repetition keeps the definitions of the indexes available with a
+`--no-create-table`. It also lets a `--defer-indexes` build the indexes after the
+load of the rows.
 
-Most stored values have exact SQL literal forms. When a value cannot be restored
-exactly, `camus-dump` reports it.
+## Lossy values
+
+Most stored values have an exact form as a literal of SQL. `camus-dump` reports
+a value that it cannot restore exactly.
 
 Non-finite floats have no CamusSQL literal:
 
@@ -349,17 +381,17 @@ Non-finite floats have no CamusSQL literal:
 - `+Infinity`
 - `-Infinity`
 
-By default, the dump emits `NULL` for those values, adds warning comments to the
-dump, and prints a count to standard error at the end. Use `--strict` to fail
-instead.
+By default, the dump writes a `NULL` for such a value. It adds a comment of a
+warning to the dump. It prints a count to the standard error at its end. Use a
+`--strict` for a failure instead.
 
-`DATETIME` literals carry millisecond precision. If a dumped datetime must be
-truncated to milliseconds, the tool reports that too; `--strict` turns it into a
-failure.
+A literal of a `DATETIME` carries a precision of a millisecond. The tool can
+need a truncation of a dumped datetime to that precision. It reports that
+truncation as well. A `--strict` turns it into a failure.
 
-## Restore A Dump
+## Restore a dump
 
-Restore by feeding the generated SQL to `camus-cli`:
+Restore the data. Send the generated SQL to `camus-cli`:
 
 ```bash
 camus-cli -c "Endpoint=http://localhost:5096;Protocol=grpc"
@@ -371,8 +403,8 @@ Then run:
 source ./factory.sql
 ```
 
-If the dump does not include `--create-database`, create and select the target
-database first:
+The dump can hold no `--create-database`. Create the target database first. Then
+select it:
 
 ```camussql
 CREATE DATABASE IF NOT EXISTS factory;
@@ -380,11 +412,11 @@ use factory;
 source ./factory.sql
 ```
 
-See [camus-cli](/docs/camus-cli) for interactive shell usage.
+See [camus-cli](/docs/camus-cli) for the use of the interactive shell.
 
-## When To Use It
+## When to use it
 
-Use `camus-dump` when you want:
+Use `camus-dump` for these purposes:
 
 - a logical SQL backup
 - a table-level export
@@ -392,11 +424,15 @@ Use `camus-dump` when you want:
 - a consistent snapshot across tables
 - a restore path through ordinary CamusSQL
 
-All of that assumes a database small enough to replay in reasonable time. Reach
-for [Backup And Restore](/docs/backup-and-restore) instead when the goal is
-disaster recovery, or when the database runs to dozens of gigabytes or more.
-Those backups are physical and node-wide, restore to a chosen point in time, and
-come back far faster than replaying a dump statement by statement. See
-[Not For Large Databases](#not-for-large-databases).
+Every purpose above assumes a database small enough for a replay in a reasonable
+time.
 
-For interactive replay and manual restore, use [camus-cli](/docs/camus-cli).
+Use [Backup And Restore](/docs/backup-and-restore) instead in two cases: your
+goal is a disaster recovery, and the database holds tens of gigabytes or more.
+
+Such a backup is physical, and it covers a whole node. It restores to a chosen
+point in time. It also returns far faster than a replay of a dump, statement by
+statement. See [Not for large databases](#not-for-large-databases).
+
+For an interactive replay, and for a restore by hand, use
+[camus-cli](/docs/camus-cli).

@@ -2,15 +2,56 @@
 sidebar_position: 1
 ---
 
-# CamusDB Tutorial
+# CamusDB tutorial
 
-CamusDB is an open-source NewSQL distributed database with SQL, indexes, and transactions.
+CamusDB is an open-source NewSQL distributed database. It runs on one node, or
+on a cluster of several nodes. It gives an application a full relational engine,
+and not a thin layer of SQL over a key/value store.
 
-This tutorial uses `camus-cli`, the interactive SQL shell. It walks through the basic workflow against a running CamusDB node or cluster: create a database, create a table, insert rows, query data, add an index, and update or delete rows.
+CamusDB includes these capabilities:
 
-For a higher-level overview of why CamusDB is built as a distributed SQL database, start with [Why CamusDB?](/docs/why-camusdb).
+- [Transactional SQL](/docs/sql), for a schema, a write, a read, an index, and
+  an aggregation. It also supports a join, a subquery, a derived table, a view,
+  and a materialized view.
+- [Serializable transactions](/docs/serializable-transactions) by default, with
+  the detection of a conflict. CamusDB uses two-phase commit for a write across
+  two partitions.
+- [Distributed storage](/docs/cluster) on the Raft consensus, with a leader for
+  each partition, and with a
+  [replicated schema](/docs/distributed-schema).
+- A [cost-based query planner](/docs/query-planning), with
+  [`EXPLAIN`](/docs/explain), statistics, an
+  [automatic analyze](/docs/automatic-analyze), and a
+  [cache of the results](/docs/query-result-cache).
+- A [branch of a database](/docs/database-branching), with a copy at the first
+  write.
+- A [time travel read](/docs/time-travel-reads), which reads the data at a point
+  in the past.
+- [Vector search](/docs/vector-search) over an embedding, with a distance
+  function that the CPU accelerates.
+- A [recoverable drop](/docs/recover-dropped-objects) of a database and of a
+  table.
+- Several interfaces: [`camus-cli`](/docs/camus-cli), a
+  [web console](/docs/web-console), an [HTTP API](/docs/http-api), a
+  [gRPC API](/docs/grpc-api), a [driver for .NET](/docs/dotnet-driver), a
+  [provider for EF Core](/docs/ef-core), and a
+  [server for the Model Context Protocol](/docs/mcp-server).
 
-## Video Walkthrough
+This tutorial uses `camus-cli`, which is the interactive shell of SQL. It walks
+through the basic workflow, against a CamusDB node or a cluster that runs. The
+workflow has six steps:
+
+1. Create a database.
+2. Create a table.
+3. Insert some rows.
+4. Query the data.
+5. Add an index.
+6. Update a row, and delete one.
+
+Start with [Why CamusDB?](/docs/why-camusdb) for an overview at a higher level.
+That page explains the design of CamusDB as a distributed database of SQL.
+
+## Video walkthrough
 
 <div className="video-embed">
   <iframe
@@ -23,17 +64,18 @@ For a higher-level overview of why CamusDB is built as a distributed SQL databas
 
 ## Start CamusDB
 
-CamusDB ships as a .NET global tool. With the [.NET runtime](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) installed,
-install the server and start a standalone node:
+CamusDB ships as a global tool of .NET. Install the
+[.NET runtime](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) first.
+Then install the server, and start a standalone node:
 
 ```bash
 $ dotnet tool install --global CamusDB.Server
 $ camusdb
 ```
 
-The `camusdb` command starts with built-in defaults when no configuration file
-exists. It stores data under the user data directory and listens on HTTP port
-`5095` and gRPC port `5096`:
+The `camusdb` command starts with its built-in defaults when no file of a
+configuration exists. It stores the data under the data directory of the user.
+It listens on the HTTP port `5095`, and on the gRPC port `5096`:
 
 ```bash
    ____                          ____  ____
@@ -46,22 +88,23 @@ Configuration: built-in defaults (no configuration file found)
 Data directory: /Users/andresgutierrez/.local/share/camusdb
 ```
 
-Upgrade the installed server with:
+Update the installed server:
 
 ```bash
 $ dotnet tool update --global CamusDB.Server
 ```
 
-To create a user-owned starter configuration, run:
+Run this command to create a configuration of a start, under your own
+ownership:
 
 ```bash
 $ camusdb init
 ```
 
-That writes `~/.camusdb/config.yml` and creates the default data directory.
-After editing the file, run `camusdb` again.
+That command writes `~/.camusdb/config.yml`. It also creates the default data
+directory. Edit the file. Then run `camusdb` again.
 
-Alternatively, start CamusDB with Docker:
+You can also start CamusDB with Docker:
 
 ```bash
 $ docker run --rm \
@@ -71,19 +114,19 @@ $ docker run --rm \
         --name camusdb camusdb/camusdb:latest
 ```
 
-Install the SQL shell:
+Install the shell of SQL:
 
 ```bash
 $ dotnet tool install --global CamusDB.SqlSh
 ```
 
-Then open the SQL shell in another terminal:
+Then open the shell of SQL, in another terminal:
 
 ```bash
 $ camus-cli
 ```
 
-You should see an interactive prompt:
+An interactive prompt appears:
 
 ```camussql
 CamusDB SQL Shell 0.9.7
@@ -93,10 +136,10 @@ Connected to http://localhost:5096 over gRPC, database: (none)
 camus>
 ```
 
-## Create A Database
+## Create a database
 
-Databases must be created explicitly before use. Create a database, then switch
-the shell to it:
+You must create a database explicitly before you use it. Create a database.
+Then move the shell to it:
 
 ```camussql
 camus> CREATE DATABASE factory;
@@ -106,12 +149,13 @@ camus> use factory;
 Database changed to factory
 ```
 
-If you already started the shell with `camus-cli factory`, you still need the
-`CREATE DATABASE factory;` statement the first time that database name is used.
+You can start the shell with `camus-cli factory`. You nevertheless still need
+the statement `CREATE DATABASE factory;`, at the first use of that name of a
+database.
 
-## Create A Table
+## Create a table
 
-Create a table for robot records:
+Create a table for the records of a robot:
 
 ```camussql
 CREATE TABLE robots (
@@ -122,7 +166,7 @@ CREATE TABLE robots (
 );
 ```
 
-The table has:
+The table holds four columns:
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -131,12 +175,13 @@ The table has:
 | `kind` | `STRING` | Required category or model family. |
 | `year` | `INT64` | Optional year with a default value. |
 
-For UUID identifiers, use the native `UUID` type instead of `STRING`. UUID
-columns store compact 128-bit values and use smaller index keys than UUID text.
+For an identifier of a UUID, use the native type `UUID`. Do not use a `STRING`.
+A `UUID` column stores a compact value of 128 bits. It also uses a smaller key of
+an index than the text of a UUID.
 
-## Inspect The Schema
+## Inspect the schema
 
-Show the tables in the current database:
+Show the tables of the current database:
 
 ```camussql
 camus> show tables
@@ -148,7 +193,7 @@ camus> show tables
 1 rows in set (00:00:00.0526560)
 ```
 
-Show the columns in `robots`:
+Show the columns of `robots`:
 
 ```camussql
 camus> show columns from robots
@@ -163,7 +208,7 @@ camus> show columns from robots
 4 rows in set (00:00:00.0189059)
 ```
 
-Other useful inspection commands:
+Three other commands of an inspection are useful:
 
 ```camussql
 DESCRIBE robots;
@@ -171,7 +216,7 @@ SHOW CREATE TABLE robots;
 SHOW INDEX FROM robots;
 ```
 
-Show the SQL definition for the table:
+Show the definition in SQL of the table:
 
 ```camussql
 camus> show create table robots;
@@ -183,16 +228,16 @@ camus> show create table robots;
 1 rows in set (00:00:00.0037082)
 ```
 
-## Insert Rows
+## Insert rows
 
-Insert a single row:
+Insert one row:
 
 ```camussql
 INSERT INTO robots (id, name, kind, year)
 VALUES (GEN_ID(), "R2-D2", "utility", 1977);
 ```
 
-Insert more than one row with a single statement:
+Insert more than one row, with one statement:
 
 ```camussql
 INSERT INTO robots (id, name, kind, year)
@@ -201,16 +246,16 @@ VALUES
   (GEN_ID(), "T-800", "android", 1984);
 ```
 
-Use `DEFAULT` when you want CamusDB to apply the column default:
+Use `DEFAULT` when CamusDB must apply the default of the column:
 
 ```camussql
 INSERT INTO robots (id, name, kind, year)
 VALUES (GEN_ID(), "K-2SO", "security", DEFAULT);
 ```
 
-## Query Rows
+## Query rows
 
-Select rows from the table:
+Select the rows of the table:
 
 ```camussql
 camus> SELECT id, name, kind, year FROM robots ORDER BY year ASC;
@@ -225,7 +270,7 @@ camus> SELECT id, name, kind, year FROM robots ORDER BY year ASC;
 4 rows in set (00:00:00.0232238)
 ```
 
-Filter results with `WHERE`:
+Filter the result with a `WHERE` clause:
 
 ```camussql
 camus> SELECT name, year FROM robots WHERE year >= 1980;
@@ -238,7 +283,7 @@ camus> SELECT name, year FROM robots WHERE year >= 1980;
 2 rows in set (00:00:00.0298712)
 ```
 
-Pattern matching is supported with `LIKE` and `ILIKE`:
+`LIKE` and `ILIKE` match a pattern:
 
 ```camussql
 camus> SELECT id, name FROM robots WHERE name ILIKE "r%";
@@ -250,39 +295,40 @@ camus> SELECT id, name FROM robots WHERE name ILIKE "r%";
 1 rows in set (00:00:00.0254039)
 ```
 
-Aggregate rows:
+Aggregate the rows:
 
 ```camussql
 SELECT COUNT(*) FROM robots;
 SELECT MIN(year), MAX(year) FROM robots;
 ```
 
-## Create An Index
+## Create an index
 
-Indexes help CamusDB avoid scanning every row for matching data.
+An index helps CamusDB. It then does not scan every row to find the matching
+data.
 
 ```camussql
 CREATE INDEX robots_kind_idx ON robots (kind);
 ```
 
-Inspect indexes:
+Inspect the indexes:
 
 ```camussql
 SHOW INDEXES FROM robots;
 ```
 
-## Rename Schema Objects
+## Rename schema objects
 
-Tables and columns can be renamed without rewriting row data:
+You can rename a table, and a column. CamusDB rewrites no data of a row:
 
 ```camussql
 ALTER TABLE robots RENAME COLUMN kind TO category;
 ALTER TABLE robots RENAME TO machines;
 ```
 
-## Update Rows
+## Update rows
 
-SQL updates require a `WHERE` clause.
+An `UPDATE` in SQL needs a `WHERE` clause.
 
 ```camussql
 UPDATE machines
@@ -298,16 +344,16 @@ FROM machines
 WHERE name = "T-800";
 ```
 
-## Delete Rows
+## Delete rows
 
-SQL deletes also require a `WHERE` clause.
+A `DELETE` in SQL also needs a `WHERE` clause.
 
 ```camussql
 DELETE FROM machines
 WHERE name = "K-2SO";
 ```
 
-## Column Types
+## Column types
 
 | SQL type | Notes |
 | --- | --- |
@@ -322,8 +368,10 @@ WHERE name = "K-2SO";
 | `BYTES` | Opaque byte strings. |
 | `ARRAY(T)` | Ordered lists of scalar values. |
 
-Continue with the [SQL overview](/docs/sql), [Data Types](/docs/data-types),
-and [Tables And Columns](/docs/sql-schema). Then read
-[SELECT](/docs/sql-queries) for filtering, grouping, and ordering, and
-[Joins And Subqueries](/docs/joins-and-subqueries) for joins, subqueries, and
-derived tables.
+Continue with three pages: the [SQL overview](/docs/sql),
+[Data Types](/docs/data-types), and
+[Tables And Columns](/docs/sql-schema).
+
+Then read [SELECT](/docs/sql-queries) for a filter, a group, and an order. Read
+[Joins And Subqueries](/docs/joins-and-subqueries) for a join, a subquery, and a
+derived table.

@@ -4,11 +4,11 @@ sidebar_position: 2.7
 
 # Views
 
-A view is a stored query with a name. Reading it runs the query; nothing is
-kept on disk. The SQL surface follows PostgreSQL, and the places where CamusDB
-differs on purpose are listed at the end of this page.
+A view is a stored query with a name. A read of the view runs the query. CamusDB
+keeps nothing on disk. The SQL surface follows PostgreSQL. The end of this page
+lists the places where CamusDB differs by design.
 
-For views that store their rows instead of recomputing them, see
+For a view that stores its rows instead of a recomputation, see
 [Materialized Views](/docs/materialized-views).
 
 ```camussql
@@ -20,41 +20,43 @@ FROM open_orders
 GROUP BY customer;
 ```
 
-A view can publish its own column names:
+A view can publish its own names for the columns:
 
 ```camussql
 CREATE VIEW order_summary (order_id, who, amount) AS
   SELECT id, customer, total FROM orders;
 ```
 
-## Why Use A View
+## Why you use a view
 
-Naming a query turns out to be worth more than the typing it saves.
+A name for a query is worth more than the text that it saves.
 
-- One definition, many readers. The join, the filter, and the business rule
-  live in one place instead of being copy-pasted into every report and
-  application that needs them. Fix the definition and every reader gets the fix.
+- One definition serves many readers. The join, the filter, and the rule of the
+  business live in one place. You do not copy them into every report and every
+  application that needs them. Correct the definition, and every reader receives
+  that correction.
 - A slice of a table, granted safely. A view runs with the privileges of its
-  owner, so you can give someone exactly the rows and columns it exposes without
-  granting them the table underneath. See
-  [Ownership And Security](#ownership-and-security).
-- A stable contract over a moving schema. A view's shape is fixed when you
-  create it and the engine keeps it that way: rename the base table or a base
-  column and the view carries on unchanged, and a `DROP` that would strand it is
-  refused rather than left to break the next read. Clients keep seeing the
-  columns they were written against while the tables underneath stay free to
-  evolve.
-- Composable, and planned like a subquery. A view expands before planning, so
-  it joins, aggregates, nests inside other views, and gets the same optimizer,
-  index selection, and serializable locking a hand-written query would.
-- Nothing to keep in sync. There is no stored copy and no refresh step, so a
-  view is always as current as the tables it reads. When you would rather pay
-  once and read many times, that is what
-  [materialized views](/docs/materialized-views) are for.
+  owner. You can therefore give a user exactly the rows and the columns that the
+  view exposes. You grant no access to the table below it. See
+  [Ownership and security](#ownership-and-security).
+- A stable contract over a schema that moves. CamusDB fixes the shape of a view
+  at its creation, and it keeps that shape. You can rename the base table, and
+  you can rename a base column. The view continues without a change. CamusDB
+  also refuses a `DROP` that would strand the view. A client therefore keeps the
+  columns that it was written against, while the tables below stay free to
+  change.
+- A view composes, and CamusDB plans it like a subquery. A view expands before
+  the plan. It therefore joins, aggregates, and nests inside another view. It
+  receives the same optimizer, the same choice of an index, and the same
+  serializable locks as a query that you write by hand.
+- There is nothing to keep in agreement. There is no stored copy, and there is
+  no step of a refresh. A view is therefore always as current as the tables that
+  it reads. Use a [materialized view](/docs/materialized-views) when you prefer
+  to pay one time and to read many times.
 
-### A Worked Example
+### A worked example
 
-Start by naming a rule the rest of the system keeps repeating:
+Start with a name for a rule that the rest of the system repeats:
 
 ```camussql
 CREATE VIEW open_orders AS
@@ -63,7 +65,7 @@ CREATE VIEW open_orders AS
   WHERE status = 'open';
 ```
 
-Read it like a table, aggregate over it, join it, build on it:
+Read it like a table. Aggregate over it. Join it. Build on it:
 
 ```camussql
 SELECT customer, SUM(total) AS outstanding
@@ -78,13 +80,13 @@ CREATE VIEW large_open_orders AS
   SELECT id, customer FROM open_orders WHERE total > 1000;
 ```
 
-Hand it to someone who has no access to `orders` at all:
+Give it to a user with no access at all to `orders`:
 
 ```camussql
 GRANT SELECT ON shop.open_orders TO reporting;
 ```
 
-Then reshape the schema underneath it. Nothing written above has to change:
+Then change the schema below the view. Nothing above needs a change:
 
 ```camussql
 ALTER TABLE orders RENAME TO sales_orders;
@@ -96,12 +98,19 @@ GROUP BY customer;
 -- unchanged: same view, same column names, same rows
 ```
 
-## Reading Through A View
+## Read through a view
 
-A view is expanded into a derived table before planning, so everything that
-works on a subquery works on a view: joins, aggregation, `DISTINCT`,
-`ORDER BY`, subqueries, the cost-based optimizer, spill, and serializable
-range locking on the underlying base tables.
+CamusDB expands a view into a derived table before the plan. Everything that
+works on a subquery therefore works on a view. Eight examples follow:
+
+- A join.
+- An aggregation.
+- A `DISTINCT`.
+- An `ORDER BY`.
+- A subquery.
+- The cost-based optimizer.
+- The spill to disk.
+- A serializable range lock on a base table.
 
 ```camussql
 SELECT v.id, c.region
@@ -109,36 +118,37 @@ FROM open_orders v
 INNER JOIN customers c ON v.customer = c.name;
 ```
 
-There is no "view scan" node in [`EXPLAIN`](/docs/explain); the plan shows what
-actually runs, which is the expanded query. A view over an indexed table gets
-those indexes, because by planning time there is no view left to get in the way.
+There is no node for a scan of a view in [`EXPLAIN`](/docs/explain). The plan
+shows the query that runs, which is the expanded form. A view over an indexed
+table receives those indexes. At the time of the plan, no view remains in the
+way.
 
-For the same reason a view stores no statistics of its own. The estimates a plan
-over a view uses belong to the tables its body reads, so
-[`SHOW STATISTICS`](/docs/show-statistics) names the view and sends you to those
-tables rather than reporting a set of numbers that do not exist.
+For the same reason, a view stores no statistics of its own. A plan over a view
+uses the estimates of the tables that its body reads.
+[`SHOW STATISTICS`](/docs/show-statistics) therefore names the view, and it
+sends you to those tables. It does not report numbers that do not exist.
 
-A view may be referenced by its own name or given an alias:
+You can reference a view by its own name. You can also give it an alias:
 
 ```camussql
 SELECT open_orders.customer FROM open_orders;   -- the view name is the default alias
 SELECT o.customer FROM open_orders o;           -- an explicit alias wins
 ```
 
-## The Body Is Checked At Creation
+## CamusDB checks the body at the creation
 
-Every table, column, and function the body references is resolved when you run
-`CREATE VIEW`, so a mistake is reported to the author instead of to whoever
-reads the view first:
+CamusDB resolves every table, every column, and every function of the body when
+you run `CREATE VIEW`. It therefore reports a mistake to the author. It does not
+report that mistake to the first reader of the view:
 
 ```camussql
 CREATE VIEW v AS SELECT id FROM no_such_table;
 -- CADB0011: table 'no_such_table' does not exist
 ```
 
-### Every Output Column Needs A Name
+### Every output column needs a name
 
-A bare expression has no name to publish, and CamusDB refuses to invent one:
+A bare expression has no name to publish. CamusDB refuses to invent one:
 
 ```camussql
 CREATE VIEW v AS SELECT total + 1 FROM orders;
@@ -147,12 +157,12 @@ CREATE VIEW v AS SELECT total + 1 FROM orders;
 CREATE VIEW v AS SELECT total + 1 AS total_plus_one FROM orders;  -- OK
 ```
 
-PostgreSQL names such a column `?column?`. That name would appear in
-`SHOW COLUMNS`, in dependent views, and in client column maps as something
-nothing can select, and it would renumber itself if the projection list were
-reordered.
+PostgreSQL names such a column `?column?`. That name would appear in `SHOW
+COLUMNS`, in a dependent view, and in the map of the columns of a client.
+Nothing can select it. It would also change its own number if you reordered the
+list of the projections.
 
-### `SELECT *` Is Expanded Once
+### CamusDB expands a SELECT * one time
 
 ```camussql
 CREATE VIEW all_orders AS SELECT * FROM orders;   -- orders has 4 columns
@@ -161,30 +171,31 @@ ALTER TABLE orders ADD COLUMN note STRING(64);
 SELECT * FROM all_orders;                          -- still 4 columns
 ```
 
-The view's shape is frozen at creation, matching PostgreSQL. Otherwise adding a
-column to a base table would widen every `SELECT *` view over it, changing what
-dependent views and clients see with no statement having been issued against
-them.
+CamusDB fixes the shape of the view at its creation, as PostgreSQL does.
+Otherwise a new column on a base table would widen every `SELECT *` view over
+it. That change would alter what a dependent view and a client see, and nobody
+issued a statement against them.
 
-A body may not mix `*` with other projections: the expansion order is not stable
-across a base column being added, so the frozen shape could not be honored.
+A body may not mix a `*` with another projection. The order of the expansion is
+not stable when somebody adds a base column. CamusDB could therefore not hold
+the fixed shape.
 
-### What A Body May Not Contain
+### What a body may not hold
 
 | Not allowed in a body | Why |
 | --- | --- |
-| `AS OF SYSTEM TIME` | An absolute timestamp would freeze the view to one instant forever; a relative one (`'-2h'`) would mean something different at every reference, so two readers would legitimately disagree about the contents. Use `CREATE TABLE ... AS SELECT ... AS OF SYSTEM TIME` for a point-in-time copy. |
-| Index hints | A hint pins a plan choice into the stored definition, where it outlives the statistics it was chosen against. |
-| Cache hints | Same reason, and a view is never cacheable anyway. See [Views And The Result Cache](#views-and-the-result-cache). |
+| `AS OF SYSTEM TIME` | An absolute timestamp would fix the view to one instant forever. A relative one, such as `'-2h'`, would mean something different at each reference. Two readers would then disagree about the contents, and both would be correct. Use `CREATE TABLE ... AS SELECT ... AS OF SYSTEM TIME` for a copy at a point in time. |
+| A hint for an index | A hint fixes the choice of a plan inside the stored definition. That choice then outlives the statistics that produced it. |
+| A hint for the cache | The reason is the same. A view is also never cacheable. See [Views and the result cache](#views-and-the-result-cache). |
 
-Applying an index hint *to* a view reference is likewise refused: a view has no
-indexes of its own, so the hint could only be applied to a relation the
+CamusDB also refuses a hint for an index on a reference to a view. A view has no
+index of its own. The hint could therefore apply only to a relation that the
 statement does not name.
 
-## Replacing A View
+## Replace a view
 
-`CREATE OR REPLACE VIEW` may only append columns. Existing names, types, and
-order must be preserved:
+`CREATE OR REPLACE VIEW` may only add a column at the end. It must preserve the
+existing names, the existing types, and the existing order:
 
 ```camussql
 CREATE VIEW v AS SELECT id, customer FROM orders;
@@ -194,31 +205,34 @@ CREATE OR REPLACE VIEW v AS SELECT id FROM orders;                   -- CADB0529
 CREATE OR REPLACE VIEW v AS SELECT id, status FROM orders;           -- CADB0529
 ```
 
-A dependent view binds to the column names it saw at its own creation, a cached
-plan binds to positions, and a client binds to both. Changing any of them
-silently would change what those objects mean, and the damage would surface
-later and elsewhere as wrong data rather than as an error. Drop and recreate to
-change the shape, which forces the dependents into the open.
+A dependent view binds to the names of the columns at its own creation. A cached
+plan binds to the positions. A client binds to both. A silent change of any of
+them would change the meaning of those objects. The damage would appear later,
+and elsewhere, as wrong data. It would not appear as an error.
 
-The body itself may change freely, and takes effect on the next read:
+Drop the view and create it again to change the shape. That path forces the
+dependents into the open.
+
+The body itself may change freely. The change takes effect at the next read:
 
 ```camussql
 CREATE OR REPLACE VIEW v AS
   SELECT id, customer FROM orders WHERE status = 'closed';
 ```
 
-## Dependencies And Schema Changes
+## Dependencies and schema changes
 
-A view records what it reads by object id, covering relations *and* the
-individual columns inside them, never by name. Two things follow from that, and both work
-in your favor: renaming anything a view reads is invisible to the view, and a
-`DROP` that would leave a view pointing at nothing is caught at the `DROP` rather
-than at whoever reads the view next.
+A view records what it reads by the id of the object. It records the relations,
+and the individual columns inside them. It never records a name.
 
-### Renames Are Transparent
+Two results follow, and both help you. A rename of anything that a view reads is
+invisible to the view. A `DROP` that would leave a view with nothing to read
+fails at the `DROP`. It does not fail at the next reader of the view.
 
-A stored body names the relations it reads by their immutable ids, so a rename
-changes nothing about the view. There is no stored text to bring up to date:
+### A rename is transparent
+
+A stored body names each relation by an immutable id. A rename therefore changes
+nothing about the view. There is no stored text to update:
 
 ```camussql
 CREATE VIEW open_orders AS
@@ -232,32 +246,36 @@ SHOW CREATE VIEW open_orders;
 -- CREATE VIEW `open_orders` AS SELECT id, customer FROM sales AS orders WHERE status = 'open'
 ```
 
-This applies to renaming a view that another view reads exactly as it does to a
-table, and to renaming a column:
+The rule covers three cases in the same way: a rename of a table, a rename of a
+view that another view reads, and a rename of a column:
 
 ```camussql
 ALTER TABLE sales RENAME COLUMN total TO amount;
 SELECT id, total FROM open_orders;   -- still works, still called "total"
 ```
 
-A view's output names are frozen at creation and do not follow the base column,
-so a rename underneath it is invisible to anything reading it.
+CamusDB fixes the output names of a view at its creation. They do not follow the
+base column. A rename below the view is therefore invisible to every reader of
+it.
 
-Names come back only when the definition is shown, and `SHOW CREATE VIEW` renders
-each relation and column under its *current* name. The original relation name is
-printed as an alias on purpose: qualified column references inside the body
-resolve through it, so it has to stay fixed for the life of the definition. An
-alias that would merely repeat the relation's current name is not printed, so an
-ordinary view renders as you wrote it.
+A name returns only in the display of the definition. `SHOW CREATE VIEW` renders
+each relation and each column under its current name.
 
-Definitions created by earlier versions name their relations directly. They keep
-working and keep rendering unchanged, and the first rename that would otherwise
-strand one converts it to the id form as part of the same replicated change, so
-there is no window in which the rename has landed and the view has not caught up.
+That output prints the original name of a relation as an alias, by design. A
+qualified reference to a column inside the body resolves through that alias. The
+alias must therefore stay fixed for the life of the definition. CamusDB does not
+print an alias that would only repeat the current name of the relation. An
+ordinary view therefore renders as you wrote it.
 
-### Dropping A Relation
+A definition from an earlier version names its relations directly. It continues
+to work, and it continues to render without a change. The first rename that
+would otherwise strand such a definition converts it to the form with ids. That
+conversion is part of the same replicated change. There is therefore no period
+in which the rename landed and the view did not catch up.
 
-A drop that would orphan a dependent is refused:
+### Drop a relation
+
+CamusDB refuses a drop that would leave a dependent with nothing to read:
 
 ```camussql
 CREATE VIEW inner_v AS SELECT id, total FROM orders;
@@ -269,21 +287,21 @@ DROP VIEW inner_v;
 DROP VIEW inner_v CASCADE;   -- drops outer_v as well
 ```
 
-The same rule protects tables:
+The same rule protects a table:
 
 ```camussql
 DROP TABLE orders;
 -- CADB0530: cannot drop table 'orders' because other objects depend on it: open_orders
 ```
 
-`DROP TABLE` has no `CASCADE` form; drop the dependent views first. This makes
-`DROP TABLE` stricter than it was before views existed. The alternative is a
-table drop that quietly converts every dependent view into a delayed error for
-whoever reads it next.
+`DROP TABLE` has no `CASCADE` form. Drop the dependent views first. That rule
+makes `DROP TABLE` stricter than it was before views existed. The alternative is
+a drop of a table that quietly converts every dependent view into a later error,
+for the next reader.
 
-### Dropping A Column
+### Drop a column
 
-The same protection covers individual columns:
+The same protection covers one column:
 
 ```camussql
 ALTER TABLE orders DROP COLUMN total;
@@ -291,27 +309,36 @@ ALTER TABLE orders DROP COLUMN total;
 --           depend on it: open_orders
 ```
 
-A column read only in a `WHERE` counts, as does one read inside a subquery, and a
-materialized view's body protects the columns it reads on every refresh.
-`DROP COLUMN` has no `CASCADE` form either; drop or replace the dependent view
-first.
+A column that a body reads only in a `WHERE` clause counts. A column that a body
+reads inside a subquery also counts. The body of a materialized view protects
+the columns that it reads, at every refresh.
 
-Two corner cases refuse a column *rename* rather than absorbing it, because the
-body would be stranded rather than unaffected: a definition written before
-columns were bound by id, and a reference in `ORDER BY`, `GROUP BY`, or `HAVING`
-that matches one of the view's own output names. The second case is refused on
-purpose: those clauses may legally name an output column rather than a base
-column, so such a reference is left as written rather than guessed at.
+`DROP COLUMN` has no `CASCADE` form either. Drop the dependent view first, or
+replace it.
 
-The drop check is a lower bound rather than a guarantee: a reference the analysis
-cannot attribute to exactly one relation is not recorded, so an unusually shaped
-body may still let a column be dropped. It errs that way on purpose, since a
-missed refusal only leaves the behavior that existed before the check, while a
-wrong one would block a column change nothing actually depends on.
+Two corner cases refuse a rename of a column, instead of an absorption of that
+rename. The body would be stranded, and not merely unaffected:
+
+1. A definition from before the time when CamusDB bound a column by its id.
+2. A reference in an `ORDER BY`, a `GROUP BY`, or a `HAVING` clause that matches
+   one of the output names of the view itself.
+
+CamusDB refuses the second case by design. Those clauses may legally name an
+output column, and not a base column. CamusDB therefore leaves such a reference
+as you wrote it. It does not guess at the meaning.
+
+The check of a drop is a lower bound. It is not a guarantee. CamusDB does not
+record a reference that its analysis cannot attribute to exactly one relation. A
+body with an unusual shape can therefore still permit a drop of a column.
+
+That behavior errs in the safe direction by design. A refusal that CamusDB
+misses only leaves the behavior from before the check. A wrong refusal would
+block a change of a column that nothing depends on.
 
 ### Cycles
 
-A view that would depend on itself is rejected at DDL time:
+CamusDB rejects a view that would depend on itself. It does so at the time of
+the DDL statement:
 
 ```camussql
 CREATE VIEW a AS SELECT id FROM b;
@@ -319,28 +346,29 @@ CREATE OR REPLACE VIEW b AS SELECT id FROM a;
 -- CADB0528: infinite recursion detected in the definition of view 'b'
 ```
 
-Nesting is additionally capped at `max_view_expansion_depth` (default `32`) as a
-backstop.
+`max_view_expansion_depth` caps the depth of the nest as a backstop. The default
+is `32`.
 
-### Reserved Relation And Column Names
+### Reserved names of a relation and of a column
 
-Stored bodies refer to a relation or a column by id using a reserved identifier
-prefix, so nothing else may claim one. A table, view, or materialized view may
-not be named with the `__camus_rel_` prefix, and a column may not be named with
-the `__camus_col_` prefix:
+A stored body refers to a relation or a column by its id. It uses a reserved
+prefix of an identifier for that purpose. Nothing else may claim such a prefix.
+
+A table, a view, and a materialized view may not take a name with the prefix
+`__camus_rel_`. A column may not take a name with the prefix `__camus_col_`:
 
 ```camussql
 CREATE TABLE __camus_rel_7 (id INT64 PRIMARY KEY);
 -- CADB0400: table name '__camus_rel_7' starts with '__camus_rel_', which is reserved
 ```
 
-The guard applies to `CREATE`, `ALTER`, and `RENAME TO` alike.
+The guard applies to `CREATE`, to `ALTER`, and to `RENAME TO`.
 
-## Ownership And Security
+## Ownership and security
 
-A view runs its body with the privileges of its owner, not of whoever queries
-it. That is what makes a view a security boundary rather than a
-shorthand:
+A view runs its body with the privileges of its owner. It does not use the
+privileges of the caller. That property makes a view a boundary of security. It
+is not only a short form of a query:
 
 ```camussql
 -- as alice, who can read orders
@@ -352,45 +380,49 @@ SELECT * FROM cheap_orders;   -- works: exactly the rows the view exposes
 SELECT * FROM orders;         -- CADB0517
 ```
 
-The caller is checked on the view; the owner is checked on everything the body
-reads. So a view can widen access to a slice of a table, and nothing more.
+CamusDB checks the caller on the view. It checks the owner on everything that
+the body reads. A view can therefore widen the access to a slice of a table. It
+widens nothing more.
 
-Details worth knowing:
+These details are worth your attention:
 
-- The owner is recorded by immutable id, not by name. Dropping a user and
-  recreating the same name does not transfer ownership; the view fails closed,
-  and reads refuse until it is recreated or transferred.
-- `CREATE OR REPLACE VIEW` does not change the owner. Replacing rewrites the
-  body; if it re-owned the object, replacing would be a way to seize a view and
-  run it as yourself.
-- `ALTER VIEW v OWNER TO u` transfers it. Only a superuser or the current owner
-  may do so. An `ALTER` grant on the view is not enough, because ownership
-  decides whose privileges the body runs with. The new owner must already exist.
-- The swap is scoped to the view. A query naming the same table both through a
-  view and directly gets the owner's rights only for the reference that came
-  through the view.
-- Each view in a chain runs as its own owner.
-- Views are grantable objects. `GRANT SELECT ON db.my_view TO someone`.
-  Dropping, renaming, replacing, and describing one all require a grant on the
-  view, and `SHOW VIEWS` lists only what the caller can reach.
+- CamusDB records the owner by an immutable id. It does not record a name. A
+  drop of a user, and a creation of the same name again, therefore transfers no
+  ownership. The view fails closed, and a read refuses until you create the view
+  again, or transfer it.
+- `CREATE OR REPLACE VIEW` does not change the owner. A replacement rewrites the
+  body. A change of the owner would make a replacement into a way to take a view
+  and to run it as yourself.
+- `ALTER VIEW v OWNER TO u` transfers the view. Only a superuser and the current
+  owner may do that. A grant of `ALTER` on the view is not enough. The ownership
+  decides whose privileges the body uses. The new owner must exist already.
+- The change of the privileges belongs to the view alone. A query can name the
+  same table twice: one time through a view, and one time directly. It receives
+  the rights of the owner for the reference through the view only.
+- Each view of a chain runs as its own owner.
+- A view is an object that you can grant. Use `GRANT SELECT ON db.my_view TO
+  someone`. A drop, a rename, a replacement, and a description of a view all
+  need a grant on the view. `SHOW VIEWS` lists only what the caller can reach.
 
-`security_invoker`, which would run a view as the caller instead of the owner, is
-not supported. See [Authentication And Authorization](/docs/sql-authentication).
+CamusDB does not support `security_invoker`. That option would run a view as the
+caller, and not as the owner. See
+[Authentication And Authorization](/docs/sql-authentication).
 
-## Views And The Result Cache
+## Views and the result cache
 
-A query that reads through a view is never served from the
-[query result cache](/docs/query-result-cache). The cache fences one physical
-table's row keyspace per entry, and a view expands to a derived table, which has
-no keyspace of its own. This is the same limitation that makes joins
+CamusDB never serves a query through a view from the
+[query result cache](/docs/query-result-cache). Each entry of the cache fences
+the key space of the rows of one physical table. A view expands to a derived
+table, and such a table has no key space of its own. The same limit makes a join
 uncacheable.
 
-A `{cache=name}` hint on a view reference is accepted rather than rejected, and
-the response reports it as a bypass (`DerivedSource`), so the hint is visible
-instead of silent. The rows still come from live storage every time.
+CamusDB accepts a `{cache=name}` hint on a reference to a view. It does not
+reject that hint. The response reports the hint as a bypass, with the reason
+`DerivedSource`. The hint is therefore visible, and not silent. The rows still
+come from live storage at every read.
 
-Materialized views are unaffected: one is a physical relation, and the cache
-treats it exactly as it treats a table.
+A materialized view is not affected. It is a physical relation. The cache treats
+it exactly as it treats a table.
 
 ## Introspection
 
@@ -401,11 +433,12 @@ SHOW CREATE VIEW open_orders;
 SHOW COLUMNS FROM open_orders;
 ```
 
-`SHOW TABLES` lists tables only; it does not list views. PostgreSQL's `\dt`
-behaves the same way, and changing `SHOW TABLES` output would break existing
-clients.
+`SHOW TABLES` lists a table only. It does not list a view. The `\dt` command of
+PostgreSQL behaves the same way. A change to the output of `SHOW TABLES` would
+break an existing client.
 
-`SHOW CREATE VIEW` prints the normalized definition, not the text you typed:
+`SHOW CREATE VIEW` prints the normalized definition. It does not print the text
+that you typed:
 
 ```camussql
 CREATE VIEW v AS SELECT id,total FROM orders WHERE a OR b AND c;
@@ -414,66 +447,72 @@ SHOW CREATE VIEW v;
 -- CREATE VIEW `v` AS SELECT id, total FROM orders WHERE a OR (b AND c)
 ```
 
-Views are stored as a re-rendered definition so that references resolve by id and
-`CREATE OR REPLACE` has a canonical form to compare against. PostgreSQL's
-`pg_get_viewdef` also never returns the original text. The printed DDL is
-guaranteed to re-parse to the same query, so it can be fed straight back to the
-server.
+CamusDB stores a view as a definition that it rendered again. Two reasons drive
+that choice. A reference then resolves by an id. A `CREATE OR REPLACE` also has
+a canonical form for the comparison.
 
-## Renaming A View
+The `pg_get_viewdef` function of PostgreSQL also never returns the original
+text. The printed DDL is guaranteed to parse again into the same query. You can
+therefore send it straight back to the server.
+
+## Rename a view
 
 ```camussql
 ALTER VIEW open_orders RENAME TO active_orders;
 ```
 
-Metadata-only. The view's id is unchanged, so dependents keep resolving.
+The change touches the metadata only. The id of the view does not change. Every
+dependent therefore continues to resolve.
 
 ## Configuration
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `max_view_expansion_depth` | `32` | Backstop on view-over-view nesting depth. |
+| `max_view_expansion_depth` | `32` | A backstop on the depth of a view inside a view. |
 
 See [Configuration](/docs/configuration) and
 [`SHOW VARIABLES`](/docs/show-variables).
 
-## Differences From PostgreSQL
+## Differences from PostgreSQL
 
 | Area | CamusDB | Why |
 | --- | --- | --- |
-| Unnamed expression columns | Refused | PostgreSQL names them `?column?`, which nothing can reference. One `AS` produces a usable view. |
-| Updatable views | Not implemented | All views are read-only today. |
-| Rules and `INSTEAD OF` triggers | Not supported | CamusDB has neither, so there is no escape hatch to make a non-auto-updatable view writable. |
-| `DROP TABLE ... CASCADE` | No `CASCADE` form | Drop the dependent views explicitly. |
-| `security_invoker` views | Not supported | Only the owner's-rights model is implemented. |
-| `WITH RECURSIVE` views | Not supported | CamusDB has no `WITH RECURSIVE`. |
-| Cross-database views | Not supported | Matches the existing single-database restriction on `INSERT ... SELECT`. |
-| Temporary views | Not supported | CamusDB has no temporary relations. |
-| Mixing `*` with other projections | Refused | The expansion order is not stable across a base column being added. |
-| `AS OF SYSTEM TIME` in a body | Refused | Neither an absolute nor a relative timestamp is storable coherently. |
+| A column of an expression without a name | Refused | PostgreSQL names such a column `?column?`, and nothing can reference that name. One `AS` produces a usable view. |
+| An updatable view | Not implemented | Every view is read-only today. |
+| A rule, and an `INSTEAD OF` trigger | Not supported | CamusDB has neither. There is therefore no path to a writable view that CamusDB cannot update on its own. |
+| `DROP TABLE ... CASCADE` | There is no `CASCADE` form | Drop the dependent views explicitly. |
+| A `security_invoker` view | Not supported | CamusDB implements the model of the rights of the owner only. |
+| A `WITH RECURSIVE` view | Not supported | CamusDB has no `WITH RECURSIVE`. |
+| A view across two databases | Not supported | The rule matches the existing restriction of `INSERT ... SELECT` to one database. |
+| A temporary view | Not supported | CamusDB has no temporary relation. |
+| A mix of a `*` with another projection | Refused | The order of the expansion is not stable when somebody adds a base column. |
+| An `AS OF SYSTEM TIME` in a body | Refused | CamusDB can store neither an absolute timestamp nor a relative one in a coherent way. |
 
-## Not Implemented Yet
+## Not implemented yet
 
-These parse and are rejected at execution, so they fail loudly rather than doing
-something unexpected:
+These three forms parse, and CamusDB rejects them at the execution. They
+therefore fail loudly. They do nothing unexpected:
 
-- Updatable views. `INSERT`, `UPDATE`, and `DELETE` through a view, the
-  auto-updatability rules, and `WITH CHECK OPTION` enforcement. The
-  `WITH [LOCAL|CASCADED] CHECK OPTION` clause parses and is stored, but nothing
-  enforces it yet. All views are read-only.
-- Re-checking a nested view's grant at read time. A view whose body reads
-  another view has that inner reference checked when it is *created*, not on
-  every read; a grant revoked afterwards does not break the outer view until it
-  is replaced. The inner view still runs as its own owner, so this widens
-  nothing beyond what its author could already reach.
-- Absorbing a column rename into a definition written before columns were bound
-  by id, or into a reference in `ORDER BY`, `GROUP BY`, or `HAVING` that matches
-  one of the view's own output names. Both are refused instead. See
-  [Dropping A Column](#dropping-a-column).
+- An updatable view. That set covers an `INSERT`, an `UPDATE`, and a `DELETE`
+  through a view. It also covers the rules of automatic updatability, and the
+  enforcement of a `WITH CHECK OPTION`. The clause `WITH [LOCAL|CASCADED] CHECK
+  OPTION` parses, and CamusDB stores it. Nothing enforces it yet. Every view is
+  read-only.
+- A second check of the grant of a nested view at the read. A body can read
+  another view. CamusDB checks that inner reference at the creation, not at
+  every read. A grant that you revoke later does not break the outer view until
+  you replace it. The inner view still runs as its own owner. This behavior
+  therefore widens nothing past the reach of its author.
+- The absorption of a rename of a column, in two cases. The first case is a
+  definition from before the time when CamusDB bound a column by its id. The
+  second case is a reference in an `ORDER BY`, a `GROUP BY`, or a `HAVING`
+  clause that matches an output name of the view. CamusDB refuses both. See
+  [Drop a column](#drop-a-column).
 
-## Related Pages
+## Related pages
 
-[Materialized Views](/docs/materialized-views) for stored results,
-[Inspecting The Database](/docs/sql-inspection) for the `SHOW` family,
-[Authentication And Authorization](/docs/sql-authentication) for grants, and
-[Error Codes](/docs/error-codes) for the `CADB05xx` codes referenced above.
+- [Materialized Views](/docs/materialized-views) for a stored result.
+- [Inspecting The Database](/docs/sql-inspection) for the family of `SHOW`
+  statements.
+- [Authentication And Authorization](/docs/sql-authentication) for the grants.
+- [Error Codes](/docs/error-codes) for the `CADB05xx` codes above.

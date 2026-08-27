@@ -2,11 +2,11 @@
 sidebar_position: 4.7
 ---
 
-# UUID Functions
+# UUID functions
 
-UUID functions generate native `UUID` values. Use them with `UUID` or `GUID`
-columns, especially for identifiers that need to be unique across nodes or
-application services.
+A UUID function generates a native `UUID` value. Use one with a `UUID` column,
+or with a `GUID` column. These functions suit an identifier that must be unique
+across the nodes, or across the services of an application.
 
 ```camussql
 CREATE TABLE events (
@@ -18,30 +18,34 @@ INSERT INTO events (event_name)
 VALUES ("robot-created");
 ```
 
-Prefer native `UUID` columns over `STRING` columns for UUID values. CamusDB
-stores UUIDs as compact 128-bit values and uses fixed-width order-preserving
-index encoding, so UUID columns use less memory and disk than UUIDs stored as
-text.
+Prefer a native `UUID` column to a `STRING` column for a UUID value. CamusDB
+stores a UUID as a compact 128-bit value. It uses an index encoding of a fixed
+width that preserves the order. A `UUID` column therefore uses less memory and
+less disk than a UUID in text.
 
-## Functions
+## The functions
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `gen_uuid_v4()` | `UUID` | Generates a random version 4 UUID. |
-| `gen_uuid_v7()` | `UUID` | Generates a version 7 UUID with a Unix-millisecond time prefix and random suffix. |
+| `gen_uuid_v4()` | `UUID` | It generates a random UUID of version 4. |
+| `gen_uuid_v7()` | `UUID` | It generates a UUID of version 7. That UUID has a prefix of the time in Unix milliseconds, and a random suffix. |
 
-Both functions are volatile. Each call can produce a different value, including
-multiple calls within the same statement. When used as a column default,
-CamusDB evaluates the function once per inserted row.
+Both functions are volatile. Each call can produce a different value. Two calls
+inside one statement can also produce two different values.
 
-## Choosing A Generator
+As the default of a column, CamusDB evaluates the function one time for each
+inserted row.
 
-Use `gen_uuid_v7()` for primary keys and indexed identifiers when insert
-locality matters. Version 7 UUIDs include a time-ordered prefix, which makes
-new values friendlier to range routing and index scans than fully random UUIDs.
+## Select a generator
 
-Use `gen_uuid_v4()` when you specifically want a random UUID and do not care
-about insertion order in the primary key or secondary index.
+Use `gen_uuid_v7()` for a primary key, and for an indexed identifier, when the
+locality of the inserts matters. A UUID of version 7 holds a prefix in the order
+of the time. A new value is therefore better than a fully random UUID, both for
+the routing of a range and for a scan of an index.
+
+Use `gen_uuid_v4()` when you specifically want a random UUID. Use it when the
+order of the inserts in the primary key, and in a secondary index, does not
+matter to you.
 
 ```camussql
 CREATE TABLE event_log (
@@ -56,8 +60,9 @@ INSERT INTO event_log (id, event_name)
 VALUES (gen_uuid_v4(), "external-import");
 ```
 
-`DEFAULT (gen_uuid_v4())` is also valid on `UUID` or `GUID` columns when you
-want random UUIDs instead of time-ordered UUIDs:
+`DEFAULT (gen_uuid_v4())` is also valid on a `UUID` column and on a `GUID`
+column. Use it when you want a random UUID instead of a UUID in the order of the
+time:
 
 ```camussql
 CREATE TABLE import_jobs (
@@ -66,11 +71,11 @@ CREATE TABLE import_jobs (
 );
 ```
 
-## Literal And Cast Support
+## Support for a literal and for a cast
 
-UUID columns accept canonical hyphenated UUID strings and 32-character
-unhyphenated hexadecimal strings. Values are returned in canonical lowercase
-hyphenated form.
+A `UUID` column accepts a canonical UUID string, with hyphens. It also accepts a
+hexadecimal string of 32 characters, without a hyphen. CamusDB returns a value
+in the canonical form: lowercase, and with hyphens.
 
 ```camussql
 CREATE TABLE integrations (
@@ -87,7 +92,8 @@ VALUES ("550e8400e29b41d4a716446655440000", "warehouse");
 SELECT CAST("550e8400-e29b-41d4-a716-446655440000" AS UUID);
 ```
 
-`GUID` is accepted as an alias for `UUID` in column definitions and casts:
+CamusDB accepts `GUID` as an alias of `UUID`. That rule covers the definition of
+a column, and a cast:
 
 ```camussql
 CREATE TABLE sessions (
@@ -97,10 +103,10 @@ CREATE TABLE sessions (
 SELECT CAST("550e8400-e29b-41d4-a716-446655440000" AS GUID);
 ```
 
-## Filtering And Indexes
+## A filter, and an index
 
-UUID columns can be used in primary keys, unique indexes, secondary indexes,
-equality filters, and range filters.
+You can use a `UUID` column in five places: a primary key, a unique index, a
+secondary index, a filter of an equality, and a filter of a range.
 
 ```camussql
 CREATE INDEX events_id_idx ON events (id);
@@ -114,6 +120,7 @@ FROM events
 WHERE id >= "80000000-0000-0000-0000-000000000000";
 ```
 
-When a quoted UUID string is compared to a UUID column, CamusDB coerces the
-string to a UUID value before evaluating the comparison or selecting an index.
-Malformed UUID text fails with `InvalidInput`.
+A comparison can put a quoted UUID string against a `UUID` column. CamusDB then
+coerces the string to a UUID value first. It does that before it evaluates the
+comparison, and before it selects an index. Text of a UUID with a wrong form
+fails with `InvalidInput`.

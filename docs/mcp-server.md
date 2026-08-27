@@ -2,29 +2,31 @@
 sidebar_position: 7.2
 ---
 
-# MCP Server
+# MCP server
 
-CamusDB provides an MCP server for AI agents and MCP-capable clients. The server
-exposes a running CamusDB node or cluster through a typed Model Context Protocol
-tool surface, so an assistant can inspect databases, explain queries, run
-read-only SQL, and perform controlled database setup tasks without hand-writing
-database API requests.
+CamusDB provides an MCP server, for an AI agent and for a client that speaks
+MCP. MCP is the Model Context Protocol.
 
-The MCP server speaks MCP over `stdio` and is launched by the MCP client. It
-connects to CamusDB through the published `CamusDB.Client` provider.
+The server exposes a CamusDB node, or a cluster, through a typed surface of MCP
+tools. An assistant can therefore inspect a database, explain a query, run
+read-only SQL, and perform a controlled task of a setup of a database. It writes
+no request of the API of the database by hand.
+
+The MCP server speaks MCP over `stdio`. The MCP client starts it. The server
+connects to CamusDB through the published provider `CamusDB.Client`.
 
 ## Prerequisites
 
-- A running CamusDB server reachable from the machine running the MCP client.
-- .NET 10 SDK when building the MCP server.
-- The `camusdb-mcp` source checkout from
+- A CamusDB server that runs, and that the machine of the MCP client can reach.
+- The SDK of .NET 10, for a build of the MCP server.
+- The source of `camusdb-mcp`, from
   `https://github.com/camusdb/camusdb-mcp`.
 
-The server is implemented in the `CamusDB.Mcp` project.
+The project `CamusDB.Mcp` holds the implementation of the server.
 
 ## Build
 
-Clone the MCP server repository:
+Clone the repository of the MCP server:
 
 ```bash
 git clone https://github.com/camusdb/camusdb-mcp
@@ -37,7 +39,7 @@ Build it:
 dotnet build camusdb-mcp.sln
 ```
 
-The built executable is:
+The built executable is at this path:
 
 ```text
 CamusDB.Mcp/bin/Debug/net10.0/CamusDB.Mcp
@@ -45,36 +47,41 @@ CamusDB.Mcp/bin/Debug/net10.0/CamusDB.Mcp
 
 ## Configuration
 
-The server reads configuration from environment variables.
+The server reads its configuration from the environment variables.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `CAMUS_MCP_CONNECTION_STRING` | none | Full CamusDB connection string, for example `Endpoint=http://localhost:7141;Database=mydb;Timeout=30`. Takes precedence over `CAMUS_MCP_ENDPOINT`. |
-| `CAMUS_MCP_ENDPOINT` | `http://localhost:7141` | CamusDB endpoint when not using a full connection string. Multiple endpoints can be comma-separated for client-side round-robin. |
-| `CAMUS_MCP_DEFAULT_DATABASE` | none | Database used when a tool call omits its `database` argument. Also inferred from `CAMUS_MCP_CONNECTION_STRING` when it contains `Database=...`. |
-| `CAMUS_MCP_TIMEOUT_SECONDS` | client default, currently `10` | Per-command timeout when the server assembles a connection string from `CAMUS_MCP_ENDPOINT`. |
-| `CAMUS_MCP_MAX_ROWS` | `1000` | Hard cap for rows returned by `select_query`. |
-| `CAMUS_MCP_USER` | none | CamusDB user to authenticate as. |
-| `CAMUS_MCP_PASSWORD` | none | Password for `CAMUS_MCP_USER`. The client exchanges it for a bearer token; statements do not resend the password. |
-| `CAMUS_MCP_ACCESS_TOKEN` | none | Bearer token obtained elsewhere, used directly instead of logging in with a password. |
-| `CAMUS_MCP_TOKEN_LIFETIME_SECONDS` | client default, currently `600` | Fallback token lifetime when the server does not report an expiry. |
+| `CAMUS_MCP_CONNECTION_STRING` | none | The full connection string of CamusDB, such as `Endpoint=http://localhost:7141;Database=mydb;Timeout=30`. It takes precedence over `CAMUS_MCP_ENDPOINT`. |
+| `CAMUS_MCP_ENDPOINT` | `http://localhost:7141` | The endpoint of CamusDB, when you use no full connection string. Separate several endpoints with a comma. The client then uses them in turn. |
+| `CAMUS_MCP_DEFAULT_DATABASE` | none | The database that a call of a tool uses, when that call omits its `database` argument. CamusDB also takes the value from a `CAMUS_MCP_CONNECTION_STRING` that holds a `Database=...`. |
+| `CAMUS_MCP_TIMEOUT_SECONDS` | The default of the client, at present `10` | The timeout of one command. It applies when the server builds a connection string from `CAMUS_MCP_ENDPOINT`. |
+| `CAMUS_MCP_MAX_ROWS` | `1000` | The hard cap of the rows that a `select_query` returns. |
+| `CAMUS_MCP_USER` | none | The CamusDB user of the authentication. |
+| `CAMUS_MCP_PASSWORD` | none | The password of the `CAMUS_MCP_USER`. The client exchanges it for a bearer token. A statement does not send the password again. |
+| `CAMUS_MCP_ACCESS_TOKEN` | none | A bearer token from another source. The server uses it directly, instead of a login with a password. |
+| `CAMUS_MCP_TOKEN_LIFETIME_SECONDS` | The default of the client, at present `600` | The fallback lifetime of a token, when the server reports no expiry. |
 
-A tool's explicit `database` argument wins over `CAMUS_MCP_DEFAULT_DATABASE`.
-Context-free statements such as `SHOW DATABASES` can run without a selected
-database. Table-scoped statements need one.
+An explicit `database` argument of a tool wins over
+`CAMUS_MCP_DEFAULT_DATABASE`.
 
-Credentials can also be supplied through `CAMUS_MCP_CONNECTION_STRING` with
-`User=...`, `Password=...`, `AccessToken=...`, and `TokenLifetime=...`.
-Dedicated `CAMUS_MCP_*` credential variables win over connection-string
-credential keys and aliases such as `Uid`, `UserId`, `Username`, and `Pwd`.
+A statement without a context can run without a selected database. `SHOW
+DATABASES` is one example. A statement with the scope of a table needs a
+database.
+
+You can also supply a credential through `CAMUS_MCP_CONNECTION_STRING`. Use the
+keys `User=...`, `Password=...`, `AccessToken=...`, and `TokenLifetime=...`.
+
+A dedicated variable `CAMUS_MCP_*` for a credential wins over a key of a
+credential of the connection string. It also wins over an alias of such a key.
+Four aliases are `Uid`, `UserId`, `Username`, and `Pwd`.
 
 ## Authentication
 
-CamusDB authentication is off by default. Against an unauthenticated server,
-leave the credential variables unset.
+The authentication of CamusDB is off by default. Leave the variables of the
+credentials unset, against a server without authentication.
 
-Against a server started with `CAMUSDB_AUTH_ENABLED=true`, give the MCP server
-a CamusDB user:
+A server can start with `CAMUSDB_AUTH_ENABLED=true`. Give the MCP server a user
+of CamusDB in that case:
 
 ```json
 {
@@ -92,15 +99,18 @@ a CamusDB user:
 }
 ```
 
-The password flow is handled by `CamusDB.Client`: the password is exchanged for
-a short-lived bearer token, and later tool calls send the token. The token cache
-is process-wide per credential set, so the MCP server does not log in again for
-every short-lived connection opened by a tool call. Token renewal and
-re-authentication after a revoked token are handled by the client when a
-password is available.
+`CamusDB.Client` handles the flow of the password. It exchanges the password for
+a bearer token with a short life. A later call of a tool sends the token.
 
-Use `CAMUS_MCP_ACCESS_TOKEN` when another process already minted a bearer
-token:
+The cache of the tokens covers the whole process, for each set of credentials.
+The MCP server therefore does not log in again for every short connection that a
+call of a tool opens.
+
+The client handles the renewal of a token. It also authenticates again after a
+revoked token. Both actions need an available password.
+
+Use `CAMUS_MCP_ACCESS_TOKEN` when another process created a bearer token
+already:
 
 ```json
 {
@@ -117,57 +127,63 @@ token:
 }
 ```
 
-An access token is used verbatim and cannot be renewed by the MCP server. If it
-expires or is revoked, the tool call fails with `CADB0516`. Prefer
-`CAMUS_MCP_USER` plus `CAMUS_MCP_PASSWORD` for a long-running MCP process.
+The server uses an access token verbatim. It cannot renew that token. The call
+of a tool fails with `CADB0516` after the token expires, and after somebody
+revokes it. Prefer a `CAMUS_MCP_USER` with a `CAMUS_MCP_PASSWORD`, for a long
+process of MCP.
 
 ### Privileges
 
-Grant the MCP user only the privileges the assistant should have. Every table a
-statement touches must be covered by a grant, including tables reached through
-joins and subqueries:
+Grant the user of MCP the privileges of the assistant only. A grant must cover
+every table that a statement touches. That rule includes a table that the
+statement reaches through a join, and through a subquery:
 
 ```camussql
 CREATE USER mcp IDENTIFIED BY 'app-secret';
 GRANT SELECT ON analytics.* TO mcp;
 ```
 
-A read-only grant is appropriate when the assistant should inspect databases
-but not modify them. The MCP server still exposes mutating tools such as
-`create_database`, `create_table`, and `insert_rows`, but CamusDB rejects those
-operations server-side when the MCP user lacks the required privileges.
+A read-only grant suits an assistant that must inspect a database, and must
+modify nothing.
 
-User and grant administration is not exposed as MCP tools. Manage users and
-grants out of band with a superuser connection. `SHOW GRANTS` can be read
-through `select_query` like other `SHOW` statements, subject to server-side
-authorization.
+The MCP server still exposes a tool that mutates data. Three examples are
+`create_database`, `create_table`, and `insert_rows`. CamusDB nevertheless
+rejects such an operation on the server, when the user of MCP lacks the
+necessary privilege.
 
-### Authentication Errors
+The administration of a user and of a grant is not an MCP tool. Manage a user
+and a grant elsewhere, with a connection of a superuser.
+
+`select_query` can read a `SHOW GRANTS`, like any other `SHOW` statement. The
+authorization on the server still applies.
+
+### The errors of the authentication
 
 | Code | Meaning |
 | --- | --- |
-| `CADB0516` | Missing, wrong, expired, or revoked credentials. Fix the MCP environment and restart, or provide a fresh token. |
-| `CADB0517` | Authenticated, but missing a required privilege. Grant the MCP user access to the affected database or table. |
-| `CADB0518` | Too many login attempts for the account. Wait for the server-side rate-limit window. |
-| `CADB0519` | Credentials were sent over plaintext where CamusDB requires TLS. Use an `https://` endpoint or configure a trusted TLS-terminating proxy. |
+| `CADB0516` | The credentials are absent, wrong, expired, or revoked. Correct the environment of MCP, and restart. You can also supply a fresh token. |
+| `CADB0517` | The caller is authenticated. It lacks a necessary privilege. Grant the user of MCP an access to the affected database, or to the affected table. |
+| `CADB0518` | There are too many attempts of a login, for that account. Wait for the window of the rate limit of the server. |
+| `CADB0519` | A client sent a credential over plaintext, where CamusDB requires TLS. Use an endpoint with `https://`. You can also configure a trusted proxy that terminates TLS. |
 
 ### TLS
 
-When authentication is enabled, CamusDB refuses credential-bearing requests
-over plaintext except from loopback. Local development over `http://localhost`
-works without certificates. For non-loopback deployments, use `https://`.
+While authentication is enabled, CamusDB refuses a request with a credential
+over plaintext. A request from loopback is the exception. A local development
+over `http://localhost` therefore works without a certificate. For a deployment
+outside loopback, use `https://`.
 
-If TLS terminates before the request reaches CamusDB, keep that plaintext hop
-inside the trust boundary and configure CamusDB with
-`require_tls_when_auth_enabled: false` or
+TLS can terminate before a request reaches CamusDB. Keep that plaintext hop
+inside the boundary of your trust. Then configure CamusDB with
+`require_tls_when_auth_enabled: false`, or with
 `--require-tls-when-auth-enabled false`.
 
-## MCP Client Configuration
+## The configuration of an MCP client
 
-Most MCP clients use a JSON configuration block. Point `command` at the built
-executable.
+Most MCP clients use a block of a configuration in JSON. Point the `command` at
+the built executable.
 
-Using the built executable:
+Here is an example with the built executable:
 
 ```json
 {
@@ -183,7 +199,7 @@ Using the built executable:
 }
 ```
 
-Authenticated example:
+Here is an example with the authentication:
 
 ```json
 {
@@ -201,79 +217,88 @@ Authenticated example:
 }
 ```
 
-## Tools
+## The tools
 
-### Read Tools
+### The tools of a read
 
-These tools do not mutate data:
-
-| Tool | Description |
-| --- | --- |
-| `list_databases` | Lists databases in the CamusDB cluster. |
-| `list_tables` | Lists tables in a database. |
-| `list_branches` | Lists branches of a root database. |
-| `list_indexes` | Lists readable indexes on a table. Indexes still being backfilled are omitted. |
-| `get_table_schema` | Returns column schema from `SHOW COLUMNS FROM`, including names, types, nullability, keys, and defaults. |
-
-### Query Tools
+These tools mutate no data:
 
 | Tool | Description |
 | --- | --- |
-| `select_query` | Runs a `SELECT` or `SHOW` statement. Mutating SQL is rejected before execution. Results are capped by `CAMUS_MCP_MAX_ROWS`. |
-| `explain_query` | Runs `EXPLAIN`. If the input is a bare `SELECT`, the tool prepends `EXPLAIN`. The `mode` argument supports `plan`, `logical`, and `physical`. |
+| `list_databases` | It lists the databases of the CamusDB cluster. |
+| `list_tables` | It lists the tables of a database. |
+| `list_branches` | It lists the branches of a root database. |
+| `list_indexes` | It lists the readable indexes of a table. It omits an index that CamusDB still backfills. |
+| `get_table_schema` | It returns the schema of the columns, from a `SHOW COLUMNS FROM`. The result holds the names, the types, the ability to hold a null, the keys, and the defaults. |
 
-`select_query` accepts named parameters referenced as `@name` placeholders.
-JSON strings, integers, floating-point numbers, booleans, and `null` are mapped
-to CamusDB parameter values.
-
-### Mutating Tools
-
-These tools compose SQL from structured inputs and execute it:
+### The tools of a query
 
 | Tool | Description |
 | --- | --- |
-| `create_database` | Creates a database and supports `IF NOT EXISTS`. |
-| `create_table` | Creates a table from a typed column definition list. |
-| `insert_rows` | Inserts one or more rows with parameterized values. Large batches are chunked at 500 rows per statement. |
+| `select_query` | It runs a `SELECT` or a `SHOW` statement. It rejects SQL that mutates data, before the execution. `CAMUS_MCP_MAX_ROWS` caps the result. |
+| `explain_query` | It runs an `EXPLAIN`. It adds the word `EXPLAIN` at the start, when the input is a bare `SELECT`. The argument `mode` accepts `plan`, `logical`, and `physical`. |
 
-`create_table` accepts column types such as `oid`, `int64`, `float64`,
+`select_query` accepts a named parameter. The SQL references that parameter as
+an `@name` placeholder. The tool maps five kinds of JSON value to a parameter
+value of CamusDB: a string, an integer, a number in floating point, a boolean,
+and a `null`.
+
+### The tools that mutate data
+
+These tools build SQL from structured inputs. They then execute that SQL:
+
+| Tool | Description |
+| --- | --- |
+| `create_database` | It creates a database. It supports an `IF NOT EXISTS`. |
+| `create_table` | It creates a table, from a list of the definitions of the typed columns. |
+| `insert_rows` | It inserts one row or more, with values in parameters. It divides a large batch into statements of 500 rows. |
+
+`create_table` accepts these types of a column: `oid`, `int64`, `float64`,
 `float32`, `string(N)`, `bool`, `bytes`, `date`, `datetime`, and `uuid`.
 
-## Safety Boundary
+## The boundary of the safety
 
-The MCP server separates read tools from mutating tools.
+The MCP server separates the tools of a read from the tools that mutate data.
 
-`select_query` accepts only statements whose first real SQL keyword is `SELECT`
-or `SHOW`. `explain_query` accepts only `EXPLAIN` or a bare `SELECT`. The server
-strips SQL comments before checking the first keyword, so a statement cannot
-hide a mutating command behind a leading comment.
+`select_query` accepts a statement whose first true keyword of SQL is a `SELECT`
+or a `SHOW`. It accepts no other statement. `explain_query` accepts an `EXPLAIN`
+only, or a bare `SELECT`.
 
-Mutating tools validate database, table, and column names before composing SQL.
-Values are passed through CamusDB parameters, not interpolated into SQL text.
+The server removes the comments of the SQL before it checks the first keyword. A
+statement therefore cannot hide a command that mutates data, behind a comment at
+its start.
 
-## Security Notes
+A tool that mutates data validates the names of the database, of the table, and
+of the columns, before it builds the SQL. It passes each value through a
+parameter of CamusDB. It puts no value inside the text of the SQL.
 
-CamusDB supports server-side authentication and authorization. The MCP server
-acts as the CamusDB principal configured in its environment.
+## Notes on the security
 
-The MCP server is still a local capability launched by an MCP client: anyone
-who can start or reconfigure that process can use the CamusDB access available
-to it. Treat MCP client config files as secrets when they contain
-`CAMUS_MCP_PASSWORD` or `CAMUS_MCP_ACCESS_TOKEN`.
+CamusDB supports authentication and authorization on the server. The MCP server
+acts as the CamusDB principal of its own environment.
 
-For agent workflows:
+The MCP server is nevertheless a local capability, and an MCP client starts it.
+Any person who can start that process, or reconfigure it, can use the access to
+CamusDB that the process holds. Treat the file of the configuration of an MCP
+client as a secret, while it holds a `CAMUS_MCP_PASSWORD` or a
+`CAMUS_MCP_ACCESS_TOKEN`.
 
-- Point the MCP server at a database or branch the agent is allowed to inspect
+For a workflow of an agent, follow five rules:
+
+- Point the MCP server at a database, or at a branch, that the agent may inspect
   or modify.
-- Use `CAMUS_MCP_DEFAULT_DATABASE` to keep the agent scoped to the expected
-  database by default.
-- Prefer database branches when experimenting with schema or data changes.
-- Give the MCP user the narrowest useful grants. Server-side enforcement is the
-  durable boundary if an MCP client asks for a mutating operation.
-- Prefer `CAMUS_MCP_USER` and `CAMUS_MCP_PASSWORD` for long-running sessions so
-  the client can renew tokens; use `CAMUS_MCP_ACCESS_TOKEN` for short-lived or
-  externally managed sessions.
+- Use `CAMUS_MCP_DEFAULT_DATABASE` to keep the agent inside the expected
+  database, by default.
+- Prefer a branch of a database for an experiment with a schema, and for an
+  experiment with the data.
+- Give the user of MCP the narrowest useful grants. The enforcement on the
+  server is the durable boundary, after an MCP client asks for an operation that
+  mutates data.
+- Prefer a `CAMUS_MCP_USER` with a `CAMUS_MCP_PASSWORD` for a long session. The
+  client can then renew a token. Use a `CAMUS_MCP_ACCESS_TOKEN` for a short
+  session, and for a session that another system manages.
 
-See [Database Branching](/docs/database-branching) for isolated copy-on-write
-workspaces and [Authentication And Authorization](/docs/sql-authentication) for
-users, grants, and bearer tokens.
+See [Database Branching](/docs/database-branching) for an isolated workspace
+with a copy at the first write. See
+[Authentication And Authorization](/docs/sql-authentication) for the users, the
+grants, and the bearer tokens.

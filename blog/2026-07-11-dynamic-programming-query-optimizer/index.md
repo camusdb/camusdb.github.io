@@ -1,12 +1,12 @@
 ---
 slug: dynamic-programming-query-optimizer
-title: Teaching CamusDB To Choose Better Query Plans
+title: Teaching CamusDB to choose better query plans
 date: 2026-07-11
 authors: [andresgutierrez]
 tags: [camusdb, query-optimizer, sql]
 ---
 
-# Teaching CamusDB To Choose Better Query Plans
+# Teaching CamusDB to choose better query plans
 
 One of the most interesting parts of building CamusDB is the query optimizer.
 It might also be one of the most complex pieces of machinery in the whole
@@ -40,7 +40,7 @@ they are not saying:
 
 They are saying what result they want. The database must decide the how.
 
-## Why Join Order Matters
+## Why join order matters
 
 For small queries, the difference may not look important. For larger tables, it
 can be huge.
@@ -62,7 +62,7 @@ different.
 This is where the optimizer becomes more than a parser or a set of simple
 rules. It has to reason about cost.
 
-## The Search Space Grows Fast
+## The search space grows fast
 
 The hard part is that join order has many possibilities.
 
@@ -95,7 +95,7 @@ Dynamic programming is useful here because it remembers the best answer for a
 smaller subset of tables and reuses it later. It avoids doing the same work
 again and again.
 
-## A Small Mental Model
+## A small mental model
 
 Think of the optimizer as filling a table of partial plans.
 
@@ -118,7 +118,7 @@ At the end, it has a candidate plan for the full query.
 This does not mean the optimizer has perfect knowledge. It is still estimating.
 But it is estimating in a structured way.
 
-## A More Technical View
+## A more technical view
 
 The dynamic programming part works by keeping a memo table. In CamusDB, the
 main idea is:
@@ -196,7 +196,7 @@ flowchart TD
 
 The real implementation has more details, but this is the core shape.
 
-## Why Left-Deep Plans?
+## Why left-deep plans?
 
 CamusDB currently searches left-deep join trees. A left-deep plan looks like
 this:
@@ -229,7 +229,7 @@ The search also has boundaries:
 These limits are not failures. They are part of making the optimizer safe and
 incremental.
 
-## Statistics Make The Optimizer Smarter
+## Statistics make the optimizer smarter
 
 Dynamic programming gives CamusDB a better way to search. Statistics give it
 better numbers to search with.
@@ -269,7 +269,7 @@ That makes the optimizer less mysterious. You can see whether CamusDB picked a
 hash join, merge join, indexed nested loop join, or a fallback nested loop
 join.
 
-## Why This Is Hard In A Real Database
+## Why this is hard in a real database
 
 The clean explanation is only part of the story.
 
@@ -291,7 +291,7 @@ When it works well, users should not have to think too much about it. They
 write SQL, create useful indexes, run `ANALYZE` when data changes, and the
 database does the best it can.
 
-## Keeping The System Practical
+## Keeping the system practical
 
 CamusDB still keeps the cost-based optimizer behind configuration flags:
 
@@ -308,7 +308,7 @@ This is also useful while the database is still evolving. Query optimizers are
 not finished in one pass. They improve over time, as more query shapes, more
 statistics, and more execution strategies become available.
 
-## Why I Like This Feature
+## Why I like this feature
 
 Dynamic programming is one of those ideas that feels elegant because it turns a
 large problem into smaller reusable pieces.

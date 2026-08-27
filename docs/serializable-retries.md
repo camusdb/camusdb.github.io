@@ -2,58 +2,64 @@
 sidebar_position: 5
 ---
 
-# Retries And Conflicts
+# Retries and conflicts
 
-A serializable read-write transaction can fail on purpose. When CamusDB detects
-a conflict that would break serial order, it aborts the transaction rather than
-committing something that violates isolation.
+A serializable read-write transaction can fail by design. CamusDB aborts a
+transaction when it detects a conflict that would break the serial order. It
+does not commit a result that violates isolation.
 
-That is correctness working, not a bug. No partial work is committed, and the
-transaction has to be replayed.
+The abort is correctness at work. It is not a defect. CamusDB commits no partial
+work. Your application must replay the transaction.
 
-## What Causes A Retry
+## What causes a retry
 
-- another transaction wrote a conflicting key
-- a read dependency changed before commit
-- a concurrent write invalidated the serial order
-- transaction start, routing, lock acquisition, or the storage write hit a
-  transient pre-write condition
-- the transaction exceeded its lifetime deadline
+A retry follows one of these five conditions:
 
-## Which Errors To Retry, And How
+- Another transaction wrote a key that conflicts.
+- A read dependency changed before the commit.
+- A concurrent write invalidated the serial order.
+- A transient condition stopped the transaction before its write. That condition
+  can occur at the start, during the routing, at lock acquisition, or at the
+  storage write.
+- The transaction passed its lifetime deadline.
 
-Not every transaction error means the same thing. The recovery action differs:
+## Which errors to retry, and how
+
+Two transaction errors do not always mean the same thing. The recovery action
+differs:
 
 | Code | Error | Action |
 | --- | --- | --- |
 | `CADB0502` | `TransactionConflict` | Replay from `BEGIN` |
 | `CADB0504` | `TransactionMustRetry` | Replay from `BEGIN` |
 | `CADB0505` | `TransactionLifetimeExceeded` | Replay from `BEGIN` |
-| `CADB0503` | `SchemaCatchingUp` | Retry, usually after the node catches up or against another node |
-| `CADB0509` | `TransactionFinalizeUnresolved` | Re-send the same finalize; see below |
-| `CADB0506` | `TransactionMutationLimitExceeded` | Do not retry; split the workload |
+| `CADB0503` | `SchemaCatchingUp` | Retry, usually after the node catches up, or against another node |
+| `CADB0509` | `TransactionFinalizeUnresolved` | Send the same finalize again. See below. |
+| `CADB0506` | `TransactionMutationLimitExceeded` | Do not retry. Split the workload. |
 
 See [Error Codes](/docs/error-codes) for the full list.
 
-## Replaying From BEGIN
+## Replay from BEGIN
 
-For `CADB0502`, `CADB0504`, and `CADB0505`, restart the entire unit of work:
-begin again, rerun every read and write, commit again.
+For `CADB0502`, `CADB0504`, and `CADB0505`, restart the whole unit of work.
+Begin again. Run every read and every write again. Commit again.
 
-Do not resume from the middle of an aborted transaction. Once it aborts, the
-only safe rule is to restart the whole thing, which is also why the retried body
-should be self-contained and free of non-idempotent side effects.
+Do not resume from the middle of an aborted transaction. After an abort, the
+only safe rule is a restart of the whole transaction. For that reason, keep the
+body of the transaction self-contained. Keep it free of side effects that you
+cannot repeat.
 
 In .NET, `CamusDB.Client` provides
-`SerializableRetryHelper.ExecuteAutocommitAsync(...)` for single-statement work,
-which replays retryable statements with backoff. Explicit multi-statement
-transactions are the application's job to replay.
+`SerializableRetryHelper.ExecuteAutocommitAsync(...)` for single-statement work.
+The helper replays a retryable statement with backoff. An explicit transaction of
+several statements remains the responsibility of the application.
 
-## Retrying An Unresolved Finalize
+## Retry an unresolved finalize
 
-`CADB0509 TransactionFinalizeUnresolved` breaks the pattern. The transaction is
-not known to be aborted and may already have committed, so replaying the
-business operation risks applying it twice.
+`CADB0509 TransactionFinalizeUnresolved` is different from the other codes.
+CamusDB does not know that the transaction aborted, and the transaction may
+already have committed. A replay of the business operation therefore risks a
+second application of the same work.
 
 Send the same `COMMIT` or `ROLLBACK` again, for the same transaction id:
 
@@ -62,40 +68,45 @@ COMMIT;
 -- if CADB0509 is returned, send COMMIT again for the same transaction
 ```
 
-Once finalize starts, no further data statements are accepted on that
-transaction. An abandoned finalizing transaction is eventually bounded by the
-server-side session timeout.
+After the finalize starts, CamusDB accepts no further data statement on that
+transaction. The server-side session timeout bounds an abandoned transaction
+that stays in the finalize state.
 
-CamusDB retries this for you first. A finalize that comes back "outcome not known
-yet", whether from a leadership flip mid-finalize, an in-progress drain, or a
-participant write shed under load, is retried on the same handle with backoff,
-bounded by a
-wall-clock budget: `transaction_finalize_retry_budget_ms`, 15 seconds by default.
-`CADB0509` is what you see when that budget runs out.
+CamusDB retries this for you first. Three conditions can make a finalize report
+that the outcome is not known yet:
 
-The bound is a duration rather than a count of attempts because every one of
-those conditions resolves on its own schedule. A saturated node makes each
-attempt take longer without making it take more attempts, so an attempt cap would
-shrink the real budget exactly when the node most needs it. Raise the setting on
-nodes that run hot; lower it if you would rather take the unresolved answer
-sooner and retry it yourself.
+1. A change of leadership during the finalize.
+2. A drain that is in progress.
+3. A participant that shed a write under load.
 
-## Keep Transactions Short
+CamusDB retries the finalize on the same handle, with backoff. A wall-clock
+budget bounds the retries: `transaction_finalize_retry_budget_ms`, which is 15
+seconds by default. You receive `CADB0509` when that budget runs out.
 
-Read-write transactions hold locks. Kahuna's coordinator renews live range locks
-while the transaction is alive, so the initial range-lock TTL is not a ceiling
-on runtime. There is still a hard backstop, about one hour by default, after
-which the transaction aborts with `TransactionLifetimeExceeded`.
+The bound is a duration, not a count of attempts. Each of the three conditions
+above resolves on its own schedule. A saturated node makes each attempt slower,
+but it does not make the number of attempts larger. A cap on attempts would
+therefore shrink the real budget exactly when the node needs it most. Raise the
+setting on a node that runs hot. Lower it if you prefer the unresolved answer
+sooner, and if you prefer to retry it yourself.
 
-Shorter transactions mean less contention, less deadlock risk, fewer retries,
-and no lifetime expirations.
+## Keep transactions short
 
-When you only need a stable view rather than a read-then-write invariant, use a
-serializable read-only transaction instead. Snapshot reads do not take the
-lock-heavy conflict path at all, which makes them the right tool for reports,
-multi-step reads, and snapshot inspection across partitions.
+A read-write transaction holds locks. The Kahuna coordinator renews a live range
+lock while the transaction is alive. The initial range-lock TTL is therefore not
+a limit on the run time. A hard backstop remains, at about one hour by default.
+After that time the transaction aborts with `TransactionLifetimeExceeded`.
 
-## Related Pages
+A short transaction gives less contention, less risk of deadlock, fewer retries,
+and no expiry of the lifetime.
+
+Use a serializable read-only transaction when you need a stable view, and not a
+read-then-write invariant. A snapshot read does not take the conflict path with
+its many locks. That makes a read-only transaction the correct tool for a
+report, for a read of several steps, and for inspection of a snapshot across
+partitions.
+
+## Related pages
 
 - [Transactions And Isolation](/docs/serializable-transactions)
 - [Transaction Limits](/docs/transaction-limits)

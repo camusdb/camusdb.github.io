@@ -2,44 +2,46 @@
 sidebar_position: 4.5
 ---
 
-# Regex Functions
+# Regex functions
 
-Regex functions match, extract, replace, count, and split `STRING` values with
-regular expressions. They can be used anywhere scalar functions are accepted,
-including projections, `WHERE`, `HAVING`, derived tables, and check
-constraints when the expression is deterministic.
+A regex function works on a `STRING` value with a regular expression. These
+functions match, extract, replace, count, and split.
 
-CamusDB also supports the regex match operators `~`, `~*`, `!~`, and `!~*`.
-Use `regexp_like` when function syntax is clearer or when you need a flags
-argument.
+You can use one at any position that accepts a scalar function. That includes a
+projection, a `WHERE` clause, a `HAVING` clause, a derived table, and a check
+constraint. In a check constraint, the expression must be deterministic.
 
-## Functions
+CamusDB also supports four operators of a match: `~`, `~*`, `!~`, and `!~*`. Use
+`regexp_like` when the syntax of a function is clearer. Use it also when you
+need an argument of flags.
+
+## The functions
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `regexp_like(text, pattern)` | `BOOL` | Returns whether `text` matches `pattern`. |
-| `regexp_like(text, pattern, flags)` | `BOOL` | Same as `regexp_like`, with regex flags. |
-| `regexp_match(text, pattern)` | `ARRAY<STRING>` or `NULL` | Returns the first match as an array. Capture groups are returned when the pattern contains groups; otherwise the whole match is returned. |
-| `regexp_match(text, pattern, flags)` | `ARRAY<STRING>` or `NULL` | Same as `regexp_match`, with regex flags. |
-| `regexp_replace(text, pattern, replacement)` | `STRING` | Replaces the first match. |
-| `regexp_replace(text, pattern, replacement, flags)` | `STRING` | Replaces the first match, or every match when `flags` contains `g`. |
-| `regexp_count(text, pattern)` | `INT64` | Counts non-overlapping matches. |
-| `regexp_count(text, pattern, start)` | `INT64` | Counts matches starting at a 1-based character position. |
-| `regexp_count(text, pattern, start, flags)` | `INT64` | Same as `regexp_count`, with regex flags. |
-| `regexp_instr(text, pattern)` | `INT64` | Returns the 1-based start position of the first match, or `0` when there is no match. |
-| `regexp_instr(text, pattern, start, N, endoption, flags, subexpr)` | `INT64` | Returns the position of the Nth match or capture group. |
-| `regexp_substr(text, pattern)` | `STRING` or `NULL` | Returns the first matching substring. |
-| `regexp_substr(text, pattern, start, N, flags, subexpr)` | `STRING` or `NULL` | Returns the Nth match or capture group. |
-| `regexp_split_to_array(text, pattern)` | `ARRAY<STRING>` | Splits `text` around regex matches. |
-| `regexp_split_to_array(text, pattern, flags)` | `ARRAY<STRING>` | Same as `regexp_split_to_array`, with regex flags. |
+| `regexp_like(text, pattern)` | `BOOL` | Whether `text` matches `pattern`. |
+| `regexp_like(text, pattern, flags)` | `BOOL` | The same as `regexp_like`, with flags for the regular expression. |
+| `regexp_match(text, pattern)` | `ARRAY<STRING>` or `NULL` | The first match, as an array. The result holds the capture groups when the pattern has a group. Otherwise it holds the whole match. |
+| `regexp_match(text, pattern, flags)` | `ARRAY<STRING>` or `NULL` | The same as `regexp_match`, with flags. |
+| `regexp_replace(text, pattern, replacement)` | `STRING` | It replaces the first match. |
+| `regexp_replace(text, pattern, replacement, flags)` | `STRING` | It replaces the first match. It replaces every match when `flags` holds a `g`. |
+| `regexp_count(text, pattern)` | `INT64` | It counts the matches that do not overlap. |
+| `regexp_count(text, pattern, start)` | `INT64` | It counts the matches from a character position. The first position is 1. |
+| `regexp_count(text, pattern, start, flags)` | `INT64` | The same as `regexp_count`, with flags. |
+| `regexp_instr(text, pattern)` | `INT64` | The start position of the first match. The first position is 1. It returns `0` without a match. |
+| `regexp_instr(text, pattern, start, N, endoption, flags, subexpr)` | `INT64` | The position of match number N, or of a capture group. |
+| `regexp_substr(text, pattern)` | `STRING` or `NULL` | The first substring that matches. |
+| `regexp_substr(text, pattern, start, N, flags, subexpr)` | `STRING` or `NULL` | Match number N, or a capture group. |
+| `regexp_split_to_array(text, pattern)` | `ARRAY<STRING>` | It splits `text` at each match. |
+| `regexp_split_to_array(text, pattern, flags)` | `ARRAY<STRING>` | The same as `regexp_split_to_array`, with flags. |
 
-`regexp_matches` and `regexp_split_to_table` are recognized names, but they are
-set-returning functions and are not supported yet. Use `regexp_match` and
-`regexp_split_to_array` for scalar results.
+CamusDB knows the names `regexp_matches` and `regexp_split_to_table`. Both
+functions return a set, and CamusDB does not support them yet. Use
+`regexp_match` and `regexp_split_to_array` for a scalar result.
 
 ## Examples
 
-Find rows with a pattern:
+Find a row with a pattern:
 
 ```camussql
 SELECT name
@@ -47,29 +49,29 @@ FROM customers
 WHERE regexp_like(email, "^[^@]+@example\\.com$", "i");
 ```
 
-Extract the first matching group:
+Extract the first group that matches:
 
 ```camussql
 SELECT regexp_match("invoice-2026-0007", "invoice-(\\d{4})-(\\d+)") AS parts;
 -- ["2026", "0007"]
 ```
 
-Replace only the first match by default:
+Replace the first match, which is the default:
 
 ```camussql
 SELECT regexp_replace("aabbcc", "b", "X");
 -- "aaXbcc"
 ```
 
-Replace every match with the `g` flag:
+Replace every match, with the `g` flag:
 
 ```camussql
 SELECT regexp_replace("aabbcc", "b", "X", "g");
 -- "aaXXcc"
 ```
 
-Use PostgreSQL-style replacement backreferences. Backslash references such as
-`\\1` refer to capture groups, and `\\&` refers to the whole match:
+Use a back reference in the style of PostgreSQL. A reference with a backslash,
+such as `\\1`, points at a capture group. `\\&` points at the whole match:
 
 ```camussql
 SELECT regexp_replace(
@@ -80,21 +82,21 @@ SELECT regexp_replace(
 -- "13/07/2026"
 ```
 
-A dollar sign is literal in the replacement string:
+A dollar sign is a literal character in the string of the replacement:
 
 ```camussql
 SELECT regexp_replace("foo", "(o)", "x$1");
 -- "fx$1o"
 ```
 
-Count repeated matches:
+Count the repeated matches:
 
 ```camussql
 SELECT regexp_count("ababab", "ab");
 -- 3
 ```
 
-Return a match position:
+Return the position of a match:
 
 ```camussql
 SELECT regexp_instr("hello world", "world");
@@ -108,7 +110,7 @@ SELECT regexp_substr("abc def ghi", "\\w+", 1, 2);
 -- "def"
 ```
 
-Split into an array:
+Split the text into an array:
 
 ```camussql
 SELECT regexp_split_to_array("one,two,three", ",");
@@ -117,74 +119,75 @@ SELECT regexp_split_to_array("one,two,three", ",");
 
 ## Flags
 
-The optional `flags` argument is a `STRING` containing zero or more flag
-characters:
+The optional argument `flags` is a `STRING`. It holds zero or more characters of
+a flag:
 
 | Flag | Meaning |
 | --- | --- |
-| `i` | Case-insensitive matching. |
-| `c` | Case-sensitive matching. This cancels a previous `i` in the same flags string. |
-| `m` | Multiline mode: `^` and `$` can match line boundaries. |
-| `n` | Alias for multiline mode. |
-| `s` | Singleline mode: `.` can match newline characters. |
-| `x` | Ignore unescaped whitespace in the pattern. |
-| `g` | Global replacement for `regexp_replace`. Ignored by functions that already inspect all matches. |
+| `i` | A match that ignores the case. |
+| `c` | A match that respects the case. It cancels an earlier `i` in the same string of flags. |
+| `m` | Multiline mode. `^` and `$` can match the boundary of a line. |
+| `n` | An alias of the multiline mode. |
+| `s` | Singleline mode. A `.` can match a character of a new line. |
+| `x` | It ignores a space in the pattern, unless you escape that space. |
+| `g` | A global replacement, for `regexp_replace`. A function that already inspects every match ignores this flag. |
 
-Unknown flags fail with `InvalidInput`.
+An unknown flag fails with `InvalidInput`.
 
-## Matching Rules
+## The rules of a match
 
-Patterns are unanchored by default. A pattern matches when it occurs anywhere in
-the subject string. Use `^` and `$` when the whole value must match:
+A pattern has no anchor by default. It matches at any position of the subject
+string. Use `^` and `$` when the whole value must match:
 
 ```camussql
 SELECT regexp_like("abc123", "^abc\\d+$");
 ```
 
-CamusDB uses the .NET regular expression engine. Common regex constructs such
-as character classes, quantifiers, anchors, alternation, and capture groups are
-supported. POSIX named character classes such as `[[:alpha:]]` are not
-supported; use `\\p{L}` or `[a-zA-Z]` instead.
+CamusDB uses the engine of regular expressions of .NET. It supports the common
+constructs: a character class, a quantifier, an anchor, an alternation, and a
+capture group. It does not support a POSIX class with a name, such as
+`[[:alpha:]]`. Use `\\p{L}` or `[a-zA-Z]` instead.
 
 `regexp_match` returns the first match only:
 
-- If the pattern has no capture groups, the result is a one-element array
-  containing the whole match.
-- If the pattern has capture groups, the result array contains the capture
-  groups.
-- A non-participating capture group is returned as `NULL`.
-- No match returns `NULL`.
+- The result is an array of one element with the whole match, when the pattern
+  has no capture group.
+- The result array holds the capture groups, when the pattern has a group.
+- A capture group that did not take part returns a `NULL`.
+- The function returns `NULL` without a match.
 
-`regexp_instr` and `regexp_substr` use 1-based positions:
+`regexp_instr` and `regexp_substr` count a position from 1:
 
-- `start` must be `>= 1`.
-- `N` must be `>= 1`.
-- `subexpr` selects a capture group; `0` means the whole match.
-- Position arguments must fit in the signed 32-bit integer range.
-- For `regexp_instr`, `endoption = 0` returns the start position and
+- `start` must be `1` or more.
+- `N` must be `1` or more.
+- `subexpr` selects a capture group. A `0` means the whole match.
+- An argument of a position must fit in the range of a signed 32-bit integer.
+- For `regexp_instr`, `endoption = 0` returns the start of the match.
   `endoption = 1` returns the position after the match.
-- `regexp_instr` returns `0` when the requested match or capture group is not
-  found.
-- `regexp_substr` returns `NULL` when the requested match or capture group is
-  not found.
+- `regexp_instr` returns `0` when it does not find the requested match or the
+  requested capture group.
+- `regexp_substr` returns `NULL` when it does not find the requested match or
+  the requested capture group.
 
-`regexp_split_to_array` returns the original string as a one-element array when
-the pattern does not match. An empty pattern splits the string into individual
+`regexp_split_to_array` returns the original string, as an array of one element,
+when the pattern does not match. An empty pattern splits the string into its
 characters.
 
-When a function has a `start` argument, anchors such as `^` still refer to the
-true start of the string, not to a sliced substring created at the start
-position. With multiline mode enabled, `^` and `$` can match line boundaries.
+A function can have a `start` argument. An anchor such as `^` still points at
+the true start of the string. It does not point at a substring that begins at
+the start position. With the multiline mode on, `^` and `$` can match the
+boundary of a line.
 
-## Null And Error Behavior
+## The behavior for a null and for an error
 
-Regex functions return `NULL` when a required input value is `NULL`, except for
-position functions that return `0` for "not found" after successfully
-evaluating non-null inputs.
+A regex function returns `NULL` when a necessary input value is `NULL`. A
+function of a position is the exception. It returns `0` for a result that it
+does not find, after a successful evaluation of inputs that are not null.
 
-Malformed patterns, invalid flags, invalid argument types, invalid argument
-counts, and invalid numeric options fail with `InvalidInput`.
+Five conditions fail with `InvalidInput`: a pattern with a wrong form, an
+invalid flag, an invalid type of an argument, an invalid number of arguments,
+and an invalid numeric option.
 
-Regex evaluation is protected by the configured match timeout. See
-[Configuration](/docs/configuration#regex-safety-settings) for
+The configured timeout of a match protects the evaluation of a regular
+expression. See [Configuration](/docs/configuration) for
 `regex_match_timeout_ms` and `regex_cache_max_entries`.

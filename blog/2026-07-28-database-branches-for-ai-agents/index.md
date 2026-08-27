@@ -1,12 +1,12 @@
 ---
 slug: database-branches-for-ai-agents
-title: When Every Experiment Needs Its Own Database
+title: When every experiment needs its own database
 date: 2026-07-28
 authors: [andresgutierrez]
 tags: [camusdb, database-branching, ai-agents]
 ---
 
-# When Every Experiment Needs Its Own Database
+# When every experiment needs its own database
 
 Software is starting to work at a different rhythm.
 
@@ -24,7 +24,7 @@ work.
 
 <!-- truncate -->
 
-## One Starting Point, Many Possible Futures
+## One starting point, many possible futures
 
 Imagine that an agent is asked to improve an online store's checkout flow. It
 may need to add a column, update existing orders, create an index, and test how
@@ -50,7 +50,7 @@ people.
 An agent that can explore ten ideas should not spend most of its time waiting
 for ten full database copies.
 
-## A Branch Is A Private Timeline
+## A branch is a private timeline
 
 A database branch starts from a known moment in another database. At the
 beginning, it sees the same schema and data. After that, it follows its own
@@ -72,7 +72,7 @@ and it changes while applications are running. Creating a branch must preserve
 a consistent view without turning every experiment into a full copy of all
 stored rows.
 
-## Why Creation Time Matters
+## Why creation time matters
 
 Branching is useful only when it is cheap enough to become part of the normal
 workflow.
@@ -96,7 +96,7 @@ In other words, branch speed is not just about saving a few seconds. It
 determines whether branching is an occasional manual action or a basic building
 block for automated work.
 
-## The Explore, Evaluate, Discard Loop
+## The explore, evaluate, discard loop
 
 Many agent workflows follow a simple pattern:
 
@@ -126,7 +126,7 @@ The important part is not that an agent can write SQL. The important part is
 that it can try, observe, and fail without leaving a confusing trail in a
 shared database.
 
-## How CamusDB Approaches Branching
+## How CamusDB approaches branching
 
 CamusDB creates an isolated, point-in-time branch with SQL:
 
@@ -173,7 +173,7 @@ WHERE status = "payment_unknown";
 Neither experiment changes `prod`, and neither branch can see the other
 branch's work.
 
-## Isolation Makes Results Easier To Trust
+## Isolation makes results easier to trust
 
 Parallel execution is only helpful when the results remain understandable.
 
@@ -203,7 +203,7 @@ SHOW ANCESTORS FROM checkout_schema_test;
 These commands help answer simple but important questions: Which experiments
 still exist? Where did a branch come from? How deep is its history?
 
-## Disposable Does Not Mean Careless
+## Disposable does not mean careless
 
 Temporary branches still have a cost.
 
@@ -233,7 +233,7 @@ applied through the normal delivery process.
 That boundary is useful for safety. An experimental branch is evidence, not
 automatic permission to change the main database.
 
-## A Better Default For Automated Work
+## A better default for automated work
 
 As software takes on more independent tasks, databases need to support more
 than one shared present. They need to represent several possible futures at the

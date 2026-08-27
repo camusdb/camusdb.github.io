@@ -68,18 +68,6 @@
   text-transform: uppercase;
 }
 
-.alphaBadge {
-  padding: 0.22rem 0.55rem;
-  color: #ffd98a;
-  border: 1px solid rgba(251, 191, 36, 0.42);
-  border-radius: 999px;
-  background: rgba(180, 115, 0, 0.16);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
 
 .title {
   max-width: 760px;

@@ -1,6 +1,6 @@
 ---
 slug: welcome
-title: Why CamusDB Exists
+title: Why CamusDB exists
 date: 2026-07-03
 authors: [andresgutierrez]
 tags: [camusdb]
@@ -10,7 +10,7 @@ tags: [camusdb]
 >
 > — Antoine de Saint-Exupéry
 
-# Why I Started Building CamusDB
+# Why I started building CamusDB
 
 For many years I worked with Google Spanner, and somewhere along the way I fell in love with distributed SQL databases.
 

@@ -4,42 +4,48 @@ sidebar_position: 1.5
 
 # Databases
 
-Databases in CamusDB must be created explicitly before use. Opening, querying,
-or running table DDL against an unknown database returns `DatabaseDoesntExist`
-instead of creating storage implicitly.
+You must create a database in CamusDB explicitly before you use it. Three
+operations against an unknown database return `DatabaseDoesntExist`: an open, a
+query, and a DDL statement of a table. CamusDB does not create the storage
+implicitly.
 
-## Create A Database
+## Create a database
 
 ```camussql
 CREATE DATABASE app;
 ```
 
-Use `IF NOT EXISTS` when setup scripts should be idempotent:
+Use `IF NOT EXISTS` when a script of a setup must be safe to repeat:
 
 ```camussql
 CREATE DATABASE IF NOT EXISTS app;
 ```
 
-After creation, connect to that database with `camus-cli app`, `use app;`, a
-driver connection string, an HTTP request whose `databaseName` is `app`, or a
-gRPC request whose `database` is `app`.
+After the creation, connect to that database in one of five ways:
 
-## Branch A Database
+- `camus-cli app`.
+- A `use app;` statement.
+- The connection string of a driver.
+- An HTTP request whose `databaseName` is `app`.
+- A gRPC request whose `database` is `app`.
+
+## Branch a database
 
 ```camussql
 CREATE DATABASE feature_checkout BRANCH FROM app;
 ```
 
-Database branching creates an isolated point-in-time clone of an existing
-database. The branch starts from the source database's schema and data view, but
-writes and DDL in the branch stay private to that branch.
+A branch of a database is an isolated clone of an existing database, at a point
+in time. The branch starts from the schema and the view of the data of the
+source database. A write and a DDL statement in the branch stay private to that
+branch.
 
-Use branches to test features, rehearse migrations, or reproduce issues against
-production-like data without affecting the base database. See
-[Database Branching](/docs/database-branching) for the full workflow and
-operational notes.
+Use a branch to test a feature, to rehearse a migration, or to reproduce a
+problem. You use data that is like the data of production, and you affect no
+base database. See [Database Branching](/docs/database-branching) for the full
+workflow, and for the notes of an operator.
 
-## List Databases
+## List the databases
 
 ```camussql
 SHOW DATABASES;
@@ -47,15 +53,16 @@ SHOW BRANCHES FROM app;
 SHOW ANCESTORS FROM feature_checkout;
 ```
 
-`SHOW DATABASES` is a server-level statement. It does not require an already
-open database context.
+`SHOW DATABASES` is a statement at the level of the server. It needs no open
+database.
 
 Use `SHOW BRANCHES FROM <database>` to list every descendant branch of a
-database. Use `SHOW ANCESTORS FROM <database>` to inspect the parent chain of a
-branch. See [Database Branching](/docs/database-branching#inspect-branches) for
-column details.
+database. Use `SHOW ANCESTORS FROM <database>` to inspect the chain of the
+parents of a branch. See
+[Database Branching](/docs/database-branching#inspect-the-branches) for the
+details of the columns.
 
-## Drop A Database
+## Drop a database
 
 ```camussql
 DROP DATABASE app;
@@ -63,100 +70,112 @@ DROP DATABASE IF EXISTS app;
 DROP DATABASE app FORCE;
 ```
 
-`DROP DATABASE` removes the registry entry for the database name immediately,
-but the database data is retained as a recoverable orphan for the configured
-retention window. The name is free to reuse, `SHOW DATABASES` no longer lists
-it, and opening the dropped name returns `DatabaseDoesntExist`.
+`DROP DATABASE` removes the entry of that name from the registry immediately.
+CamusDB nevertheless keeps the data of the database as a recoverable orphan, for
+the configured window of the retention.
 
-Use `SHOW ORPHAN DATABASES` to inspect recoverable dropped databases, then
-recover one under a new name with `CREATE DATABASE ... RELINK TO`:
+You can use the name again. `SHOW DATABASES` no longer lists it. An open of the
+dropped name returns `DatabaseDoesntExist`.
+
+Use `SHOW ORPHAN DATABASES` to inspect a recoverable dropped database. Then
+recover one under a new name, with `CREATE DATABASE ... RELINK TO`:
 
 ```camussql
 SHOW ORPHAN DATABASES;
 CREATE DATABASE app_recovered RELINK TO '7';
 ```
 
-Use `FORCE` only when the database should be physically deleted immediately and
-permanently:
+Use `FORCE` only when CamusDB must delete the database physically, immediately,
+and permanently:
 
 ```camussql
 DROP DATABASE app FORCE;
 ```
 
-`DROP DATABASE IF EXISTS` is a no-op when the database name is absent. A forced
-drop creates no orphan and cannot be recovered. See
-[Recover Dropped Objects](/docs/recover-dropped-objects) for the recovery
-workflow, retention settings, and limits.
+`DROP DATABASE IF EXISTS` does nothing when the name is absent. A forced drop
+creates no orphan, and you cannot recover the database. See
+[Recover Dropped Objects](/docs/recover-dropped-objects) for the workflow of the
+recovery, for the settings of the retention, and for the limits.
 
-## Rename A Database
+## Rename a database
 
 ```camussql
 RENAME DATABASE app TO app_prod;
 ALTER DATABASE app RENAME TO app_prod;
 ```
 
-Both forms are equivalent. `ALTER DATABASE ... RENAME TO` matches the table
-rename word order, while `RENAME DATABASE ... TO ...` remains supported.
+The two forms are equivalent. `ALTER DATABASE ... RENAME TO` matches the order
+of the words of a rename of a table. `RENAME DATABASE ... TO ...` also stays
+supported.
 
-Renaming changes only the registry binding from name to internal storage id.
-The storage id, table ids, row keys, index keys, statistics keys, and database
-comment remain the same.
+A rename changes the binding in the registry only, from the name to the internal
+id of the storage. Six things do not change:
 
-Important behavior:
+1. The id of the storage.
+2. The ids of the tables.
+3. The keys of the rows.
+4. The keys of the indexes.
+5. The keys of the statistics.
+6. The comment of the database.
 
-- opening the old name fails after the rename completes
-- opening the new name resolves to the same storage id
-- in-flight work can continue because the human-readable name is not part of
-  row or index storage keys
-- renaming to an existing name fails
-- reserved names cannot be used as rename targets
-- comments set with `COMMENT ON DATABASE` survive the rename
+Note this behavior:
 
-## Stable Storage Identity
+- An open of the old name fails after the rename completes.
+- An open of the new name resolves to the same id of the storage.
+- Work in flight can continue. The readable name is not part of a storage key of
+  a row or of an index.
+- A rename to a name that exists fails.
+- You cannot use a reserved name as the target of a rename.
+- A comment from a `COMMENT ON DATABASE` survives the rename.
 
-Every database receives a stable opaque storage id when it is created. The id is
-allocated from a persistent monotonic sequence, encoded as a short base62
-string, and is not reused after `DROP DATABASE`.
+## A stable identity in the storage
 
-The id is an internal storage identity, not a SQL value and not an ObjectId.
-Applications should address databases by name.
+Every database receives a stable opaque id in the storage, at its creation.
+CamusDB allocates that id from a persistent monotonic sequence. It encodes the
+id as a short string in base62. It does not reuse the id after a `DROP
+DATABASE`.
 
-The human-readable name is stored in the database registry, but the registry
-entry points at the stable storage id. Database data lives in the shared
-[Kahuna](https://kahunakv.github.io/) keyspace under keys that begin with that
-database id.
+The id is an internal identity of the storage. It is not a value of SQL, and it
+is not an ObjectId. An application must address a database by its name.
 
-Tables use the same identity model. A newly created table receives a stable
-short base62 table id from a persistent monotonic sequence. Table ids are used
-inside row, index, statistics, and schema keys; SQL continues to address tables
-by name.
+CamusDB stores the readable name in the registry of the databases. The entry of
+that registry nevertheless points at the stable id of the storage. The data of a
+database lives in the shared key space of
+[Kahuna](https://kahunakv.github.io/), under a key that starts with that id.
 
-Using ids instead of names means a database or table rename does not move data
-and does not rewrite table or index keys.
+A table uses the same model of an identity. A new table receives a stable short
+id in base62, from a persistent monotonic sequence. CamusDB uses the id of a
+table inside the keys of a row, of an index, of the statistics, and of the
+schema. SQL continues to address a table by its name.
 
-## Reserved Names
+CamusDB uses an id instead of a name for one reason. A rename of a database, and
+a rename of a table, therefore moves no data. Neither one rewrites a key of a
+table or of an index.
 
-These names are reserved:
+## Reserved names
+
+CamusDB reserves two names:
 
 | Name | Purpose |
 | --- | --- |
-| `_system` | Internal database registry and cluster metadata namespace. |
-| `information_schema` | Reserved for future SQL compatibility. |
+| `_system` | The namespace of the internal registry of the databases, and of the metadata of the cluster. |
+| `information_schema` | Reserved for a future compatibility with SQL. |
 
-Creating or renaming a database to either name returns `DatabaseNameReserved`.
+A creation of a database with either name returns `DatabaseNameReserved`. A
+rename to either name returns the same code.
 
-## Error Codes
+## Error codes
 
 | Code | Name | Typical cause |
 | --- | --- | --- |
-| `CADB0010` | `DatabaseDoesntExist` | Opening, querying, dropping, renaming, or running table DDL against an unknown database. |
-| `CADB0012` | `DatabaseAlreadyExists` | `CREATE DATABASE` targets an existing name, or a database rename targets an existing name. |
-| `CADB0018` | `DatabaseNameReserved` | `CREATE DATABASE` or a database rename uses `_system` or `information_schema`. |
-| `CADB0019` | `DatabaseCreationIncomplete` | Reserved for an incomplete database-create recovery condition from older standalone storage layouts. It is not expected on the current shared-storage create path. |
-| `CADB0508` | `DatabaseHasLiveDescendants` | `DROP DATABASE` targets a database that still has live branch descendants. Drop descendant branches first. |
-| `CADB0510` | `OrphanNotFound` | `CREATE DATABASE ... RELINK TO` references an unknown, already recovered, or reclaimed orphan id. |
+| `CADB0010` | `DatabaseDoesntExist` | An open, a query, a drop, a rename, or a DDL statement of a table, against an unknown database. |
+| `CADB0012` | `DatabaseAlreadyExists` | A `CREATE DATABASE` targets a name that exists. A rename of a database also targets a name that exists. |
+| `CADB0018` | `DatabaseNameReserved` | A `CREATE DATABASE`, or a rename of a database, uses `_system` or `information_schema`. |
+| `CADB0019` | `DatabaseCreationIncomplete` | Reserved for an incomplete recovery of the creation of a database, from an older layout of a standalone storage. CamusDB does not expect the code on the current path of a creation in the shared storage. |
+| `CADB0508` | `DatabaseHasLiveDescendants` | A `DROP DATABASE` targets a database with a live descendant branch. Drop the descendant branches first. |
+| `CADB0510` | `OrphanNotFound` | A `CREATE DATABASE ... RELINK TO` references an id of an orphan that is unknown, recovered already, or reclaimed. |
 
-## Related Pages
+## Related pages
 
 - [Tutorial](/docs/intro)
 - [Database Branching](/docs/database-branching)

@@ -2,26 +2,35 @@
 sidebar_position: 3.3
 ---
 
-# Workload Utility
+# Workload utility
 
-`CamusDB.Workload` is a source-tree utility for validating and measuring a
-CamusDB server with a deterministic mixed workload. It creates a repeatable
-dataset, runs read/write traffic through the CamusDB client protocol, verifies
-the result, and writes artifacts that can be compared across server builds or
-configuration changes.
+`CamusDB.Workload` is a utility in the source tree. It validates a CamusDB
+server, and it measures that server, with a deterministic mixed workload.
 
-Use it when you want to:
+The utility does four things. It creates a data set that you can repeat. It runs
+traffic of reads and writes, through the protocol of the CamusDB client. It
+verifies the result. It writes artifacts, and you can compare those artifacts
+across two builds of the server, or across two configurations.
 
-- check that a local or test deployment can handle concurrent reads and writes
-- compare gRPC and REST client behavior
-- measure the effect of configuration changes such as WAL or optimizer settings
-- collect a repeatable evidence bundle for performance diagnosis
+Use the utility for four purposes:
 
-The utility lives in the CamusDB source repository as `CamusDB.Workload`.
+- Check that a local deployment, or a test deployment, handles concurrent reads
+  and writes.
+- Compare the behavior of a gRPC client with the behavior of a REST client.
+- Measure the effect of a change of the configuration, such as a setting of the
+  WAL or of the optimizer.
+- Collect a bundle of evidence that you can repeat, for the diagnosis of the
+  performance.
 
-## Dataset
+The utility lives in the source repository of CamusDB, as `CamusDB.Workload`.
 
-The workload uses a deterministic table named `workload_accounts`:
+To drive this same workload against a cluster in Docker, while a tool injects a
+fault into it, see [Caraxes](/docs/caraxes). Caraxes is the harness of the chaos
+tests, and it wraps this utility.
+
+## The data set
+
+The workload uses a deterministic table with the name `workload_accounts`:
 
 ```camussql
 CREATE TABLE workload_accounts (
@@ -35,16 +44,18 @@ CREATE TABLE workload_accounts (
 CREATE INDEX workload_accounts_owner ON workload_accounts (owner);
 ```
 
-Rows, ids, balances, owners, and payloads are generated from the configured
-seed, row count, and payload size. The same inputs produce the same dataset
-fingerprint every time, which lets `run` verify that it is measuring the data
-shape it expects.
+The utility generates the rows, the ids, the balances, the owners, and the
+payloads from three inputs: the configured seed, the count of the rows, and the
+size of a payload. The same inputs produce the same fingerprint of the data set
+every time. The verb `run` therefore confirms that it measures the shape of the
+data that it expects.
 
-Setup and reconciliation happen outside the measured interval.
+The setup and the reconciliation both happen outside the measured interval.
 
 ## Initialize
 
-Run `init` once to create the database, table, index, and seed data:
+Run `init` one time. It creates the database, the table, the index, and the data
+of the seed:
 
 ```bash
 dotnet run -c Release --project CamusDB.Workload -- init \
@@ -56,26 +67,27 @@ dotnet run -c Release --project CamusDB.Workload -- init \
   --batch 500
 ```
 
-`init` is idempotent. If the schema and expected rows already exist, it can be
-run again without changing the measured workload.
+You can run `init` again safely. The schema and the expected rows can exist
+already. A second run then changes no part of the measured workload.
 
-Common options:
+These options are common:
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--endpoint` | required | Server endpoint. Use the gRPC port for `--protocol grpc`, for example `http://127.0.0.1:5096`. |
-| `--database` | required | Database used by the workload. |
-| `--protocol` | `grpc` | Client protocol: `grpc` or `rest`. |
-| `--seed` | `1847` | Deterministic seed for ids, payloads, and operation selection. |
-| `--rows` | `100000` | Number of rows in `workload_accounts`. |
-| `--payload-bytes` | `256` | Payload string size per row. |
+| `--endpoint` | necessary | The endpoint of the server. Use the port of gRPC for `--protocol grpc`, such as `http://127.0.0.1:5096`. |
+| `--database` | necessary | The database of the workload. |
+| `--protocol` | `grpc` | The protocol of the client: `grpc` or `rest`. |
+| `--seed` | `1847` | The deterministic seed of the ids, the payloads, and the choice of an operation. |
+| `--rows` | `100000` | The number of the rows of `workload_accounts`. |
+| `--payload-bytes` | `256` | The size of the string of the payload, for each row. |
 
 ## Run
 
-The `run` verb validates the dataset, warms up, runs the measured interval,
-drains in-flight work, reconciles correctness, and writes output files.
+The verb `run` performs six steps. It validates the data set. It warms the
+system up. It runs the measured interval. It drains the work in flight. It
+reconciles the correctness. It then writes the files of the output.
 
-Open-loop mode submits a target number of operations per second:
+The open-loop mode submits a target number of operations for each second:
 
 ```bash
 dotnet run -c Release --project CamusDB.Workload -- run \
@@ -92,8 +104,8 @@ dotnet run -c Release --project CamusDB.Workload -- run \
   --drain 10s
 ```
 
-Closed-loop mode keeps a fixed number of workers busy and is useful for finding
-a saturation point:
+The closed-loop mode keeps a fixed number of workers busy. It helps you find the
+point of the saturation:
 
 ```bash
 dotnet run -c Release --project CamusDB.Workload -- run \
@@ -108,49 +120,51 @@ dotnet run -c Release --project CamusDB.Workload -- run \
   --warmup 30s
 ```
 
-Run options:
+These are the options of a run:
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--output` | required | Output directory for artifacts. It must not already exist. |
-| `--mode` | `open` | `open` for target-rate load, `closed` for worker saturation. |
-| `--target-ops` | `800` | Open-loop submitted operations per second. |
-| `--workers` | `64` | Concurrent workers. |
-| `--read-percent` | `60` | Percent of operations that are read-only point reads. |
-| `--write-percent` | `40` | Percent of operations that are write transactions. Must make the read/write total equal `100`. |
-| `--writes-per-transaction` | `1` | Row updates per write transaction. |
-| `--duration` | `5m` | Measured interval. |
-| `--warmup` | `30s` | Warm-up before measurement. |
-| `--drain` | `10s` | Open-loop drain window after measurement. |
-| `--connections` | `8` | Number of read connections and write connections opened by the client. |
-| `--max-in-flight` | `4096` | Open-loop cap for pending plus in-flight operations before schedule drops are counted. |
-| `--init-if-missing` | `false` | Create and seed the dataset before the run if it is absent. Setup is still outside measurement. |
+| `--output` | necessary | The directory of the output, for the artifacts. It must not exist already. |
+| `--mode` | `open` | `open` for a load at a target rate. `closed` for the saturation of the workers. |
+| `--target-ops` | `800` | The operations of one second that the open loop submits. |
+| `--workers` | `64` | The number of the concurrent workers. |
+| `--read-percent` | `60` | The percent of the operations that are read-only point reads. |
+| `--write-percent` | `40` | The percent of the operations that are transactions of a write. The total of the reads and of the writes must equal `100`. |
+| `--writes-per-transaction` | `1` | The updates of a row, for each transaction of a write. |
+| `--duration` | `5m` | The measured interval. |
+| `--warmup` | `30s` | The warm-up, before the measurement. |
+| `--drain` | `10s` | The window of the drain of the open loop, after the measurement. |
+| `--connections` | `8` | The number of the connections of a read, and of the connections of a write, that the client opens. |
+| `--max-in-flight` | `4096` | The cap of the open loop, for the pending operations plus the operations in flight. Past that cap, the utility counts a drop of the schedule. |
+| `--init-if-missing` | `false` | Create the data set, and seed it, before the run, when it is absent. The setup still stays outside the measurement. |
 
-The write side uses optimistic read/write transactions. The baseline workload
-shards writers so independent workers should not update the same rows. In that
-non-conflicting baseline, conflicts are reported as invalidating evidence
-rather than hidden by retries.
+The side of the writes uses optimistic transactions of reads and writes. The
+baseline workload divides the writers. Two independent workers therefore must
+not update the same row.
 
-## Output Artifacts
+In that baseline without a conflict, the utility reports a conflict as evidence
+against the validity of the run. It does not hide a conflict behind a retry.
 
-A successful run writes:
+## The artifacts of the output
+
+A successful run writes six files:
 
 | File | Contents |
 | --- | --- |
-| `manifest.json` | Tool version, endpoint, protocol, workload shape, runtime, and dataset fingerprint. |
-| `summary.json` | Machine-readable throughput, latency, error, and validity summary. |
-| `summary.md` | Human-readable run summary. |
-| `intervals.csv` | Per-second offered, started, completed, failed, in-flight, and latency samples. |
-| `errors.json` | Error counts and sampled messages grouped by error code. |
-| `reconciliation.json` | Correctness verification for committed writes and final row versions. |
+| `manifest.json` | The version of the tool, the endpoint, the protocol, the shape of the workload, the runtime, and the fingerprint of the data set. |
+| `summary.json` | A summary of the throughput, of the latency, of the errors, and of the validity, for a machine. |
+| `summary.md` | A summary of the run, for a person. |
+| `intervals.csv` | The samples of each second: the offered operations, the started operations, the completed operations, the failed operations, the operations in flight, and the latency. |
+| `errors.json` | The counts of the errors, and some sampled messages, in a group for each code of an error. |
+| `reconciliation.json` | The verification of the correctness, for the committed writes and for the final versions of the rows. |
 
-The process exits with a non-zero code when the run is invalid or
-reconciliation fails.
+The process exits with a code above zero in two cases: the run is invalid, and
+the reconciliation fails.
 
-## Bottleneck Report
+## The report of the bottleneck
 
-If the server exposes Prometheus metrics, `report` can combine a workload run
-with a `/metrics` scrape:
+The server can expose the metrics of Prometheus. The verb `report` can then
+combine a run of the workload with a scrape of `/metrics`:
 
 ```bash
 dotnet run -c Release --project CamusDB.Workload -- report \
@@ -158,17 +172,22 @@ dotnet run -c Release --project CamusDB.Workload -- report \
   --metrics /tmp/server-metrics.txt
 ```
 
-This writes `bottleneck-report.md` in the run directory. The report compares
-client throughput and latency with server request, execution, scan, transaction,
-runtime, Kahuna, and Kommander metrics. It is diagnostic evidence: use it to
-see which measured stages deserve attention before tuning.
+That command writes `bottleneck-report.md` in the directory of the run.
 
-For one-command local collection, see
+The report compares the throughput and the latency at the client with the
+metrics of the server. Those metrics cover the requests, the execution, the
+scans, the transactions, the runtime, Kahuna, and Kommander.
+
+The report is evidence for a diagnosis. Use it to see which measured stage
+deserves your attention. Do that before you tune anything.
+
+For a collection from one command, on a local machine, see
 [Performance Diagnostics](/docs/performance-diagnostics).
 
 ## Cleanup
 
-`cleanup` drops only the explicitly confirmed workload database:
+The verb `cleanup` drops the database of the workload only. You must confirm the
+name explicitly:
 
 ```bash
 dotnet run -c Release --project CamusDB.Workload -- cleanup \
@@ -178,5 +197,5 @@ dotnet run -c Release --project CamusDB.Workload -- cleanup \
   --confirm workload
 ```
 
-The command refuses empty, default, system, or unconfirmed database names.
-
+The command refuses four kinds of name of a database: an empty name, a default
+name, a name of the system, and a name that you did not confirm.

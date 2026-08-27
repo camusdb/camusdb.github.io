@@ -2,28 +2,29 @@
 sidebar_position: 2.2
 ---
 
-# Data Types
+# Data types
 
-CamusDB columns are strongly typed. The type is declared in `CREATE TABLE` or
-`ALTER TABLE ... ADD COLUMN`, and CamusDB uses it for storage, comparisons,
-indexes, casts, defaults, and JSON values.
+A CamusDB column has a strong type. You declare that type in `CREATE TABLE`, or
+in `ALTER TABLE ... ADD COLUMN`. CamusDB uses the type for the storage, for a
+comparison, for an index, for a cast, for a default, and for a JSON value.
 
-## Type Reference
+## Reference of the types
 
 | SQL type | Stores | Indexable | Notes |
 | --- | --- | --- | --- |
-| `OID` | 12-byte ObjectId | Yes | Native identifier type. Also accepted as `OBJECT_ID` in SQL and `id` in HTTP table definitions. |
-| `UUID` | 128-bit UUID | Yes | Native UUID/GUID type. Also accepted as `GUID`. |
-| `INT64` | 64-bit signed integer | Yes | Also accepted as `INT`, `INTEGER`, or `SMALLINT`. |
-| `FLOAT64` | IEEE-754 double | Yes | Also accepted as `FLOAT`. Also accepted as `DOUBLE` in `CAST`. |
-| `FLOAT32` | IEEE-754 single | Yes | Also accepted as `REAL`. Values are stored and compared at single precision. |
-| `BOOL` | Boolean | Yes | Also accepted as `BOOLEAN`. |
-| `STRING` | UTF-16 text | Yes | Uses the default string length limit. Also accepted as `CHAR`, `VARCHAR`, or `TEXT`. |
-| `STRING(N)` | UTF-16 text, max `N` characters | Yes | `N` must be a positive integer. `CHAR(N)` and `VARCHAR(N)` use the same bound. |
-| `DATE` | Calendar date without time | Yes | Stored as UTC ticks truncated to midnight. |
-| `DATETIME` | UTC instant | Yes | Also accepted as `TIMESTAMP`. |
-| `BYTES` | Opaque byte string | Yes | Also accepted as `BLOB`. |
-| `ARRAY(T)` | Ordered list of scalar `T` values | No | `T` must be a scalar type. Arrays are not supported in primary keys or indexes. |
+| `OID` | A 12-byte ObjectId | Yes | The native type of an identifier. SQL also accepts `OBJECT_ID`. An HTTP table definition names the type `id`. |
+| `UUID` | A 128-bit UUID | Yes | The native type of a UUID or a GUID. CamusDB also accepts `GUID`. |
+| `INT64` | A 64-bit signed integer | Yes | CamusDB also accepts `INT`, `INTEGER`, and `SMALLINT`. |
+| `FLOAT64` | An IEEE-754 double | Yes | CamusDB also accepts `FLOAT`. In a `CAST`, it also accepts `DOUBLE`. |
+| `FLOAT32` | An IEEE-754 single | Yes | CamusDB also accepts `REAL`. It stores and compares the value at single precision. |
+| `BOOL` | A boolean | Yes | CamusDB also accepts `BOOLEAN`. |
+| `STRING` | UTF-16 text | Yes | It uses the default limit on the length of a string. CamusDB also accepts `CHAR`, `VARCHAR`, and `TEXT`. |
+| `STRING(N)` | UTF-16 text, with a maximum of `N` characters | Yes | `N` must be a positive integer. `CHAR(N)` and `VARCHAR(N)` use the same bound. |
+| `DATE` | A calendar date, without a time | Yes | CamusDB stores it as UTC ticks, truncated to midnight. |
+| `DATETIME` | An instant in UTC | Yes | CamusDB also accepts `TIMESTAMP`. |
+| `BYTES` | An opaque string of bytes | Yes | CamusDB also accepts `BLOB`. |
+| `BYTES(N)` | An opaque string of bytes, with a maximum of `N` bytes | Yes | `N` must be a positive integer. `BLOB(N)` uses the same bound. |
+| `ARRAY(T)` | An ordered list of scalar values of type `T` | No | `T` must be a scalar type. You cannot use an array in a primary key, and you cannot use one in an index. |
 
 ```camussql
 CREATE TABLE events (
@@ -38,7 +39,7 @@ CREATE TABLE events (
 );
 ```
 
-## Type Aliases
+## Aliases of the types
 
 | Alias | Canonical type |
 | --- | --- |
@@ -52,27 +53,33 @@ CREATE TABLE events (
 | `GUID` | `UUID` |
 | `BOOLEAN` | `BOOL` |
 
-In SQL, ObjectId columns use `OID` or `OBJECT_ID`. In HTTP table definitions,
-the same type is named `id`. The SQL identifier `id` is still just an ordinary
-column name.
+In SQL, a column of an ObjectId uses `OID` or `OBJECT_ID`. In an HTTP table
+definition, the same type has the name `id`. The SQL identifier `id` is still an
+ordinary column name.
 
-Use `UUID` or `GUID` columns for UUID identifiers instead of storing UUIDs in
-`STRING` columns. Native UUID values are stored as compact 128-bit values and
-use fixed-width order-preserving index encoding, so they are more efficient in
-memory, on disk, and in indexes than UUID text.
+Use a `UUID` or a `GUID` column for a UUID identifier. Do not store a UUID in a
+`STRING` column. CamusDB stores a native UUID as a compact 128-bit value. It
+also uses an index encoding of a fixed width that preserves the order. A native
+UUID is therefore more efficient than UUID text, in memory, on disk, and in an
+index.
 
-## String And Bytes Length
+## The length of a string and of a bytes value
 
 `STRING(N)` accepts at most `N` UTF-16 code units. A bare `STRING` column uses
 the default maximum length of `2,621,440` characters.
 
-`BYTES` columns use the default maximum length of `10,485,760` bytes, which is
-10 MB.
+`BYTES(N)` accepts at most `N` bytes. A bare `BYTES` column uses the default
+maximum length of `10,485,760` bytes, which is 10 MB.
 
-CamusDB rejects over-length values instead of truncating them. Inserts,
-updates, or casts that exceed the column bound fail with
-`CADB0302 ValueTooLong`. `NULL` values do not have a length and are not checked
-against these bounds.
+Both bounds are maximums, not fixed widths. A `BYTES(3072)` column accepts a
+shorter value without complaint. Add a `CHECK` constraint when a column must
+hold an exact number of bytes. [Vector search](/docs/vector-search) shows that
+pattern for an embedding.
+
+CamusDB rejects a value that is too long. It does not truncate that value. An
+insert, an update, and a cast that exceeds the bound of the column fails with
+`CADB0302 ValueTooLong`. A `NULL` has no length. CamusDB therefore does not
+check a `NULL` against these bounds.
 
 ```camussql
 CREATE TABLE documents (
@@ -85,7 +92,8 @@ CREATE TABLE documents (
 
 ## Arrays
 
-`ARRAY(T)` stores an ordered, homogeneous list. The element type must be scalar:
+`ARRAY(T)` stores an ordered list of one type. The type of an element must be
+scalar:
 
 ```camussql
 CREATE TABLE measurements (
@@ -95,13 +103,16 @@ CREATE TABLE measurements (
 );
 ```
 
-Current array rules:
+These rules apply to an array today:
 
-- Nested arrays such as `ARRAY(ARRAY(INT64))` are rejected.
-- Array columns cannot be used in a primary key or secondary index.
-- SQL supports inline `ARRAY[...]` literals in expressions and DML values.
-- Nested array literals such as `ARRAY[ARRAY[1]]` are rejected.
-- Array elements may be `NULL`.
+- CamusDB rejects an array inside an array, such as `ARRAY(ARRAY(INT64))`.
+- You cannot use an array column in a primary key. You cannot use it in a
+  secondary index.
+- SQL supports an inline `ARRAY[...]` literal, in an expression and in the
+  values of a DML statement.
+- CamusDB rejects a literal of an array inside an array, such as
+  `ARRAY[ARRAY[1]]`.
+- An element of an array may be `NULL`.
 
 ```camussql
 INSERT INTO measurements (id, samples, labels)
@@ -112,33 +123,36 @@ SET labels = ARRAY[]
 WHERE id = STR_ID('507f1f77bcf86cd799439011');
 ```
 
-## SQL Literal Formats
+## The literal formats of SQL
 
-| Type | SQL literal form | Example |
+| Type | Form of the SQL literal | Example |
 | --- | --- | --- |
-| `INT64` | Integer | `42` |
-| `FLOAT64`, `FLOAT32` | Decimal number | `3.14` |
-| `STRING` | Quoted string | `"hello"` or `'hello'` |
+| `INT64` | An integer | `42` |
+| `FLOAT64`, `FLOAT32` | A decimal number | `3.14` |
+| `STRING` | A quoted string | `"hello"` or `'hello'` |
 | `BOOL` | `true` or `false` | `true` |
-| `OID` | Quoted 24-character ObjectId string | `"507f1f77bcf86cd799439011"` |
-| `UUID` | Quoted UUID string, hyphenated or 32 hexadecimal digits | `"550e8400-e29b-41d4-a716-446655440000"` |
-| `DATE` | Quoted `yyyy-MM-dd` string | `"2026-03-15"` |
-| `DATETIME` | Quoted ISO-8601 UTC string | `"2026-03-15T12:00:00Z"` |
-| `BYTES` | `X'...'` hexadecimal bytes | `X'DEADBEEF'` |
+| `OID` | A quoted ObjectId string of 24 characters | `"507f1f77bcf86cd799439011"` |
+| `UUID` | A quoted UUID string, with hyphens or as 32 hexadecimal digits | `"550e8400-e29b-41d4-a716-446655440000"` |
+| `DATE` | A quoted string in the form `yyyy-MM-dd` | `"2026-03-15"` |
+| `DATETIME` | A quoted UTC string in the ISO-8601 form | `"2026-03-15T12:00:00Z"` |
+| `BYTES` | Hexadecimal bytes, in the form `X'...'` | `X'DEADBEEF'` |
 | `ARRAY(T)` | `ARRAY[...]` | `ARRAY[1, 2, 3]` |
 
-Numeric literals use invariant formatting, so `.` is the decimal separator
-regardless of server locale. Date and datetime text is parsed as UTC. UUID
-text is returned in canonical lowercase hyphenated form. Invalid date,
-datetime, UUID, byte, or cast inputs fail with `InvalidInput`.
+A numeric literal uses invariant formatting. The decimal separator is therefore
+`.`, whatever the locale of the server is.
 
-### String Literals
+CamusDB parses the text of a date and of a datetime as UTC. It returns the text
+of a UUID in the canonical form: lowercase, and with hyphens. An invalid input
+of a date, a datetime, a UUID, a byte value, or a cast fails with
+`InvalidInput`.
 
-CamusDB supports two string literal forms.
+### String literals
 
-Plain strings use single or double quotes and do not process backslash escapes.
-A backslash is stored as a normal character. Escape the active quote delimiter
-by doubling it:
+CamusDB supports two forms of a string literal.
+
+A plain string uses a single quotation mark, or a double one. It does not
+process a backslash as an escape. CamusDB stores a backslash as a normal
+character. Repeat the active quotation mark to escape it:
 
 ```camussql
 SELECT 'plain text';
@@ -147,44 +161,45 @@ SELECT 'it''s ready';
 SELECT "say ""hello""";
 ```
 
-Plain strings are the right form for most values, including regular expression
-patterns and Windows paths:
+A plain string is the correct form for most values. That includes the pattern of
+a regular expression, and a path on Windows:
 
 ```camussql
 SELECT name FROM files WHERE path = 'C:\Users\data';
 SELECT name FROM users WHERE email ~ '^[^@]+@example\.com$';
 ```
 
-Escape strings use the `E'...'` or `E"..."` prefix. In this form, backslash
-introduces an escape sequence:
+An escape string uses the prefix `E'...'` or `E"..."`. In that form, a backslash
+starts an escape sequence:
 
 | Escape | Meaning |
 | --- | --- |
-| `\\` | Backslash |
-| `\'`, `\"` | Quote character |
-| `\n`, `\r`, `\t`, `\0`, `\a`, `\b`, `\f`, `\v` | Control characters |
-| `\NNN` | Character from three octal digits |
-| `\xHH` | Character from two hexadecimal digits |
-| `\uHHHH`, `\UHHHHHHHH` | Unicode code point |
+| `\\` | A backslash |
+| `\'`, `\"` | A quotation mark |
+| `\n`, `\r`, `\t`, `\0`, `\a`, `\b`, `\f`, `\v` | A control character |
+| `\NNN` | The character of three octal digits |
+| `\xHH` | The character of two hexadecimal digits |
+| `\uHHHH`, `\UHHHHHHHH` | A Unicode code point |
 
 ```camussql
 COMMENT ON TABLE events IS E'first line\nsecond line';
 ```
 
-Use escape strings when the value needs a control character such as a newline,
-tab, carriage return, or NUL. Malformed numeric escapes, out-of-range Unicode
-escapes, and unpaired surrogate escapes fail with `InvalidInput`.
+Use an escape string when the value needs a control character. Examples are a
+new line, a tab, a carriage return, and a NUL. Three inputs fail with
+`InvalidInput`: a numeric escape with a wrong form, a Unicode escape outside the
+valid range, and a surrogate escape without its pair.
 
-An unrecognized escape keeps only the escaped character, so `E'\d+'` stores
-`d+`. Use a plain string when you want a literal backslash.
+An escape that CamusDB does not know keeps only the escaped character. `E'\d+'`
+therefore stores `d+`. Use a plain string when you want a literal backslash.
 
-`SHOW CREATE TABLE` and other schema renderers emit a re-parseable literal.
-They prefer the plain form and use `E'...'` only when the value contains a
-control character.
+`SHOW CREATE TABLE` and the other renderers of a schema emit a literal that the
+parser accepts again. They prefer the plain form. They use `E'...'` only when
+the value holds a control character.
 
-### Bytes Literals
+### Bytes literals
 
-Use `X'...'` for typed bytes literals:
+Use `X'...'` for a typed literal of bytes:
 
 ```camussql
 INSERT INTO documents (id, attachment)
@@ -194,15 +209,17 @@ SELECT X'4d5a';
 SELECT X''; -- empty byte string
 ```
 
-The hex digit count must be even. `x'...'` is also accepted.
+The count of the hexadecimal digits must be even. CamusDB also accepts
+`x'...'`.
 
-`0xFF` remains an integer literal, not a bytes literal. When a target type is
-known, CamusDB can still coerce string text such as `'0xDEADBEEF'` to `BYTES`,
-but `X'...'` carries the bytes type directly and is the preferred SQL literal.
+`0xFF` stays an integer literal. It is not a literal of bytes. CamusDB can still
+coerce string text such as `'0xDEADBEEF'` to `BYTES`, when it knows the target
+type. `X'...'` nevertheless carries the type of bytes directly. It is the
+preferred literal in SQL.
 
-### Array Literals
+### Array literals
 
-Use `ARRAY[...]` for inline array values:
+Use `ARRAY[...]` for an inline value of an array:
 
 ```camussql
 SELECT ARRAY[1, 2, 3];
@@ -211,9 +228,9 @@ INSERT INTO measurements (id, samples)
 VALUES (GEN_ID(), ARRAY[1, 2, 3]);
 ```
 
-The element type is inferred from the first non-`NULL` element. Other elements
-must be compatible with that type, and CamusDB coerces them to the target
-column's declared element type when needed.
+CamusDB infers the type of the elements from the first element that is not
+`NULL`. Every other element must be compatible with that type. CamusDB coerces
+an element to the declared type of the target column, where that is necessary.
 
 ```camussql
 -- Accepted for ARRAY(FLOAT64): integer elements widen to float64.
@@ -225,11 +242,11 @@ INSERT INTO measurements (id, samples)
 VALUES (GEN_ID(), ARRAY[]);
 ```
 
-Nested array literals are rejected.
+CamusDB rejects a literal of an array inside an array.
 
 ## Casts
 
-`CAST(value AS type)` works with scalar types:
+`CAST(value AS type)` works with a scalar type:
 
 ```camussql
 SELECT
@@ -241,12 +258,13 @@ SELECT
 FROM events;
 ```
 
-See [Conversion Functions](/docs/functions-conversion) for the matching
-`to_*` functions.
+See [Conversion Functions](/docs/functions-conversion) for the equivalent `to_*`
+functions.
 
-## Temporal Functions
+## Temporal functions
 
-Date/time functions return typed temporal values, not strings:
+A function for a date or a time returns a typed temporal value. It does not
+return a string:
 
 | Function | Return type |
 | --- | --- |
@@ -259,22 +277,23 @@ Date/time functions return typed temporal values, not strings:
 | `DATE_PART(unit, temporal)` | `INT64` |
 | `UNIX_TIMESTAMP([temporal])` | `INT64` |
 
-Functions that accept temporal input can use `DATE` and `DATETIME` columns
-directly. For example, `created_at < NOW()` compares two `DATETIME` values, and
-`INSERT INTO events (created_at) VALUES (NOW())` stores a typed datetime value
-without a cast.
+A function that accepts a temporal input can use a `DATE` column and a
+`DATETIME` column directly. For example, `created_at < NOW()` compares two
+`DATETIME` values. `INSERT INTO events (created_at) VALUES (NOW())` stores a
+typed datetime value, and it needs no cast.
 
-See [Date/Time Functions](/docs/functions-datetime) for units, parsing rules,
-and examples.
+See [Date/Time Functions](/docs/functions-datetime) for the units, the rules of
+the parser, and some examples.
 
-## Reserved Type Keywords
+## Reserved keywords of the types
 
-These SQL type names and aliases are reserved:
+CamusDB reserves these names of a type, and these aliases:
 
 ```text
 oid object_id int int64 integer smallint string char varchar text bool boolean
 float float32 float64 real date datetime timestamp bytes blob uuid guid array
 ```
 
-Only the exact keyword is reserved. Identifiers that merely start with a type
-word, such as `internal`, `dates`, or `blob_store`, remain valid.
+CamusDB reserves the exact keyword only. An identifier that merely starts with
+the word of a type stays valid. Three examples are `internal`, `dates`, and
+`blob_store`.

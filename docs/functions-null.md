@@ -2,51 +2,53 @@
 sidebar_position: 4.55
 ---
 
-# Null Functions
+# Null functions
 
-Null functions choose fallback values when an expression evaluates to `NULL`.
-They are useful for default display values, aggregate defaults, and nullable
-columns in derived expressions.
+A null function selects a fallback value when an expression evaluates to `NULL`.
+These functions are useful for three purposes: a default value in a display, a
+default for an aggregate, and a nullable column inside a derived expression.
 
-Unlike most scalar functions, these functions do not automatically return
-`NULL` when one argument is `NULL`.
+Most scalar functions return `NULL` when one argument is `NULL`. These functions
+do not.
 
-## Functions
+## The functions
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `coalesce(value, ...)` | First compatible non-null argument type | Returns the first argument that is not `NULL`. Accepts one or more arguments. Returns `NULL` when every argument is `NULL`. |
-| `ifnull(value, fallback)` | First compatible non-null argument type | Two-argument shorthand for `coalesce(value, fallback)`. |
-| `nvl(value, fallback)` | First compatible non-null argument type | Alias for `ifnull(value, fallback)`. |
+| `coalesce(value, ...)` | The type of the first compatible argument that is not null | It returns the first argument that is not `NULL`. It accepts one argument or more. It returns `NULL` when every argument is `NULL`. |
+| `ifnull(value, fallback)` | The type of the first compatible argument that is not null | A short form of `coalesce(value, fallback)`, with two arguments. |
+| `nvl(value, fallback)` | The type of the first compatible argument that is not null | An alias of `ifnull(value, fallback)`. |
 
-`IFNULL` is the supported two-argument function name in the current CamusDB
-source. Use `IFNULL(value, fallback)` when you want "if this value is null, use
-that fallback."
+`IFNULL` is the supported name of the function with two arguments, in the
+current source of CamusDB. Use `IFNULL(value, fallback)` for this rule: if this
+value is null, use that fallback.
 
-## Type Rules
+## The rules of the type
 
-CamusDB infers the result type from the non-null argument types:
+CamusDB infers the type of the result from the types of the arguments that are
+not null:
 
-- If every argument is `NULL`, the result type is `NULL`.
-- Numeric arguments are widened when needed: `FLOAT64` beats `FLOAT32`, which
-  beats `INT64`.
-- Mixing `STRING` with another non-string type is rejected.
-- Compatible non-numeric arguments keep the first non-null type.
+- The type of the result is `NULL` when every argument is `NULL`.
+- CamusDB widens a numeric argument where that is necessary. `FLOAT64` beats
+  `FLOAT32`, and `FLOAT32` beats `INT64`.
+- CamusDB rejects a mix of a `STRING` with a type that is not a string.
+- Compatible arguments that are not numeric keep the first type that is not
+  null.
 
-For example, `coalesce(score, 3.5)` returns `FLOAT64`; a non-null `INT64`
-`score` value is widened to `FLOAT64` so the runtime value matches the inferred
-result type.
+For example, `coalesce(score, 3.5)` returns a `FLOAT64`. An `INT64` value of
+`score` that is not null widens to a `FLOAT64`. The value at runtime therefore
+matches the inferred type of the result.
 
 ## Examples
 
-Return a fallback label when `tag` is `NULL`:
+Return a label as a fallback when `tag` is `NULL`:
 
 ```camussql
 SELECT name, COALESCE(tag, "untagged") AS tag
 FROM items;
 ```
 
-Use the two-argument shorthand:
+Use the short form, with two arguments:
 
 ```camussql
 SELECT name, IFNULL(tag, "untagged") AS tag
@@ -60,7 +62,8 @@ SELECT COALESCE(preferred_name, display_name, username, "anonymous") AS label
 FROM users;
 ```
 
-Default an aggregate that would otherwise return `NULL` for an empty input:
+Give a default to an aggregate. Without that default, an empty input returns a
+`NULL`:
 
 ```camussql
 SELECT COALESCE(SUM(amount), 0) AS total
@@ -68,7 +71,7 @@ FROM sales
 WHERE category = "missing";
 ```
 
-Use null handling in `HAVING`:
+Handle a null inside a `HAVING` clause:
 
 ```camussql
 SELECT category, COALESCE(SUM(amount), 0) AS total
@@ -77,14 +80,14 @@ GROUP BY category
 HAVING COALESCE(SUM(amount), 0) > 10;
 ```
 
-## Error Cases
+## The cases of an error
 
-Incompatible argument types fail the query. For example:
+An incompatible type of an argument makes the query fail. Here is an example:
 
 ```camussql
 SELECT COALESCE(score, "fallback")
 FROM items;
 ```
 
-If `score` is `INT64`, this mixes numeric and string values and returns
-`InvalidInput`.
+`score` can be an `INT64`. The expression then mixes a numeric value with a
+string. CamusDB returns `InvalidInput`.

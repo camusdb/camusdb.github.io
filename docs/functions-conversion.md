@@ -2,12 +2,13 @@
 sidebar_position: 4.5
 ---
 
-# Conversion Functions
+# Conversion functions
 
-Conversion functions cast values between CamusDB scalar types. `NULL` input
-returns `NULL`.
+A conversion function casts a value between two scalar types of CamusDB. A
+`NULL` input returns a `NULL`.
 
-You can use either explicit conversion functions or SQL `CAST` syntax:
+You can use an explicit function of a conversion. You can also use the `CAST`
+syntax of SQL:
 
 ```camussql
 SELECT to_string(year) AS year_text
@@ -17,26 +18,26 @@ SELECT CAST(year AS string) AS year_text
 FROM robots;
 ```
 
-## Functions
+## The functions
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `to_string(value)` | `STRING` | Converts `STRING`, `OID`, `UUID`, `INT64`, `FLOAT64`, or `BOOL` to text. UUID values use canonical lowercase hyphenated text. Booleans become `true` or `false`. |
-| `to_int64(value)` | `INT64` | Converts `INT64`, `FLOAT64`, `BOOL`, or integer text. Floats are truncated toward zero. Booleans become `1` or `0`. |
-| `to_float64(value)` | `FLOAT64` | Converts `FLOAT64`, `INT64`, `BOOL`, or numeric text. Booleans become `1.0` or `0.0`. |
-| `to_float32(value)` | `FLOAT32` | Converts numeric values or numeric text to single precision. |
-| `to_bool(value)` | `BOOL` | Converts `BOOL` or text equal to `true` or `false`, case-insensitively. |
-| `to_date(value)` | `DATE` | Converts a date/datetime value or `yyyy-MM-dd` text to a date. |
-| `to_datetime(value)` | `DATETIME` | Converts a date/datetime value or ISO-8601 text to a UTC datetime. |
-| `to_bytes(value)` | `BYTES` | Converts bytes or `0x`-prefixed hex text to bytes. SQL bytes literals can be written directly as `X'...'`. |
-| `to_id(value)` | `OID` | Converts an `OID` or a 24-character lowercase hex string to an object id. |
-| `str_id(value)` | `OID` | Alias for `to_id(value)`. |
+| `to_string(value)` | `STRING` | It converts a `STRING`, an `OID`, a `UUID`, an `INT64`, a `FLOAT64`, or a `BOOL` to text. A UUID becomes canonical text: lowercase, and with hyphens. A boolean becomes `true` or `false`. |
+| `to_int64(value)` | `INT64` | It converts an `INT64`, a `FLOAT64`, a `BOOL`, or the text of an integer. It truncates a float toward zero. A boolean becomes `1` or `0`. |
+| `to_float64(value)` | `FLOAT64` | It converts a `FLOAT64`, an `INT64`, a `BOOL`, or numeric text. A boolean becomes `1.0` or `0.0`. |
+| `to_float32(value)` | `FLOAT32` | It converts a numeric value, or numeric text, to single precision. |
+| `to_bool(value)` | `BOOL` | It converts a `BOOL`. It also converts text equal to `true` or `false`, without regard to the case. |
+| `to_date(value)` | `DATE` | It converts a value of a date or a datetime to a date. It also converts text in the form `yyyy-MM-dd`. |
+| `to_datetime(value)` | `DATETIME` | It converts a value of a date or a datetime to a datetime in UTC. It also converts text in the ISO-8601 form. |
+| `to_bytes(value)` | `BYTES` | It converts bytes. It also converts hexadecimal text with the prefix `0x`. You can write a literal of bytes directly, as `X'...'`. |
+| `to_id(value)` | `OID` | It converts an `OID` to an object id. It also converts a hexadecimal string of 24 lowercase characters. |
+| `str_id(value)` | `OID` | An alias of `to_id(value)`. |
 
-## CAST Targets
+## The targets of a CAST
 
-`CAST(value AS type)` accepts the following targets:
+`CAST(value AS type)` accepts these targets:
 
-| Target | Result Type |
+| Target | Type of the result |
 | --- | --- |
 | `string`, `char`, `varchar`, `text` | `STRING` |
 | `int`, `int64`, `integer`, `smallint` | `INT64` |
@@ -75,13 +76,19 @@ FROM robots
 WHERE id = str_id("507f1f77bcf86cd799439011");
 ```
 
-## Error Cases
+## The cases of an error
 
-Invalid conversions fail the query. Examples include non-numeric text passed to
-numeric conversion functions, non-boolean text passed to `to_bool`, malformed
-date/datetime text, malformed UUID text, malformed byte hex text, non-finite
-floating-point values, integer overflow, and object id strings that are not 24
-lowercase hex characters.
+An invalid conversion makes the query fail. These examples are common:
 
-Conversion errors include the offending value and a short hint about the
-expected format, such as a valid UUID string, a 64-bit integer, or a number.
+- Text that is not numeric, in a function that converts to a number.
+- Text that is not a boolean, in `to_bool`.
+- Text of a date or a datetime with a wrong form.
+- Text of a UUID with a wrong form.
+- Hexadecimal text of a byte value with a wrong form.
+- A value in floating point that is not finite.
+- An overflow of an integer.
+- A string of an object id that is not 24 lowercase hexadecimal characters.
+
+An error of a conversion names the value that caused it. It also gives a short
+hint about the expected format. Three examples of a hint are a valid string of a
+UUID, an integer of 64 bits, and a number.

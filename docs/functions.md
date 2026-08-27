@@ -4,8 +4,9 @@ sidebar_position: 4
 
 # Functions
 
-Scalar functions work anywhere a value is accepted, including projections,
-filters, `GROUP BY` keys, defaults, and check constraints, and they nest freely:
+A scalar function works at any position that accepts a value. That includes a
+projection, a filter, a key of a `GROUP BY`, a default, and a check constraint.
+A function also nests inside another function:
 
 ```camussql
 SELECT upper(trim(name)) AS display_name
@@ -13,7 +14,7 @@ FROM robots
 WHERE abs(year - 2000) <= 5;
 ```
 
-Function names are case-insensitive.
+The name of a function is not case-sensitive.
 
 ## Categories
 
@@ -27,21 +28,25 @@ Function names are case-insensitive.
 - [Null Functions](/docs/functions-null)
 - [UUID Functions](/docs/functions-uuid)
 - [Object Id Functions](/docs/functions-object-id)
+- [Vector functions](/docs/vector-search), which are `octet_length`,
+  `vector_dims`, `l2_distance`, `cosine_distance`, and `inner_product`
 
-## Two Rules Worth Knowing
+## Two rules worth your attention
 
-Nulls propagate. Most functions return `NULL` if any argument is `NULL`. The
-exceptions, `coalesce`, `nullif`, and friends, are covered in
-[Null Functions](/docs/functions-null), and each category page flags any others.
+A null propagates. Most functions return `NULL` when one argument is `NULL`.
+[Null Functions](/docs/functions-null) covers the exceptions, such as `coalesce`
+and `nullif`. Each page of a category marks any other exception.
 
-Some functions are volatile. `gen_id()`, `gen_uuid_v4()`, `gen_uuid_v7()`,
-`current_timestamp()`, `now()`, `current_date()`, `unix_timestamp()`, and
-`random()` can return a different value on every evaluation. That is what makes
-them useful as column defaults, and what makes them unsafe in a predicate you
-expect to be stable across a scan. The
-[session functions](/docs/functions-session) are volatile for a different
-reason, since they vary by caller rather than by row, so they bypass the result
-cache but cannot be used as a default.
+Some functions are volatile. Eight of them can return a different value at every
+evaluation: `gen_id()`, `gen_uuid_v4()`, `gen_uuid_v7()`, `current_timestamp()`,
+`now()`, `current_date()`, `unix_timestamp()`, and `random()`. That property
+makes them useful as the default of a column. It also makes them unsafe in a
+predicate that must stay stable across a scan.
 
-Arguments are evaluated before the call, and argument count and types are
-validated at execution time, not at parse time.
+The [session functions](/docs/functions-session) are volatile for another
+reason. They vary by caller, not by row. They therefore bypass the result cache.
+You cannot use one as a default.
+
+CamusDB evaluates the arguments before the call. It validates the number of the
+arguments and their types at the execution. It does not validate them at the
+parse.

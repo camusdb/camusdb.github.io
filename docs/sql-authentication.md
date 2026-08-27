@@ -2,41 +2,44 @@
 sidebar_position: 3.55
 ---
 
-# Authentication And Authorization
+# Authentication and authorization
 
-CamusDB can enforce SQL authentication and per-object authorization for HTTP
-and gRPC clients. Authentication is off by default, so existing development
-deployments keep working until an operator explicitly enables it.
+CamusDB can enforce SQL authentication and per-object authorization for an HTTP
+client and for a gRPC client. Authentication is off by default. An existing
+development deployment therefore continues to work until an operator enables
+authentication.
 
-When authentication is enabled, CamusDB fails closed:
+While authentication is enabled, CamusDB fails closed:
 
-- the server refuses to start with an empty user catalog unless bootstrap
-  administrator credentials are supplied
-- requests must include a valid bearer token
-- every statement is checked against the privileges required by the tables and
-  databases it touches
-- credential-bearing requests over plaintext are refused unless they come from
-  loopback or the TLS requirement is disabled
+- The server refuses to start with an empty user catalog. It starts only when
+  you supply bootstrap credentials for an administrator.
+- A request must include a valid bearer token.
+- CamusDB checks every statement against the privileges that its tables and its
+  databases require.
+- CamusDB refuses a request that carries a credential over a plaintext
+  connection. There are two exceptions: a request from loopback, and a
+  deployment where you disabled the TLS requirement.
 
-Passwords are stored only as salted PBKDF2-HMAC-SHA256 verifiers. Normal client
-requests use short-lived opaque bearer tokens instead of resending passwords.
+CamusDB stores a password only as a salted PBKDF2-HMAC-SHA256 verifier. An
+ordinary client request uses a short-lived opaque bearer token. It does not send
+the password again.
 
-## Enable Authentication
+## Enable authentication
 
-The authentication switch and secrets are configured through environment
-variables or a secret provider, not through `config.yml`. Do not put token keys
-or bootstrap passwords in YAML. The non-secret TLS topology setting is covered
-in [TLS](#tls).
+Configure the authentication switch and the secrets through environment
+variables, or through a secret provider. Do not configure them in `config.yml`.
+Do not put a token key or a bootstrap password in YAML. The TLS topology setting
+is not a secret. [TLS](#tls) covers it.
 
 | Environment variable | Required | Meaning |
 | --- | --- | --- |
-| `CAMUSDB_AUTH_ENABLED` | yes | Set to `true` to enable authentication and authorization. Any other value keeps auth disabled. |
-| `CAMUSDB_AUTH_TOKEN_KEY` | yes when auth is enabled | Server-side key used to HMAC access-token secrets at rest. Use a long random value. Every cluster node must use the same value. |
-| `CAMUSDB_BOOTSTRAP_USER` | first auth start only | First superuser name when the auth catalog is empty. |
-| `CAMUSDB_BOOTSTRAP_PASSWORD` | first auth start only | Initial password for the bootstrap superuser. |
-| `CAMUSDB_NODE_SECRET` | cluster auth deployments | Shared secret used for internal node-to-node routes when auth is enabled. Every cluster node must use the same value. |
+| `CAMUSDB_AUTH_ENABLED` | yes | Set it to `true` to enable authentication and authorization. Any other value keeps them disabled. |
+| `CAMUSDB_AUTH_TOKEN_KEY` | yes, while auth is enabled | The server-side key that applies an HMAC to the access-token secrets at rest. Use a long random value. Every node of the cluster must use the same value. |
+| `CAMUSDB_BOOTSTRAP_USER` | at the first start with auth only | The name of the first superuser, used when the auth catalog is empty. |
+| `CAMUSDB_BOOTSTRAP_PASSWORD` | at the first start with auth only | The initial password of the bootstrap superuser. |
+| `CAMUSDB_NODE_SECRET` | in a cluster deployment with auth | The shared secret for the internal routes between nodes, used while auth is enabled. Every node of the cluster must use the same value. |
 
-Example:
+Here is an example:
 
 ```bash
 export CAMUSDB_AUTH_ENABLED=true
@@ -46,18 +49,19 @@ export CAMUSDB_BOOTSTRAP_PASSWORD="$(openssl rand -base64 24)"
 export CAMUSDB_NODE_SECRET="$(openssl rand -hex 32)"
 ```
 
-On startup:
+At startup, three rules apply:
 
-- if the auth catalog is empty, CamusDB creates one bootstrap superuser from
-  the supplied bootstrap values
-- if the auth catalog is empty and bootstrap values are missing, startup fails
-- once any user exists, bootstrap values are ignored
+1. CamusDB creates one bootstrap superuser from the supplied values, if the auth
+   catalog is empty.
+2. Startup fails if the auth catalog is empty and the bootstrap values are
+   absent.
+3. CamusDB ignores the bootstrap values as soon as one user exists.
 
-There is no default user or password.
+There is no default user, and there is no default password.
 
-## Login And Logout
+## Login and logout
 
-Use `/login` to exchange a username and password for a bearer token:
+Use `/login` to exchange a user name and a password for a bearer token:
 
 ```http
 POST /login
@@ -66,7 +70,7 @@ Content-Type: application/json
 { "user": "admin", "password": "secret" }
 ```
 
-Successful response:
+A successful response looks like this:
 
 ```json
 {
@@ -77,7 +81,7 @@ Successful response:
 }
 ```
 
-Send the token on later HTTP requests:
+Send the token on each later HTTP request:
 
 ```http
 POST /execute-sql-query
@@ -97,78 +101,82 @@ POST /logout
 Authorization: Bearer camus_<id>.<secret>
 ```
 
-Tokens have an absolute lifetime of 15 minutes by default. There is no refresh
-token; clients log in again when a token expires. The login response reports
-the token deadline in two forms:
+A token has an absolute lifetime of 15 minutes by default. There is no refresh
+token. A client logs in again after a token expires.
 
-- `expiresAtUnixMs`: the absolute UTC Unix epoch millisecond at which the token
-  stops being accepted
-- `expiresInSeconds`: the same deadline as a server-measured duration
+The login response reports the deadline of the token in two forms:
 
-Renew from those fields instead of assuming a fixed lifetime. Operators can
-change `AccessTokenTtl`, and clients should renew before the reported deadline.
+- `expiresAtUnixMs` is the absolute UTC Unix epoch millisecond at which CamusDB
+  stops acceptance of the token.
+- `expiresInSeconds` is the same deadline, as a duration that the server
+  measured.
 
-Password changes, `DROP USER`, and `/logout` invalidate outstanding tokens.
+Renew from those two fields. Do not assume a fixed lifetime. An operator can
+change `AccessTokenTtl`. A client must renew before the reported deadline.
 
-## gRPC Tokens
+Three events invalidate an outstanding token: a change of the password, a `DROP
+USER`, and a call to `/logout`.
 
-gRPC clients use the same bearer token in request metadata:
+## gRPC tokens
+
+A gRPC client uses the same bearer token, in the request metadata:
 
 ```text
 authorization: Bearer camus_<id>.<secret>
 ```
 
-Use the `CamusAuth` gRPC service to obtain and revoke tokens:
+Use the `CamusAuth` gRPC service to obtain a token and to revoke one:
 
 | RPC | Purpose |
 | --- | --- |
 | `Login(LoginRequest)` | Exchanges `user` and `password` for `token`, `expires_at_unix_ms`, and `expires_in_seconds`. |
-| `Logout(LogoutRequest)` | Revokes the token supplied in `authorization` metadata. Logout is idempotent. |
+| `Logout(LogoutRequest)` | Revokes the token in the `authorization` metadata. A second logout has no further effect. |
 
-This means a gRPC-only deployment does not need to expose the HTTP API just so
-clients can call `/login`.
+A gRPC-only deployment therefore does not need the HTTP API. Its clients do not
+need a call to `/login`.
 
-Authentication and authorization errors map to normal gRPC status codes:
+An authentication error and an authorization error map to an ordinary gRPC
+status code:
 
 | Condition | gRPC status |
 | --- | --- |
-| missing, invalid, or expired token | `UNAUTHENTICATED` |
-| authenticated caller lacks a privilege | `PERMISSION_DENIED` |
-| login rate limit or KDF saturation | `RESOURCE_EXHAUSTED` |
+| A token is absent, invalid, or expired | `UNAUTHENTICATED` |
+| An authenticated caller lacks a privilege | `PERMISSION_DENIED` |
+| The login rate limit or the KDF limit is reached | `RESOURCE_EXHAUSTED` |
 
 See [gRPC API](/docs/grpc-api) for the service reference.
 
 ## TLS
 
-When auth is enabled, CamusDB refuses credential-bearing requests over plaintext
-connections by default. Loopback requests are exempt so single-host development
-can work without certificates.
+While auth is enabled, CamusDB by default refuses a request that carries a
+credential over a plaintext connection. A request from loopback is exempt.
+Development on one host therefore works without a certificate.
 
-Use HTTPS or terminate TLS in front of the HTTP API for production. Deploy gRPC
+Use HTTPS in production, or terminate TLS in front of the HTTP API. Deploy gRPC
 over TLS as well.
 
-If TLS terminates in front of the node, such as at an ingress, sidecar, or
-service mesh, the CamusDB process sees only the trusted plaintext hop. In that
-topology, disable the transport check while keeping authentication and grants
+TLS can terminate in front of the node, at an ingress, at a sidecar, or in a
+service mesh. The CamusDB process then sees only the trusted plaintext hop. In
+that topology, disable the transport check. Keep authentication and the grants
 enabled:
 
 ```yaml
 require_tls_when_auth_enabled: false
 ```
 
-or with the command-line flag:
+You can also use the command-line flag:
 
 ```bash
 camusdb --require-tls-when-auth-enabled false
 ```
 
-This setting is not a secret, so it belongs in normal configuration. Do not
-turn it off for a node directly reachable by clients.
+This setting is not a secret. It therefore belongs in the ordinary
+configuration. Do not turn it off for a node that a client can reach directly.
 
-## Manage Users
+## Manage users
 
-User management statements are server-level statements. They do not require a
-database context, and they require the superuser attribute.
+The statements for user management are server-level statements. They need no
+database context. They need the superuser attribute.
 
 ```camussql
 CREATE USER myapp IDENTIFIED WITH sha256_password BY 'app-password';
@@ -183,25 +191,25 @@ DROP USER myapp;
 DROP USER IF EXISTS myapp;
 ```
 
-Only `sha256_password` is supported. Omitting `IDENTIFIED WITH` uses that plugin
-by default.
+CamusDB supports `sha256_password` only. It uses that plugin by default when you
+omit `IDENTIFIED WITH`.
 
-`CREATE USER grant_target` creates a grant target without a password. That user
-cannot log in until a password is set with `ALTER USER`.
+`CREATE USER grant_target` creates a target for a grant, without a password.
+That user cannot log in. Set a password with `ALTER USER` first.
 
-Prefer bound parameters for passwords:
+Use a bound parameter for a password:
 
 ```camussql
 CREATE USER myapp IDENTIFIED BY @password;
 ALTER USER myapp IDENTIFIED BY @new_password;
 ```
 
-That keeps cleartext secrets out of shell history, traces, and query logs.
-Passwords are capped at 1 KiB.
+A parameter keeps a cleartext secret out of the shell history, out of the
+traces, and out of the query logs. A password has a maximum length of 1 KiB.
 
-## Grant Privileges
+## Grant privileges
 
-Use `GRANT` and `REVOKE` to manage object privileges:
+Use `GRANT` and `REVOKE` to manage the privileges on an object:
 
 ```camussql
 GRANT SELECT, INSERT ON app.* TO myapp;
@@ -215,105 +223,121 @@ SHOW GRANTS FOR myapp;
 SHOW GRANTS;
 ```
 
-`SHOW GRANTS FOR <user>` returns the grants for a named user. `SHOW GRANTS`
-without `FOR` returns the current authenticated user's grants.
+`SHOW GRANTS FOR <user>` returns the grants of the named user. `SHOW GRANTS`
+without `FOR` returns the grants of the authenticated user.
 
-Supported privileges:
+CamusDB supports these privileges:
 
 | Privilege | Allows |
 | --- | --- |
-| `SELECT` | Read table data and inspect table-specific metadata such as `SHOW COLUMNS` and `SHOW CREATE TABLE`. |
-| `INSERT` | Insert rows. |
-| `UPDATE` | Update rows. |
-| `DELETE` | Delete rows. |
-| `CREATE TABLE` | Create tables in the target database scope. |
-| `DROP` | Drop databases or tables in scope. |
-| `ALTER` | Alter table/database metadata in scope. |
-| `INDEX` | Create, alter, or drop indexes in scope. |
-| `CREATE` | Create databases or other create-scoped objects where applicable. |
-| `ALL PRIVILEGES` | The union of the concrete privileges currently known to CamusDB. |
+| `SELECT` | Read the data of a table. Inspect the metadata of a table, with `SHOW COLUMNS` and `SHOW CREATE TABLE`. |
+| `INSERT` | Insert a row. |
+| `UPDATE` | Update a row. |
+| `DELETE` | Delete a row. |
+| `CREATE TABLE` | Create a table in the target database scope. |
+| `DROP` | Drop a database or a table in the scope. |
+| `ALTER` | Alter the metadata of a table or of a database in the scope. |
+| `INDEX` | Create, alter, or drop an index in the scope. |
+| `CREATE` | Create a database, or another object with a create scope where that applies. |
+| `ALL PRIVILEGES` | The union of the concrete privileges that CamusDB knows today. |
 
-Grant scopes, from broadest to narrowest:
+A grant has one of three scopes. The list starts with the broadest scope:
 
 | Scope | Example | Meaning |
 | --- | --- | --- |
-| Global | `*.*` | Every database and table. |
+| Global | `*.*` | Every database and every table. |
 | Database | `app.*` | Every table in one database. |
 | Table | `app.orders` | One table. |
 
-Grants are additive and idempotent. Granting a privilege the user already has
-is a no-op; `REVOKE` subtracts privileges from the matching scope.
+Grants add together, and a repeated grant is harmless. A grant of a privilege
+that the user already holds does nothing. `REVOKE` subtracts a privilege from
+the matching scope.
 
-Grants are bound to immutable database/table identities. A rename keeps the
-grant. A dropped-and-recreated table does not inherit the old table's grants.
+A grant binds to the immutable identity of a database or of a table. A rename
+therefore keeps the grant. A table that you drop and create again does not
+inherit the grants of the old table.
 
-`GRANT` never creates a user, and it cannot make a user a superuser. The
-superuser attribute is set only by bootstrap.
+`GRANT` never creates a user. It also cannot make a user a superuser. Only the
+bootstrap sets the superuser attribute.
 
-## Enforcement Rules
+## Enforcement rules
 
-With auth enabled, CamusDB checks every statement before it runs.
+While auth is enabled, CamusDB checks every statement before it runs the
+statement.
 
-Table reads require `SELECT` on every table referenced by the statement. This
-includes joins, derived tables, subqueries, semi-joins, `EXISTS`, `IN`, and
-`EXPLAIN` for queries that read tables.
+A read of a table needs `SELECT` on every table that the statement references.
+That rule covers a join, a derived table, a subquery, a semi-join, `EXISTS`,
+`IN`, and `EXPLAIN` for a query that reads a table.
 
-Writes require the matching write privilege:
+A write needs the matching write privilege:
 
-- `INSERT` for inserts
-- `UPDATE` for updates
-- `DELETE` for deletes
+- `INSERT` for an insert.
+- `UPDATE` for an update.
+- `DELETE` for a delete.
 
-DDL requires the relevant DDL privilege or superuser status. User and grant
-administration, plus database lifecycle DDL, require superuser.
+[`TRUNCATE`](/docs/truncate-table) needs both `DELETE` and `DROP` on the target
+table. It removes every row, which is an effect of a `DELETE`. It also retires a
+whole key space, which is an effect of a `DROP`.
 
-Some statements do not open a table and are allowed to any authenticated user,
-including `SHOW TABLES`, `SHOW DATABASE`, and `SELECT` statements without a
-`FROM` clause. Table-specific inspection such as `SHOW COLUMNS`,
-`SHOW CREATE TABLE`, and [`SHOW STATISTICS`](/docs/show-statistics) requires
-`SELECT` on the table. `SHOW STATISTICS` reports bounds drawn from real column
-values, so it is held to the same bar as reading those columns, and to nothing
-higher.
+CamusDB checks the two privileges one at a time. They can therefore come from
+two separate grants.
 
-`SHOW ENGINE STATS` is node-level operational introspection and requires a
-superuser. It is not scoped to a database or table grant. The configuration
-surface is held to the same bar: `SHOW VARIABLES`, `SHOW CLUSTER SETTINGS`, and
-[`SET` / `RESET CLUSTER SETTING`](/docs/runtime-cluster-settings) all require a
-superuser. The last two also change how every node behaves, and several of the
-settings they reach bound memory, concurrency, and background work.
+DDL needs the relevant DDL privilege, or superuser status. Two areas need a
+superuser: the administration of users and grants, and the DDL for the lifetime
+of a database.
 
-Known conservative behavior: an `UPDATE` or `DELETE` whose subquery reads
-another table currently requires the write privilege on that read table rather
-than only `SELECT`. This is over-restrictive, not permissive.
+Some statements open no table. Any authenticated user may run them. Examples are
+`SHOW TABLES`, `SHOW DATABASE`, and a `SELECT` without a `FROM` clause.
 
-## Runtime Defaults
+Inspection of one table needs `SELECT` on that table. Examples are `SHOW
+COLUMNS`, `SHOW CREATE TABLE`, and [`SHOW STATISTICS`](/docs/show-statistics).
+`SHOW STATISTICS` reports bounds taken from real column values. CamusDB
+therefore holds it to the same requirement as a read of those columns, and to
+nothing higher.
 
-These defaults are currently process-level security knobs:
+`SHOW ENGINE STATS` inspects the operation of one node. It needs a superuser. It
+is not scoped to a grant on a database or on a table.
+
+The configuration surface has the same requirement. `SHOW VARIABLES`, `SHOW
+CLUSTER SETTINGS`, and
+[`SET` and `RESET CLUSTER SETTING`](/docs/runtime-cluster-settings) all need a
+superuser. The last two also change the behavior of every node. Several of the
+settings that they reach bound memory, concurrency, and background work.
+
+One behavior is conservative today. An `UPDATE` or a `DELETE` with a subquery
+that reads another table needs the write privilege on that second table. Only
+`SELECT` would be sufficient. The rule is too restrictive. It is not too
+permissive.
+
+## Runtime defaults
+
+These defaults are security settings at process level:
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| Access token lifetime | 15 minutes | Absolute bearer-token lifetime. |
-| Authorization cache TTL | 1 second | Maximum per-node staleness for cached token/privilege snapshots. Cross-node revokes take effect within this bound. |
-| Password hash iterations | 600,000 | PBKDF2-HMAC-SHA256 work factor stored with each credential. |
-| Login KDF concurrency | 8 | Maximum concurrent password verifications per node. |
-| Login attempts per minute | 20 | Per-account login rate limit. |
-| Principal cache max entries | 10,000 | Per-node authenticated-principal cache bound. |
-| TLS requirement | enabled | Refuse plaintext credential-bearing requests, except loopback. Configurable as `require_tls_when_auth_enabled` or `--require-tls-when-auth-enabled true\|false`. |
+| Access token lifetime | 15 minutes | The absolute lifetime of a bearer token. |
+| Authorization cache TTL | 1 second | The maximum staleness of a cached snapshot of a token or a privilege, on one node. A revoke on another node takes effect inside this bound. |
+| Password hash iterations | 600,000 | The PBKDF2-HMAC-SHA256 work factor, stored with each credential. |
+| Login KDF concurrency | 8 | The maximum number of concurrent password verifications on one node. |
+| Login attempts per minute | 20 | The login rate limit, per account. |
+| Principal cache max entries | 10,000 | The bound of the cache of authenticated principals, on one node. |
+| TLS requirement | enabled | Refuse a plaintext request that carries a credential, except from loopback. Configure it as `require_tls_when_auth_enabled`, or as `--require-tls-when-auth-enabled true\|false`. |
 
 ## Errors
 
-Authentication errors intentionally avoid revealing whether the user, password,
-or token was wrong.
+An authentication error does not reveal which part was wrong. It does not tell
+the caller whether the user, the password, or the token was wrong. That behavior
+is intentional.
 
 | Code | Meaning |
 | --- | --- |
-| `CADB0512 UserAlreadyExists` | `CREATE USER` targets an existing user without `IF NOT EXISTS`. |
+| `CADB0512 UserAlreadyExists` | `CREATE USER` targets an existing user, and the statement has no `IF NOT EXISTS`. |
 | `CADB0513 UserDoesNotExist` | `ALTER USER`, `DROP USER`, `GRANT`, or `REVOKE` targets an unknown user. |
-| `CADB0514 UnsupportedAuthPlugin` | `IDENTIFIED WITH` names an unsupported auth plugin. |
+| `CADB0514 UnsupportedAuthPlugin` | `IDENTIFIED WITH` names an auth plugin that CamusDB does not support. |
 | `CADB0515 InvalidPrivilege` | `GRANT` or `REVOKE` uses an unknown or invalid privilege. |
-| `CADB0516 AuthenticationFailed` | Missing, invalid, expired, or revoked credentials, or bad username/password. |
-| `CADB0517 InsufficientPrivilege` | Authenticated caller lacks the privilege required by the statement. |
-| `CADB0518 TooManyAuthAttempts` | Login rate limit or password-verification concurrency limit was exceeded. |
-| `CADB0519 InsecureTransport` | A credential-bearing request arrived over plaintext while TLS is required. |
+| `CADB0516 AuthenticationFailed` | The credentials are absent, invalid, expired, or revoked. The user name or the password is also wrong in some cases. |
+| `CADB0517 InsufficientPrivilege` | The authenticated caller lacks the privilege that the statement needs. |
+| `CADB0518 TooManyAuthAttempts` | The caller passed the login rate limit, or the limit on concurrent password verifications. |
+| `CADB0519 InsecureTransport` | A request with a credential arrived over plaintext while TLS is required. |
 
-See [Error Codes](/docs/error-codes) for HTTP status mappings.
+See [Error Codes](/docs/error-codes) for the map to HTTP status codes.

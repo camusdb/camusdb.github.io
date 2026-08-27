@@ -2,34 +2,37 @@
 sidebar_position: 4
 ---
 
-# Cluster Mode
+# Cluster mode
 
-CamusDB runs standalone by default. Cluster mode partitions data across nodes,
-elects a leader per partition, and replicates writes through Raft consensus.
+CamusDB runs standalone by default. Cluster mode does three things. It divides
+the data across the nodes into partitions. It elects one leader for each
+partition. It replicates each write through the Raft consensus algorithm.
 
-Cluster mode is alpha-quality. Use it for testing and development, not
-production workloads.
+CamusDB is in production use. Cluster mode is nevertheless an alpha feature. The
+APIs and the storage formats can change between versions.
 
-## Run A Standalone Node
+## Run a standalone node
 
-Standalone is the default and needs no cluster configuration:
+Standalone is the default. It needs no cluster configuration:
 
 ```bash
 dotnet tool install --global CamusDB.Server
 camusdb
 ```
 
-Use it for local tutorials, quick experiments, and single-node development.
+Use standalone mode for a local tutorial, for a quick experiment, and for
+single-node development.
 
-## Run A Local Cluster
+## Run a local cluster
 
-The source repository ships a Docker Compose file for a three-node cluster:
+The source repository includes a Docker Compose file for a cluster of three
+nodes:
 
 ```bash
 docker compose -f docker/local.yml up --build
 ```
 
-Three nodes come up on a private bridge network:
+The three nodes start on a private bridge network:
 
 | Node | HTTP SQL endpoint | Raft port |
 | --- | --- | --- |
@@ -37,14 +40,14 @@ Three nodes come up on a private bridge network:
 | `camus2` | `localhost:5096` | `7072` |
 | `camus3` | `localhost:5097` | `7074` |
 
-Point `camus-cli` at any one of them. The client-facing gRPC API is on by
-default and configurable per node with `grpc_enabled` and `grpc_port`.
+Point `camus-cli` at any one of the three nodes. The gRPC API for clients is on
+by default. Configure it per node with `grpc_enabled` and `grpc_port`.
 
-## Run A Cluster Node Manually
+## Run a cluster node manually
 
-Each node needs `--mode=cluster`, a unique node name, its Raft host and port,
-the partition count, and the static peer list. These can live in a `config.yml`
-or be passed as flags:
+Each node needs five values: `--mode=cluster`, a unique node name, its Raft host
+and port, the partition count, and the static list of peers. Put these values in
+a `config.yml` file, or pass them as flags:
 
 ```bash
 camusdb \
@@ -64,15 +67,15 @@ camusdb \
 | `--mode` | `standalone` or `cluster`. |
 | `--raft-nodename` | Unique node name in the cluster. |
 | `--raft-nodeid` | Numeric Raft node id. |
-| `--raft-host` | Host address used for Raft communication. |
-| `--raft-port` | Port used for Raft communication. |
-| `--http-port` | HTTP API listener port. |
-| `--initial-cluster` | Static peer list in `host:port` form. |
+| `--raft-host` | Host address for Raft communication. |
+| `--raft-port` | Port for Raft communication. |
+| `--http-port` | Listener port of the HTTP API. |
+| `--initial-cluster` | Static list of peers, in `host:port` form. |
 | `--initial-cluster-partitions` | Number of Raft partitions to initialize. |
-| `--http-peers` | Per-peer HTTP endpoints, parallel to `--initial-cluster`. |
+| `--http-peers` | HTTP endpoint of each peer, in the same order as `--initial-cluster`. |
 
-A flag overrides the matching YAML value only when it is actually provided. The
-same settings in YAML:
+A flag overrides the equivalent YAML value only when you supply the flag. The
+same settings in YAML look like this:
 
 ```yaml
 data_dir: /data/
@@ -93,66 +96,72 @@ http_peers:
 ```
 
 Give each node its own persistent `data_dir`. The Docker Compose setup mounts a
-separate volume per node.
+separate volume for each node.
 
-See [Configuration](/docs/configuration) for every YAML key and flag.
+See [Configuration](/docs/configuration) for every YAML key and every flag.
 
-## How Distribution Works
+## How distribution works
 
-- Data is partitioned across Raft partitions.
+- CamusDB divides the data across the Raft partitions.
 - Each partition elects its own leader.
 - Every node exposes the database API.
-- Reads and writes are routed to the partition owning the target key range.
-- Reads use committed MVCC versions; writes use locks, intents, and atomic
-  commit.
-- Writes spanning more than one partition use two-phase commit.
+- CamusDB routes a read and a write to the partition that owns the target key
+  range.
+- A read uses committed MVCC versions. A write uses locks, write intents, and
+  atomic commit.
+- A write across more than one partition uses two-phase commit.
 
-All rows for a table live under the same key prefix, so ordered table scans
-still work while the storage layer handles partition ownership and replication.
+Every row of a table lives under the same key prefix. An ordered table scan
+therefore still works. The storage layer handles the partition ownership and the
+replication.
 
-By default a query is executed entirely by the node that received it, reading
-remote pages through the storage locator. Turning on
-[distributed queries](/docs/distributed-queries) instead splits an eligible scan
-into one fragment per partition and runs each fragment on the node that owns the
-rows, so filters and aggregates are applied before the data crosses the network.
+By default, the node that receives a query executes the whole query. It reads a
+remote page through the storage locator. Turn
+[distributed queries](/docs/distributed-queries) on to change that behavior.
+CamusDB then divides an eligible scan into one fragment per partition. It runs
+each fragment on the node that owns the rows. It therefore applies the filters
+and the aggregates before the data crosses the network.
 
-## Multi-Active Availability
+## Multi-active availability
 
-There is no single active process to fail over. Applications talk to whichever
-node they can reach, and CamusDB routes each write to the leader that can
-safely commit it.
+There is no single active process that can fail. An application talks to any
+node that it can reach. CamusDB routes each write to the leader that can commit
+it safely.
 
-The contrast is with two older shapes:
+Two older models make the contrast clear:
 
 | Model | Write path | Failure behavior |
 | --- | --- | --- |
-| Active/standby | One active node | A standby must be promoted before writes resume |
-| Classic active-active | Any node | Needs conflict resolution to avoid divergent state |
-| CamusDB | Any node, routed to the partition leader | Remaining partition members elect a new leader |
+| Active/standby | One active node | A standby must become active before writes continue |
+| Classic active-active | Any node | Needs conflict resolution to prevent a divergent state |
+| CamusDB | Any node, routed to the partition leader | The remaining members of the partition elect a new leader |
 
-Walking through a write on a three-node, single-partition cluster:
+A write on a three-node cluster with one partition follows these steps:
 
 1. Node A is the partition leader.
 2. A client sends a write to node B.
-3. CamusDB routes it to node A.
+3. CamusDB routes the write to node A.
 4. Node A replicates the change through Raft.
-5. Once a majority accepts it, the transaction can commit.
-6. If node A later fails, nodes B and C elect a new leader.
+5. The transaction can commit after a majority accepts the change.
+6. Nodes B and C elect a new leader if node A fails later.
 
-### Consistency Over Split-Brain Writes
+### Consistency before split-brain writes
 
-A partition needs enough healthy members to reach consensus. When it cannot, it
-stops committing writes rather than accepting changes that might conflict with
-another copy of the same data. Availability is only useful while the data stays
-correct, so CamusDB takes the unavailable side of that trade.
+A partition needs enough healthy members to reach consensus. It stops all
+commits when it cannot reach consensus. It does not accept a change that could
+conflict with another copy of the same data.
 
-Serializable isolation is the default in a cluster exactly as it is on one
+Availability is useful only while the data stays correct. CamusDB therefore
+takes the unavailable side of that trade.
+
+Serializable isolation is the default in a cluster, exactly as it is on one
 node. See [Transactions And Isolation](/docs/serializable-transactions) for the
-guarantees and [Distributed Transactions And HLC](/docs/distributed-transactions)
-for the cross-partition commit protocol.
+guarantees. See
+[Distributed Transactions And HLC](/docs/distributed-transactions) for the
+cross-partition commit protocol.
 
-Configuration rides the same machinery. A setting changed with
-[`SET CLUSTER SETTING`](/docs/runtime-cluster-settings) is committed through Raft
-on its own partition, so every node applies it in the same order and a node that
-was down catches up on replay. There is no rolling restart, and no node left on
-a stale value.
+Configuration uses the same machinery. CamusDB commits a setting from
+[`SET CLUSTER SETTING`](/docs/runtime-cluster-settings) through Raft, on its own
+partition. Every node therefore applies the settings in the same order. A node
+that was down catches up on replay. There is no rolling restart, and no node
+keeps a stale value.

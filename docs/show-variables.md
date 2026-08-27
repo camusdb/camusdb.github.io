@@ -4,119 +4,149 @@ sidebar_position: 2.65
 
 # SHOW VARIABLES
 
-`SHOW VARIABLES` reports the effective configuration values used by the CamusDB
-node that served the statement.
+Inspect the configuration that a running CamusDB node uses. You do it from a SQL
+prompt.
 
 ```camussql
 SHOW VARIABLES;
-SHOW VARIABLES LIKE "%cache%";
-SHOW VARIABLES LIKE "ttl_%";
+SHOW VARIABLES LIKE '%cache%';
+SHOW VARIABLES LIKE 'ttl_%';
 ```
 
-The result includes configuration keys, resolved values, types, defaults, and
-the layer that supplied each value:
-
-```camussql
-variable                         value   type    default  source   mutability  scope
-ttl_default_delete_batch_size    100     int     100      default  runtime     cluster
-ttl_default_job_cron             @daily  string  @daily   default  runtime     cluster
-ttl_enabled                      false   bool    true     config   runtime     cluster
-ttl_span_lease_ms                30000   int     30000    default  runtime     cluster
+```
+variable                          value   type   default  source   mutability  scope
+────────────────────────────────  ──────  ─────  ───────  ───────  ──────────  ───────
+ttl_default_delete_batch_size     100     int    100      default  runtime     cluster
+ttl_default_job_cron              @daily  string @daily   default  runtime     cluster
+ttl_enabled                       false   bool   true     config   runtime     cluster
+ttl_span_lease_ms                 30000   int    30000    default  runtime     cluster
 ```
 
-## Result Columns
+## Effective values, not the contents of a file
 
-| Column | Meaning |
-| --- | --- |
-| `variable` | The `snake_case` key used in `config.yml`. Nested `kahuna` settings use dotted names such as `kahuna.wal_sync_writes`. |
-| `value` | The effective value. SQL `NULL` means the value is genuinely unset. |
-| `type` | The value type: `bool`, `int`, `long`, `double`, `string`, `enum`, `duration_ms`, or `list`. |
-| `default` | The built-in value used when no higher-precedence layer overrides it. |
-| `source` | The winning configuration layer: `default`, `config`, `env`, `cli`, or `cluster`. |
-| `mutability` | `runtime` if the setting can be changed on a live node, `restart` if the value is baked in at boot. |
-| `scope` | `cluster` if the fleet must agree on the value, `node` if it is per-node by design. |
+The rows come from the configuration object that CamusDB used to construct the
+engine. They do not come from a second read of `config.yml`.
 
-`mutability` and `scope` make this the authoritative answer to "can I change this
-now, and will it affect other nodes?", so there is no separate list to consult. See
-[Runtime Cluster Settings](/docs/runtime-cluster-settings).
+That distinction is the purpose of the statement. An environment variable or a
+command-line flag can override a value after CamusDB read the file. The value
+then differs from the text of the file. The engine obeys the resolved value.
 
-Rows are sorted by variable name, which makes output from different nodes easy
-to compare.
+A key that you commented out in `config.yml` shows its built-in default. A key
+that an environment variable overrode shows the override. The output is
+therefore what the node runs.
 
-## Effective Values
+## Columns
 
-`SHOW VARIABLES` reads the configuration object the engine is running with. It
-does not re-read `config.yml` from disk.
+| Column     | Meaning |
+|------------|---------|
+| `variable` | The key in `snake_case`, as you write it in `config.yml`. A key of the nested `kahuna:` section appears in dotted form, such as `kahuna.wal_sync_writes`. |
+| `value`    | The effective value. It is SQL `NULL` when the setting is genuinely unset, which differs from an empty string. |
+| `type`     | `bool`, `int`, `long`, `double`, `string`, `enum`, `duration_ms`, or `list`. |
+| `default`  | The value that the setting would hold without an override. A value that differs from `default` is a value that somebody configured. |
+| `source`   | The layer that supplied the value: `default`, `config`, `env`, `cli`, or `cluster`. The precedence is cluster first, then cli, then env, then config, then default. |
+| `mutability` | `runtime` means that a new value takes effect without a restart of the node. `restart` means that the component reads the value once, when CamusDB constructs it. The column describes the reader. It is not a preference. You can change a `restart` key, but the running node obeys the old value until it restarts. |
+| `scope`    | `cluster` means that every node must agree, because a difference between nodes would change the transaction behavior that a user sees. `node` means that a difference between nodes is the purpose, as with the traces or the local cache sizes. |
 
-That means the output reflects the real precedence chain:
+CamusDB renders a value in the spelling of `config.yml`. You can therefore paste
+a value from this output back into a file without a change. A boolean is
+lowercase. A number is invariant, without a digit separator and without a unit,
+so it reads `67108864`, not `64 MiB`. An enum token uses underscores, such as
+`read_committed`. A duration is whole milliseconds, like every other `*_ms` key.
 
-1. the replicated cluster overlay
-2. command-line flags
-3. environment variables
-4. the selected YAML file
-5. built-in defaults
+CamusDB sorts the rows by name, with an ordinal comparison. The output of two
+nodes therefore compares line by line.
 
-A key commented out in YAML shows its default. A key overridden by an
-environment variable or CLI flag shows the override. A key a
-[`SET CLUSTER SETTING`](/docs/runtime-cluster-settings) put in force shows that
-value with `source` = `cluster`, even on a node whose own YAML names the key,
-which is what explains a node that appears to contradict its configuration file.
+## LIKE
 
-See [Configuration](/docs/configuration) for the full startup and precedence
-model.
+The optional pattern matches the name of the variable. `%` matches any run of
+characters. `_` matches exactly one character. A pattern that matches nothing
+returns zero rows. It does not return an error.
 
-## Filtering With LIKE
+The match is case-sensitive. It behaves like `SHOW TABLES`, `SHOW DATABASES`,
+and `SHOW ENGINE STATS`, because the four statements share one matcher. Every
+variable name is lowercase. `LIKE 'TTL_%'` therefore correctly matches nothing.
+Write `LIKE 'ttl_%'` instead.
 
-The optional `LIKE` pattern matches variable names:
+All three forms of a string literal work as the pattern: `'ttl_%'`, `"ttl_%"`,
+and `E'ttl_%'`.
 
-```camussql
-SHOW VARIABLES LIKE "query_result_cache_%";
-SHOW VARIABLES LIKE "kahuna.%";
-```
+## What the output does not show
 
-`%` matches any run of characters and `_` matches one character. Matching is
-case-sensitive because configuration variable names are lowercase. A pattern
-that matches nothing returns an empty result set.
+CamusDB masks a secret. The output lists `bootstrap_superuser_password`,
+`access_token_server_key`, and `node_secret`, because the presence of a secret
+is an operational question. Their value renders as `********` when it is set. It
+renders as empty when it is not.
 
-## Secrets
+A certificate setting and a key-file setting hold a path. They do not hold key
+material. CamusDB therefore shows them in full. `https_certificate`,
+`raft_certificate`, and `kahuna.backup_mac_key_file` are those settings. An
+operator who debugs a wrong deployment needs them.
 
-Secret values are masked. Authentication keys and passwords are shown as
-`********` when set and empty when unset. Path-like settings such as certificate
-file paths are displayed because they are needed for operational debugging.
+CamusDB does not list the deployment keys and the topology keys yet. Those keys
+are `mode`, `node_name`, the Raft ports, the HTTP ports, `peers`, `http_peers`,
+the certificate paths, and the whole `diagnostics:` section. They live on a
+different configuration object from the settings of the engine. To find the port
+of a node, read the configuration file, or read the banner at startup.
 
-## Node-Local Output
+CamusDB does not list a computed property. A value derived from other settings,
+such as the effective spill threshold, is a view of the configuration. It is not
+a part of the configuration. A report of it would offer a name that no
+configuration file accepts. CamusDB does list the settings that produce it.
 
-`SHOW VARIABLES` describes only the node that handled the statement. In a
-cluster, nodes can legitimately differ in local paths, ports, certificates, or
-temporary rollout state. Run the statement against each node when you need to
-compare a cluster.
+## The statement is node-local
 
-This is the configuration counterpart to
-[SHOW ENGINE STATS](/docs/engine-stats), which also reports node-local state.
+`SHOW VARIABLES` describes the node that served the statement. It never forwards
+to the leader.
 
-## Scope
+Two nodes of a cluster can differ for a valid reason. Examples are a different
+`data_dir`, a different port, and a stale `config.yml` on one machine. An answer
+from the leader would hide exactly the drift that you look for.
 
-`SHOW VARIABLES` focuses on engine/runtime settings exposed through the
-configuration catalog. Some deployment and topology settings, such as the run
-mode, node identity, listener ports, peer lists, and diagnostics exporter
-settings, may need to be checked from the startup configuration or process
-logs.
+To compare the configuration across a cluster, run the statement against the
+endpoint of each node. The same rule applies to
+[`SHOW ENGINE STATS`](/docs/engine-stats).
 
 ## Permissions
 
-When authentication is enabled, `SHOW VARIABLES` requires a superuser. A
-non-superuser receives `CADB0517` `InsufficientPrivilege`.
+The statement needs a superuser while authentication is enabled. CamusDB masks
+the three secrets, but the output still describes the whole security posture and
+the limits of the node. It shows whether authentication and TLS are on, the cost
+of the password hash, the data directory, and every ceiling of a rate limit. No
+grant on one database narrows that view. Another user receives `CADB0517`, with
+HTTP 403.
 
-When authentication is disabled, any caller may run it.
+While authentication is disabled, as on a single-node development instance, any
+caller may run the statement.
 
-## Runtime Changes
+## There is no SET
 
-`SHOW VARIABLES` is itself read-only. To change a setting whose `mutability` is
-`runtime`, use
-[`SET CLUSTER SETTING`](/docs/runtime-cluster-settings#changing-a-setting). The
-change takes effect without a restart and reaches every node. A setting whose
-`mutability` is `restart` still requires editing the deployment configuration and
-restarting the node.
+`SHOW VARIABLES` is read-only. There is no `SET GLOBAL <variable>`, and there is
+no namespace of session variables.
 
-There are no session-scoped configuration variables; a change is either a cluster
-setting or a restart.
+Change a setting across the cluster with `SET CLUSTER SETTING <name> = <value>`.
+Revert it with `RESET CLUSTER SETTING <name>`. Both statements need superuser
+privileges. See [Runtime Cluster Settings](/docs/runtime-cluster-settings).
+
+The `mutability` column reports whether such a change takes effect immediately.
+The component re-reads a `runtime` setting, so a new value applies without a
+restart. A component latches a `restart` setting when CamusDB constructs it. The
+overlay accepts the new value, and `SHOW VARIABLES` shows it. The running node
+nevertheless obeys the old value until it restarts.
+
+An edit of `config.yml`, which is the local layer, always needs a restart. A
+cluster setting overrides that file until you reset the setting.
+
+`SET TRANSACTION …` is a different statement. It adjusts the isolation, the
+locking, and the priority of the transaction in flight. It does not touch the
+configuration. The `default_*` variables on this page are only the fallback for
+a transaction that states no value of its own.
+
+## See also
+
+- [Configuration](/docs/configuration) for the file format, the chain of
+  precedence, and the map to the CLI flags.
+- [Runtime Cluster Settings](/docs/runtime-cluster-settings) for a change across
+  the fleet with `SET CLUSTER SETTING`. That page also explains what
+  `mutability` and `scope` mean for the effect of a change.
+- [Engine Statistics](/docs/engine-stats) for `SHOW ENGINE STATS`, which is the
+  equivalent statement for the runtime metrics.
