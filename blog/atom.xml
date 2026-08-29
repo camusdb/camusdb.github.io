@@ -614,6 +614,7 @@ makes sense?"</p>
 <p>Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away.</p>
 <p>— Antoine de Saint-Exupéry</p>
 </blockquote>
+<p><img decoding="async" loading="lazy" alt="Why CamusDB exists" src="https://camusdb.github.io/assets/images/why-camus-1e5c520e1de6f977f99bbd81553fec10.jpg" width="2816" height="1536" class="img_ev3q"></p>
 <p>For many years I worked with Google Spanner, and somewhere along the way I fell in love with distributed SQL databases.</p>
 <p>That may sound a little too dramatic for a database, but honestly, it is true.</p>
 <p>In the video game industry, databases are not just boring infrastructure sitting in the background. They are a critical part of the player experience. Games need to handle spikes, global traffic, competitive systems, economies, inventories, matchmaking, leaderboards, live events, rewards, and a lot of things that must work correctly even when thousands or millions of players are active.</p>
