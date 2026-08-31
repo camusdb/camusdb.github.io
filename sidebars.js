@@ -24,6 +24,7 @@ const sidebars = {
         'databases',        
         'database-branching',        
         'recover-dropped-objects',
+        'advanced-samples',
       ],
     },
     {
