@@ -4,11 +4,14 @@ title: Why CamusDB exists
 date: 2026-07-03
 authors: [andresgutierrez]
 tags: [camusdb]
+image: /img/why-camus.jpg
 ---
 
 > Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away.
->
+> 
 > — Antoine de Saint-Exupéry
+
+![Why CamusDB exists](/img/why-camus.jpg)
 
 # Why I started building CamusDB
 

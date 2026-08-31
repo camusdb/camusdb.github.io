@@ -21,6 +21,8 @@ A retry follows one of these five conditions:
 - A transient condition stopped the transaction before its write. That condition
   can occur at the start, during the routing, at lock acquisition, or at the
   storage write.
+- A read or scan reached a range whose current state could not be served before
+  the server-side retry budget expired.
 - The transaction passed its lifetime deadline.
 
 ## Which errors to retry, and how
@@ -72,18 +74,20 @@ After the finalize starts, CamusDB accepts no further data statement on that
 transaction. The server-side session timeout bounds an abandoned transaction
 that stays in the finalize state.
 
-CamusDB retries this for you first. Three conditions can make a finalize report
+CamusDB retries this for you first. Four conditions can make a finalize report
 that the outcome is not known yet:
 
 1. A change of leadership during the finalize.
 2. A drain that is in progress.
 3. A participant that shed a write under load.
+4. A transport or unexpected fault after the commit request already left the
+   node.
 
 CamusDB retries the finalize on the same handle, with backoff. A wall-clock
 budget bounds the retries: `transaction_finalize_retry_budget_ms`, which is 15
 seconds by default. You receive `CADB0509` when that budget runs out.
 
-The bound is a duration, not a count of attempts. Each of the three conditions
+The bound is a duration, not a count of attempts. Each of the four conditions
 above resolves on its own schedule. A saturated node makes each attempt slower,
 but it does not make the number of attempts larger. A cap on attempts would
 therefore shrink the real budget exactly when the node needs it most. Raise the

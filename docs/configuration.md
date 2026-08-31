@@ -4,8 +4,38 @@ sidebar_position: 8
 
 # Configuration
 
-CamusDB reads `CamusDB/Config/config.yml` at startup. It merges the CLI flags
-and the environment variables into one resolved configuration object.
+CamusDB reads the first configuration file it finds at startup. For an
+installed node, run `camusdb init` to write a user-owned starter file:
+
+```bash
+camusdb init
+```
+
+That creates `~/.camusdb/config.yml` on macOS and Linux, or
+`%APPDATA%\camusdb\config.yml` on Windows. Set `CAMUS_HOME` to relocate both the
+user configuration and the default data directory.
+
+The source-tree `CamusDB/Config/config.yml` is an annotated reference. It is not
+the right place to keep settings for an installed node, because a checkout or
+pull can replace it.
+
+CamusDB merges the selected YAML file with CLI flags and environment variables
+into one resolved configuration object.
+
+## Configuration discovery
+
+CamusDB searches in this order:
+
+1. `--config <path>`
+2. `CAMUS_CONFIG_PATH`
+3. `./camusdb.yml`
+4. `./Config/config.yml`
+5. `~/.camusdb/config.yml` on macOS/Linux, or
+   `%APPDATA%\camusdb\config.yml` on Windows
+6. built-in defaults
+
+If `--config` or `CAMUS_CONFIG_PATH` names a missing file, startup fails instead
+of silently falling through to another location.
 
 Run [`SHOW VARIABLES`](/docs/show-variables) against a node to see what that node
 resolved. The output names the layer that supplied each value. Do not
@@ -30,7 +60,8 @@ no `--mode` flag.
 
 | YAML field | CLI flag | Default |
 |------------|----------|---------|
-| `data_dir` | `--data-dir` | `Data`, in the working directory of the process |
+| configuration file | `--config` | Search order described above |
+| `data_dir` | `--data-dir` | `$CAMUS_HOME/data`, `$XDG_DATA_HOME/camusdb`, `~/.local/share/camusdb`, or `%LOCALAPPDATA%\camusdb` |
 | `mode` | `--mode` | `standalone` |
 | `memory_profile` | `--memory-profile` | `prod` |
 | `node_name` | `--raft-nodename` | `""`. In cluster mode, the machine name. |
@@ -40,30 +71,54 @@ no `--mode` flag.
 | `initial_partitions` | `--initial-cluster-partitions` | `1` |
 | `peers` | `--initial-cluster` | `[]` |
 | `http_peers` | `--http-peers` | `[]` |
+| `join_existing` | `--join-existing` | `false` |
 | `schema_ack_wait_timeout_ms` | `--schema-ack-wait-timeout-ms` | `30000` |
-| `schema_ack_live_node_lease_ms` | `--schema-ack-live-node-lease-ms` | `30000` |
+| `schema_ack_live_node_lease_ms` | `--schema-ack-live-node-lease-ms` | `-1` |
 | `http_port` | `--http-port` | `5095` |
 | `https_port` | `--https-port` | `7141` |
 | `https_certificate` | `--https-certificate` | `""` |
 | `raft_certificate` | `--raft-certificate` | `""` |
 | `require_tls_when_auth_enabled` | `--require-tls-when-auth-enabled` | `true` |
+| `grpc_enabled` | (none) | `true` |
+| `grpc_port` | (none) | `5096` |
+| `grpc_batch_max_in_flight` | (none) | `64` |
+| `dashboard_enabled` | (none) | `true` |
+| `dashboard_refresh_seconds` | (none) | `2` |
 | `default_isolation_level` | (none) | `serializable` |
 | `default_transaction_locking` | (none) | `pessimistic` |
 | `default_transaction_priority` | (none) | `normal` |
 | `transaction_admission_wait_ms` | (none) | `0`, the node default |
-| `range_lock_expires_ms` | (none) | `30000` |
-| `range_lock_heartbeat_interval_ms` | (none) | `10000` |
+| `range_lock_expires_ms` | (none) | `150000` |
 | `max_serializable_transaction_lifetime_ms` | (none) | `3600000` |
+| `transaction_finalize_retry_budget_ms` | (none) | `15000` |
+| `sequence_retry_budget_ms` | (none) | `10000` |
+| `transaction_idle_timeout_ms` | (none) | `300000` |
+| `transaction_reaper_interval_ms` | (none) | `30000` |
 | `lock_escalation_threshold` | (none) | `50` |
 | `lock_wait_deadline_ms` | (none) | `500` |
 | `key_range_sharding` | (none. Use the `CAMUS_KEY_RANGE_SHARDING` variable.) | `false` |
+| `engine_metrics_enabled` | (none) | `true` |
+| `slow_query_log_enabled` | (none) | `false` |
+| `slow_query_log_threshold_ms` | (none) | `1000` |
+| `slow_query_log_max_entries` | (none) | `200` |
+| `slow_query_log_max_sql_length` | (none) | `4096` |
 | `stats_flush_interval_ms` | (none) | `5000` |
+| `stats_analyze_sample_rows` | (none) | `100000` |
+| `stats_histogram_buckets` | (none) | `100` |
+| `cost_based_access_path_enabled` | (none) | `true` |
+| `cost_based_join_order_enabled` | (none) | `true` |
+| `plan_cache_enabled` | (none) | `false` |
+| `plan_cache_max_entries` | (none) | `512` |
+| `bound_query_cache_enabled` | (none) | `true` |
 | `sql_parser_cache_ttl_seconds` | (none) | `300` |
 | `sql_parser_cache_max_entries` | (none) | `2048` |
 | `sql_parser_cache_sweep_seconds` | (none) | `60` |
+| `regex_match_timeout_ms` | (none) | `250` |
+| `regex_cache_max_entries` | (none) | `1024` |
 | `spill_enabled` | (none) | `false` |
 | `spill_threshold_rows` | (none) | `500000` |
 | `spill_merge_fan_in` | (none) | `16` |
+| `min_free_disk_bytes` | (none) | `67108864` |
 | `query_result_cache_enabled` | (none) | `true` |
 | `query_result_cache_default_ttl_ms` | (none) | `5000` |
 | `query_result_cache_max_entries` | (none) | `1024` |
@@ -78,14 +133,120 @@ no `--mode` flag.
 | `query_result_cache_sweep_interval_ms` | (none) | `10000` |
 | `kahuna.*` | (none) | A baseline for the mode |
 
-Four groups of settings are available in YAML only: the parser cache, the locks
-and the isolation level, the spill, and the query result cache. They tune the
-operation of a node. They are not startup flags for one node.
+Most tuning settings are YAML only. They tune the operation of a node or a
+cluster after startup options have selected where the node runs.
 
 The result cache is on by default. A query opts in with a `{cache=…}` hint. Set
 `query_result_cache_enabled: false` to turn the cache off completely. See
 [Query Result Cache](/docs/query-result-cache) for the purpose of each setting,
 and for operator guidance.
+
+## gRPC listener
+
+The client-facing gRPC API is enabled by default:
+
+```yaml
+grpc_enabled: true
+grpc_port: 5096
+grpc_batch_max_in_flight: 64
+```
+
+`grpc_port` is separate from the HTTP API port. When `raft_certificate` is set,
+CamusDB reuses that certificate for the gRPC listener. Otherwise the listener
+uses plaintext HTTP/2, which is suitable for local development and trusted
+private test networks.
+
+`grpc_batch_max_in_flight` bounds how many operations one `BatchExecute` stream
+can have executing at the same time before the server applies backpressure.
+
+See [gRPC API](/docs/grpc-api).
+
+## Dashboard
+
+The read-only operator dashboard is enabled by default on the HTTP port:
+
+```yaml
+dashboard_enabled: true
+dashboard_refresh_seconds: 2
+```
+
+Disable it with `dashboard_enabled: false`; the dashboard pages and endpoints
+then return 404. With authentication disabled, the dashboard is loopback-only.
+With authentication enabled, it uses a dashboard session cookie and applies the
+user's privileges to each panel.
+
+See [Operator Dashboard](/docs/operator-dashboard).
+
+## Slow query log
+
+The slow query log is off by default:
+
+```yaml
+slow_query_log_enabled: false
+slow_query_log_threshold_ms: 1000
+slow_query_log_max_entries: 200
+slow_query_log_max_sql_length: 4096
+```
+
+Turn it on when you are diagnosing a node. It records qualifying statements in
+a bounded in-memory ring and exposes them with `SHOW SLOW QUERIES`. The log is
+node-local and does not survive restart.
+
+See [Slow Query Log](/docs/slow-query-log).
+
+## Key-range sharding and range splits
+
+`key_range_sharding` is off by default and restart-scoped:
+
+```yaml
+key_range_sharding: false
+```
+
+When enabled, eligible table and index key spaces can split by key range instead
+of staying on one hash-routed partition. Automatic splitting is controlled by
+the nested `kahuna:` settings:
+
+```yaml
+kahuna:
+  range_split_threshold: 0
+  range_split_min_range_size: 10
+  range_split_load_threshold: 500
+  range_split_load_min_queue_depth: 8
+  range_split_load_min_commit_wait_ms: 0
+  range_split_load_window_ms: 15000
+  range_split_load_poll_interval_ms: 5000
+  range_split_load_imbalance_max: 0.8
+  range_split_settle_window_ms: 10000
+  range_split_indivisible_cooldown_ms: 300000
+  range_move_settle_timeout_ms: 10000
+  range_merge_min_size: 10
+  enable_load_reports: false
+```
+
+Both split branches are disabled unless a threshold asks for them. The count
+branch uses `range_split_threshold`; the load branch uses
+`range_split_load_threshold` with queue-depth and optional commit-wait gates.
+
+See [Key-Range Sharding](/docs/key-range-sharding) and
+[`SHOW RANGES`](/docs/show-ranges).
+
+## Transaction outcome retention
+
+Kahuna can retain terminal transaction outcome records after a transaction
+finishes. CamusDB uses those records when a finalize path needs to resume or
+diagnose an uncertain commit outcome:
+
+```yaml
+kahuna:
+  transaction_outcome_retention_ttl_ms: 600000
+  transaction_outcome_retention_max: 100000
+```
+
+`transaction_outcome_retention_ttl_ms` controls the age window. `0` disables
+age pruning and leaves only the size cap. `transaction_outcome_retention_max`
+controls the maximum number of retained records. Raise both together for an
+investigation or a long fault-injection run; a large TTL is ineffective if the
+count cap evicts records first.
 
 ## The Kahuna engine section
 
@@ -218,11 +379,15 @@ to get the total. The default is one worker for each CPU.
 | A port outside the range 1 to 65535 | `InvalidConfig` |
 | The count of `http_peers` differs from the count of `peers` | `InvalidConfig` |
 | Invalid `default_isolation_level` | `InvalidConfig` |
-| `range_lock_heartbeat_interval_ms` is at or above `range_lock_expires_ms`, when the expiry is above 0 | `InvalidConfig` |
+| `range_lock_expires_ms` is too short for the effective collection interval | `InvalidConfig` |
+| `transaction_finalize_retry_budget_ms` is smaller than the minimum safe retry budget | `InvalidConfig` |
 | `spill_threshold_rows` is 0 or below | `InvalidConfig` |
 | `spill_merge_fan_in` is 0 or below | `InvalidConfig` |
+| `slow_query_log_threshold_ms` is below 0, or slow-query capacity settings are below 1 | `InvalidConfig` |
+| `dashboard_refresh_seconds` is outside the accepted range | `InvalidConfig` |
 | Unknown `kahuna` key | `InvalidConfig` |
 | Unknown `kahuna.storage` or `kahuna.wal_storage` | `InvalidConfig` |
 | `kahuna.start_election_timeout_ms` is at or above `kahuna.end_election_timeout_ms` | `InvalidConfig` |
+| A range split threshold/window/imbalance setting cannot be satisfied | `InvalidConfig` |
 
 See `CamusDB/Config/config.yml` for the inline documentation of every field.

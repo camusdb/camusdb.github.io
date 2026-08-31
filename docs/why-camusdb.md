@@ -4,268 +4,413 @@ sidebar_position: 2
 
 # Why CamusDB?
 
-CamusDB is a NewSQL distributed database. It combines a full relational engine
-with a distributed transactional storage layer. An application can therefore
-keep a relational model of its data, while it runs on a cluster of several
-nodes.
+CamusDB is a distributed SQL database for applications that need **strong
+consistency, transactional correctness, and room to scale** without giving up a
+relational data model.
 
-CamusDB is not a thin layer of SQL over a key/value store. It has these parts of
-its own:
+Many applications start with a simple architecture: one database, SQL, and
+transactions. As they grow, maintaining those same guarantees across more
+machines can introduce sharding, routing, distributed coordination, retries,
+and application-level consistency logic.
 
-- A parser of SQL, and a cost-based query planner.
-- An executor with a join, an aggregate, and a sort.
-- A system of secondary indexes, with the statistics of a table.
-- A write-ahead log, and a recovery after a crash.
-- A coordinator of a distributed transaction.
+CamusDB is designed to keep that complexity in the database.
 
-CamusDB is in production use. Some features are nevertheless alpha features. The
-APIs and the storage formats can change between versions.
+It combines a relational SQL engine with a distributed transactional storage
+layer, so applications can work with tables, indexes, queries, and transactions
+while CamusDB handles replication, partitioning, consensus, and distributed
+commits underneath.
 
-## Why you use CamusDB
+It is especially useful for systems where the database represents
+**authoritative state**: money, inventory, ownership, reservations,
+entitlements, workflow state, quotas, or any other data where conflicting
+answers are difficult or expensive to reconcile later.
 
-The design of CamusDB gives these advantages:
+> CamusDB is not intended to be a drop-in replacement for another SQL database.
+> It has its own SQL dialect, feature set, and operational model. The goal is to
+> provide a familiar relational and transactional model while being designed for
+> distributed operation from the start.
 
-- Storage that survives a failure, across a cluster.
-- Horizontal scale, through data in partitions.
-- Availability from several active nodes of a cluster.
-- Atomic distributed transactions, with committed reads and with the detection
-  of a conflict.
-- Transactional SQL, for the design of a schema, a write, a read, an index, and
-  an aggregation.
-- A [cost-based query planner](/docs/query-planning), with `EXPLAIN`, collected
-  statistics, an automatic analyze, and a cache of the results.
-- A [view](/docs/views), a [materialized view](/docs/materialized-views), a
-  [prepared statement](/docs/prepared-statements), and a
-  [row-level TTL](/docs/row-level-ttl).
-- [Vector search](/docs/vector-search) over an embedding, for a workload of
-  artificial intelligence.
-- A [time travel read](/docs/time-travel-reads), which reads the data at a point
-  in the past.
-- A branch of a database, with a copy at the first write. Use it for
-  development, for a test, and for the reproduction of a problem.
-- A recoverable drop of a root database, and of a table, after a catastrophic
-  mistake.
-- Many interfaces, from a shell of SQL to a server for the Model Context
-  Protocol. See [the ways to connect](#the-ways-to-connect).
+## Built for data that needs one answer
 
-## Distributed storage that survives a failure
+Some data can tolerate temporary disagreement between replicas. Some cannot.
 
-Cluster mode uses the Raft consensus, through
-[Kommander](https://kahunakv.github.io/kommander.github.io/). Each partition has
-its own leader. CamusDB replicates a write through that leader. The cluster can
-elect a new leader for a partition after a change of the leadership.
+If two requests try to reserve the last available item, spend the same balance,
+claim the same reward, or assign the same resource, the application eventually
+needs one authoritative outcome.
 
-CamusDB therefore has the foundation of storage with high availability. An
-application does not coordinate the owner of a piece of data by hand.
+CamusDB uses **serializable transactions by default** and coordinates writes
+across partitions when a transaction spans multiple parts of the cluster.
 
-See [Storage](/docs/storage) for the map of a table, a row, an index, and the
-schema metadata onto the distributed key/value layer.
+This makes it a natural fit for workloads such as:
 
-## Availability from several active nodes
+- Financial balances, ledgers, and payment state.
+- Game inventories, currencies, rewards, and entitlements.
+- Orders and limited inventory.
+- Reservations and ticketing.
+- Marketplace ownership and trading.
+- SaaS subscriptions, quotas, and control-plane state.
+- Logistics and resource allocation.
+- Telecom quotas and provisioning.
+- Industrial and manufacturing workflows.
+- Distributed coordination for application infrastructure.
 
-The design of CamusDB removes one problem for an application. That application
-does not treat one process as the only active endpoint of the database.
+The important property is not the industry. It is the invariant:
 
-In cluster mode, every node can expose the API of the database. The ownership of
-a partition, and the route to a leader, decide the position of a commit.
+```text
+inventory >= 0
+balance >= 0
+one seat -> one reservation
+one asset -> one owner
+one task -> one active assignee
+```
 
-One distinction matters. CamusDB does not accept a conflicting write on two
-independent replicas. It uses partitions that a consensus supports. A committed
-write therefore has one agreed outcome. See [Cluster Mode](/docs/cluster).
+CamusDB is designed for applications where those rules should be enforced
+against a consistent view of the data.
 
-## Horizontal scale
+## Scale without making distribution your application model
 
-CamusDB can start a cluster with several Raft partitions. It routes the data to
-the partition that owns the range of the target key. Each partition can elect
-its own leader, and it can use that leader.
+CamusDB distributes data across multiple Raft partitions. Each partition has its
+own leader and replicated state, allowing different parts of the database to
+make progress across the cluster.
 
-For a local test, the included setup of Docker Compose starts three nodes, with
-three partitions. For a deployment by hand, a node joins with `--mode=cluster`,
-a static list of the peers, and an initial count of the partitions.
+Applications do not need to manually decide which database server owns a row or
+coordinate conflicting writes between independent replicas.
 
-## Transactions and concurrency
+A transaction that touches one partition commits through that partition. When a
+transaction touches multiple partitions, CamusDB coordinates the operation
+using two-phase commit.
 
-CamusDB gives an application serializable transactions by default. It also gives
-atomic writes, committed reads, and the detection of a conflict. The application
-does not manage a divergence between two replicas by hand.
-
-A write inside one partition commits through the owner of that partition. A
-write across two partitions uses two-phase commit. CamusDB can therefore
-coordinate an update across the boundary of a partition.
-
-The SQL layer supports an explicit statement of a transaction:
+This lets the application continue to think primarily in terms of data and
+transactions:
 
 ```camussql
 BEGIN;
+
+UPDATE accounts
+SET balance = balance - 100
+WHERE id = 10;
+
+UPDATE accounts
+SET balance = balance + 100
+WHERE id = 20;
+
+INSERT INTO transfers (source, destination, amount)
+VALUES (10, 20, 100);
+
 COMMIT;
-ROLLBACK;
 ```
 
-See [Transactions And Isolation](/docs/serializable-transactions) for the
-current guarantees of a transaction, and for the trades.
+The two accounts do not need to live on the same partition for the operation to
+remain atomic.
 
-## A branch of a database
+See [Transactions and Isolation](/docs/serializable-transactions) and
+[Distributed Transactions and HLC](/docs/distributed-transactions) for the
+current guarantees and trade-offs.
 
-CamusDB can create an isolated branch of an existing database, at a point in
-time:
+## A relational database, not SQL added as an afterthought
+
+CamusDB contains its own relational engine.
+
+It includes:
+
+- A SQL parser.
+- A cost-based query planner.
+- Secondary, unique, composite, and covering indexes.
+- Table statistics and automatic analysis.
+- Joins, subqueries, aggregates, grouping, and sorting.
+- Views and materialized views.
+- Prepared statements.
+- A query result cache.
+- Spill-to-disk for memory-intensive operations.
+- A write-ahead log and crash recovery.
+
+For example:
+
+```camussql
+SELECT
+    customer_id,
+    COUNT(*) AS orders,
+    SUM(total) AS revenue
+FROM orders
+WHERE created_at >= '2026-01-01'
+GROUP BY customer_id
+HAVING COUNT(*) > 5
+ORDER BY revenue DESC
+LIMIT 100;
+```
+
+The planner uses collected statistics to choose indexes, join strategies, and
+other execution decisions. `EXPLAIN` lets you inspect the resulting plan.
+
+The objective is straightforward: distributed storage should not require giving
+up the relational tools that are useful for modeling transactional
+applications.
+
+See [SQL](/docs/sql), [Query Planning](/docs/query-planning), and
+[EXPLAIN](/docs/explain).
+
+## Familiar territory for .NET developers
+
+CamusDB is written in C# and runs on .NET.
+
+For teams already building applications with ASP.NET Core, ADO.NET, EF Core,
+Docker, Kubernetes, and the wider Microsoft ecosystem, that makes the database
+unusually approachable.
+
+CamusDB provides:
+
+- An **ADO.NET provider**.
+- An **Entity Framework Core provider**.
+- A native .NET codebase.
+- HTTP and gRPC APIs.
+- An interactive SQL CLI.
+- A browser-based Web Console.
+
+A .NET application can use familiar database abstractions while the storage
+engine, transaction coordinator, query engine, and distributed systems code are
+also part of the same ecosystem.
+
+CamusDB does not try to reproduce SQL Server or its SQL dialect. The advantage
+for Microsoft-oriented teams is instead that many of the fundamental concepts:
+relational schemas, transactions, indexes, SQL, ADO.NET, and EF Core remain
+familiar.
+
+See [.NET Driver](/docs/dotnet-driver) and [EF Core Provider](/docs/ef-core).
+
+## Database branches for development, testing, and AI workflows
+
+A database is increasingly part of the development environment, not just
+production infrastructure.
+
+CamusDB can create an isolated branch from an existing database at a specific
+point in time:
 
 ```camussql
 CREATE DATABASE feature_checkout BRANCH FROM prod;
 ```
 
-The branch shares the snapshot of the data of the source database, until it
-diverges. A read can fall through to the snapshot of the source. A write, a
-delete, and a change of the schema all stay private to the branch.
+The branch initially shares the source snapshot and diverges as changes are
+made. Writes, deletes, and schema changes remain isolated from the source
+database.
 
-A developer therefore receives data that is like the data of production. Use a
-branch for three purposes: the work on a feature, a rehearsal of a migration, and
-the debug of a problem that is hard to reproduce. You write nothing to the base
-database. See [Database Branching](/docs/database-branching).
+That makes database branches useful for:
 
-## A recoverable drop
+- Feature development.
+- Integration tests.
+- Reproducing production problems.
+- Testing schema migrations.
+- Creating temporary environments.
+- Experimenting with realistic datasets.
+- Giving coding agents isolated database state.
 
-The ordinary `DROP DATABASE` and `DROP TABLE` statements are recoverable, for a
-root database and for a table.
+A developer, or an AI coding agent, can have both a code branch and a database
+branch:
 
-The dropped object disappears from the active catalog immediately, and you can
-use its name again. CamusDB nevertheless keeps the data as an orphan, for a
-configurable window of the retention.
+```text
+feature/payment-refactor
+        |
+        +-- Git branch
+        |
+        +-- CamusDB database branch
+```
+
+Run migrations, modify data, execute tests, and discard the branch when the
+work is finished without modifying the source database.
+
+See [Database Branching](/docs/database-branching).
+
+## Mistakes do not always need to become disasters
+
+Operational mistakes happen.
+
+Someone runs:
 
 ```camussql
 DROP TABLE orders;
+```
+
+against the wrong database.
+
+In many systems, recovery begins with finding and restoring a backup.
+
+CamusDB takes a different approach for ordinary `DROP TABLE` and
+`DROP DATABASE` operations. Dropped objects can remain recoverable for a
+configured retention window.
+
+For example:
+
+```camussql
 SHOW ORPHAN TABLES;
+
 CREATE TABLE orders_recovered RELINK TO "A0";
 ```
 
-That behavior helps in a catastrophic situation. A person removed the wrong
-object. A migration, and a script of a cleanup, can do the same.
+The object can be relinked under a safe name and inspected without first
+restoring an entire backup.
 
-An operator does not restore a full backup first. Nobody waits to inspect the
-data. The operator relinks the retained object instead, under a safe name for
-the recovery.
+Permanent deletion is still available explicitly with `DROP ... FORCE`.
 
-Use `DROP ... FORCE` only when CamusDB must delete the object immediately and
-permanently. See [Recover Dropped Objects](/docs/recover-dropped-objects).
+This is not a replacement for backups, but it provides another layer of
+protection against one of the most common and damaging operational failures:
+deleting the wrong thing.
 
-## Familiar SQL
+See [Recover Dropped Objects](/docs/recover-dropped-objects).
 
-CamusDB keeps the model simple for an application. You define a table. You add an
-index. You write a row. You then query with a filter, a join, a subquery, a
-derived table, an order, and an aggregate.
+## Query historical data without restoring a backup
 
-The supported SQL includes these statements:
-
-- `CREATE TABLE`, `DROP TABLE`, and `ALTER TABLE`. A column takes a default, a
-  `NOT NULL`, and a `CHECK` constraint.
-- `CREATE INDEX`, a primary key, a unique index, and an index over several
-  columns. CamusDB also supports a covering index.
-- `INSERT`, `UPDATE`, `DELETE`, `INSERT INTO ... SELECT`, and
-  `CREATE TABLE AS SELECT`.
-- A `SELECT` with a `WHERE`, a join, a subquery, a derived table, a `GROUP BY`,
-  a `HAVING`, an `ORDER BY`, a `LIMIT`, and an `OFFSET`.
-- A `SELECT` without a `FROM`, and a `CASE` expression.
-- `CREATE VIEW` and `CREATE MATERIALIZED VIEW`.
-- `BEGIN`, `COMMIT`, and `ROLLBACK`.
-- `EXPLAIN`, `SHOW`, `ANALYZE`, and `COMMENT ON`.
-- `COUNT`, `SUM`, `AVG`, `MIN`, and `MAX`.
-- More than 60 built-in functions, for a string, a number, a date, a JSON
-  value, a regular expression, a UUID, and an ObjectId.
-
-The type system is rich. It includes an integer, a float of two widths, a
-string, and a boolean. It also includes a date, a datetime, a UUID, an ObjectId,
-an array, and a value of bytes. See [Data Types](/docs/data-types).
-
-See [SELECT](/docs/sql-queries),
-[Joins And Subqueries](/docs/joins-and-subqueries), and
-[Functions](/docs/functions) for some examples.
-
-## The query planner
-
-CamusDB does not execute a query in the order of its text. It builds a plan, and
-it selects that plan by cost.
-
-The planner collects the statistics of a table, and it can run an analyze on its
-own. It then picks an index, an order of a join, and a strategy for an
-aggregate. `EXPLAIN` prints the chosen plan, with the cost of each node.
-
-A large sort, a hash join, a `GROUP BY`, and a `DISTINCT` can spill to disk. The
-memory of the process therefore does not grow without a bound.
-
-See [Query Planning](/docs/query-planning), [EXPLAIN](/docs/explain), and
-[Spill To Disk](/docs/spill-to-disk).
-
-## Vector search and a time travel read
-
-CamusDB stores an embedding in a column of bytes. It compares two embeddings
-with a distance function, and the CPU accelerates that function. An application
-can therefore run a search of similarity next to its relational data. See
-[Vector Search](/docs/vector-search).
-
-CamusDB also reads the data at a point in the past:
+CamusDB supports time-travel reads:
 
 ```camussql
-SELECT * FROM orders AS OF SYSTEM TIME '2026-08-01T00:00:00Z';
+SELECT *
+FROM orders
+AS OF SYSTEM TIME '2026-08-01T00:00:00Z';
 ```
 
-Use that read for an audit, for a report, and for the comparison of a state
-before a change with the state after it. See
-[Time Travel Reads](/docs/time-travel-reads).
+Historical reads can help with:
 
-## The ways to connect
+- Auditing.
+- Investigating incidents.
+- Comparing state before and after a deployment.
+- Understanding an unexpected data change.
+- Producing reports against a previous snapshot.
 
-An application reaches CamusDB through several interfaces:
+The current state of the database does not need to be modified to inspect the
+past.
 
-| Interface | Purpose |
-| --- | --- |
-| [`camus-cli`](/docs/camus-cli) | The interactive shell of SQL. |
-| [Web console](/docs/web-console) | A browser client for a query and for the schema. |
-| [HTTP API](/docs/http-api) | A JSON API over HTTP. |
-| [gRPC API](/docs/grpc-api) | A binary API with a streamed result. |
-| [.NET driver](/docs/dotnet-driver) | An ADO.NET provider for a .NET application. |
-| [EF Core provider](/docs/ef-core) | An object-relational mapper for .NET. |
-| [MCP server](/docs/mcp-server) | A server for the Model Context Protocol, for an agent of artificial intelligence. |
+See [Time Travel Reads](/docs/time-travel-reads).
 
-CamusDB also ships [`camus-dump`](/docs/camus-dump) for a backup, and
-[`workload`](/docs/workload-utility) for a test of the performance.
+## Keep AI close to transactional data
 
-## Standalone, or in a cluster
+CamusDB includes vector-distance operations for embeddings, allowing similarity
+searches to run alongside relational queries and transactional data.
 
-Use standalone mode for development, and for a quick experiment:
+This is useful when vector search is part of an application rather than an
+independent analytics platform.
+
+For example, an application may keep:
+
+```text
+customer
+document
+permissions
+metadata
+embedding
+```
+
+in the same logical database instead of immediately introducing another
+persistence system solely for similarity search.
+
+CamusDB also exposes an **MCP server**, allowing AI agents and development
+tools to interact with the database through the Model Context Protocol.
+
+See [Vector Search](/docs/vector-search) and [MCP Server](/docs/mcp-server).
+
+## Run locally or as a cluster
+
+CamusDB does not require a distributed environment for local development.
+
+Install it as a .NET tool:
 
 ```bash
 dotnet tool install --global CamusDB.Server
 camusdb
 ```
 
-Docker is also available, when you want a node in a container.
+or run it with Docker.
 
-Use cluster mode when you want to test the distributed behavior:
+When you need to exercise the distributed architecture, CamusDB can run as a
+multi-node cluster:
 
 ```bash
 docker compose -f docker/local.yml up --build
 ```
 
-The shell of SQL can connect to a node that runs:
+Each node can expose the database API. Data ownership and transaction routing
+are handled by the cluster.
 
-```bash
-camus-cli
-```
+The same database can therefore be practical for a developer working locally
+while retaining a distributed architecture for environments where availability
+and scale matter.
+
+## More than one way to connect
+
+CamusDB provides several interfaces depending on the application:
+
+| Interface | Use |
+| --- | --- |
+| `camus-cli` | Interactive SQL shell |
+| Web Console | Query and inspect the database from a browser |
+| HTTP API | Simple JSON-based access |
+| gRPC API | Binary protocol with streamed results |
+| .NET driver | ADO.NET integration |
+| EF Core provider | Entity Framework Core integration |
+| MCP server | Database access for AI agents and tools |
+
+It also includes `camus-dump` for backup and restore workflows and a workload
+utility for performance testing.
+
+## Where CamusDB fits
+
+CamusDB is most interesting when several of these are true:
+
+- The application owns transactional or authoritative state.
+- Strong consistency simplifies important business rules.
+- The workload needs to grow beyond a single machine.
+- High availability matters.
+- The data naturally fits a relational model.
+- Transactions may span different parts of the dataset.
+- The team wants to avoid building application-level sharding and coordination
+  prematurely.
+- Developers want SQL without making physical partitioning the center of the
+  domain model.
+- The application is built on .NET and benefits from first-class integration
+  with that ecosystem.
+- Database branching, historical reads, or recoverable schema operations
+  simplify development and operations.
+
+CamusDB is less compelling when the workload is primarily an analytics
+warehouse, an object store, a telemetry pipeline, or a document store where weak
+consistency and simple key-based access are already sufficient.
+
+A distributed database introduces its own costs and trade-offs. It should solve
+a real problem.
 
 ## Current scope
 
-The engine of CamusDB is complete for a wide class of workload. It already
-includes these parts:
+CamusDB is in production use, but it is still an evolving project. Some
+capabilities remain alpha, and APIs or storage formats can change between
+versions.
 
-- Cluster mode, the route to a partition, the election of a leader, and
-  replicated storage.
-- A parser of SQL, a cost-based planner, and an executor with a join, an
-  aggregate, and a sort.
-- Secondary indexes, a covering index, and the statistics of a table.
-- The coordination of a distributed transaction, with two-phase commit.
-- A write-ahead log, a recovery after a crash, and a spill to disk.
-- A view, a materialized view, a prepared statement, a vector search, and a time
-  travel read.
+Today, the engine includes:
 
-Three areas are still part of the evolution of the project: the tools of an
-operator, the hardening for production, and richer controls across several
-regions.
+- Distributed replicated storage using Raft.
+- Key-range partitioning.
+- Serializable transactions.
+- Distributed transactions using two-phase commit.
+- A relational SQL engine.
+- Cost-based query planning.
+- Secondary and covering indexes.
+- Table statistics and automatic analysis.
+- Joins, aggregates, and disk-backed execution.
+- Views and materialized views.
+- Prepared statements.
+- Result caching.
+- Row-level TTL.
+- Vector search.
+- Time-travel reads.
+- Database branching.
+- Recoverable dropped objects.
+- Write-ahead logging and crash recovery.
+- ADO.NET and EF Core integration.
+- HTTP, gRPC, CLI, Web Console, and MCP interfaces.
+
+Areas such as operational tooling, broader production hardening, and richer
+multi-region controls continue to evolve.
+
+CamusDB is not trying to hide that fact.
+
+The project is building toward a database where **applications can keep a simple
+model of their most important data even when the infrastructure underneath it
+is distributed**.
+
+That is the problem CamusDB is designed to solve.

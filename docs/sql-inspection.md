@@ -118,6 +118,20 @@ EXPLAIN (ANALYZE) SELECT * FROM robots WHERE year = 2024 LIMIT 5;
 
 See [EXPLAIN](/docs/explain) for the reference of the output.
 
+## Range placement
+
+```camussql
+SHOW RANGES FROM TABLE robots;
+SHOW RANGES FROM INDEX robots@robots_year_idx;
+SHOW RANGE FROM TABLE robots FOR ROW ("507f1f77bcf86cd799439011");
+```
+
+`SHOW RANGES` reports how this node currently routes a table or index key
+space. It shows whether the space is hash-routed or key-range-routed, which
+partition serves each span, and whether this node believes the leader is local.
+
+See [SHOW RANGES](/docs/show-ranges).
+
 ## Statistics
 
 ```camussql
@@ -158,6 +172,7 @@ need a superuser while authentication is enabled.
 | --- | --- | --- |
 | `SHOW VARIABLES` | The effective configuration. Each value carries its default, its source layer, its mutability, and its scope. | [SHOW VARIABLES](/docs/show-variables) |
 | `SHOW ENGINE STATS` | The metrics of Kahuna and of Kommander: the workload, Raft, the WAL, and the storage. | [Engine Stats](/docs/engine-stats) |
+| `SHOW SLOW QUERIES` | The recent statements that crossed the slow-query threshold on this node. | [Slow Query Log](/docs/slow-query-log) |
 | `SHOW CLUSTER SETTINGS` | The settings that the cluster overrides across the fleet. | [Runtime Cluster Settings](/docs/runtime-cluster-settings) |
 
 All three accept a `LIKE` filter:
@@ -165,6 +180,7 @@ All three accept a `LIKE` filter:
 ```camussql
 SHOW VARIABLES LIKE "query_result_cache_%";
 SHOW ENGINE STATS LIKE 'raft.executor%';
+SHOW SLOW QUERIES LIKE '%orders%';
 SHOW CLUSTER SETTINGS LIKE 'ttl_%';
 ```
 

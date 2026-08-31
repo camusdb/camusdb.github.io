@@ -83,6 +83,18 @@ parameter to a value inside the string of the SQL. A typed value then crosses
 the wire without a loss. Four such types are `DATE`, `DATETIME`, `BYTES`, and
 `UUID`.
 
+## Cancellation and backpressure
+
+Cancelling a gRPC call, closing a stream, or letting the deadline expire
+propagates cancellation into the query pipeline. CamusDB stops scans, joins,
+grouping, sorting, distinct, and subqueries at their next storage read or
+operator boundary instead of continuing work for a caller that has gone away.
+
+`BatchExecute` applies server-side backpressure with
+`grpc_batch_max_in_flight`. Once a stream reaches that many in-flight
+operations, the server stops pulling more requests from the stream until work
+finishes.
+
 ## Row service
 
 `CamusRows` provides typed CRUD operations:

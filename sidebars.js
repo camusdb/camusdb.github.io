@@ -160,6 +160,11 @@ const sidebars = {
               id: 'distributed-queries',
               label: 'Distributed queries',
             },
+            {
+              type: 'doc',
+              id: 'show-ranges',
+              label: 'SHOW RANGES',
+            },
           ],
         },
         {
@@ -205,6 +210,7 @@ const sidebars = {
           collapsed: false,
           items: [
             'cluster',
+            'key-range-sharding',
             'configuration',
             {
               type: 'doc',
@@ -238,7 +244,9 @@ const sidebars = {
           collapsed: false,
           items: [
             'performance-diagnostics',
+            'operator-dashboard',
             'engine-stats',
+            'slow-query-log',
             {
               type: 'doc',
               id: 'show-variables',

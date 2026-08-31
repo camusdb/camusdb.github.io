@@ -255,19 +255,23 @@ Internally, CamusDB and Kahuna follow this shape:
 
 ## What counts as a retryable failure
 
-Prepare your application to retry after these five failures:
+Prepare your application to retry after these failures:
 
 - Another transaction committed a conflicting write.
 - A read dependency changed before the commit.
 - A concurrent write intent made the serial order invalid.
 - The transaction could not prepare on every participant.
+- A read or scan reached a range that could not serve the snapshot before the
+  server-side retry budget expired.
 - A serializable read-write transaction passed its lifetime deadline.
 
 Each failure above means one action: replay the whole transaction from `BEGIN`.
 
 `TransactionFinalizeUnresolved` is different. The outcome of the commit or of
-the rollback is not final yet. Send the same finalize request again, on the same
-transaction handle. Do not run the business operation again.
+the rollback is not final yet. This can happen after a leader change, drain,
+participant retry, or transport fault once the finalize request has already left
+the node. Send the same finalize request again, on the same transaction handle.
+Do not run the business operation again.
 
 Also select the correct isolation mode for the job:
 

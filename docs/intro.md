@@ -85,7 +85,7 @@ It listens on the HTTP port `5095`, and on the gRPC port `5096`:
   \____\__,_|_| |_| |_|\__,_|___/____/|____/
 
 Configuration: built-in defaults (no configuration file found)
-Data directory: /Users/andresgutierrez/.local/share/camusdb
+Data directory: /Users/runner/.local/share/camusdb
 ```
 
 Update the installed server:
@@ -129,7 +129,7 @@ $ camus-cli
 An interactive prompt appears:
 
 ```camussql
-CamusDB SQL Shell 0.9.7
+CamusDB SQL Shell 0.11.0
 
 Connected to http://localhost:5096 over gRPC, database: (none)
 

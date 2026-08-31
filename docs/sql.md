@@ -156,6 +156,8 @@ subtract a negative number.
 | The estimates behind a plan | [SHOW STATISTICS](/docs/show-statistics) |
 | A cache for a repeated read | [Result Cache](/docs/query-result-cache) |
 | A scan across the cluster | [Distributed Queries](/docs/distributed-queries) |
+| The range placement of a table or index | [SHOW RANGES](/docs/show-ranges) |
+| Statements that crossed a slow-query threshold | [Slow Query Log](/docs/slow-query-log) |
 | A placeholder, and a prepared handle | [Parameters And Prepared Statements](/docs/prepared-statements) |
 | `SHOW`, `DESCRIBE`, `ANALYZE` | [Inspecting The Database](/docs/sql-inspection) |
 | A grant and a role | [Authentication And Authorization](/docs/sql-authentication) |

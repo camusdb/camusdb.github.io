@@ -156,3 +156,12 @@ special case for a node with the feature off.
 This setting is independent of the `diagnostics:` section. That section
 configures the export to OpenTelemetry and to Prometheus. Either one can be on
 without the other, and both can read the same meters.
+
+## Related
+
+- [`SHOW RANGES`](/docs/show-ranges) for the current range placement of one
+  table or index.
+- [Slow Query Log](/docs/slow-query-log) for statements that crossed a
+  duration threshold.
+- [Operator Dashboard](/docs/operator-dashboard) for a browser view over engine
+  metrics, slow queries, databases, backups, and configuration.

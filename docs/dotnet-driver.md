@@ -661,7 +661,7 @@ other:
 | Code | Name | Meaning |
 | --- | --- | --- |
 | `CADB0502` | `TransactionConflict` | A lock conflict aborted the transaction. |
-| `CADB0504` | `TransactionMustRetry` | A pre-write transient routing, leader-transition, lock-wait, or storage conflict condition exhausted internal retries. |
+| `CADB0504` | `TransactionMustRetry` | A transient routing, leader-transition, lock-wait, storage conflict, or temporarily unservable read-range condition exhausted internal retries. |
 | `CADB0505` | `TransactionLifetimeExceeded` | A serializable read-write transaction exceeded the server lifetime cap. |
 
 `CADB0509` `TransactionFinalizeUnresolved` is not part of this helper of a

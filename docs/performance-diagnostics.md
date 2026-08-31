@@ -101,6 +101,20 @@ These signals help when one of five things limits a run:
 - The cost of a scan.
 - The concurrency of the requests.
 
+Range splitting also publishes counters through the Kahuna meter. When
+key-range sharding is enabled, inspect them with:
+
+```camussql
+SHOW ENGINE STATS LIKE 'kahuna.range%';
+```
+
+The most useful rows are `kahuna.range.splits`,
+`kahuna.range.split.indivisible_refusals`,
+`kahuna.range.split.no_relief_skips`, `kahuna.range.split.settle_skips`, and
+`kahuna.range.merge.warm_skips`. Use them together with
+[`SHOW RANGES`](/docs/show-ranges): `SHOW RANGES` shows the current placement,
+while these counters explain what the splitter attempted.
+
 ## SQL engine stats
 
 `SHOW ENGINE STATS` exposes a live snapshot of the metrics of the embedded

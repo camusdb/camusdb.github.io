@@ -40,6 +40,18 @@ that is absent, a conflict, and a limit of a rate:
 See [Error Codes](/docs/error-codes) for the list of the reference. That page
 also gives the cause of each code.
 
+## Cancellation
+
+If an HTTP client cancels a request or disconnects while a query is still
+running, CamusDB propagates that cancellation into the query pipeline. Scans,
+joins, grouping, sorting, distinct, and subquery execution stop at their next
+storage read or operator boundary instead of continuing to consume work after
+the caller is gone.
+
+For long reads, prefer the streaming query endpoint when your client can consume
+rows incrementally. If the client stops reading early, the server treats the
+remaining work as abandoned and cleans up the query.
+
 ## Authentication
 
 While the authentication is enabled, use `/login`. It gives you a bearer token:
