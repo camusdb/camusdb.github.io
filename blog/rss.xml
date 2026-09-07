@@ -4,10 +4,231 @@
         <title>CamusDB Blog</title>
         <link>https://camusdb.github.io/blog/</link>
         <description>CamusDB Blog</description>
-        <lastBuildDate>Wed, 19 Aug 2026 00:00:00 GMT</lastBuildDate>
+        <lastBuildDate>Mon, 07 Sep 2026 00:00:00 GMT</lastBuildDate>
         <docs>https://validator.w3.org/feed/docs/rss2.html</docs>
         <generator>https://github.com/jpmonette/feed</generator>
         <language>en</language>
+        <item>
+            <title><![CDATA[Player inventories are bank accounts]]></title>
+            <link>https://camusdb.github.io/blog/player-inventories-are-bank-accounts/</link>
+            <guid>https://camusdb.github.io/blog/player-inventories-are-bank-accounts/</guid>
+            <pubDate>Mon, 07 Sep 2026 00:00:00 GMT</pubDate>
+            <description><![CDATA[A player spends forty hours to earn a sword. Another player pays real money for]]></description>
+            <content:encoded><![CDATA[<p>A player spends forty hours to earn a sword. Another player pays real money for
+a bundle of skins. A guild saves gold for three weeks to buy a fortress.</p>
+<p>None of that is "game data" to the person who did it. It is time, money, and
+trust. When a backend loses an item, duplicates a currency, or shows two owners
+for one mount, the player does not read it as a bug. The player reads it as
+disrespect.</p>
+<p>We run game backends on CamusDB today. This post explains why we treat every
+inventory and every wallet as a small bank account. It also explains why that
+decision leads to distributed transactions, not away from them.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-a-game-economy-really-is">What a game economy really is<a href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/#what-a-game-economy-really-is" class="hash-link" aria-label="Direct link to What a game economy really is" title="Direct link to What a game economy really is" translate="no">​</a></h2>
+<p>Strip the art away and a game economy is a ledger.</p>
+<ul>
+<li class="">A wallet is an account with a balance that must never go below zero.</li>
+<li class="">An inventory is a set of assets, and each asset has exactly one owner.</li>
+<li class="">A shop purchase is a transfer: currency leaves one account, an item enters
+another.</li>
+<li class="">A trade between two players is a transfer in both directions, at the same
+instant.</li>
+<li class="">A guild bank is a shared account with many writers.</li>
+<li class="">A season reward is a credit that must be granted exactly once.</li>
+</ul>
+<p>These are the same rules a bank enforces. The amounts are smaller. The number
+of accounts is often larger. The rules are identical:</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">balance &gt;= 0</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">one item -&gt; one owner</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">one reward -&gt; granted once</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">a trade completes for both sides, or for neither</span><br></div></code></pre></div></div>
+<p>A bank does not ask whether a rule deserves enforcement on a slow day. It
+enforces the rule on every day, because a single broken rule ends the trust of the
+customer. Games are not different. A player who loses one legendary item once
+tells everyone, and that player is often right to do so.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-argument-for-one-thread">The argument for one thread<a href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/#the-argument-for-one-thread" class="hash-link" aria-label="Direct link to The argument for one thread" title="Direct link to The argument for one thread" translate="no">​</a></h2>
+<p>There is a popular argument in the game backend world, and it deserves a fair
+statement before we answer it.</p>
+<p>The argument goes like this. Coordination is expensive. A transaction that
+touches data on several machines needs network round trips. A transaction that
+waits on a network round trip holds its locks for a millisecond instead of a few
+microseconds. If two transactions touch the same hot row, the second one waits
+for the first. A single thread on a single machine can process a hot row
+hundreds of thousands of times per second. A distributed commit on that same row
+processes it about a thousand times per second. Therefore, the argument says,
+keep each region of the game world in one single-threaded shard. Keep the
+transactions local. Pass messages between shards asynchronously. Reserve
+distributed transactions for rare cases, or avoid them completely.</p>
+<p>The physics in that argument is correct. A network round trip is slower than a
+cache line. A hot row is serial by nature. Nobody can make ten machines update
+one row faster than one machine can.</p>
+<p>The conclusion is where the argument fails for games. It fails for three
+reasons.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="reason-one-the-valuable-transactions-cross-the-shard-boundary">Reason one: the valuable transactions cross the shard boundary<a href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/#reason-one-the-valuable-transactions-cross-the-shard-boundary" class="hash-link" aria-label="Direct link to Reason one: the valuable transactions cross the shard boundary" title="Direct link to Reason one: the valuable transactions cross the shard boundary" translate="no">​</a></h2>
+<p>The argument assumes that most transactions stay inside one shard, and that the
+transactions that cross shards are rare and unimportant. In a game economy, the
+opposite is true. Look at where the money is:</p>
+<ul>
+<li class="">A trade between two players who met in different regions.</li>
+<li class="">A deposit into a guild bank from a member who plays on another continent.</li>
+<li class="">A marketplace sale, where the seller and the buyer are never in the same
+place.</li>
+<li class="">A gift from one account to another.</li>
+<li class="">A player who walks from one region to another with a full inventory.</li>
+<li class="">A cross-server event that pays a reward to every participant.</li>
+</ul>
+<p>Every one of these moves value across a boundary. They are less frequent than
+movement updates, yes. They are also the transactions with the most real money,
+the most player hours, and the most exploit attempts behind them. Rare is not
+the same as unimportant. In an economy, the rare transaction is often the one
+that matters most.</p>
+<p>A shard model that makes local work fast and cross-shard work unsafe optimizes
+the transactions that nobody would miss. It leaves the transactions that
+everybody would miss to hand-written code.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="reason-two-asynchronous-messages-between-shards-are-where-duplicates-come-from">Reason two: asynchronous messages between shards are where duplicates come from<a href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/#reason-two-asynchronous-messages-between-shards-are-where-duplicates-come-from" class="hash-link" aria-label="Direct link to Reason two: asynchronous messages between shards are where duplicates come from" title="Direct link to Reason two: asynchronous messages between shards are where duplicates come from" translate="no">​</a></h2>
+<p>If two shards cannot commit together, a trade between them becomes a
+conversation. Shard A removes the sword and sends a message. Shard B receives
+the message and adds the sword. If B is down, A must remember to retry. If A
+crashes after the removal and before the send, the sword is gone. If the message
+is delivered twice, the sword exists twice. If a player logs out during the
+hand-off between regions, the inventory can exist on both regions, or on
+neither.</p>
+<p>Every game developer with a few years of live operations knows this pattern,
+because every item duplication exploit in history has this shape. The fix is
+always the same: idempotency keys, outbox tables, and compensation steps. A
+reconciliation job then runs at night and files the differences into a
+spreadsheet. That is a distributed transaction protocol. The game team writes
+it under a release deadline, without a model checker. The team then writes it
+again for each new feature that crosses a boundary.</p>
+<p>A database with distributed transactions does that work once, in one place, and
+tests it against node failures. The cost is a millisecond at commit. The
+alternative is a saga for every feature. We prefer to pay the millisecond.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="reason-three-the-hot-key-is-a-simulation-problem-not-a-ledger-problem">Reason three: the hot key is a simulation problem, not a ledger problem<a href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/#reason-three-the-hot-key-is-a-simulation-problem-not-a-ledger-problem" class="hash-link" aria-label="Direct link to Reason three: the hot key is a simulation problem, not a ledger problem" title="Direct link to Reason three: the hot key is a simulation problem, not a ledger problem" translate="no">​</a></h2>
+<p>The strongest part of the argument is the hot row. A world boss with one health
+value takes hits from two hundred players at once. A single-threaded engine can
+process that. A distributed commit cannot, at that rate.</p>
+<p>That is true, and it is also not a requirement for the ledger. Games already
+separate two kinds of state:</p>
+<ul>
+<li class="">Simulation state lives in the game server, in memory, at the tick rate.
+Position, health, cooldowns, projectiles. It is rebuilt from scratch when a
+match starts, and it is allowed to lose a few ticks when a server dies.</li>
+<li class="">Ledger state lives in the database. Wallets, inventories, ownership, purchase
+history, progression. It is never rebuilt from scratch, and it is never
+allowed to lose one entry.</li>
+</ul>
+<p>The boss fight is simulation. The loot at the end of the fight is ledger. The
+ledger sees one transaction per player at the end, not two hundred writes per
+second on one row. Nobody needs a database to update one row hundreds of
+thousands of times per second. Nobody sane commits the boss health to a durable
+log on every hit.</p>
+<p>When you keep the two layers apart, the hot key argument no longer applies to
+the part of the system that holds player value. What remains is a ledger workload:
+many accounts, low contention per account, and a strict need for atomicity when
+two accounts change together. That is the workload a distributed SQL database
+exists for.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="you-pay-for-coordination-only-where-the-data-crosses-a-partition">You pay for coordination only where the data crosses a partition<a href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/#you-pay-for-coordination-only-where-the-data-crosses-a-partition" class="hash-link" aria-label="Direct link to You pay for coordination only where the data crosses a partition" title="Direct link to You pay for coordination only where the data crosses a partition" translate="no">​</a></h2>
+<p>A fair objection remains. If every commit pays for a distributed protocol, the
+ledger becomes slow for the common case too. That would be a bad trade.</p>
+<p>CamusDB does not work that way. It splits the key space into Raft partitions.
+Each partition has one leader and a replicated log. A table and its secondary
+indexes live under one key prefix, and that prefix maps to one partition by
+default. A transaction that touches one partition commits through that one
+leader. Two-phase commit runs only when a transaction actually writes to more
+than one partition.</p>
+<p>In practice this means:</p>
+<ul>
+<li class="">A shop purchase that changes one wallet and one inventory usually commits on
+one leader, with one replicated log round.</li>
+<li class="">A trade between two players whose rows live on different partitions pays for
+two-phase commit, because that is the case where atomicity across machines is
+the whole point.</li>
+<li class="">A read-only report over the whole economy runs from one consistent snapshot,
+without a lock, and without a block on writers.</li>
+</ul>
+<p>When a table becomes hot, key-range sharding can split it into ranges and place
+those ranges on different leaders. The split moves data placement. It does not
+move the atomicity boundary. A transaction that spans two ranges is still one
+transaction. See <a class="" href="https://camusdb.github.io/docs/key-range-sharding/">Key-range sharding</a> and
+<a class="" href="https://camusdb.github.io/docs/distributed-transactions/">Distributed transactions and HLC</a> for the
+details.</p>
+<p>The coordination cost follows the data, not the schema. That is the property a
+game team needs. You design your tables around your economy, and the database
+decides where the network round trip is necessary.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-a-trade-looks-like">What a trade looks like<a href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/#what-a-trade-looks-like" class="hash-link" aria-label="Direct link to What a trade looks like" title="Direct link to What a trade looks like" translate="no">​</a></h2>
+<p>Here is a trade between two players. Player 10 gives a sword and receives 500
+gold. Player 20 gives 500 gold and receives the sword.</p>
+<p>The wallet table carries the bank rule as a constraint, so the database enforces
+it on every update:</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">TABLE</span><span class="token plain"> wallets </span><span class="token punctuation" style="color:#393A34">(</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  player_id </span><span class="token builtin class-name">INT64</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">NOT</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">NULL</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">PRIMARY</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">KEY</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  balance </span><span class="token builtin class-name">INT64</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">NOT</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">NULL</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">CHECK</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">(</span><span class="token plain">balance </span><span class="token operator" style="color:#393A34">&gt;=</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">0</span><span class="token punctuation" style="color:#393A34">)</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token punctuation" style="color:#393A34">)</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
+<p>The trade itself is one transaction. It has an idempotency key, so a client
+retry cannot execute it twice.</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">BEGIN</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">UPDATE</span><span class="token plain"> wallets</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SET</span><span class="token plain"> balance </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> balance </span><span class="token operator" style="color:#393A34">-</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">500</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">WHERE</span><span class="token plain"> player_id </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">20</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">UPDATE</span><span class="token plain"> wallets</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SET</span><span class="token plain"> balance </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> balance </span><span class="token operator" style="color:#393A34">+</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">500</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">WHERE</span><span class="token plain"> player_id </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">10</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">UPDATE</span><span class="token plain"> items</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">SET</span><span class="token plain"> owner_id </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">20</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">WHERE</span><span class="token plain"> item_id </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">88123</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">AND</span><span class="token plain"> owner_id </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">10</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">INSERT</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">INTO</span><span class="token plain"> trades </span><span class="token punctuation" style="color:#393A34">(</span><span class="token plain">trade_key</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> seller_id</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> buyer_id</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> item_id</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> price</span><span class="token punctuation" style="color:#393A34">)</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">VALUES</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">(</span><span class="token string" style="color:#e3116c">'7f3a9c1e-trade-2026-09-07'</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">10</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">20</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">88123</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">500</span><span class="token punctuation" style="color:#393A34">)</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">COMMIT</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
+<p>Four things protect the players here:</p>
+<ul>
+<li class="">If player 20 cannot pay, the first update violates the check constraint. The
+statement fails, and the transaction commits nothing.</li>
+<li class="">If player 10 no longer owns the sword, the third update changes zero rows. The
+application sees that count and rolls back.</li>
+<li class="">The unique index on <code>trade_key</code> rejects a second attempt with the same key.</li>
+<li class="">Serializable isolation is the default. A concurrent trade of the same sword to
+a third player conflicts, and one of the two transactions retries. The
+application replays the loser from <code>BEGIN</code>.</li>
+</ul>
+<p>The two wallets and the item can live on three different partitions. The
+transaction still commits on all of them or on none of them. Nobody ends up with
+two swords, and nobody ends up with a sword that was never paid for.</p>
+<p>A retry is not a failure of the database. It is the database that tells you the
+truth about a race. The alternative is not "no conflict". The alternative is a
+conflict that the application discovers in a support ticket.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="durability-is-the-part-players-actually-feel">Durability is the part players actually feel<a href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/#durability-is-the-part-players-actually-feel" class="hash-link" aria-label="Direct link to Durability is the part players actually feel" title="Direct link to Durability is the part players actually feel" translate="no">​</a></h2>
+<p>Speed is the argument developers have with each other. Durability is the
+argument players have with you.</p>
+<p>Our rule is simple. If CamusDB confirms a commit, that commit survives, even if
+the node that confirmed it dies one second later. A committed write goes through
+the replicated partition log before the client hears "ok". A leader change
+continues from a log state that Raft made safe. A transaction that did not reach
+a durable decision is never reported as committed. It is reported as a retry,
+and the application replays it.</p>
+<p>We test that rule with real failures, not with assumptions. Our chaos tool,
+<a class="" href="https://camusdb.github.io/docs/caraxes/">Caraxes</a>, runs money transfers between random accounts while it
+kills nodes, cuts the network, and fills disks. The check at the end is the same
+check a bank auditor would run. The total of all balances must be exactly the
+same as before. We wrote about that tool in
+<a class="" href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/">We built a dragon to attack our own database</a>.
+Every argument in this post rests on that check.</p>
+<p>An in-memory engine that acknowledges a commit before the write is safe on a
+second machine gives you an impressive benchmark. It also gives you a window in
+which a player's purchase exists only in the RAM of one process. Whether that
+window is a millisecond or a second, the item that disappears in it was paid for.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-cost-stated-plainly">The cost, stated plainly<a href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/#the-cost-stated-plainly" class="hash-link" aria-label="Direct link to The cost, stated plainly" title="Direct link to The cost, stated plainly" translate="no">​</a></h2>
+<p>A distributed commit in CamusDB costs milliseconds. A local commit costs less.
+A single-threaded in-memory engine costs microseconds.</p>
+<p>A player clicks "accept trade". The round trip from the client to the server is
+tens of milliseconds. The animation is half a second. The player will never
+perceive the difference between three microseconds and three milliseconds at
+commit. The player will remember, for years, the sword that vanished.</p>
+<p>The engineering trade is therefore not "fast versus slow". It is "a millisecond
+at commit versus a saga per feature and a reconciliation job at night". For the
+simulation, choose the tick loop. For the ledger, choose the transaction.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-we-ask-of-a-game-database">What we ask of a game database<a href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/#what-we-ask-of-a-game-database" class="hash-link" aria-label="Direct link to What we ask of a game database" title="Direct link to What we ask of a game database" translate="no">​</a></h2>
+<p>This is the list we hold CamusDB to, and the list we suggest for any database
+that holds player value:</p>
+<ol>
+<li class="">Serializable isolation by default, so a race is a retry and never a
+duplicate.</li>
+<li class="">Atomic commits across machines, so a trade, a guild deposit, or a region
+hand-off is one unit of work.</li>
+<li class="">Coordination cost that follows the data, so a local purchase does not pay
+for a distributed protocol it does not need.</li>
+<li class="">Durability before acknowledgement, so a confirmed purchase survives the death
+of the node that confirmed it.</li>
+<li class="">Failure tests with an invariant check, so the guarantee is measured on every
+build and not remembered from a design document.</li>
+</ol>
+<p>Players give a game their evenings and their money. The least a backend can do
+is keep the books straight.</p>]]></content:encoded>
+            <category>camusdb</category>
+            <category>video-games</category>
+            <category>distributed-transactions</category>
+            <category>game-backends</category>
+        </item>
         <item>
             <title><![CDATA[We built a dragon to attack our own database]]></title>
             <link>https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/</link>
