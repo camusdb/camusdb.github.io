@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Configuration | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/configuration/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Configuration | CamusDB"><meta data-rh="true" name="description" content="CamusDB reads the first configuration file it finds at startup. For an"><meta data-rh="true" property="og:description" content="CamusDB reads the first configuration file it finds at startup. For an"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/configuration/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/configuration/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/configuration/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Configuration","item":"https://camusdb.github.io/docs/configuration"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.a54ad7a9.css">
-<script src="/assets/js/runtime~main.24e4ffbd.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.80bf6132.js" defer="defer"></script>
 <script src="/assets/js/main.eeec6f9c.js" defer="defer"></script>
 </head>
 <body>
@@ -244,7 +244,7 @@ consult level sizing under universal compaction.</p>
 cache-size settings below. It changes nothing else. It does not change the
 number of workers, and it does not change durability. An application can observe
 one effect only: how often a read comes from the cache instead of the disk.</p>
-<table><thead><tr><th>Profile</th><th>Block cache</th><th>Memtable sub-budget</th><th>Actor caches</th><th>Total</th></tr></thead><tbody><tr><td><code>prod</code>, the default</td><td>10% of RAM, from 320 MiB to 2 GiB</td><td>One quarter of the block cache, from 128 MiB to 1 GiB</td><td>6.25% of RAM, 64 MiB or more</td><td>About 16% of RAM, or about 1.5 GiB on an 8 GiB machine</td></tr><tr><td><code>dev</code></td><td>64 MiB</td><td>16 MiB</td><td>32 MiB</td><td>About 96 MiB, on any machine</td></tr></tbody></table>
+<table><thead><tr><th>Profile</th><th>Block cache</th><th>Memtable sub-budget</th><th>Actor caches</th><th>Total</th></tr></thead><tbody><tr><td><code>prod</code>, the default</td><td>10% of machine memory, up to 2 GiB</td><td>One quarter of the block cache, raised to the Raft-log flush unit when possible, up to 1 GiB</td><td>6.25% of the managed heap budget, 64 MiB or more</td><td>About 16% of memory, or about 1.5 GiB on an 8 GiB machine</td></tr><tr><td><code>dev</code></td><td>64 MiB</td><td>16 MiB</td><td>32 MiB</td><td>About 96 MiB, on any machine</td></tr></tbody></table>
 <p>Use <code>dev</code> for a node that shares a developer machine with the application under
 construction. The budgets are fixed. The node is therefore the same size on a
 64 GiB workstation and in a 2 GiB container.</p>
@@ -262,23 +262,41 @@ raised budget is therefore a valid combination. It is not a conflict.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="cache-defaults-proportional-to-memory">Cache defaults proportional to memory<a href="#cache-defaults-proportional-to-memory" class="hash-link" aria-label="Direct link to Cache defaults proportional to memory" title="Direct link to Cache defaults proportional to memory" translate="no">​</a></h3>
 <p>Under <code>memory_profile: prod</code>, most unset keys keep the Kahuna default. The four
 cache-size settings are the exception. When you leave them unset, CamusDB
-computes them at startup from the available memory of the machine. It respects a
-container limit. It does not use a fixed constant.</p>
+computes them at startup from the node&#x27;s memory rather than from a fixed
+constant.</p>
+<p>Two memory sizes feed the computation:</p>
+<ul>
+<li class="">Machine memory sizes the RocksDB block cache and memtable budget. It is the
+container cgroup limit when one is set, otherwise physical RAM.</li>
+<li class="">Managed heap budget sizes the actor caches. It is the .NET GC heap hard limit
+when one is set, otherwise the same machine-memory value.</li>
+</ul>
+<p>RocksDB uses native memory, so its budgets sit outside a .NET heap hard limit and
+still count against the container. Leave room for both when you set
+<code>DOTNET_GCHeapHardLimit</code>, <code>DOTNET_GCHeapHardLimitPercent</code>, or related runtime
+limits.</p>
 <p>A measurement motivated this behavior. A fixed block cache of 320 MB forced a
 TPC-C working set of 1.2 GB through a disk read on almost every statement. A
 cache sized to the machine took the same workload from 24.5 to 119.6
 transactions per second, at 8 clients.</p>
-<table><thead><tr><th>Key</th><th>Computed value when unset</th><th>Clamp</th></tr></thead><tbody><tr><td><code>rocksdb_shared_memory_budget_mb</code></td><td>10% of RAM</td><td>320 MiB to 2 GiB</td></tr><tr><td><code>rocksdb_shared_memtable_budget_mb</code></td><td>One quarter of the block cache</td><td>128 MiB to 1 GiB</td></tr><tr><td><code>max_bytes_per_actor</code></td><td>6.25% of RAM, and at least 64 MiB for the layer, divided by <code>key_value_workers</code></td><td>8 MiB to 2 GiB for each actor</td></tr><tr><td><code>max_entries_per_actor</code></td><td><code>max_bytes_per_actor</code> divided by about 512 B</td><td>10k to 4M</td></tr></tbody></table>
-<p>The result is about 16% of RAM across the two cache layers. The total never
+<table><thead><tr><th>Key</th><th>Computed value when unset</th><th>Clamp</th></tr></thead><tbody><tr><td><code>rocksdb_shared_memory_budget_mb</code></td><td>10% of machine memory</td><td>64 MiB to 2 GiB; the 320 MiB floor yields on small nodes</td></tr><tr><td><code>rocksdb_shared_memtable_budget_mb</code></td><td>One quarter of the block cache, raised to the Raft-log flush unit when possible</td><td>16 MiB to 1 GiB; the 128 MiB floor yields on small nodes</td></tr><tr><td><code>max_bytes_per_actor</code></td><td>6.25% of the managed heap budget, and at least 64 MiB for the layer, divided by <code>key_value_workers</code></td><td>1 MiB to 2 GiB for each actor; the 8 MiB floor yields on small nodes</td></tr><tr><td><code>max_entries_per_actor</code></td><td><code>max_bytes_per_actor</code> divided by about 512 B</td><td>2k to 4M; the 10k floor yields on small nodes</td></tr></tbody></table>
+<p>The result is about 16% of memory across the two cache layers. The total never
 exceeds 4 GiB, however large the machine is.</p>
+<p>When <code>rocksdb_shared_memory</code> is on and both the KV store and the Raft WAL use
+RocksDB, CamusDB tries to keep the computed memtable budget large enough for the
+Raft-log flush unit. At the default WAL shard settings that unit is 192 MiB. If a
+small container cannot fit that budget inside half of the block cache, CamusDB
+keeps the smaller percentage-based value and Kommander logs a startup warning.
+Raise both RocksDB budgets explicitly or reduce WAL shard sizing if that warning
+matters for the workload.</p>
 <p>The fractions and the ceilings are conservative for a reason. An unconfigured
 node is more often a developer workstation, or a CI container that shares the
 machine with a compiler and an editor. It is less often a dedicated database
 server. An explicit value always wins over the computed one.</p>
-<p>Here is the result on an 8 GiB machine with 8 cores, with none of the four keys
-set. The block cache is 819 MiB. The memtable sub-budget is 204 MiB. Each of the
-8 workers gets an actor cache of 64 MiB, which is 512 MiB together. The total is
-about 1.5 GiB.</p>
+<p>Here is the result on an 8 GiB machine with 8 cores, no heap limit, and none of
+the four keys set. The block cache is 819 MiB. The memtable sub-budget is 204
+MiB. Each of the 8 workers gets an actor cache of 64 MiB, which is 512 MiB
+together. The total is about 1.5 GiB.</p>
 <p>Raise all four values explicitly on a dedicated server. The sizes above are a
 floor to build from. They are not a recommendation for a machine whose only job
 is CamusDB.</p>
@@ -295,8 +313,9 @@ Raft WAL.</p>
 does not add the sub-budget to the total. The sub-budget must not exceed the
 total. CamusDB compares the two values after the merge of all layers. An
 override of only one of the two can therefore produce an inconsistent pair. One
-example is a total of 100 MiB against a computed memtable of 512 MiB. The node
-then fails at startup with <code>InvalidConfig</code>. Set both values together.</p>
+example is a total of 100 MiB against an explicit memtable budget of 512 MiB. The
+computed memtable default never exceeds the total, including the flush-unit
+floor. Set both values together.</p>
 <p><code>max_bytes_per_actor</code> applies to one actor. Multiply it by <code>key_value_workers</code>
 to get the total. The default is one worker for each CPU.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="validation-errors">Validation errors<a href="#validation-errors" class="hash-link" aria-label="Direct link to Validation errors" title="Direct link to Validation errors" translate="no">​</a></h2>

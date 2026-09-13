@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Transactions and isolation | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/serializable-transactions/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Transactions and isolation | CamusDB"><meta data-rh="true" name="description" content="Every statement that CamusDB runs is inside a transaction. If you do not open a"><meta data-rh="true" property="og:description" content="Every statement that CamusDB runs is inside a transaction. If you do not open a"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/serializable-transactions/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/serializable-transactions/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/serializable-transactions/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Transactions and isolation","item":"https://camusdb.github.io/docs/serializable-transactions"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.a54ad7a9.css">
-<script src="/assets/js/runtime~main.24e4ffbd.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.80bf6132.js" defer="defer"></script>
 <script src="/assets/js/main.eeec6f9c.js" defer="defer"></script>
 </head>
 <body>
@@ -56,6 +56,13 @@ in a repeated scan because another transaction inserted it.</li>
 <li class="">Protection against write skew. Write skew is a fault in application code that
 reads a value, decides, and then writes.</li>
 </ul>
+<p>Under pessimistic Read Committed, a point read records the row revision it saw
+when the same transaction later writes that key; CamusDB refuses the write if
+another transaction committed a newer version in between. A range scan does not
+pin every scanned row. It returns each row&#x27;s latest committed version as pages
+are read, which is the non-repeatable behavior this isolation level permits.
+<code>UPDATE</code> and <code>DELETE</code> still re-read the rows they modify under lock before
+writing.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="read-only-and-read-write-modes">Read-only and read-write modes<a href="#read-only-and-read-write-modes" class="hash-link" aria-label="Direct link to Read-only and read-write modes" title="Direct link to Read-only and read-write modes" translate="no">​</a></h2>
 <p>Serializable has two execution modes. Your choice between them matters more than
 any other decision on this page.</p>
@@ -188,7 +195,7 @@ determinate winner.</li>
 </ul>
 <p>One gap remains. There is no externally consistent commit-wait guarantee. The
 order is logically consistent. It is not tied to real time.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="related-pages">Related pages<a href="#related-pages" class="hash-link" aria-label="Direct link to Related pages" title="Direct link to Related pages" translate="no">  ​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="related-pages">Related pages<a href="#related-pages" class="hash-link" aria-label="Direct link to Related pages" title="Direct link to Related pages" translate="no">​</a></h2>
 <ul>
 <li class=""><a class="" href="/docs/sql-transactions/">Transactions In SQL</a></li>
 <li class=""><a class="" href="/docs/serializable-retries/">Retries And Conflicts</a></li>
