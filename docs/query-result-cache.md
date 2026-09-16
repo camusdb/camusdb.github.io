@@ -95,7 +95,7 @@ The set of the dependencies is what an entry depends on. It has three kinds:
   and the decoder of the rows used that pair.
 
 A bucket of the key space is the coarse unit of an invalidation. A row bucket is
-`{dbId}:{tableId}:r`. A bucket of an index is `{dbId}:{tableId}:i:{indexId}`.
+`{dbId}:{tableId}|r`. A bucket of an index is `{dbId}:{tableId}|i:{indexId}`.
 CamusDB maps a modified KV key back to its bucket, to find the affected entries.
 A bucket is coarse by design. The index of the invalidation therefore stays
 small.

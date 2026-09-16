@@ -129,6 +129,11 @@ CREATE INDEX orders_status_idx ON orders (status);
 
 Drop the branch when the migration is wrong. Then create a fresh branch.
 
+If the source is refreshing a materialized view when the branch is created, the
+branch does not inherit that in-flight job. It sees the view contents that were
+published at the fork timestamp. The parent's refresh finishes or fails on the
+parent only.
+
 ## Constraints, and a write
 
 A write in a branch affects that branch only. A check of the uniqueness
@@ -271,6 +276,13 @@ A rename of a branch preserves the hold. A drop of the branch releases it.
 [Configuration](/docs/configuration). The default is 300,000 milliseconds, which
 is 5 minutes.
 
+A temporary renewal lapse can recover while the hold remains registered. Once a
+hold is removed from the replicated registry, however, CamusDB treats the branch
+as permanently unprotected because inherited history may already have been
+reclaimed. Reads and writes that would consult the branch's ancestry fail closed
+with `CADB0539` `BranchSnapshotProtectionLost` (HTTP 410). Recreate the branch
+from the parent instead of trusting a partial inherited view.
+
 In cluster mode, CamusDB fences a drop of a parent against a concurrent creation
 of a branch. The fence can fail to acquire, and its state can be indeterminate.
 The drop then fails closed, with a retryable error. CamusDB does not purge a
@@ -312,6 +324,7 @@ of those when you no longer need it.
 | `CADB0012` | `DatabaseAlreadyExists` | The name of the target branch exists already, and the statement holds no `IF NOT EXISTS`. |
 | `CADB0400` | `InvalidInput` | The source holds a change of its schema in flight. CamusDB also cannot acquire the hold on the snapshot. Another precondition of a branch or of a drop also fails. |
 | `CADB0508` | `DatabaseHasLiveDescendants` | A `DROP DATABASE` targets a database with a live descendant branch. |
+| `CADB0539` | `BranchSnapshotProtectionLost` | The snapshot hold that protected inherited branch data was removed, so CamusDB refuses ancestor reads instead of returning a possibly incomplete result. |
 
 ## Related pages
 

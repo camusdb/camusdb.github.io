@@ -224,14 +224,18 @@ coexist safely, because CamusDB treats the id as an opaque segment of the key.
 | Table schema history | `{databaseId}/meta/history:{tableId}:{version}` | An earlier schema version of the table. CamusDB uses it to decode an older row. |
 | DDL coordinator state | `{databaseId}/meta/coordinator:{tableId}~{element}` | The state of a schema change of several steps, such as the backfill of an index. |
 | Table statistics | `{databaseId}:stats:{tableId}` | The persisted statistics of the planner, for that table. |
-| Row | `{databaseId}:{tableId}:r/{rowId}` | The serialized bytes of the row. |
-| Unique index entry | `{databaseId}:{tableId}:i:{indexId}/{encodedKey}` | The row id, as UTF-8 text. |
-| Non-unique index entry | `{databaseId}:{tableId}:i:{indexId}/{encodedKey}{rowId}` | The row id, as UTF-8 text. |
+| Row | `{databaseId}:{tableId}\|r/{rowId}` | The serialized bytes of the row. |
+| Unique index entry | `{databaseId}:{tableId}\|i:{indexId}/{encodedKey}` | The row id, as UTF-8 text. |
+| Non-unique index entry | `{databaseId}:{tableId}\|i:{indexId}/{encodedKey}{rowId}` | The row id, as UTF-8 text. |
 
-The position of the slash is intentional. The row keys share the bucket
-`{databaseId}:{tableId}:r`. The index keys share the bucket
-`{databaseId}:{tableId}:i:{indexId}`. A scan, a write, and a range lock
-therefore align on the same routed key space.
+The position of the slash and the `|` separator is intentional. The row keys
+share the bucket `{databaseId}:{tableId}|r`. The index keys share the bucket
+`{databaseId}:{tableId}|i:{indexId}`. The part before the first `|` is the
+placement group. Under hash routing, a table's rows and its indexes share that
+group and therefore stay on the same partition.
+
+This key shape is part of the storage revision. Move data across storage
+revisions with a [logical dump and reimport](/docs/logical-dump-and-reimport).
 
 A metadata key uses the single bucket `{databaseId}/meta`. CamusDB can therefore
 load and purge the metadata of a database as one coherent group.
@@ -337,13 +341,13 @@ commit.
 A full table scan reads the prefix of the row bucket:
 
 ```text
-{databaseId}:{tableId}:r
+{databaseId}:{tableId}|r
 ```
 
 An index scan reads the prefix of the index bucket:
 
 ```text
-{databaseId}:{tableId}:i:{indexId}
+{databaseId}:{tableId}|i:{indexId}
 ```
 
 A row id and an encoded index key both preserve the sort order. CamusDB can

@@ -202,13 +202,20 @@ the build exists. The decision therefore uses the true count of the rows of the
 build. It does not use an estimate. A join that the optimizer expected to be
 small, and that is not small, simply probes locally.
 
-CamusDB uses a broadcast under four conditions:
+CamusDB uses a broadcast under these conditions:
 
-1. The distributed execution is on.
-2. The probe side is a plain base table of primary rows. It has a placement of
+1. The distributed execution is on, and `broadcast_join_max_build_rows` is above
+   `0`.
+2. The actual build side has at least one row and no more than
+   `broadcast_join_max_build_rows` rows.
+3. The probe side is a plain base table of primary rows. It has a placement of
    several spans, and at least one leader that is not local.
-3. The `ON` predicate is shippable under the rules above.
-4. The filter of the probe is shippable too.
+4. The transaction shape is safe to split into fragments. For example, CamusDB
+   does not broadcast a probe while a query is collecting result-cache
+   dependencies, folding reads through one session, or taking exclusive predicate
+   locks.
+5. The `ON` predicate is shippable under the rules above.
+6. The filter of the probe is shippable too.
 
 Every condition that fails leads to the ordinary local probe. A remote failure
 in the middle leads there as well. The output is identical in every case.

@@ -130,6 +130,25 @@ behind the committed schema head rejects a read and a DML statement for that
 database. It does so until it catches up. Treat that state as a temporary
 condition for a retry. It is not a silent mode of stale reads.
 
+## Schema freshness reconciliation
+
+Cluster nodes can miss a schema delta when a database is not open on that node,
+or during the brief gap between loading a schema checkpoint and subscribing to
+future schema entries. CamusDB repairs that case by comparing the in-memory
+schema version with the durable checkpoint version and reloading the schema when
+memory is behind.
+
+The repair runs in three places:
+
+- When a database opens, after the schema subscription is registered.
+- Before a `TableDoesntExist` error is returned, because a missed `CREATE
+  TABLE` can look like a missing table on one node.
+- On a periodic background sweep in cluster mode.
+
+The sweep interval is `schema_freshness_check_interval_ms`, default `10000`.
+Each tick costs one small KV read per open database when nothing is stale. Set
+the value to `0` or below to disable the sweep.
+
 ## The states of an online schema change
 
 CamusDB does not expose every schema change at one time. It uses staged online

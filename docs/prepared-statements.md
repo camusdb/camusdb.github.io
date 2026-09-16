@@ -88,10 +88,8 @@ The names do not travel on the wire, by design. Their removal is much of the
 purpose of the feature. A client that prefers a binding by name maps its own
 arguments onto the ordinals locally. It uses the published names for that map.
 
-The .NET client for gRPC does that work for you.
-`ExecuteQueryAsync(new { id, name })` binds by the name of a property. It
-ignores the case, and it accepts the name with or without the leading `@`. It
-then sends the ordinals.
+The .NET and TypeScript connectors do that work for you. A caller binds values
+by name, with or without the leading `@`, and the connector sends the ordinals.
 
 Two conditions are an error: a property that matches no parameter, and a
 parameter with no property. Neither one becomes a silent `NULL`. A spelling
@@ -171,6 +169,27 @@ A stream can fault, and the client can rebuild it. The handles of that stream
 die with it. The client notices this. It compares the transport identity of the
 registration immediately before a write. It then registers the statement again,
 without your help. A caller never sees an error about an unknown statement.
+
+### The TypeScript connector
+
+The TypeScript connector also hides prepared handles. It prepares repeated
+statements automatically and lets you prepare a hot statement explicitly:
+
+```ts
+await client.prepare('SELECT * FROM robots WHERE year = @year');
+
+client.isPrepared('SELECT * FROM robots WHERE year = @year');
+client.preparedStatementCount;
+```
+
+Parameters still bind by name:
+
+```ts
+await client.query('SELECT * FROM robots WHERE year = @year', { year: 1977 });
+```
+
+Set `maxAutoPrepare: 0`, or `MaxAutoPrepare=0` in a connection string, to turn
+automatic preparation off.
 
 ## REST
 
@@ -304,3 +323,4 @@ to a value that collides.
 - [gRPC API](/docs/grpc-api) for the protocol on the wire. That page includes
   the frames of `BatchExecute`, and the classes of a retry.
 - [.NET Driver](/docs/dotnet-driver) for the surface of the .NET client.
+- [TypeScript](/docs/typescript-connector) for the Node.js client.

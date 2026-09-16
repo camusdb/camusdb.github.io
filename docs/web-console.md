@@ -416,4 +416,5 @@ For a full logical backup, and for a dump of SQL that you can restore, use
 - [camus-dump](/docs/camus-dump)
 - [Authentication And Authorization](/docs/sql-authentication)
 - [Backup And Restore](/docs/backup-and-restore)
+- [TypeScript](/docs/typescript-connector)
 - [.NET Driver](/docs/dotnet-driver)

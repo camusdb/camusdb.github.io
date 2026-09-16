@@ -4,9 +4,8 @@ sidebar_position: 3.55
 
 # Authentication and authorization
 
-CamusDB can enforce SQL authentication and per-object authorization for an HTTP
-client and for a gRPC client. Authentication is off by default. An existing
-development deployment therefore continues to work until an operator enables
+CamusDB can enforce SQL authentication and per-object authorization for clients.
+Authentication is off by default. An existing development deployment therefore continues to work until an operator enables
 authentication.
 
 While authentication is enabled, CamusDB fails closed:
@@ -34,10 +33,10 @@ is not a secret. [TLS](#tls) covers it.
 | Environment variable | Required | Meaning |
 | --- | --- | --- |
 | `CAMUSDB_AUTH_ENABLED` | yes | Set it to `true` to enable authentication and authorization. Any other value keeps them disabled. |
-| `CAMUSDB_AUTH_TOKEN_KEY` | yes, while auth is enabled | The server-side key that applies an HMAC to the access-token secrets at rest. Use a long random value. Every node of the cluster must use the same value. |
+| `CAMUSDB_AUTH_TOKEN_KEY` | yes, while auth is enabled | The server-side key that applies an HMAC to the access-token secrets at rest. It must be at least 32 bytes. Use a random value such as `openssl rand -hex 32`. Every node of the cluster must use the same value. |
 | `CAMUSDB_BOOTSTRAP_USER` | at the first start with auth only | The name of the first superuser, used when the auth catalog is empty. |
 | `CAMUSDB_BOOTSTRAP_PASSWORD` | at the first start with auth only | The initial password of the bootstrap superuser. |
-| `CAMUSDB_NODE_SECRET` | in a cluster deployment with auth | The shared secret for the internal routes between nodes, used while auth is enabled. Every node of the cluster must use the same value. |
+| `CAMUSDB_NODE_SECRET` | in a cluster deployment with auth | The shared secret for the internal routes between nodes, used while auth is enabled. When set, it must be at least 32 bytes. Every node of the cluster must use the same value. |
 
 Here is an example:
 
@@ -56,6 +55,11 @@ At startup, three rules apply:
 2. Startup fails if the auth catalog is empty and the bootstrap values are
    absent.
 3. CamusDB ignores the bootstrap values as soon as one user exists.
+
+Startup also fails when `CAMUSDB_AUTH_TOKEN_KEY`, or a configured
+`CAMUSDB_NODE_SECRET`, is shorter than 32 bytes. An unset node secret remains a
+valid single-node configuration; it leaves peer routes refused instead of
+guarded by a weak shared secret.
 
 There is no default user, and there is no default password.
 
@@ -184,8 +188,9 @@ CREATE USER myapp IDENTIFIED BY 'app-password';
 CREATE USER IF NOT EXISTS myapp IDENTIFIED BY 'app-password';
 CREATE USER grant_target;
 
+ALTER USER admin IDENTIFIED BY 'new-password' REPLACE 'current-password';
+ALTER USER admin IDENTIFIED WITH sha256_password BY 'new-password' REPLACE 'current-password';
 ALTER USER myapp IDENTIFIED BY 'new-password';
-ALTER USER myapp IDENTIFIED WITH sha256_password BY 'new-password';
 
 DROP USER myapp;
 DROP USER IF EXISTS myapp;
@@ -201,11 +206,43 @@ Use a bound parameter for a password:
 
 ```camussql
 CREATE USER myapp IDENTIFIED BY @password;
-ALTER USER myapp IDENTIFIED BY @new_password;
+ALTER USER admin IDENTIFIED BY @new_password REPLACE @current_password;
 ```
 
 A parameter keeps a cleartext secret out of the shell history, out of the
 traces, and out of the query logs. A password has a maximum length of 1 KiB.
+Both password literals in an `ALTER USER ... REPLACE ...` statement are
+redacted from server logs.
+
+When a user changes their own password, the statement must include `REPLACE`
+with the current password. That rule applies to a superuser changing their own
+password too. A superuser can reset another user's password without knowing the
+old password. Any password change invalidates that user's existing tokens,
+including the token that made the request.
+
+### List accounts
+
+Use `SHOW USERS` to inventory the user catalog:
+
+```camussql
+SHOW USERS;
+SHOW USERS LIKE 'app_%';
+```
+
+The result has one row per account, ordered by user name:
+
+| Column | Meaning |
+| --- | --- |
+| `user` | Account name, in the case used at creation. |
+| `id` | Immutable account id, or `NULL` for older accounts created before ids existed. |
+| `superuser` | Whether the account bypasses privilege checks. |
+| `has_password` | Whether the account can log in. |
+| `grants` | Count of grant records held by the account. |
+| `created_at` | UTC creation time. |
+
+The output never includes password material: no hash, salt, iteration count, or
+algorithm. `SHOW USERS` requires a superuser because it names every account on
+the server.
 
 ## Grant privileges
 
@@ -220,11 +257,20 @@ GRANT ALL PRIVILEGES ON app.* TO poweruser;
 REVOKE INSERT ON app.* FROM myapp;
 
 SHOW GRANTS FOR myapp;
+SHOW GRANTS FOR *;
 SHOW GRANTS;
 ```
 
 `SHOW GRANTS FOR <user>` returns the grants of the named user. `SHOW GRANTS`
 without `FOR` returns the grants of the authenticated user.
+
+`SHOW GRANTS FOR *` returns all grants for all accounts, ordered by account name
+and object. An account with no grants produces no row; use `SHOW USERS` to list
+accounts themselves. The statement requires a superuser.
+
+With authentication enabled, reading another user's grants requires a
+superuser. A non-superuser can always inspect their own grants. A refused
+`SHOW GRANTS FOR <other>` does not reveal whether that user exists.
 
 CamusDB supports these privileges:
 
@@ -260,6 +306,35 @@ inherit the grants of the old table.
 `GRANT` never creates a user. It also cannot make a user a superuser. Only the
 bootstrap sets the superuser attribute.
 
+## Apply authorization changes
+
+Most privilege changes need no manual flush:
+
+```camussql
+FLUSH PRIVILEGES;
+FLUSH SESSIONS;
+```
+
+Both statements require a superuser and return no rows.
+
+Each node caches authorization decisions for at most the authorization cache TTL,
+which is 1 second by default. A `GRANT`, `REVOKE`, `DROP USER`, or password
+change applies to the next request on the node where it was made. Other nodes
+observe the change when their cached decision expires and they read the catalog
+again. Setting the TTL to `0` makes cross-node changes immediate at the cost of a
+catalog lookup on every request. Long-lived gRPC batch streams re-resolve
+authorization on the same schedule.
+
+`FLUSH PRIVILEGES` makes this node drop cached authorization decisions and
+re-read the user and grant catalog. It also advances a replicated coherence
+generation, so other nodes discard decisions derived from the older catalog
+within the same TTL bound. It does not revoke sessions or force clients to log in
+again.
+
+`FLUSH SESSIONS` deletes all stored sessions. Every client on every node must log
+in again. Use it when you need to invalidate credentials held outside the server,
+not after ordinary grant changes.
+
 ## Enforcement rules
 
 While auth is enabled, CamusDB checks every statement before it runs the
@@ -284,7 +359,19 @@ two separate grants.
 
 DDL needs the relevant DDL privilege, or superuser status. Two areas need a
 superuser: the administration of users and grants, and the DDL for the lifetime
-of a database.
+of a database. The HTTP routes `/create-db`, `/drop-db`, and `/close-db` also
+require a superuser.
+
+The typed gRPC rows API checks the table named by the request. `InsertRow` needs
+`INSERT`, `Query` and `QueryById` need `SELECT`, `UpdateRows` and `UpdateById`
+need `UPDATE`, and `DeleteRows` and `DeleteById` need `DELETE`.
+
+Cluster routes that expose topology or change cluster state require a superuser.
+`/v1/cluster/health` answers without a credential so an orchestrator can probe
+the node, but only a superuser sees detailed role, partition, and stalled-range
+fields. Membership, placement, backfill, snapshot, leave, and replication-factor
+routes are superuser-only; leave and replication-factor routes are loopback-only
+when authentication is off.
 
 Some statements open no table. Any authenticated user may run them. Examples are
 `SHOW TABLES`, `SHOW DATABASE`, and a `SELECT` without a `FROM` clause.
@@ -316,10 +403,12 @@ These defaults are security settings at process level:
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | Access token lifetime | 15 minutes | The absolute lifetime of a bearer token. |
-| Authorization cache TTL | 1 second | The maximum staleness of a cached snapshot of a token or a privilege, on one node. A revoke on another node takes effect inside this bound. |
+| Authorization cache TTL | 1 second | The maximum staleness of a cached token or privilege decision on another node. A change made on this node applies to the next request. |
 | Password hash iterations | 600,000 | The PBKDF2-HMAC-SHA256 work factor, stored with each credential. |
 | Login KDF concurrency | 8 | The maximum number of concurrent password verifications on one node. |
 | Login attempts per minute | 20 | The login rate limit, per account. |
+| Login attempts per source per minute | 200 | The login rate limit across all accounts from one source address. |
+| Session reaper interval | 5 minutes | How often expired dashboard and bearer-token sessions are deleted. |
 | Principal cache max entries | 10,000 | The bound of the cache of authenticated principals, on one node. |
 | TLS requirement | enabled | Refuse a plaintext request that carries a credential, except from loopback. Configure it as `require_tls_when_auth_enabled`, or as `--require-tls-when-auth-enabled true\|false`. |
 

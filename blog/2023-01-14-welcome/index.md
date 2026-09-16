@@ -31,6 +31,8 @@ Not because the world needs yet another database just for the sake of it, but be
 
 That is how CamusDB started.
 
+<!-- truncate -->
+
 I began working on it in 2021. At the beginning, it felt like a big experiment. As I kept going, I realized it was not just big; it was a huge endeavor. Building a database, especially a distributed SQL database, touches almost every hard problem in backend infrastructure.
 
 But that is also what makes it exciting.

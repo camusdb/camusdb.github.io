@@ -63,6 +63,14 @@ Read Committed gives up these properties:
 - Protection against write skew. Write skew is a fault in application code that
   reads a value, decides, and then writes.
 
+Under pessimistic Read Committed, a point read records the row revision it saw
+when the same transaction later writes that key; CamusDB refuses the write if
+another transaction committed a newer version in between. A range scan does not
+pin every scanned row. It returns each row's latest committed version as pages
+are read, which is the non-repeatable behavior this isolation level permits.
+`UPDATE` and `DELETE` still re-read the rows they modify under lock before
+writing.
+
 ## Read-only and read-write modes
 
 Serializable has two execution modes. Your choice between them matters more than
@@ -176,8 +184,8 @@ application to retry after these failures:
 - Expiry of the transaction lifetime.
 
 CamusDB does not replay an aborted multi-statement transaction for you. The
-client restarts from `BEGIN`. For single-statement autocommit work, the .NET
-client includes a retry helper. See
+client restarts from `BEGIN`. The .NET driver and the TypeScript connector
+include helpers for retryable units of work. See
 [Retries And Conflicts](/docs/serializable-retries) for the contract.
 
 One failure is not a signal to retry. `TransactionMutationLimitExceeded` means

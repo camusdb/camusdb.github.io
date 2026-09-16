@@ -13,7 +13,7 @@ work. Your application must replay the transaction.
 
 ## What causes a retry
 
-A retry follows one of these five conditions:
+A retry follows one of these conditions:
 
 - Another transaction wrote a key that conflicts.
 - A read dependency changed before the commit.
@@ -21,6 +21,8 @@ A retry follows one of these five conditions:
 - A transient condition stopped the transaction before its write. That condition
   can occur at the start, during the routing, at lock acquisition, or at the
   storage write.
+- In a cluster, a node could not reach the peer that owns a partition before the
+  server-side retry budget expired.
 - A read or scan reached a range whose current state could not be served before
   the server-side retry budget expired.
 - The transaction passed its lifetime deadline.
@@ -51,10 +53,12 @@ only safe rule is a restart of the whole transaction. For that reason, keep the
 body of the transaction self-contained. Keep it free of side effects that you
 cannot repeat.
 
-In .NET, `CamusDB.Client` provides
+The .NET driver provides
 `SerializableRetryHelper.ExecuteAutocommitAsync(...)` for single-statement work.
-The helper replays a retryable statement with backoff. An explicit transaction of
-several statements remains the responsibility of the application.
+The TypeScript connector provides `transaction(...)` and `withRetry(...)` for a
+repeatable unit of work. These helpers replay retryable work with backoff. An
+explicit transaction that you manage by hand remains the responsibility of the
+application.
 
 ## Retry an unresolved finalize
 

@@ -31,7 +31,7 @@ metrics, use [SHOW ENGINE STATS](/docs/engine-stats).
 | Column | Type | Meaning |
 | --- | --- | --- |
 | `relation` | `STRING` | Table name, or `table@index` for an index. |
-| `key_space` | `STRING` | Internal key-space prefix. |
+| `key_space` | `STRING` | Internal key-space prefix, such as `{databaseId}:{tableId}\|r` for table rows or `{databaseId}:{tableId}\|i:{indexId}` for an index. |
 | `routing` | `STRING` | `key_range` or `hash`, as this node routes it. |
 | `span` | `INT64` | 1-based position inside this key space. It is not a stable range id. |
 | `start_key` | `STRING` | Decoded lower bound. `NULL` means unbounded. |

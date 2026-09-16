@@ -15,11 +15,13 @@ disable it there:
 ```yaml
 grpc_enabled: true
 grpc_port: 5096
+grpc_certificate:
 ```
 
-CamusDB reuses a configured `raft_certificate` for the TLS of the listener of
-gRPC. Without that certificate, the listener uses HTTP/2 over plaintext. That
-form suits a local development, and a private network of a test.
+Set `grpc_certificate` to a PFX certificate for the client-facing gRPC
+listener. If it is empty, CamusDB reuses a configured `raft_certificate`.
+Without either certificate, the listener uses HTTP/2 over plaintext. That form
+suits local development and a private test network.
 
 While authentication is enabled, use the service `CamusAuth`. It exchanges a
 name of a user and a password for a bearer token. A client of gRPC then sends
@@ -70,7 +72,7 @@ the token before that deadline. Do not assume a fixed lifetime of a token.
 | RPC | Shape | Purpose |
 | --- | --- | --- |
 | `ExecuteQuery` | server stream | Execute `SELECT` and `SHOW`; emits schema first, then rows. |
-| `ExecuteNonQuery` | unary | Execute `INSERT`, `UPDATE`, or `DELETE`; returns affected rows. |
+| `ExecuteNonQuery` | unary | Execute `INSERT`, `UPDATE`, `DELETE`, and server-level account statements; returns affected rows. |
 | `ExecuteDdl` | unary | Execute database, table, index, and schema statements. |
 | `StartTransaction` | unary | Start an explicit transaction and receive a `TxnHandle`. |
 | `CommitTransaction` | unary | Commit an explicit transaction by handle. |
@@ -82,6 +84,16 @@ A client sends the parameters of the SQL as a `map<string, Value>`. Prefer a
 parameter to a value inside the string of the SQL. A typed value then crosses
 the wire without a loss. Four such types are `DATE`, `DATETIME`, `BYTES`, and
 `UUID`.
+
+Account statements such as `CREATE USER`, `ALTER USER`, `DROP USER`, `GRANT`,
+and `REVOKE` name their target in the SQL and do not need an open database.
+They can run through unary SQL calls or through `BatchExecute`; bind passwords
+as parameters so secrets do not appear in SQL text.
+
+SQL requests can also set `routing_accept_version` to opt in to advisory routing
+metadata. Set it to `1` when the client understands `RoutingAdvice`; leave it at
+`0` for the historical response shape. See
+[SQL Routing Advice](/docs/sql-routing-advice).
 
 ## Cancellation and backpressure
 
@@ -165,7 +177,8 @@ QueryStreamMessage(schema)
 QueryStreamMessage(row)
 QueryStreamMessage(row)
 ...
-QueryStreamMessage(cache_metadata)
+[QueryStreamMessage(cache_metadata)]
+[QueryStreamMessage(routing_advice)]
 ```
 
 The message of the schema always comes first. It appears exactly one time, even
@@ -179,6 +192,9 @@ type from the first value of a row that is not `NULL`.
 A query with a `{cache=...}` hint can add one message `cache_metadata`, after
 the last row. An absent message means that the statement carried no hint of the
 cache.
+
+A query that negotiated routing metadata can add one `routing_advice` message
+after the rows, and after cache metadata when both are present.
 
 ## Transactions
 
@@ -260,11 +276,13 @@ query_complete
 
 `query_complete` is the last message of that request. It carries the count of
 the rows, and the causal token. For a query with a `{cache=...}` hint, it also
-carries the verdict of the cache.
+carries the verdict of the cache. For a request that negotiated routing
+metadata, it can also carry advisory routing metadata.
 
 Four operations each emit one last response of a success: an operation without a
-query, a start, a commit, and a rollback. A failed operation emits one last
-`BatchError { code, message }`.
+query, a start, a commit, and a rollback. A non-query response can also carry
+advisory routing metadata when the request negotiated it. A failed operation
+emits one last `BatchError { code, message }`.
 
 Two operations that share a handle of a transaction keep their order, inside one
 stream of a batch. A client can use several streams of a batch. It must then put

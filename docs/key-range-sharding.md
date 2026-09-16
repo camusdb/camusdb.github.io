@@ -30,7 +30,7 @@ same key differently, so change it everywhere and restart.
 | Area | Hash routing | Key-range routing |
 | --- | --- | --- |
 | Table rows | One partition | One or more ranges |
-| Secondary indexes | One partition per index | Independent ranges per eligible index |
+| Secondary indexes | The same partition as the table's rows | Independent ranges per eligible index |
 | Range locks | Cover the whole key space | Clipped to the ranges touched |
 | Scans | One partition answers | All intersecting ranges answer and merge in key order |
 | Splitting | Not applicable | Ranges can split on size or load |
@@ -130,6 +130,23 @@ of being routed to the wrong owner:
 
 Autocommit work retries boundedly. A multi-statement explicit transaction must
 restart from `BEGIN`.
+
+## Remote query fragments
+
+When a scan spans ranges owned by other partitions, the coordinator sends remote
+fragments to peer nodes over the internal `/internal/query-fragment` route. The
+route is authenticated with the shared node secret when authentication is enabled.
+
+Peers can stream fragment rows in two formats:
+
+- NDJSON, one JSON object per line, with row bytes encoded as base64.
+- Binary fragment frames, with row bytes carried directly.
+
+The coordinator asks for the binary format when it supports it. An older peer can
+ignore that request and answer with NDJSON, and an older coordinator never asks
+for binary frames. That makes rolling upgrades safe. Both formats stream rows as
+they survive the peer-side filter; the binary format only removes base64 overhead
+on row-heavy scans.
 
 ## Related
 

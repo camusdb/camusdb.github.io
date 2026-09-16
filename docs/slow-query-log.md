@@ -65,7 +65,7 @@ Rows come back newest first.
 | `outcome` | `STRING` | `completed`, `abandoned`, or `failed`. |
 | `error_code` | `STRING` | Error code for failed statements. |
 | `truncated` | `BOOL` | Whether the stored SQL was shortened. |
-| `sql` | `STRING` | Statement text, up to `slow_query_log_max_sql_length`. |
+| `sql` | `STRING` | Statement text, with password literals redacted, up to `slow_query_log_max_sql_length`. |
 
 ## Read the result
 
@@ -85,6 +85,11 @@ inspect the plan with `EXPLAIN`.
 
 `SHOW SLOW QUERIES` is never recorded in the slow query log. A dashboard or SQL
 client that polls the log therefore does not erase the history it is reading.
+
+Password literals in `CREATE USER ... IDENTIFIED BY ...` and `ALTER USER ...
+IDENTIFIED BY ... REPLACE ...` are replaced with `'***'` before an entry is
+stored. A password passed as a bound parameter never appears in the statement
+text in the first place.
 
 ## Dashboard
 

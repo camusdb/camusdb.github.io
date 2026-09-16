@@ -211,6 +211,10 @@ A restore is offline. Follow this sequence:
    `{targetDir}/wal`. The target is therefore already a complete data directory,
    and a server can boot from it. You need to move no file by hand. Keep the
    same `kahuna.storage` value and the same revision settings as the backup.
+   A physical backup is bound to the storage revision that produced it. To move
+   data across storage revisions, restore with the CamusDB version that took
+   the backup, then use a
+   [logical dump and reimport](/docs/logical-dump-and-reimport).
 
 4. In a cluster, the restored node holds the data of the restore point. Ordinary
    Raft replication brings it up to date after it rejoins. Recovery of a whole

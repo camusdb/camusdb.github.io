@@ -88,6 +88,9 @@ These options are common:
 | `--tables` | `1` | Number of workload tables. More than one spreads rows across `workload_accounts_00`, `workload_accounts_01`, and so on. |
 | `--payload-bytes` | `256` | The size of the string of the payload, for each row. |
 | `--no-auto-prepare` | `false` | Add `MaxAutoPrepare=0` to each connection string. |
+| `--connection-options` | none | Append extra connection-string pairs verbatim to every setup, read, and write connection, such as `CoalescingDelay=0;ChannelPoolSize=4`. Recorded in `manifest.json`; runs that differ here are not directly comparable. |
+| `--routing-mode` | driver default | Learned statement routing mode: `Off`, `Learned`, or `Auto`. When omitted, the driver default is `Auto`. |
+| `--routing-nodes` | none | Trust map from server node identities to endpoint pool members, such as `node-a:7070=http://a:5095,node-b:7070=http://b:5095`. |
 | `--request-timeout` | client default | Per-request timeout in seconds. |
 
 ## Run
@@ -152,6 +155,9 @@ These are the options of a run:
 | `--workload` | `accounts` | Write shape: `accounts`, `bank`, or `fanout`. |
 | `--expect-faults` | `false` | Treat conflicts and open-loop pacing shortfalls as validity warnings for chaos runs. |
 | `--reconcile-timeout` | `600` | Seconds reconciliation keeps retrying while a cluster settles. |
+| `--reconcile-request-timeout` | `120` | Per-request timeout in seconds for setup and reconciliation reads. Separate from `--request-timeout`, which should stay tuned for measured point operations. |
+| `--scan-probe-interval` | `off` | Run `SELECT COUNT(*)` against each gateway during the measured window at the given interval, such as `5s`. A low count fails the run, and a failed probe fails unless `--expect-faults` is set. |
+| `--scan-probe-timeout` | `60` | Per-request timeout in seconds for scan-probe connections. |
 | `--no-row-attribution` | `false` | For transfer workloads, skip per-row balance/version attribution and verify the aggregate sum only. |
 
 The default `accounts` workload divides writers so two independent workers do
@@ -175,12 +181,20 @@ A successful run writes six files:
 
 | File | Contents |
 | --- | --- |
-| `manifest.json` | The version of the tool, the endpoint, the protocol, the shape of the workload, the runtime, and the fingerprint of the data set. |
+| `manifest.json` | The version of the tool, the endpoint, the protocol, the requested routing mode, trust map, connection-string options, the shape of the workload, the runtime, and the fingerprint of the data set. |
 | `summary.json` | A summary of the throughput, of the latency, of the errors, and of the validity, for a machine. |
 | `summary.md` | A summary of the run, for a person. |
 | `intervals.csv` | The samples of each second: the offered operations, the started operations, the completed operations, the failed operations, the operations in flight, and the latency. |
-| `errors.json` | The counts of the errors, and some sampled messages, in a group for each code of an error. |
+| `errors.json` | Error counts by code, sampled messages, and message-shape classes for each code. |
 | `reconciliation.json` | The verification of the correctness, for the committed writes and for the final versions of the rows. |
+
+When `--scan-probe-interval` is enabled, the run also writes `scan-probe.csv`
+with the in-window scan results.
+
+The `classes` section in `errors.json` groups messages that differ only by ids,
+counts, revisions, or endpoint details. It helps separate distinct failure
+causes that share one CamusDB error code without storing an unbounded set of raw
+messages.
 
 The process exits with a code above zero in two cases: the run is invalid, and
 the reconciliation fails.

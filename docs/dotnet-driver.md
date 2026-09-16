@@ -54,6 +54,10 @@ Supported keys:
 | `CoalescingDelay` | No | gRPC only: milliseconds to wait for a larger batch. Defaults to `2`; `0` disables coalescing. |
 | `BackupEndpoint` | No | HTTP endpoint for the backup admin API. Defaults to `Endpoint`; required when `Protocol=grpc`. |
 | `BackupTimeout` | No | Backup admin timeout in seconds. Defaults to `300`. |
+| `AllowInsecureCredentials` | No | Set `true` to allow credentials over a non-loopback plaintext endpoint. Use only when another trusted layer protects that hop. |
+| `RoutingMode` | No | Learned statement routing: `Auto`, `Learned`, or `Off`. Defaults to `Auto`. |
+| `RoutingNodes` | No | Trust map from server node identities to addresses already listed in `Endpoint`. Quote the value because it contains `=`. |
+| `RoutingMaxHintAge` | No | Maximum age, in milliseconds, for a learned route. Defaults to `5000`. |
 
 `Endpoint` can also be a comma-separated pool:
 
@@ -65,6 +69,16 @@ The client uses each endpoint in turn. When a transport request cannot reach an
 endpoint, the driver sets that endpoint aside for 30 seconds and skips it
 meanwhile. The rotation and health state are shared by every connection that
 uses the same `Endpoint` value.
+
+Connection string keys are case-insensitive and trimmed. Repeating a key is an
+error. Quote a value with single or double quotes when it contains a semicolon
+or surrounding spaces; double the quote character to include the quote itself.
+
+`CamusConnectionStringBuilder.ToString()` returns the original connection string,
+including credentials. Use `ToRedactedString()` or
+`CamusConnectionStringBuilder.Redact(...)` for logs. They mask `Password`, `Pwd`,
+and `AccessToken`. A `CamusConnection` keeps the connection string it was built
+from; assigning a different value later throws `NotSupportedException`.
 
 ## Transport
 
@@ -89,6 +103,40 @@ statements fan out across the pool. A transaction is pinned to one stream so
 the server observes its operations in order. Tune the pool with
 `ChannelPoolSize`, `CoalescingThreshold`, and `CoalescingDelay` only when a
 measured workload needs it.
+
+## Learned routing
+
+A CamusDB server can attach advisory routing metadata to a successful SQL
+response. With learned routing enabled, the .NET driver uses that metadata to
+send later executions of the same statement directly to the node that leads the
+statement's data. This is a latency optimization only. The server still executes
+correctly wherever the request lands.
+
+```csharp
+CamusConnectionStringBuilder builder = new(
+    "Endpoint=http://a:5095,http://b:5095,http://c:5095;Database=test;RoutingMode=Learned;" +
+    "RoutingNodes='camus-a:7070=http://a:5095,camus-b:7070=http://b:5095,camus-c:7070=http://c:5095'");
+```
+
+`RoutingNodes` is the routing authority. The server advertises an opaque node
+identity. The driver uses it only when the connection string maps that identity
+to an address that is also present in the `Endpoint` pool. It never dials an
+address supplied by a server response.
+
+`RoutingMode=Auto` is the default. It negotiates routing advice only when
+`RoutingNodes` names at least two distinct endpoints. `RoutingMode=Learned`
+negotiates when at least one identity is mapped. `RoutingMode=Off` disables the
+feature and keeps endpoint rotation only.
+
+The driver learns routes per database, exact SQL text, and statement kind. The
+TTL is the smaller of the server's `maxAgeMs` and `RoutingMaxHintAge`. The cache
+is bounded, and stale advice only costs an extra forwarding hop until it expires
+or a newer response replaces it. Parameterized and prepared workloads benefit
+the most because they reuse the same SQL text.
+
+`CamusCommand.LastRoutingAdvice` exposes the most recent advice for diagnostics.
+The eligible statements and the wire contract are described in
+[SQL Routing Advice](/docs/sql-routing-advice).
 
 ## Authentication
 
@@ -130,8 +178,11 @@ that token. The server returns a `CADB0516` after the token expires, and after
 somebody revokes it.
 
 Use an `https://` address for a deployment with authentication, outside
-loopback. See [Authentication And Authorization](/docs/sql-authentication) for
-the setup of the server, for the grants, and for the behavior of TLS.
+loopback. The driver refuses to send `Password` or `AccessToken` credentials to
+a remote plaintext endpoint unless the connection string sets
+`AllowInsecureCredentials=true`. See
+[Authentication And Authorization](/docs/sql-authentication) for the setup of
+the server, for the grants, and for the behavior of TLS.
 
 ## Open a connection
 
@@ -621,6 +672,7 @@ transaction:
 | `IsolationLevel` | `Serializable`, `ReadCommitted` | server default, `Serializable` |
 | `Mode` | `ReadWrite`, `ReadOnly` | `ReadWrite` |
 | `Locking` | `Pessimistic`, `Optimistic` | server default, `Pessimistic` |
+| `Affinity` | exact SQL text of a statement with a learned route | `null` |
 
 ```csharp
 CamusTransaction tx = await connection.BeginTransactionAsync(
@@ -647,6 +699,20 @@ Endpoint=http://localhost:5095;Database=test;IsolationLevel=Serializable;Locking
 
 Precedence is: per-transaction options, then connection-string defaults, then
 the server default.
+
+With learned routing enabled, `BeginTransactionAsync()` can defer `BEGIN` until
+the first statement. The driver then starts the transaction on that statement's
+learned endpoint, and every later statement plus commit or rollback remains
+pinned there. If no route has been learned, it falls back to endpoint rotation.
+
+Use `CamusTransactionOptions.Affinity` when a later, hotter statement should
+choose the transaction endpoint. The value must be the exact SQL text whose
+route should be used. With `RoutingMode=Off`, `BeginTransactionAsync()` sends
+`BEGIN` immediately as before.
+
+In routed mode, `TxnIdPT`, `TxnIdCounter`, and `TransactionId` are zero until
+the transaction starts. Use `IsStarted` when a diagnostic path needs to
+distinguish a deferred transaction from one that already has a server handle.
 
 ## Serializable retries
 

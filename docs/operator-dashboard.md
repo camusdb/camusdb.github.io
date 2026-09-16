@@ -52,7 +52,16 @@ does not stop the rest of the page.
 
 With authentication enabled, a browser at `/` redirects to `/SignIn`. The form
 exchanges the password for a short-lived token and stores it in an HTTP-only
-`camus_session` cookie for dashboard routes.
+`__Host-camus_session` cookie for dashboard routes.
+
+The cookie is `HttpOnly`, `SameSite=Strict`, and always `Secure`. The `__Host-`
+prefix also requires `Path=/` and no `Domain`, so another host on the same
+registrable domain cannot write a cookie that this dashboard reads.
+
+Because the cookie is always `Secure`, the dashboard needs HTTPS or loopback
+when authentication is enabled. Browsers treat loopback as a secure context, so
+local development still works. A plaintext remote connection cannot keep the
+cookie and therefore cannot complete sign-in.
 
 The cookie authenticates dashboard pages and `/v1/dashboard/*` only. SQL and row
 APIs still require an `Authorization: Bearer ...` header.
@@ -60,13 +69,24 @@ APIs still require an `Authorization: Bearer ...` header.
 With authentication disabled, the dashboard is loopback-only because there is no
 principal to check. Enable authentication to expose it from another machine.
 
+## Browser security headers
+
+Dashboard pages and the error page include a content security policy,
+`X-Frame-Options: DENY`, and `X-Content-Type-Options: nosniff`. JSON endpoints
+do not carry the page policy.
+
+The content security policy allows inline scripts only with a per-request
+nonce. Add dashboard scripts and styles as static files under `wwwroot` instead
+of inlining them.
+
 ## Permissions
 
-Non-superusers can open the dashboard, but three panels require a superuser:
+Non-superusers can open the dashboard, but four panels require a superuser:
 
 - Engine, because it runs `SHOW ENGINE STATS`.
 - Configuration, because it runs `SHOW VARIABLES` and `SHOW CLUSTER SETTINGS`.
 - Slow queries, because entries include SQL text submitted by other users.
+- Cluster, because it names peer endpoints, partitions, and leaders.
 
 Other panels use the caller's ordinary grants. The database list is filtered to
 databases that the user may reach.

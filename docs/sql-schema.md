@@ -59,6 +59,9 @@ CREATE TABLE app_users (
 );
 ```
 
+Columns that belong to a primary key are always `NOT NULL`. CamusDB records that
+nullability even when the column definition omits the words `NOT NULL`.
+
 Use a `CHECK` constraint when a column or a row must satisfy a predicate. The
 predicate applies before an insert, and before an update:
 

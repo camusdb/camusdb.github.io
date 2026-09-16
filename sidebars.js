@@ -158,6 +158,11 @@ const sidebars = {
             },
             {
               type: 'doc',
+              id: 'sql-routing-advice',
+              label: 'SQL routing advice',
+            },
+            {
+              type: 'doc',
               id: 'distributed-queries',
               label: 'Distributed queries',
             },
@@ -228,6 +233,11 @@ const sidebars = {
               id: 'backup-and-restore',
               label: 'Backup and restore',
             },
+            {
+              type: 'doc',
+              id: 'logical-dump-and-reimport',
+              label: 'Logical dump and reimport',
+            },
           ],
         },
         {
@@ -296,6 +306,11 @@ const sidebars = {
         'camus-dump',
         'workload-utility',
         'caraxes',
+        {
+          type: 'doc',
+          id: 'typescript-connector',
+          label: 'TypeScript',
+        },
         {
           type: 'category',
           label: '.NET',

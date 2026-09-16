@@ -131,6 +131,23 @@ WHERE year IN (2020, 2022, 2024);
 That plan helps most when an index covers the target column, and when the list
 of the values is small or of a moderate size.
 
+### Type matching for index predicates
+
+The planner compares index predicates using the type of the target column. A
+numeric literal is normalized to the column type before CamusDB decides whether
+an index can serve the predicate. Text literals are also converted for `OID` and
+`UUID` columns when the literal is valid for that type.
+
+This matters most for prepared or generated SQL, where the same comparison can
+arrive with a literal shape that differs from the stored type. A query over an
+`INT64` column can still use the `INT64` index when the literal was parsed from
+SQL text, and an `OID` or `UUID` predicate can use its native index when the
+literal is valid text for that value.
+
+`NULL` remains a SQL value with three-valued logic. A range predicate whose bound
+is `NULL` cannot drive a normal ordered seek, and the planner keeps the
+remaining condition as a filter when that is what SQL semantics require.
+
 ### A residual filter
 
 An index can cover part of a predicate only. CamusDB then scans with the index.
@@ -201,6 +218,12 @@ SELECT *
 FROM robots
 WHERE year >= 2020;
 ```
+
+A unique composite index is a point lookup only when the predicate fixes all key
+columns that are needed to guarantee one row. If trailing key columns can be
+`NULL`, CamusDB does not treat an incomplete prefix as unique. The planner then
+chooses a bounded scan or a different path instead of making a one-row promise
+that nullable SQL values do not support.
 
 ## The statistics, and the cost-based optimizer
 
@@ -388,6 +411,11 @@ An index on `posts(user_id)` is far more useful than an unrelated index on
 
 A hash join materializes the side that the estimate calls smaller, into a hash
 table in memory. It streams the other side as the probes.
+
+In a cluster with [distributed queries](/docs/distributed-queries) enabled, a
+hash join can broadcast a small build side to the leaders of the probe table's
+ranges. That keeps the larger probe scan near the data while preserving the same
+result as a local probe.
 
 The build side can exceed the configured limit of a hash join. CamusDB can then
 use [spill to disk](/docs/spill-to-disk). It divides the join, and it keeps the

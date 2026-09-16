@@ -226,6 +226,9 @@ ALTER TABLE employees ALTER COLUMN name SET NOT NULL;
 ALTER TABLE employees ALTER COLUMN name DROP NOT NULL;
 ```
 
+You cannot drop `NOT NULL` from a column while that column belongs to the primary
+key. Drop or change the primary key first.
+
 `SET NOT NULL` scans the table first. An existing row can hold a `NULL` in the
 target column. CamusDB then rejects the schema change, with `CADB0301
 NotNullViolation`.

@@ -192,7 +192,7 @@ function HomepageHeader() {
               <span className={styles.eyebrow}>Open-source distributed SQL</span>
             </div>
             <Heading as="h1" className={styles.title}>
-              Scale without giving up transactions
+              Scale with your traffic, without giving up transactions
             </Heading>
             <p className={styles.subtitle}>
               CamusDB partitions data, routes writes through Raft, and runs

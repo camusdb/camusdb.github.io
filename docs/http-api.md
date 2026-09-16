@@ -332,6 +332,10 @@ Response:
 }
 ```
 
+Set `routingAcceptVersion: 1` on the request to opt in to advisory routing
+metadata. An eligible response then includes an optional `routing` object. See
+[SQL Routing Advice](/docs/sql-routing-advice).
+
 This endpoint supports a read with time travel, through an `AS OF SYSTEM TIME`.
 The statement must be a read-only `SELECT`, in autocommit mode:
 
@@ -427,6 +431,10 @@ Response:
   "rows": 1
 }
 ```
+
+Set `routingAcceptVersion: 1` on the request to opt in to advisory routing
+metadata. An eligible response then includes an optional `routing` object. See
+[SQL Routing Advice](/docs/sql-routing-advice).
 
 ## Prepared statements
 
@@ -689,3 +697,9 @@ transaction.
 
 Do not start a fresh transaction, and do not replay the statements. The original
 commit may have succeeded already, on the server.
+
+`ROLLBACK` is idempotent by transaction id. If the transaction was already
+rolled back and the server no longer tracks it, the rollback request succeeds as
+a no-op. If a commit or rollback is still in progress for the same id, CamusDB
+returns `CADB0501` `TransactionAlreadyCompleted` instead of guessing the
+outcome.

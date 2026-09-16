@@ -30,15 +30,19 @@ maps a SQL operation onto a Kahuna transaction.
 
 CamusDB encodes a row and an index as a deterministic key:
 
-- A primary row is `{databaseId}:{tableId}:r/{rowId}`.
-- A unique index entry is `{databaseId}:{tableId}:i:{indexId}/{value}`.
+- A primary row is `{databaseId}:{tableId}|r/{rowId}`.
+- A unique index entry is `{databaseId}:{tableId}|i:{indexId}/{value}`.
 - A non-unique index entry is
-  `{databaseId}:{tableId}:i:{indexId}/{value}{rowId}`.
+  `{databaseId}:{tableId}|i:{indexId}/{value}{rowId}`.
 - The schema metadata is `{databaseId}/meta/...`.
 
 A database id and a table id are stable identities in the storage. You can
 rename a SQL object without a rewrite of every row, because the keys of the rows
 and of the indexes use the ids.
+
+The part of a row or index key space before the first `|` is the placement
+group. Under hash routing, Kahuna hashes that group, so a table's rows and all
+of its indexes live on the same partition.
 
 That layout matters for five mechanisms:
 

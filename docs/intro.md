@@ -33,7 +33,9 @@ CamusDB includes these capabilities:
   table.
 - Several interfaces: [`camus-cli`](/docs/camus-cli), a
   [web console](/docs/web-console), an [HTTP API](/docs/http-api), a
-  [gRPC API](/docs/grpc-api), a [driver for .NET](/docs/dotnet-driver), a
+  [gRPC API](/docs/grpc-api), a
+  [TypeScript connector](/docs/typescript-connector), a
+  [driver for .NET](/docs/dotnet-driver), a
   [provider for EF Core](/docs/ef-core), and a
   [server for the Model Context Protocol](/docs/mcp-server).
 
