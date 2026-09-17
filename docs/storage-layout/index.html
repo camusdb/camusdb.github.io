@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en" dir="ltr" class="docs-wrapper plugin-docs plugin-id-default docs-version-current docs-doc-page docs-doc-id-storage-layout" data-has-hydrated="false">
+<head>
+<meta charset="UTF-8">
+<meta name="generator" content="Docusaurus v3.10.2">
+<title data-rh="true">Large Values | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/storage-layout/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Large Values | CamusDB"><meta data-rh="true" name="description" content="CamusDB can store large STRING, BYTES/BLOB, and ARRAY values in a"><meta data-rh="true" property="og:description" content="CamusDB can store large STRING, BYTES/BLOB, and ARRAY values in a"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/storage-layout/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/storage-layout/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/storage-layout/" hreflang="x-default"><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
+<link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.a54ad7a9.css">
+<script src="/assets/js/runtime~main.f3e11878.js" defer="defer"></script>
+<script src="/assets/js/main.7f6b4921.js" defer="defer"></script>
+</head>
+<body>
+<svg style="display: none;"><defs>
+<symbol id="theme-svg-external-link" viewBox="0 0 24 24"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
+</defs></svg>
+<script>!function(){var t=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();document.documentElement.setAttribute("data-theme",t||"light"),document.documentElement.setAttribute("data-theme-choice",t||"light")}(),function(){try{const c=new URLSearchParams(window.location.search).entries();for(var[t,e]of c)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="theme-layout-navbar navbar navbar--fixed-top"><div class="navbar__inner"><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/"><div class="navbar__logo"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">CamusDB</b></a><a class="navbar__item navbar__link" href="/docs/intro/">Docs</a><a class="navbar__item navbar__link" href="/blog/">Blog</a></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"></path></svg></button></div><div class="navbarSearchContainer_Bca1"></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class="docsWrapper_hBAB"><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type="button"></button><div class="docRoot_UBD9"><main class="docMainContainer_TBSr docMainContainerEnhanced_lQrH"><div class="container padding-top--md padding-bottom--lg"><div class="row"><div class="col docItemCol_VOVn"><div class="docItemContainer_Djhp"><article><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type="button" class="clean-btn tocCollapsibleButton_TO0P">On this page</button></div><div class="theme-doc-markdown markdown"><header><h1>Large Values</h1></header>
+<p>CamusDB can store large <code>STRING</code>, <code>BYTES</code>/<code>BLOB</code>, and <code>ARRAY</code> values in a
+TOAST-style physical form: compressed, stored outside the row, or both. The
+query result is unchanged. The feature changes the physical bytes CamusDB keeps,
+the I/O a query performs, and the size of each stored row version.</p>
+<p>Use it for document bodies, JSON text, images, archives, and other large cells
+that do not belong in every row read. Avoid it for values that a query must read
+for every row, such as embeddings scanned by an exact vector search.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-it-exists">Why It Exists<a href="#why-it-exists" class="hash-link" aria-label="Direct link to Why It Exists" title="Direct link to Why It Exists" translate="no">​</a></h2>
+<p>CamusDB stores each row as a key/value entry. A row is also the unit of
+multi-version storage. When one row carries a large value, two costs show up:</p>
+<ul>
+<li class="">A query that reads only small columns still pulls the large value from storage.</li>
+<li class="">An update to a small column rewrites the whole row and stores another large
+version of the value.</li>
+</ul>
+<p>Out-of-line storage moves the large value under its own key. The row keeps a
+small pointer. A query that does not read the large column does not fetch the
+value, and an update that does not change the large column does not rewrite it.
+Compression reduces the stored size when the value compresses enough to be worth
+the CPU.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="storage-strategies">Storage Strategies<a href="#storage-strategies" class="hash-link" aria-label="Direct link to Storage Strategies" title="Direct link to Storage Strategies" translate="no">​</a></h2>
+<p>Each <code>STRING</code>, <code>BYTES</code>/<code>BLOB</code>, and <code>ARRAY</code> column has a storage strategy.</p>
+<table><thead><tr><th>Strategy</th><th>Compresses</th><th>Stores out of line</th><th>Use it for</th></tr></thead><tbody><tr><td><code>EXTENDED</code></td><td>Yes, when it saves enough</td><td>Yes, at or above the threshold</td><td>Default. Text, JSON, documents, and most large columns.</td></tr><tr><td><code>MAIN</code></td><td>Yes, when it saves enough</td><td>Never</td><td>Compressible values that most queries read.</td></tr><tr><td><code>EXTERNAL</code></td><td>Never</td><td>Yes, at or above the threshold</td><td>Images, archives, and incompressible large values that most queries skip.</td></tr><tr><td><code>PLAIN</code></td><td>Never</td><td>Never</td><td>Values every query reads, such as KNN embeddings.</td></tr></tbody></table>
+<p>Set a strategy when you create the column:</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">TABLE</span><span class="token plain"> docs </span><span class="token punctuation" style="color:#393A34">(</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  id </span><span class="token builtin class-name">OID</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">PRIMARY</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">KEY</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  title </span><span class="token builtin class-name">STRING</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  body </span><span class="token builtin class-name">STRING</span><span class="token plain"> STORAGE EXTENDED</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  thumbnail </span><span class="token builtin class-name">BYTES</span><span class="token plain"> STORAGE EXTERNAL</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  embedding </span><span class="token builtin class-name">BYTES</span><span class="token punctuation" style="color:#393A34">(</span><span class="token number" style="color:#36acaa">3072</span><span class="token punctuation" style="color:#393A34">)</span><span class="token plain"> STORAGE PLAIN</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token punctuation" style="color:#393A34">)</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
+<p>Change it later:</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">ALTER</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">TABLE</span><span class="token plain"> docs </span><span class="token keyword" style="color:#00009f">ALTER</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">COLUMN</span><span class="token plain"> thumbnail </span><span class="token keyword" style="color:#00009f">SET</span><span class="token plain"> STORAGE PLAIN</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
+<p><code>SHOW CREATE TABLE</code> shows strategies that were set explicitly. A strategy on a
+column without a variable-length value is rejected with <code>CADB0414</code>
+<code>ColumnStorageNotApplicable</code>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-values-are-stored">How Values Are Stored<a href="#how-values-are-stored" class="hash-link" aria-label="Direct link to How Values Are Stored" title="Direct link to How Values Are Stored" translate="no">​</a></h2>
+<p>When CamusDB writes a non-null <code>STRING</code>, <code>BYTES</code>/<code>BLOB</code>, or <code>ARRAY</code> value, it
+applies these steps:</p>
+<ol>
+<li class="">Encode the value to raw bytes.</li>
+<li class="">If the strategy allows compression and the encoded value is at least 256
+bytes, try LZ4 compression.</li>
+<li class="">Keep the compressed form only when it saves at least
+<code>large_value_compression_min_saving_percent</code>, 12 percent by default.</li>
+<li class="">If the strategy allows out-of-line storage, compare the stored form with
+<code>large_value_threshold_bytes</code>, 2048 bytes by default.</li>
+<li class="">Store the value outside the row when it is at or above the threshold. Store a
+pointer in the row. Otherwise keep the value inside the row.</li>
+</ol>
+<p>Compression runs before the out-of-line decision. A text value that compresses
+below the threshold stays inside the row, so reading that column costs no second
+key lookup.</p>
+<p>Reads do not consult the current setting values or the current column strategy.
+Each stored row records whether its variable-length cells are compressed or
+out-of-line. Changing settings or a column strategy therefore cannot make
+existing rows unreadable.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="query-and-write-cost">Query And Write Cost<a href="#query-and-write-cost" class="hash-link" aria-label="Direct link to Query And Write Cost" title="Direct link to Query And Write Cost" translate="no">​</a></h2>
+<ul>
+<li class="">A query that does not name an out-of-line column does not fetch its value.</li>
+<li class=""><code>SELECT *</code> names every column, so it fetches every out-of-line value.</li>
+<li class="">A query that reads an out-of-line column fetches values in batches, not one
+key at a time per row.</li>
+<li class="">A compressed value is decompressed only when the query reads that column.</li>
+<li class="">An update that does not assign a large column, and does not use it in an index
+or a <code>CHECK</code> constraint, does not fetch or rewrite that value.</li>
+</ul>
+<p>The first update of an old row may rewrite the row into the current layout. For
+example, a row written before an <code>ADD COLUMN</code>, <code>DROP COLUMN</code>, or storage-strategy
+change can be decoded and written once in the new physical form.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="transaction-limits">Transaction Limits<a href="#transaction-limits" class="hash-link" aria-label="Direct link to Transaction Limits" title="Direct link to Transaction Limits" translate="no">​</a></h2>
+<p>Each out-of-line value is one extra key and therefore one extra mutation. An
+insert or delete of a row with <code>k</code> out-of-line values costs <code>k</code> more mutations
+than the same row stored inline.</p>
+<p>For a table with a primary key, no secondary index, and four large columns stored
+out of line, each inserted row costs:</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">row + primary-key entry + 4 large values = 6 mutations</span><br></div></code></pre></div></div>
+<p>With the default <code>max_mutations_per_transaction</code> of 20,000, one statement can
+insert 3,333 such rows. See <a class="" href="/docs/transaction-limits/">Transaction Limits</a>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="settings">Settings<a href="#settings" class="hash-link" aria-label="Direct link to Settings" title="Direct link to Settings" translate="no">​</a></h2>
+<p>These settings control the default physical form of newly written rows and the
+batching of reads and rewrites.</p>
+<table><thead><tr><th>Setting</th><th>Default</th><th>Meaning</th></tr></thead><tbody><tr><td><code>large_value_threshold_bytes</code></td><td><code>2048</code></td><td>Stored size at or above which a value moves out of the row. <code>&lt;= 0</code> keeps new values inline.</td></tr><tr><td><code>large_value_compression_enabled</code></td><td><code>true</code></td><td>Whether new writes may compress values. Reads ignore this setting.</td></tr><tr><td><code>large_value_compression_min_saving_percent</code></td><td><code>12</code></td><td>Minimum saving required to keep a compressed value.</td></tr><tr><td><code>large_value_rewrite_batch_rows</code></td><td><code>200</code></td><td>Rows per transaction for <code>ALTER TABLE ... REWRITE STORAGE</code>. At most half of <code>max_mutations_per_transaction</code>.</td></tr><tr><td><code>large_value_resolve_batch_bytes</code></td><td><code>67108864</code></td><td>Decoded bytes of compressed and out-of-line values one read or rewrite batch resolves at a time. <code>&lt;= 0</code> removes the bound.</td></tr></tbody></table>
+<p>A setting change does not rewrite existing data. It applies to rows written
+after the change.</p>
+<p><code>large_value_resolve_batch_bytes</code> changes memory use and the number of batched
+fetches. It does not change query results. A single row larger than the bound is
+read alone.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="existing-data">Existing Data<a href="#existing-data" class="hash-link" aria-label="Direct link to Existing Data" title="Direct link to Existing Data" translate="no">​</a></h2>
+<p>Rows written before this feature are inline and uncompressed. They stay readable
+without operator action. Migration is an optimization, not a requirement.</p>
+<p>Existing data reaches the new physical form in three ways:</p>
+<ul>
+<li class="">New inserts and updates write rows under the current rules.</li>
+<li class=""><code>ALTER TABLE ... ALTER COLUMN ... SET STORAGE</code> changes future writes only.</li>
+<li class=""><code>ALTER TABLE ... REWRITE STORAGE</code> converts existing rows explicitly.</li>
+</ul>
+<p>Run a rewrite when a table receives few writes and you want its existing rows in
+the current form:</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">ALTER</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">TABLE</span><span class="token plain"> docs REWRITE STORAGE</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
+<p>The rewrite:</p>
+<ul>
+<li class="">Processes rows in transactions of <code>large_value_rewrite_batch_rows</code>.</li>
+<li class="">Preserves row ids, schema versions, values, and index entries.</li>
+<li class="">Is idempotent. A row already in the target form is not rewritten.</li>
+<li class="">Is resumable. If the statement stops, run it again and it continues after the
+last committed batch.</li>
+<li class="">Never overwrites a concurrent user write. A conflicting row is retried at the
+end, and a row that keeps changing is left for a later user write to convert.</li>
+<li class="">Can make a concurrent user write retry with <code>CADB0502</code>
+<code>TransactionConflict</code> while a rewrite batch commits.</li>
+</ul>
+<p>Run rewrites during a quieter period for the table. Use a smaller
+<code>large_value_rewrite_batch_rows</code> on a busy table.</p>
+<p>To convert every value back to the old inline, uncompressed form, use:</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">ALTER</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">TABLE</span><span class="token plain"> docs REWRITE STORAGE INLINE</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="downgrades-and-rolling-upgrades">Downgrades And Rolling Upgrades<a href="#downgrades-and-rolling-upgrades" class="hash-link" aria-label="Direct link to Downgrades And Rolling Upgrades" title="Direct link to Downgrades And Rolling Upgrades" translate="no">​</a></h2>
+<p>A binary that predates this feature cannot read a row that is compressed or has
+an out-of-line value. If you must downgrade to an older binary:</p>
+<ol>
+<li class="">Set <code>large_value_threshold_bytes</code> to <code>0</code>.</li>
+<li class="">Set <code>large_value_compression_enabled</code> to <code>false</code>.</li>
+<li class="">Run <code>ALTER TABLE &lt;table&gt; REWRITE STORAGE INLINE</code> on every table.</li>
+<li class="">Confirm the rewrite completed without deferred rows.</li>
+</ol>
+<p>During a rolling upgrade, avoid storing large values until every node runs a
+version that understands the new row form. An older node cannot read a new-form
+row, including a row sent to it by a distributed query.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="interaction-with-other-features">Interaction With Other Features<a href="#interaction-with-other-features" class="hash-link" aria-label="Direct link to Interaction With Other Features" title="Direct link to Interaction With Other Features" translate="no">​</a></h2>
+<ul>
+<li class=""><strong>Branches.</strong> A branch reads inherited out-of-line values from its ancestor at
+the fork timestamp. A branch write stores new values in the branch only.</li>
+<li class=""><strong>Time-travel reads.</strong> An out-of-line value is read at the same timestamp as
+its row. A rewrite writes new row versions and does not modify old ones.</li>
+<li class=""><strong>Backups.</strong> A physical backup captures the whole store, including
+out-of-line values.</li>
+<li class=""><strong>Logical dump and reimport.</strong> A dump writes the full value into SQL. A
+reimport writes rows under the current storage rules.</li>
+<li class=""><strong>Indexes.</strong> An index entry stores the indexed value itself, not a pointer.
+Out-of-line storage changes the row only.</li>
+<li class=""><strong>Distributed queries.</strong> A node that scans rows for another node resolves the
+values required by the query before sending the rows.</li>
+<li class=""><strong><code>TRUNCATE TABLE</code> and <code>DROP TABLE</code>.</strong> Retired or dropped contents include the
+out-of-line values. Reclamation removes them with the table contents.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="error-codes">Error Codes<a href="#error-codes" class="hash-link" aria-label="Direct link to Error Codes" title="Direct link to Error Codes" translate="no">​</a></h2>
+<table><thead><tr><th>Code</th><th>Name</th><th>Meaning</th></tr></thead><tbody><tr><td><code>CADB0414</code></td><td><code>ColumnStorageNotApplicable</code></td><td>A storage strategy was given for a column type with no variable-length value.</td></tr><tr><td><code>CADB0540</code></td><td><code>LargeValueCorrupt</code></td><td>A stored large value failed to decompress or did not match the checksum recorded in its row.</td></tr><tr><td><code>CADB0541</code></td><td><code>LargeValueNotResolved</code></td><td>An internal read path decoded a cell whose large value was not resolved. Report it.</td></tr></tbody></table>
+<p>A read without a fixed snapshot can see a row and its out-of-line value across a
+concurrent update. CamusDB detects this with a checksum in the pointer and reads
+the row again. If the row keeps changing, the read fails with retryable
+<code>CADB0504</code> <code>TransactionMustRetry</code>.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/storage-layout.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#why-it-exists" class="table-of-contents__link toc-highlight">Why It Exists</a></li><li><a href="#storage-strategies" class="table-of-contents__link toc-highlight">Storage Strategies</a></li><li><a href="#how-values-are-stored" class="table-of-contents__link toc-highlight">How Values Are Stored</a></li><li><a href="#query-and-write-cost" class="table-of-contents__link toc-highlight">Query And Write Cost</a></li><li><a href="#transaction-limits" class="table-of-contents__link toc-highlight">Transaction Limits</a></li><li><a href="#settings" class="table-of-contents__link toc-highlight">Settings</a></li><li><a href="#existing-data" class="table-of-contents__link toc-highlight">Existing Data</a></li><li><a href="#downgrades-and-rolling-upgrades" class="table-of-contents__link toc-highlight">Downgrades And Rolling Upgrades</a></li><li><a href="#interaction-with-other-features" class="table-of-contents__link toc-highlight">Interaction With Other Features</a></li><li><a href="#error-codes" class="table-of-contents__link toc-highlight">Error Codes</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Getting Started</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/databases/">Databases</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-cli/">camus-cli</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/sql/">SQL</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/sql-queries/">SELECT</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/joins-and-subqueries/">Joins And Subqueries</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/functions/">Functions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Transactions And Isolation</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster Mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/grpc-api/">gRPC API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET Driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core Provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-dump/">camus-dump</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/configuration/">Configuration</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/storage/">Storage</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/wal-recovery/">WAL &amp; Recovery</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">Source<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/camusdb/camusdb.github.io" target="_blank" rel="noopener noreferrer" class="footer__link-item">Docs Repo<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 CamusDB.</div></div></div></footer></div>
+</body>
+</html>

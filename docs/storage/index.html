@@ -5,8 +5,8 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Storage | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/storage/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Storage | CamusDB"><meta data-rh="true" name="description" content="CamusDB stores relational data on a distributed key/value layer."><meta data-rh="true" property="og:description" content="CamusDB stores relational data on a distributed key/value layer."><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/storage/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/storage/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/storage/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Storage","item":"https://camusdb.github.io/docs/storage"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.a54ad7a9.css">
-<script src="/assets/js/runtime~main.c07adf88.js" defer="defer"></script>
-<script src="/assets/js/main.eeec6f9c.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.f3e11878.js" defer="defer"></script>
+<script src="/assets/js/main.7f6b4921.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -19,6 +19,9 @@ kinds of object to persistent key/value entries: a table, a row, an index, the
 schema metadata, a lock, and the transaction state.</p>
 <p>The design keeps SQL as the model that a user sees. It uses a storage layout
 that the distributed KV layer can route, replicate, lock, and commit.</p>
+<p>For the user-facing row format controls for large <code>STRING</code>, <code>BYTES</code>/<code>BLOB</code>, and
+<code>ARRAY</code> values, see <a class="" href="/docs/storage-layout/">Large Values</a>. That page covers
+TOAST-style compression, out-of-line storage, and <code>ALTER TABLE ... REWRITE STORAGE</code>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-storage-stack">The storage stack<a href="#the-storage-stack" class="hash-link" aria-label="Direct link to The storage stack" title="Direct link to The storage stack" translate="no">​</a></h2>
 <p>The storage path of CamusDB has three layers:</p>
 <table><thead><tr><th>Layer</th><th>Responsibility</th></tr></thead><tbody><tr><td>SQL engine</td><td>Plans a statement, validates the schema, applies the constraints, and decides which rows and which indexes the statement touches.</td></tr><tr><td>CamusDB KV mapping</td><td>Encodes a table row, an index entry, and the schema metadata as deterministic key/value entries.</td></tr><tr><td><a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a></td><td>Persists the keys, coordinates the locks and the transactions, and uses partition ownership backed by Raft in cluster mode.</td></tr></tbody></table>

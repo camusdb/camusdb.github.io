@@ -5,8 +5,8 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Transaction limits | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/transaction-limits/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Transaction limits | CamusDB"><meta data-rh="true" name="description" content="CamusDB bounds a read-write transaction. One transaction therefore cannot"><meta data-rh="true" property="og:description" content="CamusDB bounds a read-write transaction. One transaction therefore cannot"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/transaction-limits/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/transaction-limits/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/transaction-limits/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Transaction limits","item":"https://camusdb.github.io/docs/transaction-limits"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.a54ad7a9.css">
-<script src="/assets/js/runtime~main.c07adf88.js" defer="defer"></script>
-<script src="/assets/js/main.eeec6f9c.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.f3e11878.js" defer="defer"></script>
+<script src="/assets/js/main.7f6b4921.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -34,23 +34,33 @@ reach storage.</p>
 as one transaction fails again. Split the work into smaller transactions
 instead.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-counts-as-a-mutation">What counts as a mutation<a href="#what-counts-as-a-mutation" class="hash-link" aria-label="Direct link to What counts as a mutation" title="Direct link to What counts as a mutation" translate="no">​</a></h2>
-<p>CamusDB stores each row as one row blob. It stores each secondary index entry
-separately.</p>
+<p>CamusDB stores each row as one row blob. It stores each primary-key entry and
+secondary index entry separately.</p>
 <p>One mutation is one of these two operations:</p>
 <ul>
 <li class="">One write or delete of a row blob.</li>
-<li class="">One write or delete of a secondary index entry.</li>
+<li class="">One write or delete of a primary-key or secondary index entry.</li>
 </ul>
 <p>The number of indexes therefore affects the write budget:</p>
-<table><thead><tr><th>Operation</th><th>Mutation count</th></tr></thead><tbody><tr><td>Insert one row into a table with <code>K</code> indexes</td><td><code>1 + K</code></td></tr><tr><td>Delete one row from a table with <code>K</code> indexes</td><td><code>1 + K</code></td></tr><tr><td>Update one row and change <code>M</code> indexed columns</td><td><code>1 + 2M</code></td></tr></tbody></table>
+<table><thead><tr><th>Operation</th><th>Mutation count</th></tr></thead><tbody><tr><td>Insert one row into a table with <code>K</code> secondary indexes</td><td><code>2 + K</code></td></tr><tr><td>Delete one row from a table with <code>K</code> secondary indexes</td><td><code>2 + K</code></td></tr><tr><td>Update one row and change <code>M</code> indexed columns</td><td><code>1 + 2M</code></td></tr></tbody></table>
+<p>An out-of-line large value is one more mutation. A <code>STRING</code>, <code>BYTES</code>/<code>BLOB</code>, or
+<code>ARRAY</code> value stored outside its row lives under its own key. An insert or
+delete of a row with <code>L</code> out-of-line values therefore costs <code>L</code> more mutations.
+An update that does not change the large value costs nothing extra for that
+value, because the value key is carried rather than rewritten.</p>
+<p>For example, a table with no secondary index and four large columns stored out
+of line costs six mutations per inserted row: the row, the primary-key entry,
+and four large-value keys. The default budget of 20,000 admits 3,333 rows in one
+statement instead of 10,000. See <a class="" href="/docs/storage-layout/">Large Values</a>.</p>
 <p>The counter only increases inside the transaction. Two updates of the same row
 count twice, because CamusDB must still hold and commit both write intents.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="example">Example<a href="#example" class="hash-link" aria-label="Direct link to Example" title="Direct link to Example" translate="no">​</a></h2>
-<p>A table with two secondary indexes writes one row blob and two index entries for
-each inserted row. One insert therefore costs this much:</p>
-<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">1 row blob + 2 index entries = 3 mutations</span><br></div></code></pre></div></div>
+<p>A table with two secondary indexes writes one row blob, one primary-key entry,
+and two secondary index entries for each inserted row. One insert therefore
+costs this much:</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">1 row blob + 1 primary-key entry + 2 secondary index entries = 4 mutations</span><br></div></code></pre></div></div>
 <p>The default cap is 20,000 mutations. One transaction can therefore insert at
-most 6,666 such rows. You must put the next row in another transaction.</p>
+most 5,000 such rows. You must put the next row in another transaction.</p>
 <p><code>max_mutations_per_transaction</code> controls the cap. See
 <a class="" href="/docs/configuration/">Configuration</a>. Set it to <code>&lt;= 0</code> only when you intend to
 disable the mutation limit on user DML.</p>
