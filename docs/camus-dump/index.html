@@ -5,8 +5,8 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">camus-dump | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/camus-dump/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="camus-dump | CamusDB"><meta data-rh="true" name="description" content="camus-dump is a utility for a logical backup of CamusDB. It connects to a"><meta data-rh="true" property="og:description" content="camus-dump is a utility for a logical backup of CamusDB. It connects to a"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/camus-dump/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/camus-dump/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/camus-dump/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"camus-dump","item":"https://camusdb.github.io/docs/camus-dump"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.a54ad7a9.css">
-<script src="/assets/js/runtime~main.f3e11878.js" defer="defer"></script>
-<script src="/assets/js/main.7f6b4921.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.6bb2bbbe.js" defer="defer"></script>
+<script src="/assets/js/main.168e7aec.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -154,8 +154,13 @@ It is not an addition to that read. Both forms give a snapshot that is consisten
 across the tables.</p>
 <p>Use the option when you want the dump pinned to the present moment. The default
 pins the dump to a fixed instant of the past.</p>
-<p>Use a <code>--defer-indexes</code> for a large restore. CamusDB then loads the data of a
-table before it builds the secondary indexes.</p>
+<p>Use <code>--batch 100</code> as a starting point for a restore. One row per <code>INSERT</code> is
+usually much slower, while very large batches can hit the transaction mutation
+limit or the transport message-size limit on wide tables.</p>
+<p><code>--defer-indexes</code> loads the table data before building secondary indexes. It can
+help for a table with one secondary index, but it is not automatically faster
+for a table with several indexes because each deferred index build scans the
+table. Keep the target out of service until deferred indexes are built.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="dump-contents">Dump contents<a href="#dump-contents" class="hash-link" aria-label="Direct link to Dump contents" title="Direct link to Dump contents" translate="no">​</a></h2>
 <p>The dump can include these parts. Your selected options decide:</p>
 <ul>
@@ -177,7 +182,8 @@ backslash, a backslash at its end, both kinds of quotation mark, a new line, and
 a NUL. See <a class="" href="/docs/data-types/#string-literals">Data Types</a> for the rules of a
 literal.</p>
 <p>The dump writes an index two times: inline, inside the <code>CREATE TABLE</code>, and as a
-separate <code>CREATE INDEX IF NOT EXISTS</code> statement.</p>
+separate <code>CREATE INDEX IF NOT EXISTS</code> statement. Index definitions include their
+per-column sort direction and comment when the source server reports them.</p>
 <p>That repetition keeps the definitions of the indexes available with a
 <code>--no-create-table</code>. It also lets a <code>--defer-indexes</code> build the indexes after the
 load of the rows.</p>
