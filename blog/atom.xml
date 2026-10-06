@@ -12,8 +12,9 @@
         <id>https://camusdb.github.io/blog/why-small-businesses-still-need-reliable-databases/</id>
         <link href="https://camusdb.github.io/blog/why-small-businesses-still-need-reliable-databases/"/>
         <updated>2026-10-06T00:00:00.000Z</updated>
-        <summary type="html"><![CDATA[When people hear the words "distributed SQL database," they usually imagine very large companies. They think about millions of users, thousands of servers, huge amounts of data, and engineering teams operating infrastructure across several regions.]]></summary>
-        <content type="html"><![CDATA[<p>When people hear the words "distributed SQL database," they usually imagine very large companies. They think about millions of users, thousands of servers, huge amounts of data, and engineering teams operating infrastructure across several regions.</p>
+        <summary type="html"><![CDATA[A human approaching three pyramids]]></summary>
+        <content type="html"><![CDATA[<p><img decoding="async" loading="lazy" alt="A human approaching three pyramids" src="https://camusdb.github.io/assets/images/small-businesses-c1789b8871e542b6c11004ec6f70feac.png" width="1672" height="941" class="img_ev3q"></p>
+<p>When people hear the words "distributed SQL database," they usually imagine very large companies. They think about millions of users, thousands of servers, huge amounts of data, and engineering teams operating infrastructure across several regions.</p>
 <p>Because of this, it is easy to assume that distributed databases are only useful when a company reaches a certain scale.</p>
 <p>But I think this misses an important part of the problem.</p>
 <p>A small business may have a small workload, but that does not mean its data is less important.</p>
