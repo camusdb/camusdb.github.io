@@ -2,120 +2,218 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://camusdb.github.io/blog/</id>
     <title>CamusDB Blog</title>
-    <updated>2026-10-06T00:00:00.000Z</updated>
+    <updated>2026-10-07T00:00:00.000Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://camusdb.github.io/blog/"/>
     <subtitle>CamusDB Blog</subtitle>
     <icon>https://camusdb.github.io/img/favicon.ico</icon>
     <entry>
-        <title type="html"><![CDATA[Why Small Businesses Still Need Reliable Databases]]></title>
-        <id>https://camusdb.github.io/blog/why-small-businesses-still-need-reliable-databases/</id>
-        <link href="https://camusdb.github.io/blog/why-small-businesses-still-need-reliable-databases/"/>
-        <updated>2026-10-06T00:00:00.000Z</updated>
-        <summary type="html"><![CDATA[A human approaching three pyramids]]></summary>
-        <content type="html"><![CDATA[<p><img decoding="async" loading="lazy" alt="A human approaching three pyramids" src="https://camusdb.github.io/assets/images/small-businesses-c1789b8871e542b6c11004ec6f70feac.png" width="1672" height="941" class="img_ev3q"></p>
-<p>When people hear the words "distributed SQL database," they usually imagine very large companies. They think about millions of users, thousands of servers, huge amounts of data, and engineering teams operating infrastructure across several regions.</p>
-<p>Because of this, it is easy to assume that distributed databases are only useful when a company reaches a certain scale.</p>
-<p>But I think this misses an important part of the problem.</p>
-<p>A small business may have a small workload, but that does not mean its data is less important.</p>
-<p>Imagine a small online store processing 500 orders per day. From a database perspective, this is almost nothing. A single PostgreSQL server can easily handle that workload, probably without using much of its available CPU.</p>
-<p>But what happens when that server fails?</p>
-<p>The business still needs to know which customers paid, which orders were completed, how much inventory remains, and which transactions were confirmed. Losing ten transactions can be insignificant for a company processing billions of operations, but it can be a serious problem for a small business.</p>
-<p>The interesting question, then, is not whether small businesses need massive database scalability. Most of them do not.</p>
-<p>The question is whether they need reliability.</p>
-<p>And I think many of them do.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="small-workload-does-not-mean-small-reliability-requirements">Small Workload Does Not Mean Small Reliability Requirements<a href="https://camusdb.github.io/blog/why-small-businesses-still-need-reliable-databases/#small-workload-does-not-mean-small-reliability-requirements" class="hash-link" aria-label="Direct link to Small Workload Does Not Mean Small Reliability Requirements" title="Direct link to Small Workload Does Not Mean Small Reliability Requirements" translate="no">​</a></h2>
-<p>There is an important difference between performance requirements and reliability requirements.</p>
-<p>A small business may only execute a few database transactions per second. That workload can run comfortably on a small machine. However, the business may still need strong guarantees around those transactions.</p>
-<p>If a customer completes a payment, that payment should not disappear because a server crashed a few seconds later. If two customers try to buy the last available product, the database should correctly decide who gets it. If a machine dies during the night, ideally the entire business should not remain offline until somebody wakes up and fixes it.</p>
-<p>These are not "big company problems."</p>
-<p>They are normal business problems.</p>
-<p>The difference is that large companies usually have more resources to deal with them. They may have database administrators, infrastructure engineers, monitoring systems, incident procedures, and engineers available 24/7.</p>
-<p>A small company may have two developers.</p>
-<p>One of them might also be responsible for the frontend, backend, database, deployment pipeline, monitoring, and answering Slack messages when something breaks.</p>
-<p>For that company, infrastructure that can recover automatically can be extremely valuable.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="distributed-sql-is-not-only-about-scaling">Distributed SQL Is Not Only About Scaling<a href="https://camusdb.github.io/blog/why-small-businesses-still-need-reliable-databases/#distributed-sql-is-not-only-about-scaling" class="hash-link" aria-label="Direct link to Distributed SQL Is Not Only About Scaling" title="Direct link to Distributed SQL Is Not Only About Scaling" translate="no">​</a></h2>
-<p>Distributed databases are often presented as a solution to horizontal scaling.</p>
-<p>That is certainly one of their advantages. If one machine cannot handle the workload anymore, the system can distribute data and work across several machines.</p>
-<p>But distribution can solve another problem that is sometimes more important: failure.</p>
-<p>Machines fail. Disks fail. Networks become unreliable. Processes crash. Cloud instances disappear. Software has bugs.</p>
-<p>A distributed database can keep multiple copies of the same data and use consensus protocols such as Raft to decide which operations have been safely committed.</p>
-<p>If one node disappears, the remaining nodes can continue operating as long as they still have a quorum.</p>
-<p>This means that distribution is not necessarily about making a database faster.</p>
-<p>Sometimes it is about making failure boring.</p>
-<p>And boring failures are incredibly valuable.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="there-is-a-catch">There Is a Catch<a href="https://camusdb.github.io/blog/why-small-businesses-still-need-reliable-databases/#there-is-a-catch" class="hash-link" aria-label="Direct link to There Is a Catch" title="Direct link to There Is a Catch" translate="no">​</a></h2>
-<p>Of course, distributed systems are not free.</p>
-<p>A three-node database cluster requires more infrastructure than a single PostgreSQL instance. Replication consumes network bandwidth. Consensus adds latency. Maintaining multiple copies of data requires additional storage.</p>
-<p>There is also much more complexity inside the database itself.</p>
-<p>This creates an interesting tradeoff.</p>
-<p>A distributed database can be much more complicated internally while making infrastructure much simpler for the people using it.</p>
-<p>That distinction between internal complexity and operational complexity is important.</p>
-<p>As a developer, I do not necessarily care if the database internally uses Raft, replication logs, fencing tokens, hybrid logical clocks, or distributed transactions. What I care about is whether I need to understand all of those things to operate my application.</p>
-<p>The ideal database hides most of that complexity.</p>
-<p>If a node dies, another node should take over. If traffic increases, capacity should increase. If traffic decreases, infrastructure costs should decrease. If data becomes corrupted or accidentally deleted, recovery should be possible.</p>
-<p>The database can be extremely sophisticated internally while presenting a relatively simple experience to the developer.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="but-postgresql-already-solves-many-of-these-problems">But PostgreSQL Already Solves Many of These Problems<a href="https://camusdb.github.io/blog/why-small-businesses-still-need-reliable-databases/#but-postgresql-already-solves-many-of-these-problems" class="hash-link" aria-label="Direct link to But PostgreSQL Already Solves Many of These Problems" title="Direct link to But PostgreSQL Already Solves Many of These Problems" translate="no">​</a></h2>
-<p>This is where I think discussions about distributed databases sometimes become unfair.</p>
-<p>PostgreSQL is extremely good.</p>
-<p>For many small businesses, a managed PostgreSQL service is probably the correct choice. It can provide backups, replicas, monitoring, automatic failover, and many other features without requiring the company to operate PostgreSQL itself.</p>
-<p>You do not need a distributed SQL database just because distributed databases exist.</p>
-<p>If your application fits comfortably on one machine, occasional failover is acceptable, and your managed provider handles most operational work, PostgreSQL can remain a very good solution for a very long time.</p>
-<p>The argument for distributed SQL becomes stronger when the alternative starts requiring additional infrastructure around the database.</p>
-<p>Maybe you need read replicas. Then you need connection routing. Later you need sharding. Now the application needs to understand where data lives. Perhaps you introduce Redis for distributed locks. Then you need another highly available system. Eventually you add queues, background workers, failover procedures, and several monitoring systems.</p>
-<p>None of these technologies are bad.</p>
-<p>The problem is that operational complexity can grow gradually until a relatively simple application has become a small distributed system built around a database that was originally chosen because it was simple.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="small-companies-have-a-different-scaling-problem">Small Companies Have a Different Scaling Problem<a href="https://camusdb.github.io/blog/why-small-businesses-still-need-reliable-databases/#small-companies-have-a-different-scaling-problem" class="hash-link" aria-label="Direct link to Small Companies Have a Different Scaling Problem" title="Direct link to Small Companies Have a Different Scaling Problem" translate="no">​</a></h2>
-<p>When engineers talk about scalability, we usually talk about requests per second, storage capacity, or number of users.</p>
-<p>There is another resource that needs to scale: engineering time.</p>
-<p>A company with three engineers cannot operate infrastructure the same way a company with three hundred engineers can.</p>
-<p>This makes operational simplicity particularly valuable for small teams.</p>
-<p>If the database can automatically handle replication, failover, backups, recovery, and eventually horizontal scaling, the company can spend more engineering time building its product instead of building infrastructure around its database.</p>
-<p>In that sense, distributed SQL can be useful even when the actual database workload is tiny.</p>
-<p>The database is not scaling because the company has millions of queries per second.</p>
-<p>It is scaling the capabilities of a small engineering team.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="cost-still-matters">Cost Still Matters<a href="https://camusdb.github.io/blog/why-small-businesses-still-need-reliable-databases/#cost-still-matters" class="hash-link" aria-label="Direct link to Cost Still Matters" title="Direct link to Cost Still Matters" translate="no">​</a></h2>
-<p>There is one major obstacle to this idea: distributed databases can be expensive.</p>
-<p>If running a reliable database requires three relatively large servers at all times, that may not make sense for a company with a small workload.</p>
-<p>This is why I think the future of distributed databases is not only about improving their maximum throughput.</p>
-<p>It is also about making the minimum deployment smaller and cheaper.</p>
-<p>Ideally, a company should be able to start small and grow without changing databases.</p>
-<p>Maybe it starts with a very small deployment. Later it enables additional replicas for better availability. As traffic increases, more nodes can join the cluster. As traffic decreases, unnecessary capacity can disappear.</p>
-<p>The important part is that the application does not need to be redesigned every time the infrastructure changes.</p>
-<p>You should not need to choose a database for the company you hope to become five years from now.</p>
-<p>You should be able to choose a database that grows with you.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="this-is-one-of-the-ideas-behind-camusdb">This Is One of the Ideas Behind CamusDB<a href="https://camusdb.github.io/blog/why-small-businesses-still-need-reliable-databases/#this-is-one-of-the-ideas-behind-camusdb" class="hash-link" aria-label="Direct link to This Is One of the Ideas Behind CamusDB" title="Direct link to This Is One of the Ideas Behind CamusDB" translate="no">​</a></h2>
-<p>This question is particularly interesting to me because I have been working on CamusDB, a distributed SQL database built on top of Kahuna, my distributed coordination and data system.</p>
-<p>When building a distributed database, it is very easy to focus on impressive benchmark numbers. Transactions per second are easy to show. Latency graphs are easy to compare. Large clusters are interesting engineering problems.</p>
-<p>But I increasingly think that scalability alone is not the most interesting part.</p>
-<p>The more interesting goal is making the guarantees normally associated with complex distributed infrastructure available without requiring every company to build that infrastructure itself.</p>
-<p>Strong consistency should not only be useful to banks.</p>
-<p>Automatic recovery should not only be useful to companies with hundreds of engineers.</p>
-<p>Horizontal scaling should not require rewriting half of an application.</p>
-<p>And surviving a server failure should not require somebody waking up at 3 AM.</p>
-<p>Of course, achieving this is much harder than describing it. Distributed systems introduce their own failure modes, and a distributed database that constantly requires human intervention is not an improvement over a simpler database.</p>
-<p>The complexity has to live inside the system instead of leaking into the application.</p>
-<p>That is the difficult part.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="maybe-we-are-asking-the-wrong-question">Maybe We Are Asking the Wrong Question<a href="https://camusdb.github.io/blog/why-small-businesses-still-need-reliable-databases/#maybe-we-are-asking-the-wrong-question" class="hash-link" aria-label="Direct link to Maybe We Are Asking the Wrong Question" title="Direct link to Maybe We Are Asking the Wrong Question" translate="no">​</a></h2>
-<p>So, does every small business need a distributed SQL database?</p>
-<p>No.</p>
-<p>For many applications, a traditional relational database will work perfectly well.</p>
-<p>But I think asking whether a small company "needs distributed SQL" focuses too much on the technology.</p>
-<p>A better question is what guarantees the business needs.</p>
-<p>Does it need to survive machine failures? Does it need transactions that cannot simply disappear? Does it need automatic recovery? Does it want to grow without eventually introducing sharding? Does it have enough engineers to operate all the infrastructure required to provide those guarantees?</p>
-<p>Those questions have very little to do with how many requests per second the application currently receives.</p>
-<p>A company processing 20 transactions per second can care just as much about those 20 transactions as a company processing 200,000.</p>
-<p>Small businesses do not necessarily need distributed databases.</p>
-<p>They need reliable databases that are affordable, understandable, and easy to operate.</p>
-<p>If distributed SQL can provide those properties without forcing small teams to pay the traditional cost and complexity of distributed infrastructure, then I think it has a much bigger audience than we normally imagine.</p>]]></content>
+        <title type="html"><![CDATA[What we can prove about consistency]]></title>
+        <id>https://camusdb.github.io/blog/what-we-can-prove-about-consistency/</id>
+        <link href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/"/>
+        <updated>2026-10-07T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[A database for money needs a report, not a promise.]]></summary>
+        <content type="html"><![CDATA[<p>A database for money needs a report, not a promise.</p>
+<p>This post is that report. It follows the shape of a Jepsen analysis: what the
+system claims, how we tested the claims, what broke, what we fixed, and what we
+still cannot prove. Jepsen LLC did not write it. We wrote it, with our own
+harnesses, and two of those harnesses are built on the Jepsen library. Every
+number below comes from a file in one of four repositories, and the last section
+tells you how to run the same tests yourself.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-system-under-test">The system under test<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#the-system-under-test" class="hash-link" aria-label="Direct link to The system under test" title="Direct link to The system under test" translate="no">​</a></h2>
+<p>CamusDB is a SQL database on three layers. Kommander is the Raft implementation.
+Kahuna is the replicated transactional key-value store built on Kommander.
+CamusDB is the SQL engine on Kahuna. A bug can live in any layer, so each layer
+has its own test suite and its own history of findings.</p>
+<p>The report covers these versions.</p>
+<table><thead><tr><th>Layer</th><th>Version</th><th>Date</th></tr></thead><tbody><tr><td>CamusDB</td><td>commit <code>a02b144a</code></td><td>2026-10-07</td></tr><tr><td>Kahuna</td><td>1.11.2</td><td>2026-10-06</td></tr><tr><td>Kommander</td><td>1.10.2</td><td>2026-10-06</td></tr></tbody></table>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-claims">The claims<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#the-claims" class="hash-link" aria-label="Direct link to The claims" title="Direct link to The claims" translate="no">​</a></h2>
+<p>The transaction documentation makes these claims. The rest of the post tests
+them.</p>
+<ol>
+<li class="">The default isolation level is Serializable, for autocommit statements and
+for explicit transactions. Read Committed is an explicit opt-out.</li>
+<li class="">A Serializable read-write transaction uses strict two-phase locking. Reads
+take shared point locks and shared range locks, and hold them to commit.
+This blocks non-repeatable reads, phantoms, write skew, and lost updates.</li>
+<li class="">A Serializable read-only transaction reads one snapshot, pinned to one
+hybrid logical clock timestamp. It never blocks and is never blocked.</li>
+<li class="">Deadlocks resolve by wait-die. The older transaction waits and wins. The
+younger one aborts at once.</li>
+<li class="">A commit is durable when a majority of replicas hold it.</li>
+<li class="">A commit whose outcome the client cannot learn returns one specific error,
+and the client retries the same commit on the same handle.</li>
+</ol>
+<p>One claim is absent on purpose. CamusDB does not claim external consistency or
+linearizability across transactions. Transaction order is logically consistent
+through the hybrid logical clock. There is no commit-wait. Keep that in mind
+when you read the Kahuna and Kommander sections, where linearizability is
+checked at the key-value and log level.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-we-test">How we test<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#how-we-test" class="hash-link" aria-label="Direct link to How we test" title="Direct link to How we test" translate="no">​</a></h2>
+<p>Four suites test the three layers.</p>
+<table><thead><tr><th>Suite</th><th>Layer</th><th>Tool</th><th>Checkers</th><th>Faults</th></tr></thead><tbody><tr><td>kommander-jepsen</td><td>Kommander</td><td>Jepsen 0.3.7, 5 nodes</td><td>Knossos linearizability on a CAS register, a custom Log Matching checker, HLC monotonicity</td><td>partition, kill, pause, membership, HLC skew</td></tr><tr><td>kahuna-jepsen</td><td>Kahuna</td><td>Jepsen 0.3.7, 5 or 6 nodes</td><td>Knossos on a register, Elle list-append (serializable), lock fencing, sequencer, pinned snapshot</td><td>partition, kill, pause, membership, replica placement, key-range split and merge</td></tr><tr><td>Caraxes</td><td>CamusDB</td><td>Docker cluster, real SQL over gRPC</td><td>Elle list-append (serializable), bank balance conservation, divergent-apply scan, live <code>COUNT(*)</code> probe</td><td>kill, stop, pause, partition, slow link, packet loss, full disk, slow disk, leader transfer, clock skew</td></tr><tr><td>Unit and integration suites</td><td>all three</td><td>NUnit</td><td>assertions</td><td>injected faults in process</td></tr></tbody></table>
+<p>The faults are real. A kill is SIGKILL. A partition is a firewall rule. A slow
+disk is a kernel I/O limit of 4 KiB per second. A clock jump is a shim on the
+real-time clock, up to 12 hours.</p>
+<p>The two Jepsen suites run every night in CI. Both suites say in their design
+documents that they are not a per-pull-request gate, because the runs are
+nondeterministic. A green night is evidence. A red night is a finding to
+investigate, not always a bug.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="results-by-layer">Results by layer<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#results-by-layer" class="hash-link" aria-label="Direct link to Results by layer" title="Direct link to Results by layer" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="kommander-the-raft-log">Kommander: the Raft log<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#kommander-the-raft-log" class="hash-link" aria-label="Direct link to Kommander: the Raft log" title="Direct link to Kommander: the Raft log" translate="no">​</a></h3>
+<p>The register workload checks linearizability per key with Knossos. The
+log-append workload checks the Raft Log Matching Property: every acknowledged
+entry is present on every replica that answers, no index holds two values, no
+value applies twice, and application is monotonic.</p>
+<p>The register workload found no linearizability violation in any recorded run.</p>
+<p>The latest stored run is a log-append run under kill plus HLC skew, from
+2026-09-29.</p>
+<table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody><tr><td>Operations</td><td>909</td></tr><tr><td>Acknowledged appends</td><td>599</td></tr><tr><td>Holes</td><td>0</td></tr><tr><td>Tail losses</td><td>0</td></tr><tr><td>Diverged indexes</td><td>0</td></tr><tr><td>Duplicates</td><td>0</td></tr><tr><td>Undelivered entries</td><td>0</td></tr><tr><td>HLC comparisons checked</td><td>3,015</td></tr><tr><td>HLC regressions</td><td>0</td></tr><tr><td>Kills</td><td>8</td></tr><tr><td>Clock bumps and strobes</td><td>16</td></tr><tr><td>Largest HLC lead injected</td><td>255 s</td></tr><tr><td>Converged after the run</td><td>yes, in 89 ms</td></tr></tbody></table>
+<p>The suite found five defects in August 2026. Four are fixed and verified by
+later runs. One is open.</p>
+<table><thead><tr><th>Finding</th><th>Exposed by</th><th>Status</th></tr></thead><tbody><tr><td>The leader did not apply some of its own committed entries. Pipelined proposals completed out of order and the applied frontier skipped one.</td><td>log-append, partition and kill</td><td>Fixed in commit <code>f1658ba</code>. About 14 later runs show zero holes.</td></tr><tr><td>A follower acknowledged appends from an old term after it voted in a new one. Acked writes at four indexes were lost.</td><td>register, ring partition</td><td>Fixed in Kommander on 2026-08-13. The nightly register jobs with partitions passed 9 of 9 on 2026-08-14.</td></tr><tr><td>Follower write-ahead log backpressure threw instead of pushed back. The leader resent blindly.</td><td>log-append, partition</td><td>Fixed in commits <code>985f017</code> and <code>6eb2a09</code>. Not yet reproduced often enough to call it verified under load.</td></tr><tr><td>Two different entries committed at the same index. The proposal index allocator regressed below an occupied index after a promotion.</td><td>log-append, partition and kill</td><td>Fixed in commit <code>04429b3</code>. Two nightly runs after the fix passed 9 of 9.</td></tr><tr><td>One acknowledged append was absent from every replica, and its index held a different entry. Three occurrences.</td><td>log-append, partition and kill</td><td>Open. Root cause not established.</td></tr></tbody></table>
+<p>The last row is the most important one in this section. It is a real
+durability defect, it occurred three times in August, and we do not know the
+cause yet. We have not seen it since the index allocator fix, but absence
+across a few weeks of nightly runs is not proof.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="kahuna-the-transactional-key-value-store">Kahuna: the transactional key-value store<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#kahuna-the-transactional-key-value-store" class="hash-link" aria-label="Direct link to Kahuna: the transactional key-value store" title="Direct link to Kahuna: the transactional key-value store" translate="no">​</a></h3>
+<p>Kahuna is where most of the consistency logic lives, so it has the longest
+findings file: 25 server-side findings, plus about a dozen harness false
+positives that we fixed in the checkers.</p>
+<p>The latest fully recorded nightly matrix is from 2026-08-19, on Kahuna commit
+<code>70b75d2</code>.</p>
+<table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody><tr><td>Nightly jobs</td><td>25</td></tr><tr><td>Jobs passed</td><td>24</td></tr><tr><td>Job with no verdict</td><td>1, replication factor 1 under kill plus placement, insufficient data</td></tr></tbody></table>
+<p>Later verification runs, grouped by anomaly class:</p>
+<table><thead><tr><th>Property</th><th>Runs</th><th>Commits or operations</th><th>Anomalies</th></tr></thead><tbody><tr><td>No lost update (Elle, partition and kill)</td><td>11</td><td>1,936 commits</td><td>0</td></tr><tr><td>No aborted read, G1a (Elle, partition and kill)</td><td>22</td><td>6,713 commits</td><td>0</td></tr><tr><td>No write skew, G2-item (Elle, partition and kill)</td><td>29</td><td>78 to 744 commits each</td><td>0</td></tr><tr><td>Fencing tokens monotonic (lock, partition at 5 s interval)</td><td>16</td><td>66 to 155 acquires each</td><td>0</td></tr><tr><td>Pinned snapshot never changes (300 s, partition)</td><td>1</td><td>450 protected reads, depth up to 32</td><td>0</td></tr><tr><td>Key-range split and merge under partition and kill</td><td>1</td><td>6 splits, 2 merges, 167 range maps sampled</td><td>0, linearizable throughout</td></tr></tbody></table>
+<p>The findings that matter most for a database of record:</p>
+<table><thead><tr><th>Finding</th><th>Exposed by</th><th>Status</th></tr></thead><tbody><tr><td>A node in a minority partition served stale reads. Reads trusted the local leader belief.</td><td>register, partition</td><td>Fixed. Reads now confirm leadership with a quorum. 8 of 8 clean after the fix, against 1 in 3 before.</td></tr><tr><td>Lost update. The read-modify-write base was never validated at commit.</td><td>append, partition and kill</td><td>Fixed with a staged-base compare-and-set before propose.</td></tr><tr><td>Aborted read. A client received a definite Aborted without a durable abort record, and once after the commit landed.</td><td>append, partition and kill</td><td>Fixed. A refusal before the record exists now says retry, not aborted.</td></tr><tr><td>Fencing tokens went backwards after kill plus restart. A replay floor advanced past unflushed lock state.</td><td>lock, partition and kill</td><td>Fixed in Kahuna <code>485daa3</code> and <code>39ec8e0</code>.</td></tr><tr><td>Fencing tokens went backwards under partition alone. Promotion read the log while writes were still queued.</td><td>lock, partition</td><td>Fixed in Kommander 1.0.10. 16 of 16 clean.</td></tr><tr><td>A held snapshot rewound to an older revision. Compaction left a hole and the lookup skipped the disk. Reproduced with no fault at all.</td><td>snapshot</td><td>Fixed in <code>65fcc70</code>. 64 violating reads went to 0.</td></tr><tr><td>Read skew during a key-range split. The new partition leader served a stale read while prepared intents were unsettled.</td><td>append, range split</td><td>Fixed in <code>cfbb55d2</code> with a settle-before-cutover barrier. The first two runs after the fix passed. The base rate was 1 in 3, so this is weak evidence.</td></tr><tr><td>Write skew under key-range routing, before the split.</td><td>append, partition, placement, range</td><td>Open.</td></tr><tr><td>Fencing tokens went backwards and one token was reused by two owners under replica placement.</td><td>lock, partition and placement</td><td>Open.</td></tr><tr><td>The system partition never checkpoints its log.</td><td>placement jobs</td><td>Open.</td></tr></tbody></table>
+<p>Three findings are open. None of the three is on the default path of a CamusDB
+cluster today. Key-range sharding and online replica placement are opt-in
+features. That is a reason to keep them opt-in, not a reason to ignore them.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="camusdb-sql-under-faults">CamusDB: SQL under faults<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#camusdb-sql-under-faults" class="hash-link" aria-label="Direct link to CamusDB: SQL under faults" title="Direct link to CamusDB: SQL under faults" translate="no">​</a></h3>
+<p>Caraxes runs real SQL through the gRPC client against a three-node cluster, and
+checks two things that a bank cares about.</p>
+<p>The first check is Elle. The append workload runs list-append transactions
+over 8 keys with 16 workers, and Elle searches the history for cycles under the
+serializable model. Only a verdict of valid passes. A timeout fails.</p>
+<p>The second check is the bank invariant. Transfers move money between random
+rows, and the sum of all balances must be identical after the run. Since the
+second dragon post, the verdict reads the sum twice, once through the aggregate
+and once through a full row scan, and both must match the seed.</p>
+<p>The local run archive holds 38 Elle runs on CamusDB 0.13.2 and 0.13.3, with
+Kahuna 1.9.8 to 1.10.4. The table lists the runs with a valid Elle verdict and
+zero divergent applies.</p>
+<table><thead><tr><th>Scenario</th><th>Fault</th><th>Operations</th><th>Elle</th></tr></thead><tbody><tr><td>append-smoke</td><td>none</td><td>20,689 and 22,944</td><td>valid, twice</td></tr><tr><td>append-rw-8keys</td><td>none</td><td>18,196 to 18,626</td><td>valid, 3 runs</td></tr><tr><td>append-rw-contended, 2 keys</td><td>none</td><td>23,013 and 22,920</td><td>valid, twice</td></tr><tr><td>append-read-committed</td><td>none, read-committed model</td><td>39,157 to 43,565</td><td>valid, 3 runs</td></tr><tr><td>append-optimistic</td><td>none, optimistic locking</td><td>17,915 and 19,296</td><td>valid, twice</td></tr><tr><td>append-partition</td><td>partition</td><td>13,489 and 13,727</td><td>valid, twice</td></tr><tr><td>append-pause</td><td>SIGSTOP</td><td>20,470 to 23,524</td><td>valid, 5 runs</td></tr><tr><td>append-slow</td><td>150 ms added latency</td><td>19,177 and 18,750</td><td>valid, twice</td></tr><tr><td>append-kill-optimistic</td><td>SIGKILL</td><td>15,842 and 17,808</td><td>valid, twice</td></tr><tr><td>append-leader-transfer</td><td>5 handovers in 90 s</td><td>26,187 to 36,642</td><td>valid in 5 runs, invalid in 2, no verdict in 2, see below</td></tr><tr><td>append-clock-skew-small</td><td>±2 s skew</td><td>37,035</td><td>valid</td></tr><tr><td>append-clock-jump</td><td>jump over 5 s</td><td>37,583</td><td>valid</td></tr><tr><td>append-clock-jump-locks</td><td>jump over 15 s</td><td>44,549</td><td>valid</td></tr><tr><td>append-clock-jump-liveness</td><td>3 min forward, 1 min back</td><td>29,556</td><td>valid</td></tr></tbody></table>
+<p>Thirteen of those runs still carry a FAIL verdict in the archive. The Elle
+check passed in each one. The failure was the recovery rule: the cluster did
+not regain 90 percent of its throughput within 45 seconds, or the 90 second
+window ended before the last fault healed. We report that as a performance
+finding, not a correctness one, and the two are graded apart.</p>
+<p>Two runs failed on correctness, and one more had a divergent apply with no
+Elle verdict. All three were leader-transfer runs on Kahuna 1.9.8 and 1.9.9.</p>
+<table><thead><tr><th>Run</th><th>Kahuna</th><th>What Elle saw</th></tr></thead><tbody><tr><td>cp2</td><td>1.9.8</td><td>G0, G2-item, incompatible order. Four divergent applies on two keys.</td></tr><tr><td>k198b-r1</td><td>1.9.8</td><td>Three divergent applies on one row key at log entry 41723, on all three nodes. Elle crashed.</td></tr><tr><td>k199-r1</td><td>1.9.9</td><td>G-single-item, incompatible order. Not read committed.</td></tr></tbody></table>
+<p>These are the most serious CamusDB-level findings of the year, so they get the
+detail.</p>
+<p>A transaction's staged writes lived only in the memory of the partition leader.
+A leader change dropped them, and nothing told the transaction. The new leader
+answered the next read with the committed value, and staged the next write
+from the committed head, as if the key were untouched. The commit then wrote
+the last staged value and lost the transaction's own earlier write. The base
+check passed, because no other commit had moved the head. Kahuna 1.10.3 fences
+the staging chain. A restaged key must sit exactly one revision above the
+previous staging, and a break refuses the commit.</p>
+<p>The same class of bug had a second shape, found by the nightly on Kahuna
+1.10.6. A lock also lived only in the leader's memory. After a leader change,
+a renewal or a shared-to-exclusive upgrade came back as a fresh grant, and the
+commit never checked that the lock was still held. In between, the new leader
+granted the same key to a competitor. One writer overwrote a competitor's
+commit with a value computed from the old row. One reader committed a view of
+one key at two committed states. The fix on 2026-10-01 refuses a commit whose
+locks a leader change dropped. Both fixes ship in Kahuna 1.11.2, the version
+CamusDB uses today, and both carry regression tests in the Kahuna suite.</p>
+<p>The honest caveat: the local archive has no leader-transfer Elle run on 1.11.2.
+The nightly append matrix runs the scenario every night, and the nightly is
+where the second shape was found. We will post the numbers when a month of
+nights is in.</p>
+<p>The bank invariant history is in the second dragon post. The short version:
+one dropped transfer leg in 1,805,784 operations, three units out of three
+billion, found in July and fixed; a chain of eight 45-minute runs that ended
+with two consecutive clean windows; and a live scan probe after a run returned
+1,962 to 1,999 rows out of 2,000 under load. The rule that came out of that
+chain still holds. A build must pass two consecutive windows before we call it
+stable.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-unit-and-integration-suites">The unit and integration suites<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#the-unit-and-integration-suites" class="hash-link" aria-label="Direct link to The unit and integration suites" title="Direct link to The unit and integration suites" translate="no">​</a></h3>
+<p>The four suites above are the ones that find the hard bugs. The ordinary suites
+are what keep them fixed. Every finding above has a regression test in one of
+them.</p>
+<table><thead><tr><th>Suite</th><th>Test cases</th><th>Latest full run</th><th>Passed</th><th>Failed</th></tr></thead><tbody><tr><td>CamusDB.Tests</td><td>7,270</td><td>2026-10-07, 36 min 54 s</td><td>7,261</td><td>0, 9 not executed</td></tr><tr><td>Kahuna.Server.Tests</td><td>3,807</td><td>2026-10-07, working tree</td><td>3,797</td><td>2</td></tr><tr><td>Kahuna.Client.Tests</td><td>145</td><td>2026-09-25</td><td>145</td><td>0</td></tr><tr><td>Kommander.Tests</td><td>2,938</td><td>2026-10-01, working tree</td><td>2,922</td><td>1</td></tr></tbody></table>
+<p>That is 14,160 test cases across the three layers. The two Kahuna failures and
+the one Kommander failure are from local runs on uncommitted working trees.
+This report does not analyse them. The CamusDB run is on commit <code>a02b144a</code>.</p>
+<p>Inside the CamusDB suite, the consistency-specific coverage breaks down like
+this:</p>
+<table><thead><tr><th>Area</th><th>Test methods</th></tr></thead><tbody><tr><td>Named for Serializable behavior</td><td>93</td></tr><tr><td>Named for retry contracts</td><td>58</td></tr><tr><td>Named for concurrent access</td><td>56</td></tr><tr><td>Named for snapshot reads</td><td>40</td></tr><tr><td>Named for range locks</td><td>30</td></tr><tr><td>Phantom, lost update, write skew, non-repeatable read, by name</td><td>15</td></tr><tr><td>Files that inject Kahuna faults through a delegating seam</td><td>18</td></tr></tbody></table>
+<p>The anomaly suite covers every class the documentation claims to block: a
+non-repeatable read, a phantom, write skew, a lost update, and two writers of
+one row where the younger aborts at once.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-this-report-does-not-prove">What this report does not prove<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#what-this-report-does-not-prove" class="hash-link" aria-label="Direct link to What this report does not prove" title="Direct link to What this report does not prove" translate="no">​</a></h2>
+<p>A consistency report is only as good as its list of gaps. These are ours.</p>
+<ul>
+<li class=""><strong>No linearizability claim for SQL.</strong> Elle checks serializable, not strict
+serializable. Real-time order across transactions is not asserted anywhere
+for CamusDB. The register workloads check linearizability for Kahuna keys
+and Kommander entries, not for SQL rows.</li>
+<li class=""><strong>Clock faults are thin.</strong> Caraxes jumps the real-time clock, and Kommander
+skews the hybrid logical clock. The Kahuna Jepsen suite does not test clock
+skew at all. Raft timers run on a monotonic clock, so the exposure is in
+transaction timestamps, not elections.</li>
+<li class=""><strong>No disk faults in the Kommander suite.</strong> Full-disk and slow-disk faults are
+Caraxes only.</li>
+<li class=""><strong>Kill mid-transaction in NUnit is absent.</strong> The NUnit restart tests close
+and reopen a database on one node. No NUnit test kills a Raft node in the
+middle of a transaction. That coverage lives in the three chaos suites.</li>
+<li class=""><strong>The 3-node anomaly claim in the docs is not a test.</strong> The anomaly suite in
+NUnit runs on one node. The documentation says the same suite passes on a
+3-node cluster, and the Caraxes Elle runs support it, but no checked-in test
+asserts it.</li>
+<li class=""><strong>Verification is probabilistic.</strong> Several closures rest on an absence. A
+1-in-3 bug that passes two runs is not fixed with confidence. The findings
+files say so for each case, and this post repeats it.</li>
+<li class=""><strong>Replication factor 1 and online placement are weakly verified.</strong> The
+placement job at factor 1 is bistable in CI, and completed moves at factor 1
+are not asserted.</li>
+<li class=""><strong>One Kommander durability finding is open.</strong> An acknowledged append absent
+from every replica is the kind of bug a bank cannot accept. It has not
+recurred since August. That is not closure.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-to-run-it-yourself">How to run it yourself<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#how-to-run-it-yourself" class="hash-link" aria-label="Direct link to How to run it yourself" title="Direct link to How to run it yourself" translate="no">​</a></h2>
+<p>Each suite builds the layer from source on your disk.</p>
+<div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain"># Kommander: linearizable register under partitions, 5 nodes</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">cd kommander-jepsen</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">lein run test --workload register --faults partition --time-limit 180 --rate 10</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"># Kahuna: Elle list-append under partition and kill</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">cd kahuna-jepsen</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">lein run test --workload append --faults partition,kill --time-limit 180 --rate 10</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"># CamusDB: Elle list-append during five leader transfers, real Docker cluster</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">cd camusdb-caraxes</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">dotnet run --project Caraxes -- run --scenario scenarios/append-leader-transfer.yml</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"># CamusDB: the bank invariant under a node kill</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">dotnet run --project Caraxes -- run --scenario scenarios/bank-kill.yml</span><br></div></code></pre></div></div>
+<p>Every run writes a history, a verdict, and the node logs. A FAIL exits with
+code 1. The findings files in the two Jepsen repositories are public, and they
+record the false alarms next to the real bugs.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-this-means-for-a-ledger">What this means for a ledger<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#what-this-means-for-a-ledger" class="hash-link" aria-label="Direct link to What this means for a ledger" title="Direct link to What this means for a ledger" translate="no">​</a></h2>
+<p>A bank asks three questions of a database. Did a confirmed write survive? Did
+any transaction see half of another? Can you show me?</p>
+<p>For the first two, the answer today is: under every fault we inject on the
+default configuration, with the current versions, the checkers find nothing.
+Under two opt-in features, key-range sharding and online placement, two
+anomalies are open. One Raft-level durability defect from August has no root
+cause.</p>
+<p>For the third question, this post is the answer, and it is not finished. The
+next report will carry a month of nightly leader-transfer results on Kahuna
+1.11.2, a strict-serializable Elle arm, and clock skew in the Kahuna suite. A
+database earns trust on its worst day, and the only way to know what that day
+looks like is to keep causing it.</p>]]></content>
         <author>
             <name>Andres Gutierrez</name>
             <uri>https://github.com/andresgutierrez</uri>
         </author>
         <category label="camusdb" term="camusdb"/>
         <category label="reliability" term="reliability"/>
-        <category label="small-business" term="small-business"/>
-        <category label="distributed-sql" term="distributed-sql"/>
+        <category label="consistency" term="consistency"/>
+        <category label="jepsen" term="jepsen"/>
+        <category label="distributed-systems" term="distributed-systems"/>
     </entry>
     <entry>
         <title type="html"><![CDATA[What the dragon found]]></title>
