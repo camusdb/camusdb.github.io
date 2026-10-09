@@ -5,8 +5,8 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Query planning | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/query-planning/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Query planning | CamusDB"><meta data-rh="true" name="description" content="SQL states what you want. It does not state how CamusDB gets it. The planner"><meta data-rh="true" property="og:description" content="SQL states what you want. It does not state how CamusDB gets it. The planner"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/query-planning/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planning/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planning/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Query planning","item":"https://camusdb.github.io/docs/query-planning"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.0e74f3c3.css">
-<script src="/assets/js/runtime~main.04c5235d.js" defer="defer"></script>
-<script src="/assets/js/main.a102161a.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.cdbe36d0.js" defer="defer"></script>
+<script src="/assets/js/main.53100af3.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -39,9 +39,11 @@ safe.</li>
 <li class="">An aggregate, both grouped and global.</li>
 <li class="">A streaming <code>DISTINCT</code>, on a compatible indexed projection of <code>NOT NULL</code>
 columns.</li>
-<li class="">An inner join, and a join with a comma.</li>
+<li class="">An inner join, a left outer join, a right outer join, a cross join, and a join
+with a comma.</li>
 <li class="">A hash join for an equi-join. That includes an equi-join without a usable
-index on the right side.</li>
+index on the right side. A left outer join can use a hash join when the right
+side is the build side.</li>
 <li class="">A merge join, when CamusDB can read both sides in the order of the join key.</li>
 <li class="">An indexed nested-loop join, when an index covers the join key of the right
 side.</li>
@@ -192,6 +194,9 @@ the statistics show a smaller amount of data in total.</p>
 <p>With <code>cost_based_join_order_enabled: true</code>, CamusDB can reorder an eligible
 inner join by cost. It then depends on neither the order of the declaration nor
 a simple heuristic of the selectivity.</p>
+<p>Outer joins keep the order declared in the statement. Reordering them can change
+which side is preserved and where <code>NULL</code> padding happens, so CamusDB plans that
+tree in the written order.</p>
 <p>The enumerator of the joins searches the connected left-deep orders. It uses
 four inputs:</p>
 <ol>
@@ -247,9 +252,18 @@ each partition, on the node that owns the rows. It then applies the filters and
 the aggregates before anything crosses the network. That behavior is off by
 default. See <a class="" href="/docs/distributed-queries/">Distributed Queries</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="joins">Joins<a href="#joins" class="hash-link" aria-label="Direct link to Joins" title="Direct link to Joins" translate="no">​</a></h2>
-<p>CamusDB supports <code>JOIN</code>, <code>INNER JOIN</code>, and a join with a comma. For an inner
-equi-join, the planner can select among several physical algorithms:</p>
-<table><thead><tr><th>Plan of a join</th><th>When it is useful</th></tr></thead><tbody><tr><td><code>index-nested-loop-join</code></td><td>The right side has an index on the join key. The left side is also small enough for a probe of the index at each row.</td></tr><tr><td><code>hash-join</code></td><td>The join is an equality. A scan and a build of a hash table is cheaper than repeated probes of the right side. The right side can also have no usable index on the join key.</td></tr><tr><td><code>merge-join</code></td><td>CamusDB can read both sides in the order of the join key, usually through two compatible indexes. It can therefore stream both sides together.</td></tr><tr><td><code>nested-loop-join</code></td><td>The fallback, for a join that is eligible for none of the indexed, hash, and merge forms.</td></tr></tbody></table>
+<p>CamusDB supports <code>JOIN</code>, <code>INNER JOIN</code>, <code>LEFT JOIN</code>, <code>RIGHT JOIN</code>, <code>CROSS JOIN</code>,
+and a join with a comma. The planner first normalizes the syntax:</p>
+<ul>
+<li class=""><code>JOIN</code> and <code>INNER JOIN</code> are the same inner join.</li>
+<li class=""><code>RIGHT JOIN</code> is executed as a left join with the operands swapped.</li>
+<li class=""><code>CROSS JOIN</code> has no <code>ON</code> predicate. It produces the Cartesian product. When
+the whole <code>FROM</code> clause is cross joins or comma joins, CamusDB can still lift
+an equality from the <code>WHERE</code> clause and plan it as a join predicate.</li>
+</ul>
+<p>For an inner equi-join, and for an eligible left outer equi-join, the planner can
+select among several physical algorithms:</p>
+<table><thead><tr><th>Plan of a join</th><th>When it is useful</th></tr></thead><tbody><tr><td><code>index-nested-loop-join</code></td><td>The right side has an index on the join key. The left side is also small enough for a probe of the index at each row. For a left outer join, the left side is the preserved side and unmatched rows are padded after the failed probe.</td></tr><tr><td><code>hash-join</code></td><td>The join is an equality. A scan and a build of a hash table is cheaper than repeated probes of the right side. The right side can also have no usable index on the join key. For a left outer join, the build side must be the right side.</td></tr><tr><td><code>merge-join</code></td><td>CamusDB can read both sides in the order of the join key, usually through two compatible indexes. It can therefore stream both sides together. For a left outer join, unmatched left runs are padded.</td></tr><tr><td><code>nested-loop-join</code></td><td>The fallback, for a join that is eligible for none of the indexed, hash, and merge forms.</td></tr></tbody></table>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">SELECT</span><span class="token plain"> u</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">email</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> p</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">title</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> app_users u</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">JOIN</span><span class="token plain"> posts p </span><span class="token keyword" style="color:#00009f">ON</span><span class="token plain"> p</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">user_id </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> u</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">id</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
 <p>The right side can have an index on the join key. CamusDB can then use an
 indexed nested-loop join. It does not scan the whole right side for each left
@@ -260,12 +274,16 @@ join instead. It does that when the estimates show a cheaper shape.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">SELECT</span><span class="token plain"> u</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">email</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> p</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">title</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> app_users u</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">JOIN</span><span class="token plain"> posts p </span><span class="token keyword" style="color:#00009f">ON</span><span class="token plain"> p</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">user_id </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> u</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">id</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
 <p>An index on <code>posts(user_id)</code> is far more useful than an unrelated index on
 <code>posts(title)</code>.</p>
-<p>A hash join materializes the side that the estimate calls smaller, into a hash
-table in memory. It streams the other side as the probes.</p>
-<p>In a cluster with <a class="" href="/docs/distributed-queries/">distributed queries</a> enabled, a
-hash join can broadcast a small build side to the leaders of the probe table&#x27;s
-ranges. That keeps the larger probe scan near the data while preserving the same
-result as a local probe.</p>
+<p>A hash join materializes one side into a hash table in memory. For an inner
+join, the planner usually builds the side that the estimate calls smaller and
+streams the other side as the probes. For a left outer join, the preserved side
+must stay as the probe side, so the hash build side is always the right table.</p>
+<p>In a cluster with <a class="" href="/docs/distributed-queries/">distributed queries</a> enabled, an
+inner hash join can broadcast a small build side to the leaders of the probe
+table&#x27;s ranges. That keeps the larger probe scan near the data while preserving
+the same result as a local probe. A left outer join does not use that broadcast
+shape, because a remote probe can return matches but cannot emit padded rows for
+unmatched preserved rows.</p>
 <p>The build side can exceed the configured limit of a hash join. CamusDB can then
 use <a class="" href="/docs/spill-to-disk/">spill to disk</a>. It divides the join, and it keeps the
 memory bounded. With the spill disabled, the execution of that query falls back
@@ -274,6 +292,13 @@ to the behavior of a nested loop.</p>
 the order of the join key. It then advances both streams together, and it
 buffers only the current run of equal keys. That plan helps most in a larger
 join, where both tables have a compatible index on the columns of the join.</p>
+<p>Outer joins also affect predicate placement. A filter on the preserved side can
+push down to that input. A filter on the null-extended side stays above the join,
+because pushing it below the join would filter before padding and change the
+meaning of the query.</p>
+<p>CamusDB does not reorder a join tree that contains an outer join. The written
+order is part of the semantics. Cost-based join-order enumeration applies to
+eligible inner joins.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-rewrite-of-an-in-and-of-a-not-in-subquery">The rewrite of an IN and of a NOT IN subquery<a href="#the-rewrite-of-an-in-and-of-a-not-in-subquery" class="hash-link" aria-label="Direct link to The rewrite of an IN and of a NOT IN subquery" title="Direct link to The rewrite of an IN and of a NOT IN subquery" translate="no">​</a></h2>
 <p>For an eligible subquery without a correlation, CamusDB can perform two
 rewrites:</p>
@@ -391,6 +416,13 @@ separate view of a logical plan.</li>
 <li class="">The enumeration of the order of a join by cost is left-deep. CamusDB caps it
 for a very wide join. It currently applies to the shapes of an inner join that
 CamusDB can reorder.</li>
+<li class="">A query that contains an outer join keeps its declared join order. CamusDB
+does not reorder an outer-join tree by cost.</li>
+<li class=""><code>FULL [OUTER] JOIN</code>, <code>NATURAL JOIN</code>, and <code>JOIN ... USING (...)</code> are not
+supported yet.</li>
+<li class="">A <code>RIGHT JOIN</code> whose left operand is itself a join is not supported. Rewrite it
+as a left join with the preserved table on the left, often through a derived
+table.</li>
 <li class="">A <code>NOT IN (...)</code> list of values stays driven by a filter. It uses no dedicated
 shape of a plan with probes of an index.</li>
 <li class="">CamusDB does not support <code>COUNT(DISTINCT ...)</code>.</li>
