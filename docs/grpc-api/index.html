@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">gRPC API | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/grpc-api/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="gRPC API | CamusDB"><meta data-rh="true" name="description" content="CamusDB exposes a gRPC API for a client, beside the API of REST with JSON. The"><meta data-rh="true" property="og:description" content="CamusDB exposes a gRPC API for a client, beside the API of REST with JSON. The"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/grpc-api/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/grpc-api/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/grpc-api/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"gRPC API","item":"https://camusdb.github.io/docs/grpc-api"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.b9b52b85.css">
-<script src="/assets/js/runtime~main.d02d2598.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.0ed3cf1e.js" defer="defer"></script>
 <script src="/assets/js/main.b8c19f0d.js" defer="defer"></script>
 </head>
 <body>
@@ -50,7 +50,7 @@ authenticated while the token was valid; see
 <a class="" href="/docs/sql-authentication/#grpc-batch-streams-and-token-expiry">gRPC batch streams and token expiry</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="sql-service">SQL service<a href="#sql-service" class="hash-link" aria-label="Direct link to SQL service" title="Direct link to SQL service" translate="no">​</a></h2>
 <p><code>CamusSql</code> provides:</p>
-<table><thead><tr><th>RPC</th><th>Shape</th><th>Purpose</th></tr></thead><tbody><tr><td><code>ExecuteQuery</code></td><td>server stream</td><td>Execute <code>SELECT</code> and <code>SHOW</code>; emits schema first, then rows.</td></tr><tr><td><code>ExecuteNonQuery</code></td><td>unary</td><td>Execute <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, and server-level account statements; returns affected rows, plus <code>returning_schema</code> and <code>returning_rows</code> for <code>INSERT ... RETURNING</code>.</td></tr><tr><td><code>ExecuteDdl</code></td><td>unary</td><td>Execute database, table, index, and schema statements.</td></tr><tr><td><code>StartTransaction</code></td><td>unary</td><td>Start an explicit transaction and receive a <code>TxnHandle</code>.</td></tr><tr><td><code>CommitTransaction</code></td><td>unary</td><td>Commit an explicit transaction by handle.</td></tr><tr><td><code>RollbackTransaction</code></td><td>unary</td><td>Roll back an explicit transaction by handle.</td></tr><tr><td><code>BatchExecute</code></td><td>bidirectional stream</td><td>Pipeline SQL operations, transaction lifecycle messages, and prepared-statement lifecycle messages on one stream.</td></tr><tr><td><code>Ping</code></td><td>unary</td><td>Check liveness and round-trip connectivity.</td></tr></tbody></table>
+<table><thead><tr><th>RPC</th><th>Shape</th><th>Purpose</th></tr></thead><tbody><tr><td><code>ExecuteQuery</code></td><td>server stream</td><td>Execute <code>SELECT</code> and <code>SHOW</code>; emits schema first, then rows.</td></tr><tr><td><code>ExecuteNonQuery</code></td><td>unary</td><td>Execute <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, and server-level account statements; returns affected rows, plus <code>returning_schema</code> and <code>returning_rows</code> for writes with <code>RETURNING</code>.</td></tr><tr><td><code>ExecuteDdl</code></td><td>unary</td><td>Execute database, table, index, and schema statements.</td></tr><tr><td><code>StartTransaction</code></td><td>unary</td><td>Start an explicit transaction and receive a <code>TxnHandle</code>.</td></tr><tr><td><code>CommitTransaction</code></td><td>unary</td><td>Commit an explicit transaction by handle.</td></tr><tr><td><code>RollbackTransaction</code></td><td>unary</td><td>Roll back an explicit transaction by handle.</td></tr><tr><td><code>BatchExecute</code></td><td>bidirectional stream</td><td>Pipeline SQL operations, transaction lifecycle messages, and prepared-statement lifecycle messages on one stream.</td></tr><tr><td><code>Ping</code></td><td>unary</td><td>Check liveness and round-trip connectivity.</td></tr></tbody></table>
 <p>A client sends the parameters of the SQL as a <code>map&lt;string, Value&gt;</code>. Prefer a
 parameter to a value inside the string of the SQL. A typed value then crosses
 the wire without a loss. Four such types are <code>DATE</code>, <code>DATETIME</code>, <code>BYTES</code>, and
@@ -63,13 +63,13 @@ as parameters so secrets do not appear in SQL text.</p>
 metadata. Set it to <code>1</code> when the client understands <code>RoutingAdvice</code>; leave it at
 <code>0</code> for the historical response shape. See
 <a class="" href="/docs/sql-routing-advice/">SQL Routing Advice</a>.</p>
-<p><code>INSERT ... RETURNING</code> works through <code>ExecuteQuery</code> and <code>ExecuteNonQuery</code>.
-Through <code>ExecuteQuery</code>, the returned rows arrive as a normal query stream and
-the schema is sent only after the autocommit insert commits. Through
-<code>ExecuteNonQuery</code>, the reply carries <code>affected_rows</code>, <code>returning_schema</code>, and
-<code>returning_rows</code>. Set <code>discard_returning_rows</code> on a no-rows call when the
-client only needs the count. See
-<a class="" href="/docs/sql-writes/#insert-returning">INSERT ... RETURNING</a>.</p>
+<p><code>INSERT</code>, <code>UPDATE</code>, and <code>DELETE</code> with a <code>RETURNING</code> list work through
+<code>ExecuteQuery</code> and <code>ExecuteNonQuery</code>. Through <code>ExecuteQuery</code>, the returned rows
+arrive as a normal query stream and the schema is sent only after the autocommit
+write commits. Through <code>ExecuteNonQuery</code>, the reply carries <code>affected_rows</code>,
+<code>returning_schema</code>, and <code>returning_rows</code>. Set <code>discard_returning_rows</code> on a
+no-rows call when the client only needs the count. See
+<a class="" href="/docs/sql-writes/#returning">RETURNING</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="cancellation-and-backpressure">Cancellation and backpressure<a href="#cancellation-and-backpressure" class="hash-link" aria-label="Direct link to Cancellation and backpressure" title="Direct link to Cancellation and backpressure" translate="no">​</a></h2>
 <p>Cancelling a gRPC call, closing a stream, or letting the deadline expire
 propagates cancellation into the query pipeline. CamusDB stops scans, joins,
@@ -181,7 +181,7 @@ metadata, it can also carry advisory routing metadata.</p>
 <p>Four operations each emit one last response of a success: an operation without a
 query, a start, a commit, and a rollback. A non-query response can also carry
 advisory routing metadata when the request negotiated it. A non-query response
-for <code>INSERT ... RETURNING</code> can carry the returning schema and rows. A failed
+for a write with <code>RETURNING</code> can carry the returning schema and rows. A failed
 operation emits one last <code>BatchError { code, message }</code>.</p>
 <p>Two operations that share a handle of a transaction keep their order, inside one
 stream of a batch. A client can use several streams of a batch. It must then put

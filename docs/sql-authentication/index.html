@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Authentication and authorization | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/sql-authentication/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Authentication and authorization | CamusDB"><meta data-rh="true" name="description" content="CamusDB can enforce SQL authentication and per-object authorization for clients."><meta data-rh="true" property="og:description" content="CamusDB can enforce SQL authentication and per-object authorization for clients."><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/sql-authentication/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/sql-authentication/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/sql-authentication/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Authentication and authorization","item":"https://camusdb.github.io/docs/sql-authentication"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.b9b52b85.css">
-<script src="/assets/js/runtime~main.d02d2598.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.0ed3cf1e.js" defer="defer"></script>
 <script src="/assets/js/main.b8c19f0d.js" defer="defer"></script>
 </head>
 <body>
@@ -199,9 +199,9 @@ That rule covers a join, a derived table, a subquery, a semi-join, <code>EXISTS<
 <li class=""><code>UPDATE</code> for an update.</li>
 <li class=""><code>DELETE</code> for a delete.</li>
 </ul>
-<p><code>INSERT ... RETURNING</code> also needs <code>SELECT</code> on the target table, because the
-<code>RETURNING</code> list reads stored values from the inserted rows. The count-only
-request flag does not remove that privilege check.</p>
+<p>A write with <code>RETURNING</code> also needs <code>SELECT</code> on the target table, because the
+<code>RETURNING</code> list reads stored row values. The count-only request flag does not
+remove that privilege check.</p>
 <p><a class="" href="/docs/truncate-table/"><code>TRUNCATE</code></a> needs both <code>DELETE</code> and <code>DROP</code> on the target
 table. It removes every row, which is an effect of a <code>DELETE</code>. It also retires a
 whole key space, which is an effect of a <code>DROP</code>.</p>
@@ -220,8 +220,23 @@ the node, but only a superuser sees detailed role, partition, and stalled-range
 fields. Membership, placement, backfill, snapshot, leave, and replication-factor
 routes are superuser-only; leave and replication-factor routes are loopback-only
 when authentication is off.</p>
-<p>Some statements open no table. Any authenticated user may run them. Examples are
-<code>SHOW TABLES</code>, <code>SHOW DATABASE</code>, and a <code>SELECT</code> without a <code>FROM</code> clause.</p>
+<p>Database names are hidden from users who hold no grant that reaches into that
+database. A statement that runs in such a database fails as <code>CADB0010</code>
+<code>DatabaseDoesntExist</code>, the same error returned for an unknown name. This applies
+to SQL over HTTP and gRPC, the typed rows API, and batch streams. A global grant,
+a <code>db.*</code> grant, or any grant on one table in the database is enough to make the
+database visible, but the statement still needs its normal table privilege.</p>
+<p>Catalog statements are filtered by the same visibility rule. <code>SHOW DATABASES</code>
+lists only databases the caller can reach. <code>SHOW TABLES</code> lists only tables the
+caller has any privilege on. <code>SHOW BRANCHES</code>, <code>SHOW ANCESTORS</code>, and
+<code>SHOW ORPHAN DATABASES</code> omit databases the caller cannot see.</p>
+<p>Some statements open no table. An authenticated user may run them when the
+current database is visible to that user. Examples are <code>SHOW TABLES</code> and a
+<code>SELECT</code> without a <code>FROM</code> clause.</p>
+<p>Database-level inspection, such as <code>SHOW DATABASE</code> and <code>SHOW ORPHAN TABLES</code>,
+needs <code>SELECT</code> at database scope: a <code>db.*</code> or <code>*.*</code> grant, or superuser status.
+A grant on one table makes the database visible, but it does not authorize these
+database-level reads.</p>
 <p>Inspection of one table needs <code>SELECT</code> on that table. Examples are <code>SHOW COLUMNS</code>, <code>SHOW CREATE TABLE</code>, and <a class="" href="/docs/show-statistics/"><code>SHOW STATISTICS</code></a>.
 <code>SHOW STATISTICS</code> reports bounds taken from real column values. CamusDB
 therefore holds it to the same requirement as a read of those columns, and to
