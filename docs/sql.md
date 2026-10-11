@@ -125,8 +125,11 @@ subtract a negative number.
 | Restore a dropped database or table | [Recover Dropped Objects](/docs/recover-dropped-objects) |
 | Tables, columns, and `ALTER` | [Tables And Columns](/docs/sql-schema) |
 | Column types and literals | [Data Types](/docs/data-types) |
+| PostgreSQL-style expression forms | [PostgreSQL Expression Syntax](/docs/sql-expression-syntax) |
 | `CHECK` and `NOT NULL` | [Check Constraints](/docs/check-constraints) |
+| Parent-child integrity | [Foreign Keys](/docs/foreign-keys) |
 | Indexes, and a covering index | [Indexes](/docs/sql-indexes) |
+| Sequences and identity columns | [Sequences](/docs/sequences) |
 | A description on a schema object | [Schema Comments](/docs/comment-on) |
 | A stored query | [Views](/docs/views) |
 | The stored result of a query | [Materialized Views](/docs/materialized-views) |
@@ -159,6 +162,7 @@ subtract a negative number.
 | The range placement of a table or index | [SHOW RANGES](/docs/show-ranges) |
 | Statements that crossed a slow-query threshold | [Slow Query Log](/docs/slow-query-log) |
 | A placeholder, and a prepared handle | [Parameters And Prepared Statements](/docs/prepared-statements) |
+| A deeply nested generated statement | [Statement Nesting Limit](/docs/statement-nesting-limit) |
 | `SHOW`, `DESCRIBE`, `ANALYZE` | [Inspecting The Database](/docs/sql-inspection) |
 | A grant and a role | [Authentication And Authorization](/docs/sql-authentication) |
 | `SET` and `RESET CLUSTER SETTING` | [Runtime Cluster Settings](/docs/runtime-cluster-settings) |

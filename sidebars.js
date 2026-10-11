@@ -19,9 +19,14 @@ const sidebars = {
       label: 'Start here',
       collapsed: false,
       items: [
-        'intro',
+        'intro',        
         'why-camusdb',
-        'databases',        
+        {
+          type: 'link',
+          label: 'Playground',
+          href: '/playground',
+        },
+        'databases',  
         'database-branching',        
         'recover-dropped-objects',
         'advanced-samples',
@@ -37,6 +42,7 @@ const sidebars = {
           id: 'sql',
           label: 'SQL overview',
         },
+        'best-practices',
         'data-types',
         {
           type: 'category',
@@ -48,8 +54,10 @@ const sidebars = {
               id: 'sql-schema',
               label: 'Tables and columns',
             },
-            'check-constraints',
             'sql-indexes',
+            'check-constraints',
+            'foreign-keys',
+            'sequences',
             {
               type: 'doc',
               id: 'comment-on',
@@ -121,6 +129,7 @@ const sidebars = {
             'functions-session',
             'functions-string',
             'functions-math',
+            'functions-hash',
             'functions-datetime',
             'functions-json',
             'functions-regex',
@@ -128,6 +137,7 @@ const sidebars = {
             'functions-null',
             'functions-uuid',
             'functions-object-id',
+            'functions-array',
           ],
         },
         {
@@ -155,6 +165,11 @@ const sidebars = {
               type: 'doc',
               id: 'query-result-cache',
               label: 'Result cache',
+            },
+            {
+              type: 'doc',
+              id: 'query-activity',
+              label: 'Query activity',
             },
             {
               type: 'doc',
@@ -300,6 +315,7 @@ const sidebars = {
       label: 'Reference',
       collapsed: false,
       items: [
+        'browser-playground',
         'mcp-server',
         'web-console',
         'camus-cli',        
@@ -317,6 +333,7 @@ const sidebars = {
           collapsed: false,
           items: [
             'dotnet-driver',
+            'dapper',
             'ef-core',
           ],
         },

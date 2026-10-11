@@ -1,11 +1,12 @@
 import clsx from 'clsx';
-import {useState} from 'react';
+import {useRef, useState} from 'react';
 import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import Layout from '@theme/Layout';
 import CodeBlock from '@theme/CodeBlock';
 import Heading from '@theme/Heading';
+import PyramidEntrance from '../components/PyramidEntrance';
 import styles from './index.module.css';
 
 const heroProofs = [
@@ -151,33 +152,41 @@ function DataBeam({className}) {
 
 function PyramidNetwork({className}) {
   const pyramidUrl = useBaseUrl('/img/pyramid.png');
+  const networkRef = useRef(null);
+  const pyramidRefs = useRef([]);
+  const [isAssembling, setIsAssembling] = useState(false);
 
   return (
     <div
-      className={clsx(styles.pyramidNetwork, className)}
-      role="img"
+      ref={networkRef}
+      className={clsx(styles.pyramidNetwork, className, isAssembling && styles.pyramidAssembling)}
+      role="group"
       aria-label="Three database pyramids exchanging data streams">
       <DataBeam className={styles.dataBeamLeft} />
       <DataBeam className={styles.dataBeamRight} />
       <DataBeam className={styles.dataBeamBase} />
       <img
+        ref={(node) => { pyramidRefs.current[0] = node; }}
         className={clsx(styles.pyramidNode, styles.pyramidTop)}
         src={pyramidUrl}
         alt=""
         aria-hidden="true"
       />
       <img
+        ref={(node) => { pyramidRefs.current[1] = node; }}
         className={clsx(styles.pyramidNode, styles.pyramidLeft)}
         src={pyramidUrl}
         alt=""
         aria-hidden="true"
       />
       <img
+        ref={(node) => { pyramidRefs.current[2] = node; }}
         className={clsx(styles.pyramidNode, styles.pyramidRight)}
         src={pyramidUrl}
         alt=""
         aria-hidden="true"
       />
+      <PyramidEntrance targetRefs={pyramidRefs} networkRef={networkRef} onActiveChange={setIsAssembling} />
     </div>
   );
 }
@@ -200,8 +209,11 @@ function HomepageHeader() {
               familiar SQL
             </p>
             <div className={styles.buttons}>
+              <Link className={clsx('button button--lg', styles.playgroundAction)} to="/playground">
+                Try in browser
+              </Link>
               <Link className="button button--primary button--lg" to="/docs/intro">
-                Try CamusDB locally
+                Install locally
               </Link>
               <Link className={styles.secondaryAction} to="/docs/why-camusdb">
                 See how it works <span aria-hidden="true">→</span>
@@ -209,6 +221,8 @@ function HomepageHeader() {
             </div>
             <p className={styles.statusNote}>
               <span className={styles.statusDot} aria-hidden="true" />
+              <Link className={styles.statusLink} to="/docs/caraxes">Jepsen-tested with Caraxes</Link>
+              <span aria-hidden="true">·</span>
               Actively used in production — some features are alpha
             </p>
           </div>
@@ -325,6 +339,9 @@ function FinalCallToAction() {
           <p>Install the server from NuGet, run it locally, follow the tutorial, and review the current scope.</p>
         </div>
         <div className={styles.finalActions}>
+          <Link className={clsx('button button--lg', styles.playgroundAction)} to="/playground">
+            Open the playground
+          </Link>
           <Link className="button button--primary button--lg" to="/docs/intro">
             Start the tutorial
           </Link>

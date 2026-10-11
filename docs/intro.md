@@ -2,6 +2,8 @@
 sidebar_position: 1
 ---
 
+import CamusPlayground, {tutorialExamples} from '@site/src/components/CamusPlayground';
+
 # CamusDB tutorial
 
 CamusDB is an open-source NewSQL distributed database. It runs on one node, or
@@ -36,6 +38,7 @@ CamusDB includes these capabilities:
   [gRPC API](/docs/grpc-api), a
   [TypeScript connector](/docs/typescript-connector), a
   [driver for .NET](/docs/dotnet-driver), a
+  [Dapper adapter](/docs/dapper), a
   [provider for EF Core](/docs/ef-core), and a
   [server for the Model Context Protocol](/docs/mcp-server).
 
@@ -52,6 +55,24 @@ workflow has six steps:
 
 Start with [Why CamusDB?](/docs/why-camusdb) for an overview at a higher level.
 That page explains the design of CamusDB as a distributed database of SQL.
+
+## Try it in your browser
+
+You can run the tutorial commands here before installing anything. The embedded
+playground starts with a pre-created `playground` database, but you can also
+create your own database and switch with the database selector. Click the
+examples in order, then click **Run** for each one. You can also edit the SQL
+before running it.
+
+<CamusPlayground
+  compact
+  seedScript=""
+  examples={tutorialExamples}
+  initialSql={tutorialExamples[0].sql}
+  runExampleOnSelect={false}
+  title="Run the tutorial here"
+  description="This is the real CamusDB engine compiled to WebAssembly. It runs as a single in-memory node inside this browser tab."
+/>
 
 ## Video walkthrough
 

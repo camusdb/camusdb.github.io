@@ -47,10 +47,11 @@ The highest layer wins:
 
 1. A CLI flag. Only a flag that you pass explicitly overrides YAML. The options
    are nullable, and they have no sentinel defaults.
-2. An environment variable. At present `CAMUS_KEY_RANGE_SHARDING` overrides
-   `key_range_sharding`.
+2. An environment variable. `CAMUS_KEY_RANGE_SHARDING` overrides
+   `key_range_sharding`. Authentication is switched on with
+   `CAMUSDB_AUTH_ENABLED`, and its secrets are read only from the environment.
 3. `config.yml`.
-4. A built-in default, in `ConfigDefinition` or in `CamusDBConfig`.
+4. A built-in default, in `ConfigDefinition` or in `CamusDBOptions`.
 
 Here is an example. YAML holds `mode: cluster`. The node starts in standalone
 mode if you pass `--mode standalone`. The node stays in cluster mode if you pass
@@ -61,20 +62,21 @@ no `--mode` flag.
 | YAML field | CLI flag | Default |
 |------------|----------|---------|
 | configuration file | `--config` | Search order described above |
-| `data_dir` | `--data-dir` | `$CAMUS_HOME/data`, `$XDG_DATA_HOME/camusdb`, `~/.local/share/camusdb`, or `%LOCALAPPDATA%\camusdb` |
+| `data_dir` | `--data-dir` | `~/.camusdb/data`, or `$CAMUS_HOME/data` when set |
 | `mode` | `--mode` | `standalone` |
 | `memory_profile` | `--memory-profile` | `prod` |
 | `node_name` | `--raft-nodename` | `""`. In cluster mode, the machine name. |
 | `raft_node_id` | `--raft-nodeid` | `1` |
 | `raft_host` | `--raft-host` | `localhost` |
 | `raft_port` | `--raft-port` | `7070` |
-| `initial_partitions` | `--initial-cluster-partitions` | `1` |
+| `initial_partitions` | `--initial-cluster-partitions` | `1` in standalone mode, `3` in cluster mode |
 | `peers` | `--initial-cluster` | `[]` |
 | `http_peers` | `--http-peers` | `[]` |
 | `join_existing` | `--join-existing` | `false` |
 | `schema_ack_wait_timeout_ms` | `--schema-ack-wait-timeout-ms` | `30000` |
-| `schema_ack_live_node_lease_ms` | `--schema-ack-live-node-lease-ms` | `-1` |
+| `schema_ack_live_node_lease_ms` | `--schema-ack-live-node-lease-ms` | `30000` |
 | `schema_freshness_check_interval_ms` | (none) | `10000` |
+| `unhosted_control_log_probe_interval_ms` | (none) | `250` |
 | `http_port` | `--http-port` | `5095` |
 | `https_port` | `--https-port` | `7141` |
 | `https_certificate` | `--https-certificate` | `""` |
@@ -120,12 +122,19 @@ no `--mode` flag.
 | `sql_parser_cache_ttl_seconds` | (none) | `300` |
 | `sql_parser_cache_max_entries` | (none) | `2048` |
 | `sql_parser_cache_sweep_seconds` | (none) | `60` |
+| `sql_parser_cache_max_bytes` | (none) | `67108864` |
 | `regex_match_timeout_ms` | (none) | `250` |
 | `regex_cache_max_entries` | (none) | `1024` |
 | `spill_enabled` | (none) | `false` |
 | `spill_threshold_rows` | (none) | `500000` |
 | `spill_merge_fan_in` | (none) | `16` |
+| `spill_max_total_bytes` | (none) | `8589934592` |
 | `min_free_disk_bytes` | (none) | `67108864` |
+| `large_value_threshold_bytes` | (none) | `2048` |
+| `large_value_compression_enabled` | (none) | `true` |
+| `large_value_compression_min_saving_percent` | (none) | `12` |
+| `large_value_rewrite_batch_rows` | (none) | `200` |
+| `large_value_resolve_batch_bytes` | (none) | `67108864` |
 | `query_result_cache_enabled` | (none) | `true` |
 | `query_result_cache_default_ttl_ms` | (none) | `5000` |
 | `query_result_cache_max_entries` | (none) | `1024` |
@@ -143,10 +152,21 @@ no `--mode` flag.
 Most tuning settings are YAML only. They tune the operation of a node or a
 cluster after startup options have selected where the node runs.
 
+`unhosted_control_log_probe_interval_ms` controls how often a node probes the
+durable checkpoint of a control log, such as schema or cluster settings, when
+that node does not host the Raft partition for the log. This matters in clusters
+where the replication factor is smaller than the node count. Set it to `0` or a
+negative value to disable the fast probe.
+
 The result cache is on by default. A query opts in with a `{cache=…}` hint. Set
 `query_result_cache_enabled: false` to turn the cache off completely. See
 [Query Result Cache](/docs/query-result-cache) for the purpose of each setting,
 and for operator guidance.
+
+The `large_value_*` settings control compression, out-of-line storage, and
+rewrite batching for large `STRING`, `BYTES`/`BLOB`, and `ARRAY` values. See
+[Large Values](/docs/storage-layout) for the strategy choices and operational
+guidance.
 
 SQL routing advice is on by default, but clients see it only when they opt in on
 the request. `sql_routing_advice_ttl_ms` controls the maximum age that a client
@@ -396,6 +416,14 @@ Kahuna groups key-value writes into Raft batches before replication:
   batch completes before dispatching the next one. CamusDB ships a nonzero
   default to increase batch density at full occupancy. Set it to `0` to restore
   Kahuna's dispatch-at-once behavior.
+- `kahuna.key_value_write_precise_wake`, default `false`, moves the write
+  aggregator's hold, linger, and queue-age wakeups onto a dedicated timer thread.
+  Use it when you are testing low-latency write aggregation, because it can wake
+  closer to the configured millisecond deadline than the shared timer queue.
+- `kahuna.key_value_write_fill_target_trigger`, default `false`, dispatches a
+  held or lingering partition buffer as soon as it reaches the learned fill
+  target instead of always waiting for the timer. Kahuna keeps probing the timer
+  path so the target can follow the current load.
 
 These settings affect write latency and throughput. Record them with benchmark
 results; runs with different batching settings are not directly comparable.
@@ -545,8 +573,10 @@ to get the total. The default is one worker for each CPU.
 | `transaction_finalize_retry_budget_ms` is smaller than the minimum safe retry budget | `InvalidConfig` |
 | `spill_threshold_rows` is 0 or below | `InvalidConfig` |
 | `spill_merge_fan_in` is 0 or below | `InvalidConfig` |
+| `large_value_rewrite_batch_rows` is 0 or below, or is above half of `max_mutations_per_transaction` when that limit is enabled | `InvalidConfig` |
 | `slow_query_log_threshold_ms` is below 0, or slow-query capacity settings are below 1 | `InvalidConfig` |
 | `dashboard_refresh_seconds` is outside the accepted range | `InvalidConfig` |
+| A parser-cache limit is below 0, or its sweep interval is below 1 | `InvalidConfig` |
 | Unknown `kahuna` key | `InvalidConfig` |
 | Unknown `kahuna.storage` or `kahuna.wal_storage` | `InvalidConfig` |
 | `kahuna.start_election_timeout_ms` is at or above `kahuna.end_election_timeout_ms` | `InvalidConfig` |

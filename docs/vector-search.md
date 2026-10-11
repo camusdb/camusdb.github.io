@@ -48,10 +48,14 @@ is the four bytes `00 00 80 3F`, with the low byte first.
 CREATE TABLE docs (
   id OID PRIMARY KEY NOT NULL,
   tenant_id INT64,
-  embedding BYTES(3072) NOT NULL,
+  embedding BYTES(3072) NOT NULL STORAGE PLAIN,
   CONSTRAINT embedding_is_768d CHECK (vector_dims(embedding) = 768)
 );
 ```
+
+`STORAGE PLAIN` keeps each embedding inside its row. Without it, a
+768-dimension embedding is large enough to move out of the row under the default
+large-value strategy. See [Storage strategy for embeddings](#storage-strategy-for-embeddings).
 
 ### BYTES(N) is a maximum, not a fixed width
 
@@ -86,6 +90,33 @@ check only when the condition is `false`, and `vector_dims(NULL)` is `NULL`. Use
 
 Both functions are deterministic, and neither is an aggregate. That is what
 makes them legal inside a `CHECK` condition.
+
+### Storage strategy for embeddings
+
+An embedding is a `BYTES` value, so the large-value rules in
+[Large Values](/docs/storage-layout) apply to it. A 768-dimension embedding is
+3,072 bytes, which is above the default out-of-line threshold of 2,048 bytes.
+Under the default strategy, `EXTENDED`, each embedding moves out of its row.
+
+That is good for large values most queries skip. It is bad for exact KNN scans,
+because the ranking expression reads the embedding for every candidate row. The
+scan then pays an extra batched fetch for every batch it ranks. Float32 vectors
+also do not usually compress enough for LZ4 to help.
+
+Choose the strategy from the query that reads the column:
+
+- Use `PLAIN` when KNN queries scan the embedding. The value stays inside the
+  row and is never compressed.
+- Use `EXTERNAL` when most queries skip the embedding and only occasional
+  background work reads it. The value moves out of the row without a compression
+  attempt.
+
+For an existing table, change the strategy and rewrite the stored rows:
+
+```camussql
+ALTER TABLE docs ALTER COLUMN embedding SET STORAGE PLAIN;
+ALTER TABLE docs REWRITE STORAGE;
+```
 
 ## Distance functions
 

@@ -30,7 +30,8 @@ not null:
 
 - The type of the result is `NULL` when every argument is `NULL`.
 - CamusDB widens a numeric argument where that is necessary. `FLOAT64` beats
-  `FLOAT32`, and `FLOAT32` beats `INT64`.
+  `FLOAT32`, and `FLOAT32` beats `INT64`. `NUMERIC` with `INT64` stays
+  `NUMERIC`; `NUMERIC` with a float widens to `FLOAT64`.
 - CamusDB rejects a mix of a `STRING` with a type that is not a string.
 - Compatible arguments that are not numeric keep the first type that is not
   null.

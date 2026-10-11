@@ -71,6 +71,10 @@ CamusDB scans the existing rows before it commits the schema change. The `ALTER
 TABLE` fails when an existing row violates the new check. CamusDB then adds no
 constraint.
 
+The new check is enforced before the scan begins. A concurrent `INSERT` or
+`UPDATE` that commits while the scan is running must satisfy the new rule too,
+so a violating row cannot appear behind the scan.
+
 Drop a check by its name:
 
 ```camussql
@@ -146,6 +150,7 @@ deterministic. It can use these forms:
 - `CASE ... END`.
 - A deterministic scalar function.
 - `CAST`.
+- An array subscript such as `tags[1]`.
 
 CamusDB rejects a definition of a check that uses one of these four forms: a
 subquery, an aggregate function, a volatile function, or a reference to an
@@ -201,6 +206,28 @@ CREATE TABLE entries (
 );
 ```
 
+### Array columns
+
+A check can test an `ARRAY(T)` column as a whole with `cardinality` and
+`array_contains`, or test one position with a subscript:
+
+```camussql
+CREATE TABLE posts (
+  id OID PRIMARY KEY NOT NULL DEFAULT (gen_id()),
+  tags ARRAY(STRING)
+    CHECK (cardinality(tags) <= 3 AND NOT array_contains(tags, 'banned'))
+);
+```
+
+Both functions return `NULL` for a `NULL` array, so the check accepts a `NULL`
+array. Use `cardinality`, not `array_length`, for a length rule that must treat
+an empty array as length 0. `array_length(tags, 1)` returns `NULL` for an empty
+array, and a check whose result is unknown passes.
+
+`array_contains` follows `IN` semantics. If the array holds a `NULL` element and
+no match, the result is unknown. A check on `NOT array_contains(...)` therefore
+passes in that case. See [Array Functions](/docs/functions-array).
+
 ## A named NOT NULL constraint
 
 A `NOT NULL` constraint can also have a name. You can then drop it.
@@ -229,9 +256,12 @@ ALTER TABLE employees ALTER COLUMN name DROP NOT NULL;
 You cannot drop `NOT NULL` from a column while that column belongs to the primary
 key. Drop or change the primary key first.
 
-`SET NOT NULL` scans the table first. An existing row can hold a `NULL` in the
-target column. CamusDB then rejects the schema change, with `CADB0301
-NotNullViolation`.
+`SET NOT NULL` scans the table before it commits the schema change. Existing
+rows with `NULL` values make the statement fail, and the column remains
+nullable.
+
+The new `NOT NULL` rule is enforced before that scan begins, so concurrent
+writes cannot insert a new `NULL` while CamusDB validates the existing rows.
 
 `SET NOT NULL` can create a constraint without a name. CamusDB then stores the
 name as `{table}_{column}_not_null`. One example is `employees_name_not_null`.

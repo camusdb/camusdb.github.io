@@ -221,8 +221,8 @@ than you expect.
 | --- | --- |
 | `COUNT(*)` | It counts every row. |
 | `COUNT(column)` | It counts the values that are not null. |
-| `SUM(column)` | It adds the numeric values. It ignores a null. |
-| `AVG(column)` | It returns a `FLOAT64` average. It ignores a null. |
+| `SUM(column)` | It adds the numeric values. It ignores a null. A `NUMERIC` input returns `NUMERIC`; an `INT64` input returns `INT64`; a `FLOAT64` input returns `FLOAT64`. |
+| `AVG(column)` | It returns a `NUMERIC` average for `NUMERIC` input. Otherwise it returns `FLOAT64`. It ignores a null. |
 | `MIN(column)` | It returns the smallest value that is not null. |
 | `MAX(column)` | It returns the largest value that is not null. |
 

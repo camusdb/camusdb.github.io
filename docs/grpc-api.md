@@ -64,6 +64,9 @@ already, and it must build no string of SQL.
 
 `expires_at_unix_ms` and `expires_in_seconds` describe the same deadline. Renew
 the token before that deadline. Do not assume a fixed lifetime of a token.
+An already-open `BatchExecute` stream can outlive ordinary token expiry when it
+authenticated while the token was valid; see
+[gRPC batch streams and token expiry](/docs/sql-authentication#grpc-batch-streams-and-token-expiry).
 
 ## SQL service
 
@@ -72,7 +75,7 @@ the token before that deadline. Do not assume a fixed lifetime of a token.
 | RPC | Shape | Purpose |
 | --- | --- | --- |
 | `ExecuteQuery` | server stream | Execute `SELECT` and `SHOW`; emits schema first, then rows. |
-| `ExecuteNonQuery` | unary | Execute `INSERT`, `UPDATE`, `DELETE`, and server-level account statements; returns affected rows. |
+| `ExecuteNonQuery` | unary | Execute `INSERT`, `UPDATE`, `DELETE`, and server-level account statements; returns affected rows, plus `returning_schema` and `returning_rows` for writes with `RETURNING`. |
 | `ExecuteDdl` | unary | Execute database, table, index, and schema statements. |
 | `StartTransaction` | unary | Start an explicit transaction and receive a `TxnHandle`. |
 | `CommitTransaction` | unary | Commit an explicit transaction by handle. |
@@ -94,6 +97,14 @@ SQL requests can also set `routing_accept_version` to opt in to advisory routing
 metadata. Set it to `1` when the client understands `RoutingAdvice`; leave it at
 `0` for the historical response shape. See
 [SQL Routing Advice](/docs/sql-routing-advice).
+
+`INSERT`, `UPDATE`, and `DELETE` with a `RETURNING` list work through
+`ExecuteQuery` and `ExecuteNonQuery`. Through `ExecuteQuery`, the returned rows
+arrive as a normal query stream and the schema is sent only after the autocommit
+write commits. Through `ExecuteNonQuery`, the reply carries `affected_rows`,
+`returning_schema`, and `returning_rows`. Set `discard_returning_rows` on a
+no-rows call when the client only needs the count. See
+[RETURNING](/docs/sql-writes#returning).
 
 ## Cancellation and backpressure
 
@@ -260,8 +271,13 @@ Each request contains:
 
 - `request_id`: client-assigned id echoed by every response for that operation
 - `kind`: `QUERY`, `NON_QUERY`, `START`, `COMMIT`, `ROLLBACK`, `PREPARE`, or
-  `CLOSE`
-- `request`: the same `SqlRequest` shape used by unary SQL calls
+  `CLOSE`; negotiated clients can also use `FRAME`, and frame contract version 2
+  clients can use `COMMIT_IF_OK`
+- `request`: the same `SqlRequest` shape used by unary SQL calls, absent on a
+  frame
+- `items`: on a frame, a list of complete `BatchExecuteRequest` items
+- `txn_start_ref`: on an item inside a version 2 frame, the `request_id` of an
+  earlier `START` item in that same frame
 
 The responses of two different values of a `request_id` can mix. They can also
 arrive out of their order. A client must separate them by the `request_id`.
@@ -281,8 +297,9 @@ metadata, it can also carry advisory routing metadata.
 
 Four operations each emit one last response of a success: an operation without a
 query, a start, a commit, and a rollback. A non-query response can also carry
-advisory routing metadata when the request negotiated it. A failed operation
-emits one last `BatchError { code, message }`.
+advisory routing metadata when the request negotiated it. A non-query response
+for a write with `RETURNING` can carry the returning schema and rows. A failed
+operation emits one last `BatchError { code, message }`.
 
 Two operations that share a handle of a transaction keep their order, inside one
 stream of a batch. A client can use several streams of a batch. It must then put
@@ -292,6 +309,70 @@ mode can use any stream.
 `grpc_batch_max_in_flight` controls the number of the operations that one stream
 of a batch executes at the same time. Past that number, the server applies
 back-pressure.
+
+## Batch stream frames
+
+Batch stream frames let one `BatchExecute` stream message carry several complete
+operations, or several complete response messages. A frame is only a transport
+optimization. It does not make the operations atomic, and it does not add
+ordering beyond the order already provided by the stream.
+
+A request frame uses `kind = FRAME` and puts the operations in `items`. The
+frame's own `request_id` is unused. Each item keeps its own `request_id` and is
+handled as if it arrived as a separate stream message. One item that fails does
+not affect its neighbors.
+
+Frames are negotiated per stream:
+
+- The server sends response header `camusdb-batch-frames: 2` when that stream
+  can read request frames. Version 1 means ordinary frames. Version 2 also means
+  the stream accepts `txn_start_ref` and `COMMIT_IF_OK`.
+- A client must not send a request frame until it has seen that header on the
+  same stream. Older servers can treat an unknown kind as a non-query, so do not
+  probe with a frame.
+- The server sends response frames only after the client proves it can read
+  them. The client can send request header `camusdb-batch-frames-accept: 1` when
+  opening the stream, or it can send a request frame on that stream.
+
+A frame can contain at most 256 items and at most 1 MiB of serialized item
+payload. The sender is responsible for staying inside those limits. A message
+larger than the frame byte budget travels as an ordinary single message.
+
+Clients that do not negotiate frames continue to work with one operation per
+stream message and ordinary responses. A rotated or rebuilt stream negotiates
+again.
+
+Frame contract version 2 lets a custom gRPC client pipeline a short transaction
+without waiting for the `START` reply before it sends the next statements. An
+item inside a frame can set `txn_start_ref` to the `request_id` of an earlier
+`START` item in that same frame instead of using a transaction handle that does
+not exist yet. The server chains those items behind the `START` in frame order,
+then the `START` reply returns the real handle for later frames.
+
+The rules are strict: `txn_start_ref` must point backward to a `START` in the
+same frame, must not be combined with `request.txn_handle`, and must not appear
+on `START`, `PREPARE`, or `CLOSE`. A violation is rejected with `CADB0400`
+without running the item. If the referenced `START` fails, every item that names
+it receives the same code and message and does not run.
+
+`COMMIT_IF_OK` commits a transaction only when no earlier operation in that
+transaction on the same batch stream failed. If an earlier operation failed, it
+rolls the transaction back idempotently and returns the first failure's code and
+message. This lets a client send a bank-style transaction in two frames, such as
+`[START, SELECT a, SELECT b]` by `txn_start_ref`, followed by
+`[UPDATE a, UPDATE b, COMMIT_IF_OK]` by handle. A client may use
+`txn_start_ref` on `COMMIT_IF_OK` too when the whole transaction fits in one
+frame.
+
+Only send `txn_start_ref` or `COMMIT_IF_OK` on a stream whose
+`camusdb-batch-frames` header announced version `2` or higher. A version 1
+server does not understand the contract, so clients must fall back to awaiting
+`START`, sending statements by handle, and then sending `COMMIT`.
+
+The server still counts each item in a frame as a request. Use the batch-frame
+metrics to see the transport-level effect: `camus_batch_request_frames_total`
+counts request frames, and `camus_batch_request_frame_items` records the number
+of operations carried by each frame.
 
 ## Prepared statements
 
@@ -348,6 +429,9 @@ Retry by the `camus-error-code`. Do not retry by the text of a message:
 | `CADB0505` `TransactionLifetimeExceeded` | Replay the whole transaction from a fresh `BEGIN`. |
 | `CADB0509` `TransactionFinalizeUnresolved` | Retry the same `COMMIT` or `ROLLBACK` on the same transaction handle. |
 | `CADB0520` `UnknownPreparedStatement` | Prepare again on the current node or stream, then replay the execution once. |
+
+Bad client input, including SQL syntax errors and `CADB0413`
+`StatementTooDeeplyNested`, maps to gRPC `INVALID_ARGUMENT`.
 
 For a query that streams, replay automatically only while the caller has seen no
 row. After the first row reaches the caller, report the error to that caller. Do

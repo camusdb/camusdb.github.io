@@ -6,7 +6,9 @@ sidebar_position: 1.5
 
 You must create a database in CamusDB explicitly before you use it. Three
 operations against an unknown database return `DatabaseDoesntExist`: an open, a
-query, and a DDL statement of a table. CamusDB does not create the storage
+query, and a DDL statement of a table. With authentication enabled, CamusDB uses
+the same error for a database the caller holds no grant on, so callers cannot
+probe whether a hidden database exists. CamusDB does not create the storage
 implicitly.
 
 ## Create a database
@@ -55,6 +57,11 @@ SHOW ANCESTORS FROM feature_checkout;
 
 `SHOW DATABASES` is a statement at the level of the server. It needs no open
 database.
+
+When authentication is enabled, `SHOW DATABASES` lists only databases the caller
+can reach. A global grant, a grant on `db.*`, or any grant on one table inside a
+database makes that database visible. A database with no such grant is hidden in
+the same way as a name that does not exist.
 
 Use `SHOW BRANCHES FROM <database>` to list every descendant branch of a
 database. Use `SHOW ANCESTORS FROM <database>` to inspect the chain of the
@@ -168,7 +175,7 @@ rename to either name returns the same code.
 
 | Code | Name | Typical cause |
 | --- | --- | --- |
-| `CADB0010` | `DatabaseDoesntExist` | An open, a query, a drop, a rename, or a DDL statement of a table, against an unknown database. |
+| `CADB0010` | `DatabaseDoesntExist` | An open, a query, a drop, a rename, or a DDL statement of a table, against an unknown database. With authentication enabled, CamusDB returns the same error for a database the caller holds no grant on. |
 | `CADB0012` | `DatabaseAlreadyExists` | A `CREATE DATABASE` targets a name that exists. A rename of a database also targets a name that exists. |
 | `CADB0018` | `DatabaseNameReserved` | A `CREATE DATABASE`, or a rename of a database, uses `_system` or `information_schema`. |
 | `CADB0019` | `DatabaseCreationIncomplete` | Reserved for an incomplete recovery of the creation of a database, from an older layout of a standalone storage. CamusDB does not expect the code on the current path of a creation in the shared storage. |

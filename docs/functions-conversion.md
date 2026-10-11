@@ -22,9 +22,9 @@ FROM robots;
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `to_string(value)` | `STRING` | It converts a `STRING`, an `OID`, a `UUID`, an `INT64`, a `FLOAT64`, or a `BOOL` to text. A UUID becomes canonical text: lowercase, and with hyphens. A boolean becomes `true` or `false`. |
-| `to_int64(value)` | `INT64` | It converts an `INT64`, a `FLOAT64`, a `BOOL`, or the text of an integer. It truncates a float toward zero. A boolean becomes `1` or `0`. |
-| `to_float64(value)` | `FLOAT64` | It converts a `FLOAT64`, an `INT64`, a `BOOL`, or numeric text. A boolean becomes `1.0` or `0.0`. |
+| `to_string(value)` | `STRING` | It converts a `STRING`, an `OID`, a `UUID`, an `INT64`, a `FLOAT64`, a `NUMERIC`, or a `BOOL` to text. A UUID becomes canonical text: lowercase, and with hyphens. A boolean becomes `true` or `false`. |
+| `to_int64(value)` | `INT64` | It converts an `INT64`, a `FLOAT64`, a `NUMERIC`, a `BOOL`, or the text of an integer. It truncates a float toward zero. A `NUMERIC` value rounds half away from zero. A boolean becomes `1` or `0`. |
+| `to_float64(value)` | `FLOAT64` | It converts a `FLOAT64`, an `INT64`, a `NUMERIC`, a `BOOL`, or numeric text. A boolean becomes `1.0` or `0.0`. |
 | `to_float32(value)` | `FLOAT32` | It converts a numeric value, or numeric text, to single precision. |
 | `to_bool(value)` | `BOOL` | It converts a `BOOL`. It also converts text equal to `true` or `false`, without regard to the case. |
 | `to_date(value)` | `DATE` | It converts a value of a date or a datetime to a date. It also converts text in the form `yyyy-MM-dd`. |
@@ -41,6 +41,7 @@ FROM robots;
 | --- | --- |
 | `string`, `char`, `varchar`, `text` | `STRING` |
 | `int`, `int64`, `integer`, `smallint` | `INT64` |
+| `numeric`, `decimal` | `NUMERIC` |
 | `float`, `float64`, `double` | `FLOAT64` |
 | `float32`, `real` | `FLOAT32` |
 | `bool`, `boolean` | `BOOL` |
@@ -63,6 +64,8 @@ SELECT X'DEADBEEF';
 SELECT CAST("0xDEADBEEF" AS bytes);
 
 SELECT CAST("550e8400-e29b-41d4-a716-446655440000" AS uuid);
+
+SELECT CAST("1234567890.123456789" AS numeric);
 
 SELECT CAST(CAST(7 AS string) AS int64);
 -- 7
@@ -87,6 +90,7 @@ An invalid conversion makes the query fail. These examples are common:
 - Hexadecimal text of a byte value with a wrong form.
 - A value in floating point that is not finite.
 - An overflow of an integer.
+- A `NUMERIC` value outside the supported range.
 - A string of an object id that is not 24 lowercase hexadecimal characters.
 
 An error of a conversion names the value that caused it. It also gives a short

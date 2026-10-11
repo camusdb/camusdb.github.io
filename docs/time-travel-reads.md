@@ -57,6 +57,11 @@ WHERE o.total > 100;
 Every table, every join, and every subquery of the statement observes the same
 historical snapshot.
 
+A compressed or out-of-line large value is read at the same timestamp as its
+row. `ALTER TABLE ... REWRITE STORAGE` writes new row versions and never
+modifies old ones, so a historical read before the rewrite returns the old
+physical form with the same logical value. See [Large Values](/docs/storage-layout).
+
 ## The value of the timestamp
 
 `AS OF SYSTEM TIME` accepts a string, an integer of epoch milliseconds, and a

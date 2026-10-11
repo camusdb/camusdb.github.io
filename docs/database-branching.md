@@ -146,8 +146,33 @@ first delete that inherited row.
 That behavior keeps a branch near a true clone of a database. CamusDB does not
 treat the source as loose data of a seed.
 
+Foreign keys are inherited too. A check stays inside the branch: it reads the
+branch's own rows merged with its ancestors as of the fork point. A write in the
+source database after the fork does not satisfy or break a foreign-key check in
+the branch, and a write in the branch does not affect the source. A branch
+cannot reference a table in its source database.
+
+Creating a branch while a foreign key is still being added is refused, because
+the branch would inherit a constraint that has not finished validation.
+
 A transaction still runs inside one database. A transaction can operate on
 `prod`, or on `feature_checkout`. It cannot operate on both databases together.
+
+## Large values in a branch
+
+A row can point at a large value stored outside the row. In a branch, that value
+follows the same copy-on-write rule as the row:
+
+- An inherited row reads its inherited out-of-line values from the parent at the
+  fork timestamp.
+- A write in the branch stores new large values in the branch only.
+- An update of a small column can carry the inherited pointer without rewriting
+  the large value.
+- A delete or a shrink writes the branch's own tombstone for the value key.
+
+An `ALTER TABLE ... REWRITE STORAGE` on the parent writes new row versions. A
+branch forked before that rewrite still reads the old versions at its fork
+timestamp. See [Large Values](/docs/storage-layout).
 
 ## A truncate in a branch
 

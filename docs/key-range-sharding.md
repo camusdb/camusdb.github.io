@@ -47,10 +47,13 @@ range splits to move work across partitions.
 
 ## Eligible indexes
 
-Secondary indexes are key-range routed only when every key column has an
-order-safe non-string encoding, such as `INT64`, `FLOAT64`, `BOOL`, `OID`, or
-`NULL`. An index with a `STRING` key column stays hash-routed. Mixed tables are
-valid: some key spaces can be ranged while others remain hashed.
+Every indexable column type has a key encoding that preserves the order. That
+includes `STRING`. A secondary index is therefore key-range routed when
+key-range sharding is on, whatever the types of its key columns.
+
+An index stays hash-routed only when CamusDB cannot resolve one of its key
+columns in the schema. Mixed tables are valid: some key spaces can be ranged
+while others remain hashed.
 
 Use [`SHOW RANGES`](/docs/show-ranges) to see the routing mode of a table or
 index.

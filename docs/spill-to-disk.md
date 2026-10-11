@@ -24,7 +24,7 @@ Spill applies to work that blocks, and to work that materializes rows:
 | The sort of an `ORDER BY` | It needs the rows before it emits a sorted output. | An external merge sort. |
 | A hash join | It builds a hash table from one side of the join. | A grace hash join or a hybrid hash join. It divides the rows into spill files when the build side is too large. |
 | A `GROUP BY` | It keeps one accumulator for each group. | It divides the rows by the key of the group. It then aggregates one partition at a time. |
-| A `SELECT DISTINCT` | It records which result tuples appeared already. | It sorts the rows. It then drops each adjacent duplicate. |
+| A `SELECT DISTINCT` | It records which result tuples appeared already. | It hash-partitions the rows into spill files, then deduplicates one partition at a time. |
 | A derived table and a subquery | It materializes the rows, so the outer query can scan them. | A spill buffer that CamusDB can enumerate again. |
 | The match set of a `DELETE` and of an `UPDATE` | It must collect the matching rows before the mutation. | A spill buffer that CamusDB can enumerate again. |
 
@@ -86,6 +86,7 @@ You configure spill in `config.yml`:
 | `spill_enabled` | `false` | The main switch. While it is `false`, no query operator spills. |
 | `spill_threshold_rows` | `500000` | The cap on the rows that one operator holds in memory, before the spill starts. |
 | `spill_merge_fan_in` | `16` | The maximum number of spill runs that CamusDB reads at one time, during a merge pass. |
+| `spill_max_total_bytes` | `8589934592` | The maximum live spill bytes on one node. A value of `0` or below removes this limit. |
 
 Here is an example:
 
@@ -93,10 +94,29 @@ Here is an example:
 spill_enabled: true
 spill_threshold_rows: 500000
 spill_merge_fan_in: 16
+spill_max_total_bytes: 8589934592
 ```
 
 See [Configuration](/docs/configuration) for the full reference of the startup
 configuration.
+
+## Disk limits
+
+Spill files share the same volume as the storage engine. CamusDB therefore
+limits spill before it can consume the disk that ordinary writes need.
+
+Two checks apply to every spill write:
+
+- `spill_max_total_bytes` limits the total bytes of all live spill files on the
+  node. The limit is shared by all concurrent spilling queries. A write that
+  would exceed it fails the statement with `CADB0549`
+  `SpillLimitExceeded`.
+- `min_free_disk_bytes` is the free-space floor for the data directory. A spill
+  write that would take the volume below that floor fails with `CADB0536`
+  `InsufficientDiskSpace`.
+
+In both cases, the statement fails, CamusDB deletes the spill files for that
+operation, and a spilling `DELETE` or `UPDATE` changes no row.
 
 ## Behavior after a failure
 
@@ -119,6 +139,8 @@ Correct the problem in the storage. Then run the query again.
 - Spill applies to one instance of an operator. It is not a memory budget for a
   whole query.
 - An operator that stays below the threshold creates no spill file.
+- `spill_max_total_bytes` is a node-wide budget for live spill files. It is not
+  reserved per query.
 - Spill exchanges pressure on the memory for I/O on the disk. A large sort, a
   grouped query, a distinct query, a hash join, and a bulk update can therefore
   run longer. None of them makes the heap grow without a bound.

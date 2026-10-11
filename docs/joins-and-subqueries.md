@@ -11,6 +11,26 @@ Everything on this page composes with the clauses in
 [SELECT](/docs/sql-queries). The filter, the group, the sort, and the pagination
 behave the same way after CamusDB combines the sources.
 
+## Join forms
+
+CamusDB supports these joins in the `FROM` clause:
+
+| Form | Syntax | Rows returned |
+| --- | --- | --- |
+| Inner | `A JOIN B ON p` or `A INNER JOIN B ON p` | Every pair of rows for which `p` is true. |
+| Left outer | `A LEFT JOIN B ON p` or `A LEFT OUTER JOIN B ON p` | Every inner-join pair, plus one row for each `A` row with no match, with the `B` columns set to `NULL`. |
+| Right outer | `A RIGHT JOIN B ON p` or `A RIGHT OUTER JOIN B ON p` | The same rows as `B LEFT JOIN A ON p`. |
+| Cross | `A CROSS JOIN B` | Every pair of rows. No `ON` clause is allowed. |
+
+Joins chain left to right, and a chain can mix forms:
+
+```camussql
+SELECT a.id, b.id, c.id
+FROM a
+JOIN b ON b.a_id = a.id
+LEFT JOIN c ON c.b_id = b.id;
+```
+
 ## Inner joins
 
 `JOIN` and `INNER JOIN` are equivalent:
@@ -46,9 +66,69 @@ GROUP BY u.role
 ORDER BY u.role;
 ```
 
+## Outer joins
+
+A left outer join preserves every row from the left side:
+
+```camussql
+SELECT u.email, p.title
+FROM app_users u
+LEFT JOIN posts p ON p.user_id = u.id
+ORDER BY u.email, p.title;
+```
+
+If a left row has one or more matches, CamusDB returns one row for each match.
+If it has no match, CamusDB returns one row with every right-side column set to
+`NULL`.
+
+The `ON` clause decides whether a right row matches. The `WHERE` clause filters
+after CamusDB has produced the joined rows. This distinction matters for outer
+joins:
+
+```camussql
+-- Users without a post.
+SELECT u.email
+FROM app_users u
+LEFT JOIN posts p ON p.user_id = u.id
+WHERE p.id IS NULL;
+
+-- Users with a published post. The right-side WHERE predicate removes padded rows.
+SELECT u.email, p.title
+FROM app_users u
+LEFT JOIN posts p ON p.user_id = u.id
+WHERE p.published = true;
+```
+
+A `NULL` join key does not match another `NULL` join key. The comparison
+`NULL = NULL` is unknown, so a row with a `NULL` join key is padded unless
+another condition in `ON` matches it.
+
+`RIGHT JOIN` is executed as a left join with the operands swapped. Prefer an
+explicit column list when you use `RIGHT JOIN`; `SELECT *` follows the executed
+order, so the preserved table's columns come first.
+
+One `RIGHT JOIN` limit is worth knowing: a `RIGHT JOIN` whose left operand is
+itself a join is not supported. Rewrite the query with the preserved table on
+the left side, often through a derived table.
+
+## Cross joins
+
+`CROSS JOIN` returns the Cartesian product:
+
+```camussql
+SELECT r.name, c.currency
+FROM robots r
+CROSS JOIN currencies c;
+```
+
+It is equivalent to the comma form without an equality predicate. When every
+source is a cross join, CamusDB can still lift an equality from the `WHERE`
+clause and plan it as a join predicate.
+
 ### How a join executes
 
-The planner selects one of three strategies:
+The planner selects one of three strategies for inner joins and eligible outer
+joins:
 
 | Strategy | CamusDB selects it when | Shape of the cost |
 | --- | --- | --- |
@@ -69,6 +149,11 @@ CamusDB can broadcast a small build side of a hash join. It sends that side to
 the nodes that own the partitions of the probe table. Those nodes probe locally.
 They return only the rows that matched. The output is the same in both cases.
 
+For a left outer join, the preserved side must remain the probe side. A
+broadcast hash join is therefore not used for a left outer join, because a
+remote probe can return matches but cannot produce the padded rows for the
+preserved side.
+
 ### A join with a comma
 
 CamusDB supports a join with a comma, for compatibility. It lifts a predicate of
@@ -84,6 +169,16 @@ ORDER BY u.amount;
 
 Prefer an explicit `JOIN ... ON` in new code. It separates the condition of the
 join from the filters. Both parts are then easier to read, and easier to change.
+
+## Current join limits
+
+CamusDB does not support `FULL JOIN`, `FULL OUTER JOIN`, `NATURAL JOIN`, or
+`JOIN ... USING (...)` yet. `FULL JOIN` is rejected as not supported; the other
+forms are syntax errors.
+
+A query with an outer join keeps the join order that the statement declares.
+The heuristic planner and the cost-based join-order search do not reorder a
+tree that contains an outer join.
 
 ## A subquery in a WHERE clause
 

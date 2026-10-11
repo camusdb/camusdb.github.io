@@ -30,6 +30,15 @@ answers are difficult or expensive to reconcile later.
 > provide a familiar relational and transactional model while being designed for
 > distributed operation from the start.
 
+<div className="video-embed">
+  <iframe
+    src="https://www.youtube.com/embed/DvjAD-x-OFE"
+    title="Why CamusDB video"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  />
+</div>
+
 ## Built for data that needs one answer
 
 Some data can tolerate temporary disagreement between replicas. Some cannot.
@@ -153,9 +162,9 @@ See [SQL](/docs/sql), [Query Planning](/docs/query-planning), and
 
 CamusDB is written in C# and runs on .NET.
 
-For teams already building applications with ASP.NET Core, ADO.NET, EF Core,
-Docker, Kubernetes, and the wider Microsoft ecosystem, that makes the database
-unusually approachable.
+For teams already building applications with ASP.NET Core, ADO.NET, Dapper,
+EF Core, Docker, Kubernetes, and the wider Microsoft ecosystem, that makes the
+database unusually approachable.
 
 For Node.js and TypeScript applications, the `camusdb` connector exposes the
 same SQL, transaction, branch, cache, backup, and routing features without
@@ -164,6 +173,7 @@ dropping down to raw HTTP.
 CamusDB provides:
 
 - An **ADO.NET provider**.
+- A **Dapper adapter**.
 - An **Entity Framework Core provider**.
 - A **TypeScript connector** for Node.js applications.
 - A native .NET codebase.
@@ -178,12 +188,12 @@ client while keeping the same server semantics.
 
 CamusDB does not try to reproduce SQL Server or its SQL dialect. For
 Microsoft-oriented teams, many of the fundamental concepts remain familiar:
-relational schemas, transactions, indexes, SQL, ADO.NET, and EF Core. For
-Node.js teams, the TypeScript connector exposes the same database features
+relational schemas, transactions, indexes, SQL, ADO.NET, Dapper, and EF Core.
+For Node.js teams, the TypeScript connector exposes the same database features
 through an idiomatic JavaScript API.
 
-See [.NET Driver](/docs/dotnet-driver), [EF Core Provider](/docs/ef-core), and
-[TypeScript](/docs/typescript-connector).
+See [.NET Driver](/docs/dotnet-driver), [Dapper](/docs/dapper),
+[EF Core Provider](/docs/ef-core), and [TypeScript](/docs/typescript-connector).
 
 ## Database branches for development, testing, and AI workflows
 
@@ -352,6 +362,7 @@ CamusDB provides several interfaces depending on the application:
 | gRPC API | Binary protocol with streamed results |
 | TypeScript | Node.js and TypeScript applications |
 | .NET driver | ADO.NET integration |
+| Dapper | Lightweight .NET object mapping |
 | EF Core provider | Entity Framework Core integration |
 | MCP server | Database access for AI agents and tools |
 
@@ -410,7 +421,8 @@ Today, the engine includes:
 - Database branching.
 - Recoverable dropped objects.
 - Write-ahead logging and crash recovery.
-- A TypeScript connector, ADO.NET integration, and EF Core integration.
+- A TypeScript connector, ADO.NET integration, Dapper support, and EF Core
+  integration.
 - HTTP, gRPC, CLI, Web Console, and MCP interfaces.
 
 Areas such as operational tooling, broader production hardening, and richer

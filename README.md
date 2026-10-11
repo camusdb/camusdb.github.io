@@ -30,3 +30,34 @@ The static site is generated in `build/`.
 ```bash
 npm run deploy
 ```
+
+## Browser playground engine
+
+The `/playground` page uses the three-node cluster exports from `CamusDB.Wasm`.
+To update the checked-in runtime from a local CamusDB publish:
+
+```bash
+# Run in the CamusDB source checkout:
+dotnet publish CamusDB.Wasm/CamusDB.Wasm.csproj -c Release -o artifacts/wasm
+
+# Run in this docs repository:
+node scripts/sync-playground-engine.mjs ~/camusdb/artifacts/wasm/wwwroot
+node scripts/smoke-cluster.mjs static/playground-engine
+npm run build
+```
+
+The sync script copies the runtime and assets named by its embedded boot manifest,
+so stale fingerprints in the publish directory are not pulled in. The cluster
+smoke check exercises cross-node reads, leader failover, writes after failure,
+restart/catch-up, and stable elections against the same assets served by the docs.
+
+For the browser interaction and responsive-layout check (Node 20+):
+
+```bash
+npx playwright install chromium
+npm run build
+npm run test:playground
+```
+
+The test starts its own static server on port 3100. Screenshots of the stable,
+failed-over, and mobile cluster are written to `test-results/`.

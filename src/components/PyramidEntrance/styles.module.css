@@ -1,0 +1,46 @@
+.overlay {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.replay {
+  position: absolute;
+  z-index: 6;
+  bottom: -0.65rem;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.7rem;
+  color: #a9c6e9;
+  border: 1px solid rgba(111, 180, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(3, 13, 31, 0.55);
+  font: inherit;
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  cursor: pointer;
+  transform: translateX(-50%);
+  transition: color 180ms ease, border-color 180ms ease;
+}
+
+.replay:hover {
+  color: #ecfbff;
+  border-color: rgba(111, 211, 255, 0.6);
+}
+
+.replay:focus-visible {
+  outline: 2px solid #7dd3fc;
+  outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .replay {
+    transition: none;
+  }
+}

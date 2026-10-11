@@ -134,15 +134,15 @@ Supported CLR-to-store mappings:
 
 | CLR type | Camus store type | DDL type |
 | --- | --- | --- |
-| `string` key | `id` or `oid` | `OID` |
-| `Guid` key | `id` or `oid` | `OID` |
-| `Guid` with `HasColumnType("uuid")` | `uuid` or `guid` | `UUID` |
+| `string` key with `HasColumnType("id")` | `id` or `oid` | `OID` |
+| `Guid` | `uuid` or `guid` | `UUID` |
 | `string` | `string` | `STRING` |
 | `string` with `HasMaxLength(n)` | `string` | `STRING(n)` |
 | `bool` | `bool` | `BOOL` |
 | `short`, `int`, `long` | `int64` | `INT64` |
 | `float` | `float32` or `real` | `FLOAT32` |
 | `double` | `float64` | `FLOAT64` |
+| `decimal` | `numeric` or `decimal` | `NUMERIC` |
 | `byte[]` | `bytes` or `blob` | `BYTES` |
 | `DateOnly` | `date` | `DATE` |
 | `DateTime`, `DateTimeOffset` | `datetime` or `timestamp` | `DATETIME` |
@@ -150,22 +150,23 @@ Supported CLR-to-store mappings:
 
 Practical rule:
 
-- use `HasColumnType("id")` for CamusDB ObjectId primary keys
-- use `HasColumnType("uuid")` for native UUID columns
+- use `HasColumnType("id")` on a `string` property for CamusDB ObjectId primary
+  keys
+- use `Guid` for native UUID columns; `HasColumnType("uuid")` is optional
 - use `HasColumnType("string")`, `HasColumnType("int64")`,
   `HasColumnType("float32")`, `HasColumnType("float64")`,
+  `HasColumnType("numeric")`,
   `HasColumnType("bytes")`, `HasColumnType("date")`,
   `HasColumnType("datetime")`, and `HasColumnType("bool")` for regular columns
 
-A plain `Guid` property takes the map to `id` and `OID`, by default. That
-default keeps the compatibility with an earlier version.
+A plain `Guid` property maps to native `UUID`. Do not declare a `Guid` property
+with `HasColumnType("id")`; CamusDB ObjectId values are 12 bytes and should be
+modeled as strings or `CamusObjectIdValue`.
 
-For a value of a UUID of your application, map the property explicitly as a
-`uuid`:
-
-```csharp
-b.Property(e => e.ExternalRef).HasColumnType("uuid");
-```
+A `decimal` property maps to `NUMERIC`. CamusDB uses fixed precision and scale
+for that type, so EF Core `HasPrecision(...)` does not change the generated
+column type. A `decimal` constant in a LINQ query is emitted as a typed
+`NUMERIC` literal.
 
 The provider normalizes a `DateTime` value, and a `DateTimeOffset` value, to
 UTC. A `DateOnly` maps to a calendar date.
@@ -187,9 +188,12 @@ await using var ctx = new AppDbContext(options);
 await ctx.Database.EnsureCreatedAsync();
 ```
 
-An `EnsureCreated()` creates the database, with an `IF NOT EXISTS`. It then
-creates the tables of the model. It continues safely when the database exists
-already, and when the tables exist already.
+An `EnsureCreated()` first checks whether the database exists. It sends
+`CREATE DATABASE IF NOT EXISTS` only when the database is missing, then creates
+the tables of the model. It continues safely when the database exists already,
+and when the tables exist already. That means an account with DDL grants on an
+existing database can run `EnsureCreated()` or migrations without superuser
+rights.
 
 An `EnsureDeleted()` drops the database of the connection string:
 
@@ -238,11 +242,24 @@ The provider translates common relational query shapes to CamusDB SQL:
 - `Distinct`
 - scalar aggregates: `Count`, `Sum`, `Average`, `Min`, `Max`, `Any`
 - `GroupBy` with aggregates
-- inner `join`
+- inner joins, left joins, right joins, and cross joins
 - correlated subqueries, such as `Where(o => o.Items.Any(...))`
 
 Parameterized collection checks such as `ids.Contains(e.Id)` expand to
 `IN (@p0, @p1, ...)`, which works with CamusDB's SQL dialect.
+
+Join support covers the usual LINQ shapes:
+
+| LINQ shape | SQL shape |
+| --- | --- |
+| `join ... on ... equals ...`, `Join(...)`, required navigation | `INNER JOIN` |
+| `GroupJoin(...).SelectMany(...DefaultIfEmpty())`, `LeftJoin(...)`, optional navigation, collection `Include(...)` | `LEFT JOIN` |
+| `RightJoin(...)` | `RIGHT JOIN` |
+| `from a in A from b in B` with no correlation | `CROSS JOIN` |
+
+CamusDB does not have lateral joins or window functions. A `SelectMany` whose
+inner sequence refers to the outer row outside an equality key, and per-row
+`Take` / `Skip` / `First` shapes such as filtered includes, are not translated.
 
 String operations run on the server when they map to CamusDB functions:
 
@@ -350,6 +367,35 @@ Robot robot = await ctx.Robots.FindAsync(id)
 ctx.Robots.Remove(robot);
 await ctx.SaveChangesAsync();
 ```
+
+### Bulk update and delete
+
+Use EF Core `ExecuteUpdateAsync()` and `ExecuteDeleteAsync()` when the change can
+run as one server-side statement and you do not need to load entities into the
+change tracker:
+
+```csharp
+int paid = await ctx.Orders
+    .Where(o => o.Status == "open" && o.Total > 100)
+    .ExecuteUpdateAsync(s => s
+        .SetProperty(o => o.Status, "paid")
+        .SetProperty(o => o.Total, o => o.Total * 2));
+
+int removed = await ctx.Orders
+    .Where(o => ctx.Customers.Any(c => c.Id == o.CustomerId && c.Name == "bob"))
+    .ExecuteDeleteAsync();
+```
+
+CamusDB requires `UPDATE` and `DELETE` to have a `WHERE` clause, so an unfiltered
+bulk operation is emitted with `WHERE TRUE`. A filter over the target table is
+sent directly. A filter that uses a navigation, a join, a correlated subquery,
+or `Take` / `Skip` is rewritten as `WHERE <pk> IN (SELECT ...)`, which requires
+a single-column primary key.
+
+Values passed to `SetProperty` can use constants, parameters, and columns of
+the row being updated. They cannot read another table. Like all EF Core bulk
+operations, these bypass the change tracker, and provider-managed row-version
+tokens are not advanced unless you set them explicitly.
 
 ## Transactions
 
@@ -530,6 +576,10 @@ Supported migration operations:
 | Alter column nullability | `ALTER TABLE ... ALTER COLUMN ... SET NOT NULL` or `DROP NOT NULL` |
 | Add check constraint | `ALTER TABLE ... ADD CONSTRAINT ... CHECK (...)` |
 | Drop check constraint | `ALTER TABLE ... DROP CONSTRAINT ...` |
+| Add foreign key | `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY ... REFERENCES ...` |
+| Drop foreign key | `ALTER TABLE ... DROP CONSTRAINT ...` |
+| Add unique constraint / alternate key | `CREATE UNIQUE INDEX ...` |
+| Drop unique constraint / alternate key | `ALTER TABLE ... DROP INDEX ...` |
 | Create index | `CREATE INDEX IF NOT EXISTS ...` |
 | Create unique index | `CREATE UNIQUE INDEX IF NOT EXISTS ...` |
 | Drop index | `ALTER TABLE ... DROP INDEX ...` |
@@ -666,6 +716,41 @@ inside one. The table keeps its schema, indexes, grants, and name. Its previous
 contents remain recoverable during the server retention window through the
 orphan-table recovery workflow.
 
+## Relationships and foreign keys
+
+Relationships in the EF model become CamusDB `FOREIGN KEY` constraints through
+migrations and `EnsureCreated()`:
+
+```csharp
+modelBuilder.Entity<Customer>()
+    .HasMany(c => c.Orders)
+    .WithOne()
+    .HasForeignKey(o => o.CustomerId);
+```
+
+The server enforces the constraint at the end of each statement, inside the
+statement's transaction. A child row without a parent fails with `CADB0304`; a
+delete or update of a referenced parent key fails with `CADB0305` or
+`CADB0306`.
+
+CamusDB supports `NO ACTION` and `RESTRICT` server-side. EF Core defaults a
+required relationship to cascade, but the provider renders unsupported server
+actions as `NO ACTION`; EF still applies cascade or set-null behavior to
+dependents that are tracked in the context. If the dependents are not tracked,
+delete them first or use `DeleteBehavior.Restrict`.
+
+Foreign keys need an index whose leading columns are the referencing columns.
+Migrations reuse the index EF creates for the relationship. `EnsureCreated()`
+lets the server create the needed index when the model has no explicit one.
+
+Use `UseForeignKeyConstraints(false)` when you want EF relationships for
+ordering and navigation, but no database foreign-key constraints:
+
+```csharp
+optionsBuilder.UseCamusDB(connectionString, o =>
+    o.UseForeignKeyConstraints(false));
+```
+
 ## Concurrency
 
 The provider supports two EF Core optimistic-concurrency styles.
@@ -730,25 +815,32 @@ database that CamusDB does not support.
 
 Unsupported or restricted operations include:
 
-- no foreign key constraints
+- foreign keys support `NO ACTION` and `RESTRICT` server-side. `Cascade`,
+  `SetNull`, and `SetDefault` apply only to dependents tracked by EF.
+- foreign-key cycles of two or more tables are not supported. Self-references
+  are supported.
 - no computed columns
 - `ALTER COLUMN` only supports toggling nullability; changing the stored type
   requires a manual migration strategy
-- no sequences
 - no add/drop primary key through migrations
-- no inline unique constraints in migrations; use unique indexes instead
 - no LINQ predicate over an `ARRAY(T)` property; arrays can be read and written
   as whole values
+- no lateral join, window functions, `UNION`, or `UNION ALL`
+- `ExecuteUpdate` cannot set a value read from another table. Bulk
+  update/delete shapes that use joins, correlated subqueries, or pagination need
+  a single-column primary key.
 
 Model restrictions:
 
 - key CLR types must be `string`, `Guid`, `short`, `int`, or `long`
 - `[ConcurrencyCheck]` is limited to numeric columns; use `[Timestamp]` or
   `IsRowVersion()` for provider-managed `byte[]` row versions
-- plain `Guid` maps to `OID`; use `HasColumnType("uuid")` for native UUID
-  storage
+- plain `Guid` maps to native `UUID`
 - vector embeddings are stored in `bytes` columns; there is no dedicated vector
   CLR/store type
+- a `NUMERIC` value with more significant digits than .NET `decimal` can hold
+  throws when materialized into a `decimal` property. Read it as `string` when
+  exact wide values are possible.
 - `WithCache(...)` is effective only on single-table autocommit reads
 
 ## When to use it

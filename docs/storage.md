@@ -12,6 +12,11 @@ schema metadata, a lock, and the transaction state.
 The design keeps SQL as the model that a user sees. It uses a storage layout
 that the distributed KV layer can route, replicate, lock, and commit.
 
+For the user-facing row format controls for large `STRING`, `BYTES`/`BLOB`, and
+`ARRAY` values, see [Large Values](/docs/storage-layout). That page covers
+TOAST-style compression, out-of-line storage, and `ALTER TABLE ... REWRITE
+STORAGE`.
+
 ## The storage stack
 
 The storage path of CamusDB has three layers:
@@ -277,6 +282,7 @@ CamusDB encodes a column value by its type:
 | `OID` | A 12-byte object id. |
 | `UUID` | A 16-byte UUID. |
 | `INT64` | An 8-byte signed integer. |
+| `NUMERIC` | An exact fixed-point decimal value with the fixed `NUMERIC` precision and scale. |
 | `FLOAT64` | An 8-byte double. |
 | `FLOAT32` | A 4-byte value with single precision. CamusDB exposes it through the common path for a numeric value. |
 | `STRING` | A UTF-16 string, with a length prefix. |
@@ -295,6 +301,9 @@ that preserves the order of a composite index value:
 - A `NULL` sorts before a value that is present.
 - An `INT64` inverts the sign bit. CamusDB stores the result as hexadecimal text
   of a fixed width.
+- A `NUMERIC` value uses an order-preserving decimal encoding, so exact decimal
+  values can participate in primary keys and secondary indexes without going
+  through a floating-point representation.
 - A `FLOAT64` and a `FLOAT32` receive a transform of their IEEE-754 bits. The
   transform preserves the order.
 - A `BOOL` stores `0` or `1`.

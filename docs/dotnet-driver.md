@@ -7,6 +7,10 @@ sidebar_position: 7.1
 CamusDB ships a provider of ADO.NET. It gives a direct access from an
 application of .NET. The name of the package is `CamusDB.Client`.
 
+The same connection also works with the companion
+[`CamusDB.Dapper`](/docs/dapper) adapter when you want Dapper's lightweight
+mapping APIs.
+
 It targets `net8.0`, `net9.0`, and `net10.0`.
 
 ## Install
@@ -52,6 +56,7 @@ Supported keys:
 | `ChannelPoolSize` | No | gRPC only: long-lived `BatchExecute` streams per endpoint. Defaults to `2`. |
 | `CoalescingThreshold` | No | gRPC only: operations a batch drain tries to collect before it stops waiting. Defaults to `10`; `1` disables coalescing. |
 | `CoalescingDelay` | No | gRPC only: milliseconds to wait for a larger batch. Defaults to `2`; `0` disables coalescing. |
+| `RequestFrames` | No | gRPC only: whether the client may pack waiting batch operations into negotiated stream frames. Defaults to `true`; set `false` as a compatibility or measurement switch. |
 | `BackupEndpoint` | No | HTTP endpoint for the backup admin API. Defaults to `Endpoint`; required when `Protocol=grpc`. |
 | `BackupTimeout` | No | Backup admin timeout in seconds. Defaults to `300`. |
 | `AllowInsecureCredentials` | No | Set `true` to allow credentials over a non-loopback plaintext endpoint. Use only when another trusted layer protects that hop. |
@@ -101,8 +106,10 @@ Under gRPC, queries, non-queries, and transaction lifecycle messages are
 multiplexed over a small pool of long-lived `BatchExecute` streams. Autocommit
 statements fan out across the pool. A transaction is pinned to one stream so
 the server observes its operations in order. Tune the pool with
-`ChannelPoolSize`, `CoalescingThreshold`, and `CoalescingDelay` only when a
-measured workload needs it.
+`ChannelPoolSize`, `CoalescingThreshold`, `CoalescingDelay`, and
+`RequestFrames` only when a measured workload needs it. Stream frames are
+negotiated per stream and are a transport optimization only: they add no
+atomicity and keep the same per-operation result contract.
 
 ## Learned routing
 
@@ -348,6 +355,41 @@ insert.Parameters.Add("@enabled", ColumnType.Bool, true);
 int inserted = await insert.ExecuteNonQueryAsync();
 ```
 
+### RETURNING
+
+Use `ExecuteReaderAsync()` or `ExecuteScalarAsync()` when an `INSERT`, `UPDATE`,
+or `DELETE` has a `RETURNING` list:
+
+```csharp
+await using CamusCommand update = connection.CreateCamusCommand("""
+    UPDATE robots
+    SET year = @year
+    WHERE name = @name
+    RETURNING id, name, year
+    """);
+
+update.Parameters.Add("@name", ColumnType.String, "R2-D2");
+update.Parameters.Add("@year", ColumnType.Integer64, 1977);
+
+await using CamusDataReader returned = await update.ExecuteReaderAsync();
+while (await returned.ReadAsync())
+{
+    string id = returned.GetString(0);
+    long year = returned.GetInt64(2);
+}
+
+int affected = returned.RecordsAffected;
+```
+
+`ExecuteNonQueryAsync()` returns the affected-row count only. The driver tells
+the server to discard the returned rows, but the server still validates the
+`RETURNING` list and checks the required `SELECT` privilege on the target table.
+
+`ExecuteReaderAsync()` and `ExecuteScalarAsync()` receive all returned rows in
+one reply. On gRPC, a reply larger than the message limit fails with `CADB0550`
+before the commit. For a large `INSERT ... SELECT ... RETURNING`, use
+`ExecuteStreamReaderAsync()` so the query endpoint streams rows.
+
 ## Query rows
 
 Use `ExecuteReaderAsync()` to read result rows:
@@ -399,6 +441,7 @@ The reader exposes the standard typed methods of a get, such as these:
 - `GetBoolean`
 - `GetInt16` / `GetInt32` / `GetInt64`
 - `GetFloat` / `GetDouble`
+- `GetDecimal`
 - `GetGuid`
 - `GetDateTime`
 - `GetFieldValue<T>` for `DateOnly`, `DateTimeOffset`, `byte[]`, `float`,
@@ -415,6 +458,7 @@ Parameters are input-only. Supported value mappings include:
 | `ColumnType.Uuid` | `Guid`, canonical UUID `string` |
 | `ColumnType.String` | `string` |
 | `ColumnType.Integer64` | `short`, `int`, `long`, other integer-convertible values |
+| `ColumnType.Numeric` | `decimal`, decimal text `string`, integer values |
 | `ColumnType.Float64` | `double`, `decimal`, other floating-convertible values |
 | `ColumnType.Float32` | `float`, other floating-convertible values |
 | `ColumnType.Bool` | `bool` |
@@ -430,6 +474,7 @@ Examples:
 command.Parameters.Add("@id", ColumnType.Id, Guid.NewGuid());
 command.Parameters.Add("@ref", ColumnType.Uuid, Guid.NewGuid());
 command.Parameters.Add("@count", ColumnType.Integer64, 5);
+command.Parameters.Add("@total", ColumnType.Numeric, 123.45m);
 command.Parameters.Add("@price", ColumnType.Float64, 19.99);
 command.Parameters.Add("@payload", ColumnType.Bytes, new byte[] { 0xDE, 0xAD });
 command.Parameters.Add("@day", ColumnType.Date, new DateOnly(2026, 5, 1));
@@ -542,6 +587,7 @@ of an array:
 | `UUID`, `GUID` | `ColumnType.Uuid` | `Guid` |
 | `STRING`, `STRING(N)` | `ColumnType.String` | `string` |
 | `INT64`, `INT`, `INTEGER` | `ColumnType.Integer64` | `long`, `int`, `short` |
+| `NUMERIC`, `DECIMAL` | `ColumnType.Numeric` | `decimal`, exact decimal `string` |
 | `FLOAT64` | `ColumnType.Float64` | `double` |
 | `FLOAT32`, `REAL` | `ColumnType.Float32` | `float` |
 | `BOOL`, `BOOLEAN` | `ColumnType.Bool` | `bool` |
@@ -553,6 +599,12 @@ of an array:
 Use a native `UUID` column for a value of a UUID. Do not store the text of a
 UUID in a `STRING`. The native type is more efficient in the memory, and on the
 disk. It also compares as a value of a fixed width.
+
+`NUMERIC` is an exact decimal type with fixed precision and scale. A `decimal`
+parameter binds as `NUMERIC`; use `ColumnType.Numeric` with a `string` when the
+value has more significant digits than .NET `decimal` can hold. Read small
+values with `GetDecimal()` or `GetFieldValue<decimal>()`; read every value
+without rounding with `GetString()`.
 
 ## Vectors
 
@@ -834,4 +886,5 @@ Use the ADO.NET provider when you want:
 - explicit transaction handling
 
 For the use of an ORM at a higher level, see
-[EF Core Provider](/docs/ef-core).
+[EF Core Provider](/docs/ef-core). For lightweight object mapping over the same
+connection, see [Dapper](/docs/dapper).

@@ -189,9 +189,13 @@ CREATE TABLE orders_recovered RELINK TO 'A0';
 SELECT * FROM orders_recovered LIMIT 10;
 ```
 
-The recovered table keeps six things from the time of the drop: its rows, its
-indexes, its primary key, its unique constraints, its check constraints, and the
-definitions of its columns.
+The recovered table keeps its rows, indexes, primary key, unique constraints,
+check constraints, and column definitions from the time of the drop.
+
+Foreign keys are not restored with a recovered table. A parent table may have
+been dropped, changed, or recovered under another name while the child was
+absent. Add the foreign keys again with `ALTER TABLE ... ADD CONSTRAINT`; that
+statement validates the recovered rows before the constraint becomes public.
 
 ## A permanent drop, with FORCE
 

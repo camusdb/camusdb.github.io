@@ -45,8 +45,8 @@ SHOW CREATE TABLE robots;
 
 Use `SHOW CREATE TABLE` when you want the whole picture. It is the statement
 that renders the comment of the table, of its columns, and of its secondary
-indexes. It also replays an `INCLUDE (...)` of a covering index. Its output is
-therefore DDL that you can run elsewhere.
+indexes. It also replays an `INCLUDE (...)` of a covering index, and renders
+public foreign keys. Its output is therefore DDL that you can run elsewhere.
 
 ## Views
 
@@ -165,26 +165,29 @@ work itself. See [Automatic Analyze](/docs/automatic-analyze) and
 
 ## The state of a node
 
-Three more `SHOW` statements report on the server, not on your data. All three
-need a superuser while authentication is enabled.
+These `SHOW` statements report on the server, not on your data. They need a
+superuser while authentication is enabled, except for query activity rows owned
+by the current user.
 
 | Statement | It reports | Page |
 | --- | --- | --- |
 | `SHOW VARIABLES` | The effective configuration. Each value carries its default, its source layer, its mutability, and its scope. | [SHOW VARIABLES](/docs/show-variables) |
 | `SHOW ENGINE STATS` | The metrics of Kahuna and of Kommander: the workload, Raft, the WAL, and the storage. | [Engine Stats](/docs/engine-stats) |
 | `SHOW SLOW QUERIES` | The recent statements that crossed the slow-query threshold on this node. | [Slow Query Log](/docs/slow-query-log) |
+| `SHOW QUERIES`, `SHOW CONNECTIONS` | The statements and client connections active right now, with `CANCEL QUERY` for running reads. | [Query Activity](/docs/query-activity) |
 | `SHOW CLUSTER SETTINGS` | The settings that the cluster overrides across the fleet. | [Runtime Cluster Settings](/docs/runtime-cluster-settings) |
 
-All three accept a `LIKE` filter:
+Most of these statements accept a `LIKE` filter:
 
 ```camussql
 SHOW VARIABLES LIKE "query_result_cache_%";
 SHOW ENGINE STATS LIKE 'raft.executor%';
 SHOW SLOW QUERIES LIKE '%orders%';
+SHOW QUERIES LIKE '%FROM orders%';
 SHOW CLUSTER SETTINGS LIKE 'ttl_%';
 ```
 
-None of the three needs a selected database.
+None of these statements needs a selected database.
 
 `SHOW VARIABLES` and `SHOW ENGINE STATS` are local to one node. Run them against
 each node when you compare a cluster. `SHOW CLUSTER SETTINGS` reports the

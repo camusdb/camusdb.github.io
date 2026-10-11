@@ -38,14 +38,22 @@ inserted row.
 
 ## Select a generator
 
-Use `gen_uuid_v7()` for a primary key, and for an indexed identifier, when the
-locality of the inserts matters. A UUID of version 7 holds a prefix in the order
-of the time. A new value is therefore better than a fully random UUID, both for
-the routing of a range and for a scan of an index.
+A UUID of version 7 holds a prefix in the order of the time. New values are
+therefore near each other in an index. A UUID of version 4 is fully random, so
+new values spread across the whole index.
 
-Use `gen_uuid_v4()` when you specifically want a random UUID. Use it when the
-order of the inserts in the primary key, and in a secondary index, does not
-matter to you.
+Use `gen_uuid_v7()` when the locality of the inserts matters, and the rate of
+inserts is low. A scan of recent rows then reads one part of the index. With
+hash routing, the whole table is on one partition, so the order of the keys
+causes no range hotspot.
+
+Use `gen_uuid_v4()` for a table with a high rate of inserts when
+[key-range sharding](/docs/key-range-sharding) is on. A key in time order sends
+every insert to the last range of the index, and that range becomes a hotspot.
+A random key spreads the inserts across all ranges.
+
+See [Best practices](/docs/best-practices#primary-keys) for the choice of a
+primary key.
 
 ```camussql
 CREATE TABLE event_log (

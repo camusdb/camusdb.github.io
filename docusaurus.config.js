@@ -104,6 +104,11 @@ const config = {
             position: 'left',
           },
           {
+            to: '/playground',
+            label: 'Playground',
+            position: 'left',
+          },
+          {
             href: 'https://github.com/camusdb/camusdb',
             label: 'GitHub',
             position: 'right',
@@ -167,6 +172,10 @@ const config = {
               {
                 label: '.NET Driver',
                 to: '/docs/dotnet-driver',
+              },
+              {
+                label: 'Dapper',
+                to: '/docs/dapper',
               },
               {
                 label: 'EF Core Provider',

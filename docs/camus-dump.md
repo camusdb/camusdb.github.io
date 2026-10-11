@@ -276,6 +276,9 @@ Four points are worth your attention:
 - Rows only. `SHOW CREATE TABLE` and `SHOW INDEXES` have no time-travel
   form, so the schema in the dump is the current one. A table created after the
   chosen instant appears with its definition and no rows.
+- Foreign keys are part of `SHOW CREATE TABLE`. A child row from the chosen
+  instant can fail to load if its parent row is no longer present in the dumped
+  snapshot. Load parents first, or add foreign keys after the data load.
 - Retention bounds how far back you can look. An instant older than the
   history the storage layer still keeps reads as empty rather than as an error.
 - `--single-transaction` replaces it. CamusDB rejects `AS OF SYSTEM TIME`
@@ -307,8 +310,14 @@ across the tables.
 Use the option when you want the dump pinned to the present moment. The default
 pins the dump to a fixed instant of the past.
 
-Use a `--defer-indexes` for a large restore. CamusDB then loads the data of a
-table before it builds the secondary indexes.
+Use `--batch 100` as a starting point for a restore. One row per `INSERT` is
+usually much slower, while very large batches can hit the transaction mutation
+limit or the transport message-size limit on wide tables.
+
+`--defer-indexes` loads the table data before building secondary indexes. It can
+help for a table with one secondary index, but it is not automatically faster
+for a table with several indexes because each deferred index build scans the
+table. Keep the target out of service until deferred indexes are built.
 
 ## Dump contents
 
@@ -364,7 +373,8 @@ a NUL. See [Data Types](/docs/data-types#string-literals) for the rules of a
 literal.
 
 The dump writes an index two times: inline, inside the `CREATE TABLE`, and as a
-separate `CREATE INDEX IF NOT EXISTS` statement.
+separate `CREATE INDEX IF NOT EXISTS` statement. Index definitions include their
+per-column sort direction and comment when the source server reports them.
 
 That repetition keeps the definitions of the indexes available with a
 `--no-create-table`. It also lets a `--defer-indexes` build the indexes after the

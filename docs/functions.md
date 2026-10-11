@@ -21,6 +21,7 @@ The name of a function is not case-sensitive.
 - [Session Functions](/docs/functions-session)
 - [String Functions](/docs/functions-string)
 - [Math Functions](/docs/functions-math)
+- [Hash Functions](/docs/functions-hash)
 - [Date/Time Functions](/docs/functions-datetime)
 - [JSON Functions](/docs/functions-json)
 - [Regex Functions](/docs/functions-regex)
@@ -28,6 +29,10 @@ The name of a function is not case-sensitive.
 - [Null Functions](/docs/functions-null)
 - [UUID Functions](/docs/functions-uuid)
 - [Object Id Functions](/docs/functions-object-id)
+- [Array Functions](/docs/functions-array), which are `cardinality`,
+  `array_length`, and `array_contains`
+- [Sequence functions](/docs/sequences#use-values), which are `nextval`,
+  `currval`, `lastval`, and `setval`
 - [Vector functions](/docs/vector-search), which are `octet_length`,
   `vector_dims`, `l2_distance`, `cosine_distance`, and `inner_product`
 

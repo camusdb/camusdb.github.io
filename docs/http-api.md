@@ -113,6 +113,7 @@ CamusDB serializes a `ColumnType` as the numeric value of its enum:
 | `9` | datetime |
 | `10` | array |
 | `11` | uuid |
+| `12` | numeric |
 
 ```json
 { "type": 3, "strValue": "R2-D2", "longValue": 0, "floatValue": 0, "boolValue": false }
@@ -126,6 +127,7 @@ CamusDB serializes a `ColumnType` as the numeric value of its enum:
 { "type": 9, "longValue": 639039888000000000, "isoValue": "2026-03-15T12:00:00.0000000Z" }
 { "type": 10, "arrayElementType": 2, "arrayValues": [{ "type": 2, "longValue": 42 }] }
 { "type": 11, "strValue": "550e8400-e29b-41d4-a716-446655440000", "longValue": 0, "uuidHigh": 0 }
+{ "type": 12, "strValue": "12345678901234567890.123456789" }
 ```
 
 For a value of bytes, a literal of SQL uses the hexadecimal form `X'...'`. The
@@ -137,6 +139,11 @@ appears as UTC ticks, in a `longValue`.
 For a UUID in a request, pass the canonical text with hyphens, or a hexadecimal
 text of 32 characters. Put it in the `strValue`. A response also holds a
 `uuidValue`, for a reader.
+
+For a numeric value in a request, pass decimal text in `strValue`. CamusDB parses
+it as `NUMERIC`, rounds to nine fractional digits when necessary, and rejects a
+value outside the supported range. A response exposes the canonical decimal text
+as `numericValue`.
 
 ## Health
 
@@ -216,7 +223,8 @@ CamusDB also accepts the equivalent form, `ALTER DATABASE ... RENAME TO`:
   "tableName": "robots",
   "ifNotExists": true,
   "columns": [
-    { "name": "id", "type": "id", "notNull": true, "defaultValue": null },
+    { "name": "id", "type": "id", "primary": true, "notNull": true, "defaultValue": null },
+    { "name": "parent_id", "type": "id", "notNull": false, "defaultValue": null },
     { "name": "name", "type": "string", "maxLength": 64, "notNull": true, "defaultValue": null },
     { "name": "payload", "type": "bytes", "notNull": false, "defaultValue": null },
     { "name": "tags", "type": "array", "arrayElementType": "string", "notNull": false, "defaultValue": null },
@@ -232,6 +240,16 @@ CamusDB also accepts the equivalent form, `ALTER DATABASE ... RENAME TO`:
         "boolValue": false
       }
     }
+  ],
+  "foreignKeys": [
+    {
+      "name": "robots_parent_fk",
+      "columns": ["parent_id"],
+      "referencedTable": "robots",
+      "referencedColumns": ["id"],
+      "onDelete": "restrict",
+      "onUpdate": "no action"
+    }
   ]
 }
 ```
@@ -242,6 +260,12 @@ The model of a creation of a table over HTTP accepts twelve types: `id`,
 
 Use a `maxLength` for the limit of a `string`, and for the limit of a `bytes`
 value. Use an `arrayElementType` for a column of an array.
+
+Use `foreignKeys` to declare table-level foreign keys. Each entry needs a
+`name`, the child `columns`, and a `referencedTable`. `referencedColumns` can be
+empty to reference the parent primary key. `onDelete` and `onUpdate` accept
+`"no action"` and `"restrict"` today. See
+[Foreign Keys](/docs/foreign-keys).
 
 See [Data Types](/docs/data-types) for the names of SQL, the aliases, the
 formats of a literal, and the rules of a value of JSON.
@@ -331,6 +355,10 @@ Response:
   ]
 }
 ```
+
+This endpoint also accepts `INSERT`, `UPDATE`, and `DELETE` statements with a
+`RETURNING` list. The response is the same query result shape: `columns`, then
+`rows`.
 
 Set `routingAcceptVersion: 1` on the request to opt in to advisory routing
 metadata. An eligible response then includes an optional `routing` object. See
@@ -431,6 +459,23 @@ Response:
   "rows": 1
 }
 ```
+
+A write statement with a `RETURNING` list can also run through this endpoint.
+The response keeps `rows` as the affected-row count and adds `columns` and
+`returningRows`:
+
+```json
+{
+  "status": "ok",
+  "rows": 1,
+  "columns": [{ "name": "id", "type": 1 }],
+  "returningRows": [["507f1f77bcf86cd799439011"]]
+}
+```
+
+Set `discardReturningRows: true` in the request body when the caller needs only
+the affected-row count. CamusDB still validates the `RETURNING` list and checks
+the required privileges.
 
 Set `routingAcceptVersion: 1` on the request to opt in to advisory routing
 metadata. An eligible response then includes an optional `routing` object. See

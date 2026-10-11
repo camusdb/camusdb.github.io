@@ -111,6 +111,20 @@
   transform: translateY(-1px);
 }
 
+.playgroundAction {
+  color: #ffffff;
+  border-color: #1558c9;
+  background: #124fb8;
+  box-shadow: 0 12px 34px rgba(18, 79, 184, 0.34);
+}
+
+.playgroundAction:hover {
+  color: #ffffff;
+  border-color: #276fe4;
+  background: #1a62d1;
+  transform: translateY(-1px);
+}
+
 .secondaryAction {
   color: #d7eaff;
   font-weight: 700;
@@ -148,6 +162,16 @@
   border-radius: 50%;
   background: #fbbf24;
   box-shadow: 0 0 12px rgba(251, 191, 36, 0.55);
+}
+
+.statusLink {
+  color: #d7eaff;
+  font-weight: 700;
+}
+
+.statusLink:hover {
+  color: #ffffff;
+  text-decoration: none;
 }
 
 .proofGrid {
@@ -227,6 +251,16 @@
   transform: translateX(-50%);
   animation-name: pyramidParallaxTop;
   animation-duration: 6.8s;
+}
+
+.pyramidAssembling .pyramidNode {
+  opacity: 0;
+  animation-play-state: paused;
+}
+
+.pyramidAssembling .dataBeam {
+  opacity: 0.25;
+  transition: opacity 400ms ease;
 }
 
 .pyramidLeft {
@@ -485,9 +519,14 @@
 
 .exampleTabActive,
 .exampleTabActive:hover {
-  color: #ffffff;
+  color: #ffffff !important;
   border-color: var(--ifm-color-primary);
   background: var(--ifm-color-primary);
+}
+
+.exampleTabActive:focus,
+.exampleTabActive:focus-visible {
+  color: #ffffff !important;
 }
 
 .exampleLink {
@@ -762,18 +801,18 @@
 
 @media (prefers-reduced-motion: reduce) {
   .pyramidNode {
-    animation-duration: 14s;
+    animation: none;
   }
 
   .dataBeam::before,
   .dataBeam::after {
-    animation-duration: 2.4s, 4s;
+    animation: none;
   }
 
   .dataBeam b,
   .dataBeam span,
   .dataBeam i {
-    animation-duration: 4s;
+    animation: none;
   }
 
   .outcomeCard,

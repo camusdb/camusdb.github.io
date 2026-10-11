@@ -40,7 +40,7 @@ inconsistency of the layer of the storage.
 
 | Code | Name | When it is generated |
 | --- | --- | --- |
-| `CADB0010` | `DatabaseDoesntExist` | An operation targets a database name that has not been explicitly created, or a name that was dropped or renamed away. |
+| `CADB0010` | `DatabaseDoesntExist` | An operation targets a database name that has not been explicitly created, a name that was dropped or renamed away, or, with authentication enabled, a database the caller holds no grant on. |
 | `CADB0011` | `TableDoesntExist` | A query, DML statement, schema change, or table rename references a table that does not exist, or the table name is empty. |
 | `CADB0012` | `DatabaseAlreadyExists` | `CREATE DATABASE` targets an existing database, or a database rename targets a name that is already registered. |
 | `CADB0013` | `TableAlreadyExists` | `CREATE TABLE` tries to create a table name that already exists, or `ALTER TABLE ... RENAME TO ...` targets an existing table name. |
@@ -51,6 +51,9 @@ inconsistency of the layer of the storage.
 | `CADB0301` | `NotNullViolation` | An insert or update tries to store `NULL` into a `NOT NULL` column. |
 | `CADB0302` | `ValueTooLong` | An insert, update, or cast tries to store a `STRING` or `BYTES` value longer than the column's configured or default maximum length. |
 | `CADB0303` | `CheckConstraintViolation` | An insert, update, or `ALTER TABLE ... ADD CONSTRAINT ... CHECK` would make a row violate a check constraint, or check evaluation hits incompatible values or a regex failure inside the check. |
+| `CADB0304` | `ForeignKeyViolation` | A child `INSERT` or `UPDATE` has no parent row, or `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY` finds an existing child row without a parent. |
+| `CADB0305` | `ForeignKeyRestrictDelete` | A `DELETE` would remove a parent key that a child row still references. |
+| `CADB0306` | `ForeignKeyRestrictUpdate` | An `UPDATE` would change a parent key that a child row still references. |
 | `CADB0400` | `InvalidInput` | The request shape is invalid: missing names, invalid DDL/DML parameters, malformed query structure, invalid check definitions, invalid regex patterns, unsupported function arguments, invalid casts, malformed UUID input, duplicate aliases, invalid transaction priority, invalid table settings such as row-level TTL options, invalid index rename inputs, invalid `INSERT INTO ... SELECT` column counts, invalid CTAS projections, invalid `GROUP BY` / `HAVING` / `DISTINCT` combinations, and similar user mistakes. |
 | `CADB0401` | `UnknownType` | CamusDB is asked to encode, decode, cast, or evaluate a type it does not understand in that context. |
 | `CADB0402` | `DuplicatePrimaryKey` | Reserved for duplicate primary-key violations. The current storage path usually reports uniqueness failures as `CADB0300`. |
@@ -64,6 +67,11 @@ inconsistency of the layer of the storage.
 | `CADB0410` | `MalformedVector` | A `BYTES` value is used where a packed float32 vector is required, but its byte count is not a whole number of 4-byte elements, or the vector has zero elements. |
 | `CADB0411` | `VectorDimensionMismatch` | Two vector operands of a distance function have different dimensions. The message names both dimensions. |
 | `CADB0412` | `InvalidVectorValue` | A vector element is `NaN` or an infinity, or `cosine_distance` receives a zero-magnitude vector, for which the metric is undefined. |
+| `CADB0413` | `StatementTooDeeplyNested` | A statement's parse tree is deeper than CamusDB's safety limit. Rewrite the statement with less nesting, or split it into more statements. |
+| `CADB0414` | `ColumnStorageNotApplicable` | A `STORAGE` strategy was given for a column type that has no variable-length value. Use storage strategies only on `STRING`, `BYTES`/`BLOB`, and `ARRAY` columns. |
+| `CADB0415` | `InvalidForeignKeyDefinition` | A foreign key references an invalid target: wrong column count or type, no matching primary key or unique index, a view, a materialized view, or another database. |
+| `CADB0416` | `ForeignKeyCycle` | A foreign key would create a cycle across two or more tables. A self-reference is allowed. |
+| `CADB0417` | `NumericValueOutOfRange` | A `NUMERIC` value or arithmetic result is outside the supported range of `-99999999999999999999999999999.999999999` to `99999999999999999999999999999.999999999`. |
 | `CADB0501` | `TransactionAlreadyCompleted` | The caller tries to commit or roll back a transaction that is already committed, already rolled back, or otherwise no longer active. It is also used when Kahuna returns a permanent non-retryable commit failure and the transaction is already dead. |
 | `CADB0502` | `TransactionConflict` | The transaction cannot acquire the needed lock or hits a conflicting concurrent write. Conflict messages include bounded diagnostic context such as the table/database, a small sample of contended keys, and the waiting transaction mode when available. |
 | `CADB0503` | `SchemaCatchingUp` | The node is more than one schema version behind the committed schema head for that database, so it temporarily rejects reads and DML until schema apply catches up. Retry on another node or retry later. |
@@ -93,7 +101,7 @@ inconsistency of the layer of the storage.
 | `CADB0527` | `ViewCheckOptionViolated` | A row written through a view with `WITH CHECK OPTION` does not satisfy the view's predicate. Evaluated with the same three-valued logic as a `CHECK` constraint, so a predicate returning `NULL` passes. |
 | `CADB0528` | `ViewRecursionDetected` | A view's dependencies form a cycle. Detected at DDL time by walking the stored dependency ids; `max_view_expansion_depth` is a runtime backstop, not the defense. |
 | `CADB0529` | `CannotChangeViewShape` | `CREATE OR REPLACE VIEW` tried to change the view's existing column names, types, or order. Only appending columns is allowed. Drop and recreate to change the shape. |
-| `CADB0530` | `DependentObjectsExist` | A `DROP` would have orphaned an object that depends on the target, and the statement did not say `CASCADE`. The message lists the dependents. Raised for a dropped *column* a view reads as well as a dropped relation. Neither `DROP TABLE` nor `DROP COLUMN` has a `CASCADE` form; drop the dependent views first. |
+| `CADB0530` | `DependentObjectsExist` | A schema change would orphan an object that depends on the target. Raised for dependent views and foreign keys, including a dropped referenced table, a dropped referenced column, a dropped backing index, or a truncate of a referenced parent. Drop the dependent object or constraint first. |
 | `CADB0531` | `MaterializedViewNotPopulated` | A materialized view created `WITH NO DATA`, and never refreshed, was read. This is an error rather than an empty result, because an empty result would make a forgotten `REFRESH` indistinguishable from a correct empty answer. |
 | `CADB0532` | `RefreshAlreadyInProgress` | A `REFRESH` of this materialized view is already running, on this node or another. Refused rather than queued: two concurrent refreshes would both succeed and the later swap would silently discard the earlier one's work. |
 | `CADB0533` | `FeatureNotSupported` | A statement CamusDB parses but has not implemented, such as `REFRESH MATERIALIZED VIEW ... CONCURRENTLY`. Distinct from a syntax error: the statement is well-formed, and the message names the missing capability and the form that works today. |
@@ -103,7 +111,20 @@ inconsistency of the layer of the storage.
 | `CADB0537` | `SnapshotPrecedesContentsGeneration` | An `AS OF SYSTEM TIME` read named a point before the start of the current contents of the table. A [`TRUNCATE`](/docs/truncate-table) replaced the key space that holds the rows, so the live schema can no longer locate the old rows. An empty result would be the same as a correct empty answer, which is the failure that this code prevents. Read at the cut or after it, or recover the retired contents with `CREATE TABLE ... RELINK TO`. |
 | `CADB0538` | `StatementNotAllowedInTransaction` | A statement that owns its own internal transaction ran inside an explicit transaction of the caller. [`TRUNCATE`](/docs/truncate-table) is the one statement of that class today. It commits a replicated schema entry, and a later `ROLLBACK` cannot undo that entry. Commit first, or roll back first. Then run the statement. |
 | `CADB0539` | `BranchSnapshotProtectionLost` | A branch database lost the snapshot protection that pins inherited ancestor history at its fork point. CamusDB fails closed instead of returning a possibly incomplete result. Recreate the branch from the parent. Maps to HTTP 410. |
-| `CADB0600` | `InvalidConfig` | Configuration is invalid: an explicit `--config` or `CAMUS_CONFIG_PATH` file does not exist, the mode is wrong, a listener or Raft port is invalid, peer lists are malformed, schema-ack settings are invalid, transaction/locking/priority settings are invalid, prepared-statement settings are invalid, statistics, automatic-analyze, row-level TTL, spill, diagnostics, parser-cache, or regex settings are invalid, config keys are unknown, or `kahuna` options are unsupported. Also raised at runtime when a [`SET CLUSTER SETTING`](/docs/runtime-cluster-settings) value breaks a cross-field invariant; the message names both settings, and nothing is applied. |
+| `CADB0542` | `SequenceAlreadyExists` | `CREATE SEQUENCE` targets a name already held by a sequence, table, or view. Pick another name or use `IF NOT EXISTS` when appropriate. |
+| `CADB0543` | `SequenceDoesNotExist` | A sequence statement or sequence function names a sequence that does not exist. |
+| `CADB0544` | `SequenceExhausted` | The sequence has no value left to issue because the next value would pass its `MAXVALUE`. |
+| `CADB0545` | `InvalidSequenceDefinition` | A sequence definition cannot hold: non-positive increment, `CACHE` below 1, `MAXVALUE` below `MINVALUE`, or `START` outside the range. |
+| `CADB0546` | `SequenceValueNotDefined` | `currval` or `lastval` was called before this transaction drew a value from the sequence. |
+| `CADB0547` | `SequenceCallNotAllowedHere` | A sequence call was written in a context where CamusDB cannot know how many values it would draw before the statement runs. |
+| `CADB0548` | `SequenceDependencyExists` | A sequence is owned by an identity column, or a column default depends on it. Drop or change the dependent object first. |
+| `CADB0549` | `SpillLimitExceeded` | A spill write would exceed `spill_max_total_bytes` for live spill files on this node. The statement fails, its spill files are deleted, and no partial write is kept. Free spill space by letting other queries finish, raise the limit, or disable the total-byte limit with a value of `0` or below. |
+| `CADB0550` | `ReturningResultTooLarge` | The rows of a write statement with `RETURNING` do not fit in one gRPC non-query reply or non-query batch reply. The statement is rolled back before commit. Use a streaming query endpoint, or set the count-only flag. |
+| `CADB0551` | `QueryNotFound` | `CANCEL QUERY` did not find a visible running query with that id. The query may have ended, the id may be wrong, or the query may belong to another user. |
+| `CADB0552` | `QueryNotCancellable` | `CANCEL QUERY` named a statement that cannot be stopped now, usually because it is a write, a schema change, or a statement that has not finished parsing. |
+| `CADB0553` | `QueryOwnerUnreachable` | The node that may own the query id did not answer before the cancel timeout. The query may still be running; retry the cancel if needed. |
+| `CADB0554` | `QueryCancelled` | A statement was stopped by `CANCEL QUERY`. Rows already returned to the client before this error were real rows. |
+| `CADB0600` | `InvalidConfig` | Configuration is invalid: an explicit `--config` or `CAMUS_CONFIG_PATH` file does not exist, the mode is wrong, a listener or Raft port is invalid, peer lists are malformed, schema-ack settings are invalid, transaction/locking/priority settings are invalid, prepared-statement settings are invalid, statistics, automatic-analyze, row-level TTL, spill, large-value, diagnostics, parser-cache, or regex settings are invalid, config keys are unknown, or `kahuna` options are unsupported. Also raised at runtime when a [`SET CLUSTER SETTING`](/docs/runtime-cluster-settings) value breaks a cross-field invariant; the message names both settings, and nothing is applied. |
 
 ## Backup and restore errors
 
@@ -147,6 +168,8 @@ engine. They rarely report an ordinary mistake of an application.
 | `CADB0097` | `InvalidPageLength` | Reserved for invalid low-level page lengths in storage structures. |
 | `CADB0098` | `InvalidPageChecksum` | Reserved for low-level page checksum mismatches. |
 | `CADB0099` | `InvalidInternalOperation` | CamusDB reached an unexpected internal state: impossible planner state, invalid replicated index shape, row disappearance during update, unexpected forwarder response, or other invariants that should not fail in normal use. |
+| `CADB0540` | `LargeValueCorrupt` | A compressed or out-of-line value failed to decompress or did not match the checksum recorded in the row. |
+| `CADB0541` | `LargeValueNotResolved` | An internal read path attempted to decode an out-of-line value that was not fetched first. Report it. |
 
 ## Retry guidance
 
@@ -188,6 +211,7 @@ first:
 - `CADB0410` `MalformedVector`
 - `CADB0411` `VectorDimensionMismatch`
 - `CADB0412` `InvalidVectorValue`
+- `CADB0413` `StatementTooDeeplyNested`
 - `CADB0300` `DuplicateUniqueKeyValue`
 - `CADB0301` `NotNullViolation`
 - `CADB0302` `ValueTooLong`

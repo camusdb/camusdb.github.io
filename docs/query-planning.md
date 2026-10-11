@@ -33,9 +33,11 @@ CamusDB can plan these shapes today:
 - An aggregate, both grouped and global.
 - A streaming `DISTINCT`, on a compatible indexed projection of `NOT NULL`
   columns.
-- An inner join, and a join with a comma.
+- An inner join, a left outer join, a right outer join, a cross join, and a join
+  with a comma.
 - A hash join for an equi-join. That includes an equi-join without a usable
-  index on the right side.
+  index on the right side. A left outer join can use a hash join when the right
+  side is the build side.
 - A merge join, when CamusDB can read both sides in the order of the join key.
 - An indexed nested-loop join, when an index covers the join key of the right
   side.
@@ -291,6 +293,10 @@ With `cost_based_join_order_enabled: true`, CamusDB can reorder an eligible
 inner join by cost. It then depends on neither the order of the declaration nor
 a simple heuristic of the selectivity.
 
+Outer joins keep the order declared in the statement. Reordering them can change
+which side is preserved and where `NULL` padding happens, so CamusDB plans that
+tree in the written order.
+
 The enumerator of the joins searches the connected left-deep orders. It uses
 four inputs:
 
@@ -375,14 +381,23 @@ default. See [Distributed Queries](/docs/distributed-queries).
 
 ## Joins
 
-CamusDB supports `JOIN`, `INNER JOIN`, and a join with a comma. For an inner
-equi-join, the planner can select among several physical algorithms:
+CamusDB supports `JOIN`, `INNER JOIN`, `LEFT JOIN`, `RIGHT JOIN`, `CROSS JOIN`,
+and a join with a comma. The planner first normalizes the syntax:
+
+- `JOIN` and `INNER JOIN` are the same inner join.
+- `RIGHT JOIN` is executed as a left join with the operands swapped.
+- `CROSS JOIN` has no `ON` predicate. It produces the Cartesian product. When
+  the whole `FROM` clause is cross joins or comma joins, CamusDB can still lift
+  an equality from the `WHERE` clause and plan it as a join predicate.
+
+For an inner equi-join, and for an eligible left outer equi-join, the planner can
+select among several physical algorithms:
 
 | Plan of a join | When it is useful |
 | --- | --- |
-| `index-nested-loop-join` | The right side has an index on the join key. The left side is also small enough for a probe of the index at each row. |
-| `hash-join` | The join is an equality. A scan and a build of a hash table is cheaper than repeated probes of the right side. The right side can also have no usable index on the join key. |
-| `merge-join` | CamusDB can read both sides in the order of the join key, usually through two compatible indexes. It can therefore stream both sides together. |
+| `index-nested-loop-join` | The right side has an index on the join key. The left side is also small enough for a probe of the index at each row. For a left outer join, the left side is the preserved side and unmatched rows are padded after the failed probe. |
+| `hash-join` | The join is an equality. A scan and a build of a hash table is cheaper than repeated probes of the right side. The right side can also have no usable index on the join key. For a left outer join, the build side must be the right side. |
+| `merge-join` | CamusDB can read both sides in the order of the join key, usually through two compatible indexes. It can therefore stream both sides together. For a left outer join, unmatched left runs are padded. |
 | `nested-loop-join` | The fallback, for a join that is eligible for none of the indexed, hash, and merge forms. |
 
 ```camussql
@@ -409,13 +424,17 @@ JOIN posts p ON p.user_id = u.id;
 An index on `posts(user_id)` is far more useful than an unrelated index on
 `posts(title)`.
 
-A hash join materializes the side that the estimate calls smaller, into a hash
-table in memory. It streams the other side as the probes.
+A hash join materializes one side into a hash table in memory. For an inner
+join, the planner usually builds the side that the estimate calls smaller and
+streams the other side as the probes. For a left outer join, the preserved side
+must stay as the probe side, so the hash build side is always the right table.
 
-In a cluster with [distributed queries](/docs/distributed-queries) enabled, a
-hash join can broadcast a small build side to the leaders of the probe table's
-ranges. That keeps the larger probe scan near the data while preserving the same
-result as a local probe.
+In a cluster with [distributed queries](/docs/distributed-queries) enabled, an
+inner hash join can broadcast a small build side to the leaders of the probe
+table's ranges. That keeps the larger probe scan near the data while preserving
+the same result as a local probe. A left outer join does not use that broadcast
+shape, because a remote probe can return matches but cannot emit padded rows for
+unmatched preserved rows.
 
 The build side can exceed the configured limit of a hash join. CamusDB can then
 use [spill to disk](/docs/spill-to-disk). It divides the join, and it keeps the
@@ -426,6 +445,15 @@ A merge join needs join keys of an equality. CamusDB can produce both inputs in
 the order of the join key. It then advances both streams together, and it
 buffers only the current run of equal keys. That plan helps most in a larger
 join, where both tables have a compatible index on the columns of the join.
+
+Outer joins also affect predicate placement. A filter on the preserved side can
+push down to that input. A filter on the null-extended side stays above the join,
+because pushing it below the join would filter before padding and change the
+meaning of the query.
+
+CamusDB does not reorder a join tree that contains an outer join. The written
+order is part of the semantics. Cost-based join-order enumeration applies to
+eligible inner joins.
 
 ## The rewrite of an IN and of a NOT IN subquery
 
@@ -603,6 +631,13 @@ The planner improves over time. Important limits nevertheless remain:
 - The enumeration of the order of a join by cost is left-deep. CamusDB caps it
   for a very wide join. It currently applies to the shapes of an inner join that
   CamusDB can reorder.
+- A query that contains an outer join keeps its declared join order. CamusDB
+  does not reorder an outer-join tree by cost.
+- `FULL [OUTER] JOIN`, `NATURAL JOIN`, and `JOIN ... USING (...)` are not
+  supported yet.
+- A `RIGHT JOIN` whose left operand is itself a join is not supported. Rewrite it
+  as a left join with the preserved table on the left, often through a derived
+  table.
 - A `NOT IN (...)` list of values stays driven by a filter. It uses no dedicated
   shape of a plan with probes of an index.
 - CamusDB does not support `COUNT(DISTINCT ...)`.

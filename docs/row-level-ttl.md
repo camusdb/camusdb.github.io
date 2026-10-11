@@ -8,11 +8,10 @@ CamusDB can expire a row automatically. A table names a column that holds an
 expiry instant. A background sweep then deletes each row whose instant has
 passed. No user issues a `DELETE`.
 
-The parameter names, their values, and their defaults follow the row-level TTL
-of CockroachDB. If you know that feature, you already know this one. Where
-CamusDB supports less, it supports a narrower value for the same parameter. It
-does not use a different parameter. See
-[Differences from CockroachDB](#differences-from-cockroachdb).
+The parameter names, their values, and their defaults follow a common SQL
+convention for row-level TTL. Some parameters accept a narrower value than that
+convention allows. Some parameters are not supported. See
+[Limits of the parameters](#limits-of-the-parameters).
 
 ## Turn it on
 
@@ -124,6 +123,11 @@ SELECT * FROM sessions WHERE expires_at > NOW();
 Treat TTL as what it is. It reclaims space. It does not enforce visibility.
 `ttl_job_cron` bounds the lag. A table that needs a tight bound must sweep more
 often.
+
+TTL cannot run on a table that another table references with a foreign key. The
+TTL sweep deletes rows in the background, outside the parent-side foreign-key
+check path. CamusDB therefore refuses both orders: enabling TTL on a referenced
+parent table, and adding a foreign key that references a TTL table.
 
 ## Tuning
 
@@ -242,15 +246,14 @@ four things, in this order:
 4. Whether the expiry column is `NULL` for the rows that you expected to
    disappear.
 
-## Differences from CockroachDB
+## Limits of the parameters
 
-CamusDB implements a subset. Each parameter that exists behaves as it does in
-CockroachDB.
+CamusDB implements a subset of the common TTL parameters.
 
 Two parameters take a narrower value:
 
-- `ttl_expiration_expression` takes a bare column name. CockroachDB accepts any
-  SQL expression that returns a timestamp. CamusDB rejects an expression, with a
+- `ttl_expiration_expression` takes a bare column name. It does not take an SQL
+  expression that returns a timestamp. CamusDB rejects an expression, with a
   message that says that expressions are not supported yet. The parameter is
   correct. Only the grammar of the value is narrower. A wider grammar later will
   need no rename.
@@ -261,8 +264,7 @@ Three parameters are absent:
 
 - `ttl_expire_after` needs an `INTERVAL` type and an `INTERVAL` literal, and
   CamusDB has neither. It also needs a hidden expiration column. Use
-  `ttl_expiration_expression` with your own column instead. CockroachDB itself
-  recommends that parameter.
+  `ttl_expiration_expression` with your own column instead.
 - `ttl_disable_changefeed_replication` has no purpose here. CamusDB has no
   changefeed.
 - `ttl_row_stats_poll_interval` and `ttl_label_metrics` are specific to
@@ -270,9 +272,8 @@ Three parameters are absent:
 
 One parameter is an extension of CamusDB:
 
-- `ttl_grace_ms` has no equivalent in CockroachDB. In CockroachDB you would put
-  a grace period inside the expiration expression. A bare column name cannot
-  express that.
+- `ttl_grace_ms` adds a grace period after the expiry instant. An expiration
+  expression could hold a grace period, but a bare column name cannot.
 
 ## How it works
 

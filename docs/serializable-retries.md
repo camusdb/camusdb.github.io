@@ -25,6 +25,9 @@ A retry follows one of these conditions:
   server-side retry budget expired.
 - A read or scan reached a range whose current state could not be served before
   the server-side retry budget expired.
+- The transaction wrote a table that gained an index or a constraint before the
+  transaction committed. The staged writes do not maintain that new write shape,
+  so CamusDB aborts the transaction and asks the client to replay it.
 - The transaction passed its lifetime deadline.
 
 ## Which errors to retry, and how

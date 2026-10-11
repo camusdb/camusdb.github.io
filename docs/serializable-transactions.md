@@ -63,13 +63,21 @@ Read Committed gives up these properties:
 - Protection against write skew. Write skew is a fault in application code that
   reads a value, decides, and then writes.
 
-Under pessimistic Read Committed, a point read records the row revision it saw
-when the same transaction later writes that key; CamusDB refuses the write if
-another transaction committed a newer version in between. A range scan does not
-pin every scanned row. It returns each row's latest committed version as pages
-are read, which is the non-repeatable behavior this isolation level permits.
-`UPDATE` and `DELETE` still re-read the rows they modify under lock before
-writing.
+Under pessimistic Read Committed, a point read can record the row revision it saw
+when the same transaction later writes that key, but this is not a general
+repeatable-read guarantee. A range scan does not pin every scanned row. It
+returns each row's latest committed version as pages are read, which is the
+non-repeatable behavior this isolation level permits.
+
+One `UPDATE` or `DELETE` statement still protects itself from a lost update. The
+statement first finds candidate rows, then it takes the exclusive row locks,
+reads those rows again, evaluates the `WHERE` clause again, and computes the
+write from that locked read. In practice, `UPDATE accounts SET balance = balance
++ 1 WHERE id = ...` adds to the latest committed balance. A row that a
+concurrent commit moved out of the predicate is skipped, and a row that was
+deleted is skipped. A read in one statement followed by a write in a later
+statement is different; use Serializable, or express the change as one
+`UPDATE`.
 
 ## Read-only and read-write modes
 
@@ -118,6 +126,12 @@ promotes the lock to write protection if the same transaction later writes the
 key. For a scan, a shared range lock covers the scanned span. Two overlapping
 scans therefore still run at the same time. A conflicting write into the range
 waits, or it retries.
+
+When two serializable transactions conflict, CamusDB resolves the conflict with
+a deterministic ordering. An older transaction may wait; a younger transaction
+that would create a cycle aborts and must retry. A transaction that has not yet
+held a lock or staged a write can safely wait for a short in-flight writer,
+because it is not itself blocking anyone.
 
 CamusDB escalates the point locks when a transaction reads a very large number
 of rows. It replaces them with one shared lock over the whole table, or over the

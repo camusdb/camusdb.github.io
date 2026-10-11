@@ -165,3 +165,28 @@ Configuration uses the same machinery. CamusDB commits a setting from
 partition. Every node therefore applies the settings in the same order. A node
 that was down catches up on replay. There is no rolling restart, and no node
 keeps a stale value.
+
+## Transfer partition leadership
+
+Operators and reliability tests can ask the current leader of a data partition
+to hand leadership to another replica:
+
+```http
+POST /v1/cluster/transfer-leadership
+Content-Type: application/json
+
+{ "partitionId": 1, "targetEndpoint": "10.0.0.3:7072" }
+```
+
+The request is a graceful handoff, not a crash failover. Send it to the node
+that currently leads the partition. `targetEndpoint` is the replica's consensus
+endpoint as shown in the placement table. The target must host the partition as
+a voter.
+
+The response returns `200` when the target is observed as leader before the call
+returns. A non-success handoff returns `409` with a body that includes `status`
+and `reason`, such as `NodeIsNotLeader`, `LeaderAlreadyElected`, or `Refused`.
+
+With authentication enabled, the endpoint requires a superuser. With
+authentication disabled, it is loopback-only, like other cluster mutation
+routes.

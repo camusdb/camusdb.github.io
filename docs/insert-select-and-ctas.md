@@ -224,3 +224,18 @@ join or a subquery.
 
 `CREATE TABLE ... AS SELECT` needs `CreateTable` on the database. It also needs
 `Select` on every source.
+
+## RETURNING
+
+An `INSERT ... SELECT` can end with a `RETURNING` list that sends back values
+from the copied rows:
+
+```camussql
+INSERT INTO archived_orders (id, customer, total)
+SELECT id, customer, total
+FROM orders
+WHERE total > 100
+RETURNING id, customer;
+```
+
+See [RETURNING](/docs/sql-writes#returning).

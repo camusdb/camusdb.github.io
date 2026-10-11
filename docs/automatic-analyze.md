@@ -38,7 +38,6 @@ updates, and deletes, they no longer describe the data. The planner then makes a
 poor choice, such as the wrong index or the wrong join order.
 
 Automatic analyze closes that gap. It refreshes a stale table in the background.
-The design follows the automatic statistics collection of CockroachDB.
 
 ## How CamusDB detects staleness
 

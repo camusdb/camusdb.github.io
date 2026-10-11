@@ -49,16 +49,21 @@ Three rules apply to the form of the statement:
 - The target is exactly one base table. CamusDB does not support several tables
   in one statement.
 - The `TABLE` keyword is optional.
-- The statement takes no option.
+- The statement accepts `RESTART IDENTITY` or `CONTINUE IDENTITY`.
 
-`RESTART IDENTITY` has no meaning in CamusDB, because CamusDB has no sequence of
-a user. `CASCADE` has no target, because a foreign key is not a live feature
-yet.
+`CONTINUE IDENTITY` is the default. `RESTART IDENTITY` restarts only the
+sequences owned by identity columns of the truncated table. It does not reset a
+free-standing sequence that a column merely defaults from, because that sequence
+may be shared by other tables.
 
-CamusDB refuses `TRUNCATE` on three targets:
+`CASCADE` is not supported. A table that another table's foreign key references
+cannot be truncated; drop or truncate the child first, or drop the constraint.
+
+CamusDB refuses `TRUNCATE` on these targets:
 
 | Target | Error | What you use instead |
 | --- | --- | --- |
+| A table that another table's foreign key references | `CADB0530` `DependentObjectsExist` | Truncate or drop the child first, or drop its constraint. |
 | A materialized view | `CADB0525` `ViewNotUpdatable` | `REFRESH MATERIALIZED VIEW ... WITH NO DATA` |
 | A plain view | `CADB0525` `ViewNotUpdatable` | Truncate the table below the view |
 | A table that does not exist | `CADB0002` `TableDoesntExist` | Nothing applies |
@@ -136,6 +141,24 @@ The truncate happens across the cluster as soon as the schema entry commits. A
 failure after that point does not change the outcome. CamusDB logs the failure,
 and the statement still reports success. A report of a rollback would tell you
 that the table still holds rows that it no longer holds.
+
+## Identity sequences
+
+```camussql
+TRUNCATE TABLE orders RESTART IDENTITY;
+TRUNCATE TABLE orders CONTINUE IDENTITY;
+TRUNCATE TABLE orders;                    -- same as CONTINUE IDENTITY
+```
+
+`RESTART IDENTITY` applies only to sequences owned by columns of the truncated
+table, such as `SERIAL` or `GENERATED ... AS IDENTITY` columns. A sequence
+created with `CREATE SEQUENCE` and referenced by a column default is not owned
+by the table, so truncate leaves it alone.
+
+The table-emptying part of `TRUNCATE` is still a committed schema change. If the
+identity restart fails afterwards, CamusDB reports the sequences it could not
+restart; the table remains empty and those sequences keep climbing. Use
+`ALTER SEQUENCE ... RESTART` on the named sequences to finish the reset.
 
 ## A concurrent reader and a concurrent writer
 
@@ -312,11 +335,10 @@ CamusDB cleans the records of the stale run in the background. See
 
 ## Not supported
 
-CamusDB does not support these five things today:
+CamusDB does not support these four things today:
 
 - `TRUNCATE a, b, c`, which names several tables in one statement.
-- `RESTART IDENTITY`, because CamusDB has no sequence of a user.
-- `CASCADE`, because a foreign key is not a live feature.
+- `CASCADE`; truncate the child table first, or drop the foreign key.
 - An automatic refresh of a dependent materialized view. CamusDB does not
   invalidate that view either.
 - A read of a snapshot before the current contents generation.

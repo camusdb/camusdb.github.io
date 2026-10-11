@@ -287,6 +287,11 @@ CamusDB supports these privileges:
 | `CREATE` | Create a database, or another object with a create scope where that applies. |
 | `ALL PRIVILEGES` | The union of the concrete privileges that CamusDB knows today. |
 
+Creating a foreign key also requires `SELECT` on the referenced parent table.
+A child write can reveal whether a parent key exists, so CamusDB checks that
+privilege when the constraint is created. There is no separate `REFERENCES`
+privilege.
+
 A grant has one of three scopes. The list starts with the broadest scope:
 
 | Scope | Example | Meaning |
@@ -325,6 +330,27 @@ again. Setting the TTL to `0` makes cross-node changes immediate at the cost of 
 catalog lookup on every request. Long-lived gRPC batch streams re-resolve
 authorization on the same schedule.
 
+### gRPC batch streams and token expiry
+
+A `BatchExecute` stream presents its bearer token once, when the stream opens.
+The token lifetime controls how long that token can be presented to open a new
+stream or make a unary call. It does not by itself end an already-open batch
+stream that authenticated while the token was valid.
+
+After ordinary token expiry, the stream continues to resolve authorization from
+the account it authenticated as, using the same authorization cache TTL described
+above. Grant and revoke changes still reach the next operation within that
+bound.
+
+Early session revocation still ends the stream. `/logout`, `FLUSH SESSIONS`, a
+password change, and `DROP USER` all invalidate the session. A stream that ends
+this way returns `UNAUTHENTICATED` with `CADB0516`; the client should discard
+the token, log in again, and open a new stream.
+
+The server keeps expired session records briefly so an open stream can
+distinguish ordinary expiry from revocation. A new stream still needs a token
+that resolves, so clients should renew before `expiresAtUnixMs`.
+
 `FLUSH PRIVILEGES` makes this node drop cached authorization decisions and
 re-read the user and grant catalog. It also advances a replicated coherence
 generation, so other nodes discard decisions derived from the older catalog
@@ -350,6 +376,10 @@ A write needs the matching write privilege:
 - `UPDATE` for an update.
 - `DELETE` for a delete.
 
+A write with `RETURNING` also needs `SELECT` on the target table, because the
+`RETURNING` list reads stored row values. The count-only request flag does not
+remove that privilege check.
+
 [`TRUNCATE`](/docs/truncate-table) needs both `DELETE` and `DROP` on the target
 table. It removes every row, which is an effect of a `DELETE`. It also retires a
 whole key space, which is an effect of a `DROP`.
@@ -373,8 +403,26 @@ fields. Membership, placement, backfill, snapshot, leave, and replication-factor
 routes are superuser-only; leave and replication-factor routes are loopback-only
 when authentication is off.
 
-Some statements open no table. Any authenticated user may run them. Examples are
-`SHOW TABLES`, `SHOW DATABASE`, and a `SELECT` without a `FROM` clause.
+Database names are hidden from users who hold no grant that reaches into that
+database. A statement that runs in such a database fails as `CADB0010`
+`DatabaseDoesntExist`, the same error returned for an unknown name. This applies
+to SQL over HTTP and gRPC, the typed rows API, and batch streams. A global grant,
+a `db.*` grant, or any grant on one table in the database is enough to make the
+database visible, but the statement still needs its normal table privilege.
+
+Catalog statements are filtered by the same visibility rule. `SHOW DATABASES`
+lists only databases the caller can reach. `SHOW TABLES` lists only tables the
+caller has any privilege on. `SHOW BRANCHES`, `SHOW ANCESTORS`, and
+`SHOW ORPHAN DATABASES` omit databases the caller cannot see.
+
+Some statements open no table. An authenticated user may run them when the
+current database is visible to that user. Examples are `SHOW TABLES` and a
+`SELECT` without a `FROM` clause.
+
+Database-level inspection, such as `SHOW DATABASE` and `SHOW ORPHAN TABLES`,
+needs `SELECT` at database scope: a `db.*` or `*.*` grant, or superuser status.
+A grant on one table makes the database visible, but it does not authorize these
+database-level reads.
 
 Inspection of one table needs `SELECT` on that table. Examples are `SHOW
 COLUMNS`, `SHOW CREATE TABLE`, and [`SHOW STATISTICS`](/docs/show-statistics).
@@ -404,6 +452,7 @@ These defaults are security settings at process level:
 | --- | --- | --- |
 | Access token lifetime | 15 minutes | The absolute lifetime of a bearer token. |
 | Authorization cache TTL | 1 second | The maximum staleness of a cached token or privilege decision on another node. A change made on this node applies to the next request. |
+| Expired session retention | 5 minutes | How long an expired session record is kept so a live gRPC batch stream can distinguish ordinary token expiry from revocation. |
 | Password hash iterations | 600,000 | The PBKDF2-HMAC-SHA256 work factor, stored with each credential. |
 | Login KDF concurrency | 8 | The maximum number of concurrent password verifications on one node. |
 | Login attempts per minute | 20 | The login rate limit, per account. |

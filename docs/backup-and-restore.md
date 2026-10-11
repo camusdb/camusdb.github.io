@@ -39,6 +39,11 @@ a file copy and a WAL replay, not a full logical reload. An incremental backup
 then keeps the steady-state cost close to the volume of change, not to the size
 of the database.
 
+Compressed and out-of-line large values are ordinary data in that storage
+engine. A backup captures them with the rows and WAL that reference them; there
+is no separate blob backup step. A restore to an earlier point reads each row
+with the large values it pointed at then. See [Large Values](/docs/storage-layout).
+
 The two properties above follow from that design:
 
 - A backup covers a whole node, because the image does. The unit of the copy is

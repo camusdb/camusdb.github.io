@@ -4,10 +4,10 @@ sidebar_position: 2.15
 
 # Schema comments
 
-CamusDB supports a comment on a database, on a table, on a column, and on a
-secondary index. A comment is metadata only. It affects no result of a query, no
-plan, no encoding of a row, no index, no constraint, and no behavior of a
-transaction.
+CamusDB supports a comment on a database, on a table, on a column, on a
+secondary index, and on a sequence. A comment is metadata only. It affects no
+result of a query, no plan, no encoding of a row, no index, no constraint, and
+no behavior of a transaction.
 
 Use a comment to document four things next to the schema object itself: the
 owner, the expected values, the operational intent, and the meaning for an
@@ -29,10 +29,11 @@ COMMENT ON DATABASE app IS 'Primary application database';
 COMMENT ON TABLE users IS 'Application users';
 COMMENT ON COLUMN users.email IS 'Unique login email address';
 COMMENT ON INDEX users.email_idx IS 'Lookup by login email';
+COMMENT ON SEQUENCE user_no IS 'Human-facing user number';
 ```
 
-`COMMENT ON TABLE`, `COMMENT ON COLUMN`, and `COMMENT ON INDEX` run inside the
-context of a database.
+`COMMENT ON TABLE`, `COMMENT ON COLUMN`, `COMMENT ON INDEX`, and `COMMENT ON
+SEQUENCE` run inside the context of a database.
 
 `COMMENT ON DATABASE` names the target database in the statement. The connection
 does not need to use that database already.
@@ -139,6 +140,7 @@ A comment stays with its object through a rename:
 - The comment of a table survives `ALTER TABLE ... RENAME TO`.
 - The comment of a column survives `ALTER TABLE ... RENAME COLUMN ... TO ...`.
 - The comment of an index survives `ALTER TABLE ... RENAME INDEX ... TO ...`.
+- The comment of a sequence survives `ALTER SEQUENCE ... RENAME TO`.
 
 CamusDB attaches the comment to the schema object. It does not attach the
 comment to the display name alone.
@@ -182,6 +184,6 @@ literal name `comment`. Quote that name with backticks:
 SELECT `comment` FROM posts;
 ```
 
-CamusDB currently supports a comment on a database, a table, a column, and a
-secondary index only. Five other objects have no form of `COMMENT ON`: the index
-of a primary key, a constraint, a branch, a function, and a sequence.
+CamusDB currently supports a comment on a database, a table, a column, a
+secondary index, and a sequence. Four other objects have no form of `COMMENT
+ON`: the index of a primary key, a constraint, a branch, and a function.

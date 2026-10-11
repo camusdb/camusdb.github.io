@@ -37,36 +37,48 @@ instead.
 
 ## What counts as a mutation
 
-CamusDB stores each row as one row blob. It stores each secondary index entry
-separately.
+CamusDB stores each row as one row blob. It stores each primary-key entry and
+secondary index entry separately.
 
 One mutation is one of these two operations:
 
 - One write or delete of a row blob.
-- One write or delete of a secondary index entry.
+- One write or delete of a primary-key or secondary index entry.
 
 The number of indexes therefore affects the write budget:
 
 | Operation | Mutation count |
 | --- | --- |
-| Insert one row into a table with `K` indexes | `1 + K` |
-| Delete one row from a table with `K` indexes | `1 + K` |
+| Insert one row into a table with `K` secondary indexes | `2 + K` |
+| Delete one row from a table with `K` secondary indexes | `2 + K` |
 | Update one row and change `M` indexed columns | `1 + 2M` |
+
+An out-of-line large value is one more mutation. A `STRING`, `BYTES`/`BLOB`, or
+`ARRAY` value stored outside its row lives under its own key. An insert or
+delete of a row with `L` out-of-line values therefore costs `L` more mutations.
+An update that does not change the large value costs nothing extra for that
+value, because the value key is carried rather than rewritten.
+
+For example, a table with no secondary index and four large columns stored out
+of line costs six mutations per inserted row: the row, the primary-key entry,
+and four large-value keys. The default budget of 20,000 admits 3,333 rows in one
+statement instead of 10,000. See [Large Values](/docs/storage-layout).
 
 The counter only increases inside the transaction. Two updates of the same row
 count twice, because CamusDB must still hold and commit both write intents.
 
 ## Example
 
-A table with two secondary indexes writes one row blob and two index entries for
-each inserted row. One insert therefore costs this much:
+A table with two secondary indexes writes one row blob, one primary-key entry,
+and two secondary index entries for each inserted row. One insert therefore
+costs this much:
 
 ```text
-1 row blob + 2 index entries = 3 mutations
+1 row blob + 1 primary-key entry + 2 secondary index entries = 4 mutations
 ```
 
 The default cap is 20,000 mutations. One transaction can therefore insert at
-most 6,666 such rows. You must put the next row in another transaction.
+most 5,000 such rows. You must put the next row in another transaction.
 
 `max_mutations_per_transaction` controls the cap. See
 [Configuration](/docs/configuration). Set it to `<= 0` only when you intend to

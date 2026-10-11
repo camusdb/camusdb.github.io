@@ -125,10 +125,10 @@ depth-first, and a parent comes before its children.
 | `semi-join`              | An `IN (subquery)` that CamusDB rewrote to a semi-join, over an indexed inner column | `outer=<col>, inner=<table>.<col>, index=<name>` |
 | `anti-join`              | A `NOT IN (subquery)` over an indexed inner column of `NOT NULL` | `outer=<col>, inner=<table>.<col>, index=<name>` |
 | `null-aware-anti-join`   | A `NOT IN (subquery)` over an indexed inner column that accepts a `NULL`. It follows the semantics of SQL, with three values. | `outer=<col>, inner=<table>.<col>, index=<name>` |
-| `nested-loop-join`       | An inner join without a usable index on the right side | `on=<expr>, right=<alias>` |
-| `index-nested-loop-join` | An inner join where an index covers the join key of the right side | `on=<expr>, index=<name>, left=<col>, right=<col>` |
-| `hash-join`              | An inner equi-join with a hash table in memory. CamusDB selects it over an indexed nested loop when the outer side is large against the inner side. | `on=<left>=<right>, build=<alias>`. A filter that CamusDB pushed down appends to the detail. |
-| `merge-join`             | An inner equi-join with a streaming merge of two pointers. CamusDB selects it when both sides have a free order of the join key, from an index. | `on=<left>=<right>`. A filter on the right side appends to the detail. |
+| `nested-loop-join`       | A join without a usable index on the right side | `on=<expr>, right=<alias>` |
+| `index-nested-loop-join` | A join where an index covers the join key of the right side | `on=<expr>, index=<name>, left=<col>, right=<col>` |
+| `hash-join`              | An equi-join with a hash table in memory. CamusDB selects it over an indexed nested loop when the outer side is large against the inner side. | `on=<left>=<right>, build=<alias>`. A filter that CamusDB pushed down appends to the detail. |
+| `merge-join`             | An equi-join with a streaming merge of two pointers. CamusDB selects it when both sides have a free order of the join key, from an index. | `on=<left>=<right>`. A filter on the right side appends to the detail. |
 | `derived-table-scan`     | A subquery in the `FROM` clause | `alias=<alias>` |
 | `constant-source`        | The one synthetic row of a `SELECT` without a `FROM` clause. It touches no table. | `1 row` |
 
@@ -144,7 +144,12 @@ Note these four points:
   `hash`.
 - The `build=<alias>` of a `hash-join` names the side that CamusDB materialized
   into the hash table in memory. The planner selects the side with the smaller
-  estimate as the build side, to keep the memory low.
+  estimate as the build side for an inner join, to keep the memory low. For a
+  left outer join, the build side is always the right table, so the preserved
+  side can be probed and padded in stream order.
+- A join node appends `kind=left-outer` for a `LEFT [OUTER] JOIN`. A
+  `RIGHT JOIN` is executed as a left join with the operands swapped. An inner
+  join renders no kind.
 - A `merge-join` streams both inputs when both arrive in order already. That
   order comes from a scan of a forced index, or from a sort above. The join
   buffers only the current run of equal keys. It therefore needs memory for the
