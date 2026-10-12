@@ -80,6 +80,7 @@ no `--mode` flag.
 | `http_port` | `--http-port` | `5095` |
 | `https_port` | `--https-port` | `7141` |
 | `https_certificate` | `--https-certificate` | `""` |
+| `http3_enabled` | (none) | `false` |
 | `raft_certificate` | `--raft-certificate` | `""` |
 | `grpc_certificate` | (none) | `""`. Falls back to `raft_certificate`. |
 | `peer_tls_enabled` | (none) | `false` |
@@ -171,6 +172,41 @@ guidance.
 SQL routing advice is on by default, but clients see it only when they opt in on
 the request. `sql_routing_advice_ttl_ms` controls the maximum age that a client
 may reuse an advertised route. See [SQL Routing Advice](/docs/sql-routing-advice).
+
+## HTTP/3 on the HTTPS port
+
+The REST API can also serve HTTP/3 over QUIC. HTTP/3 is off by default. To turn
+it on, set `http3_enabled: true` and give the node an HTTPS certificate:
+
+```yaml
+https_port: 7141
+https_certificate: /etc/camusdb/api.pfx
+http3_enabled: true
+```
+
+The HTTPS port then serves HTTP/1.1, HTTP/2, and HTTP/3. The setting takes
+effect when the node starts. A change needs a restart.
+
+HTTP/3 has these requirements:
+
+- **TLS.** HTTP/3 always uses TLS, so the setting applies to the HTTPS port
+  only. Without `https_certificate`, the node has no HTTPS port and the setting
+  has no effect. The plain HTTP port, the Raft port, and the gRPC port do not
+  change.
+- **UDP.** QUIC uses UDP. Open `https_port` for UDP and for TCP. This includes
+  the firewall and any container port mapping, for example
+  `-p 7141:7141/tcp -p 7141:7141/udp`.
+- **A QUIC library.** Linux and macOS need `libmsquic`. Windows needs Windows 11
+  or Windows Server 2022, or a later version. Without the library, the port
+  serves HTTP/1.1 and HTTP/2 only.
+
+A client that connects over TCP receives an `Alt-Svc` header on each response.
+This header tells the client that the same port serves HTTP/3. Browsers and
+other clients that support HTTP/3 then use it for the next requests.
+
+If `http3_enabled` is on but HTTP/3 cannot start, the node still starts. It logs
+a warning that names the cause: no `https_certificate`, or no QUIC library.
+`SHOW CONNECTIONS` shows an HTTP/3 connection with the protocol `HTTP/3`.
 
 ## gRPC listener
 

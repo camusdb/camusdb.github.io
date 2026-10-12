@@ -23,7 +23,7 @@ CANCEL QUERY 'b71a90e314-45';
 
 `SHOW QUERIES` is useful when a query is slow, a client is reading rows slowly,
 or you need the id of a statement to cancel. `SHOW CONNECTIONS` shows the
-client-facing TCP connections held by the node. The cluster forms ask every
+client-facing connections held by the node. The cluster forms ask every
 member and merge the rows.
 
 ## Running queries
@@ -59,8 +59,9 @@ client consumes rows.
 
 ## Client connections
 
-`SHOW CONNECTIONS` returns one row for each client-facing TCP connection accepted
-by the node. It tracks HTTP, HTTPS, and the gRPC client port. It does not track
+`SHOW CONNECTIONS` returns one row for each client-facing TCP or QUIC connection
+accepted by the node. It tracks HTTP, HTTPS, and the gRPC client port. QUIC
+connections exist only when `http3_enabled` is on. It does not track
 the Raft listener.
 
 Important columns:
@@ -70,7 +71,7 @@ Important columns:
 | `connection_id` | The id referenced by `SHOW QUERIES.connection_id`. |
 | `node` | The node that holds the connection. |
 | `client_address` | The client's IP address. |
-| `protocol` | `HTTP/1.1` or `HTTP/2`. gRPC uses `HTTP/2`. |
+| `protocol` | `HTTP/1.1`, `HTTP/2`, or `HTTP/3`. gRPC uses `HTTP/2`. `HTTP/3` appears only on the HTTPS port when `http3_enabled` is on. |
 | `kind` | `client`, or `peer` for another node calling an internal endpoint. |
 | `user_name` | The user of the last statement on the connection. |
 | `opened_at` | The UTC time when the connection was accepted. |
