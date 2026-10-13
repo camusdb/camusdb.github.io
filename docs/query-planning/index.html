@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Query planning | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/query-planning/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Query planning | CamusDB"><meta data-rh="true" name="description" content="SQL states what you want. It does not state how CamusDB gets it. The planner"><meta data-rh="true" property="og:description" content="SQL states what you want. It does not state how CamusDB gets it. The planner"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/query-planning/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planning/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planning/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Query planning","item":"https://camusdb.github.io/docs/query-planning"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.b9b52b85.css">
-<script src="/assets/js/runtime~main.6e9fb111.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2f65d9b1.js" defer="defer"></script>
 <script src="/assets/js/main.21d680cf.js" defer="defer"></script>
 </head>
 <body>
@@ -233,6 +233,13 @@ must come first. The optimizer picks an order from the usable connections.
 A condition is attached to the join where all its referenced tables first
 become available. Consequently, an <code>ON</code> condition can run earlier than its
 position in the SQL text, and a <code>WHERE</code> condition can become part of a join.</p>
+<p>The search costs the intermediate result at each step, not only the final
+result. That matters for hash joins and other plans where several orders can
+read the same base tables but produce very different intermediate row counts.
+CamusDB also keeps one row estimate for each set of joined tables. Equivalent
+join keys, such as <code>a.id = b.a_id</code> and <code>b.a_id = c.a_id</code>, are modeled as one
+column-equivalence class instead of as unrelated filters. This keeps the order
+search stable when the same relationship is written more than one way.</p>
 <p>When cost-based enumeration is disabled or unavailable, the heuristic still
 tries to repair an <strong>avoidable</strong> cross product using the same graph. This
 repair requires no statistics. If the query actually asks for an unconnected
@@ -422,7 +429,7 @@ customer may have ten orders and another may have a million. Reusing a decision
 can be correct for both while being less efficient for one. See
 <a class="" href="/docs/query-planner-internals/#plan-cache">plan cache internals</a> for replay and
 invalidation details, and <a class="" href="/docs/configuration/">Configuration</a> for settings.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-hint-for-the-result-cache">A hint for the result cache<a href="#a-hint-for-the-result-cache" class="hash-link" aria-label="Direct link to A hint for the result cache" title="Direct link to A hint for the result cache" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-hint-for-the-result-cache">A hint for the result cache<a href="#a-hint-for-the-result-cache" class="hash-link" aria-label="Direct link to A hint for the result cache" title="Direct link to A hint for the result cache" translate="no">  ​</a></h2>
 <p>For a repeated read of one table, a <code>SELECT</code> can opt into the result cache of
 the node:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">SELECT</span><span class="token plain"> id</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> total</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> orders {</span><span class="token keyword" style="color:#00009f">cache</span><span class="token operator" style="color:#393A34">=</span><span class="token plain">recent_orders</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">ttl</span><span class="token operator" style="color:#393A34">=</span><span class="token plain">30s}</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">WHERE</span><span class="token plain"> status </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token string" style="color:#e3116c">&quot;paid&quot;</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
@@ -474,7 +481,6 @@ an index, a scan of a range, a scan for a join, or an extra sort.</li>
 <ul>
 <li class="">Statistics are estimates. Skewed values, correlated columns, and missing
 statistics can lead to a poor choice even with both cost-based passes enabled.</li>
-<li class="">The plan of a join exists. <code>EXPLAIN (ANALYZE)</code> does not support a join yet.</li>
 <li class=""><code>EXPLAIN (LOGICAL)</code> currently labels the same physical tree. It renders no
 separate view of a logical plan.</li>
 <li class="">The use of a descending order from an index is limited.</li>
@@ -504,9 +510,9 @@ you need fresh estimates immediately.</li>
 <li class="">Check the access requirements. Does the index start with the filtered
 columns? Does its direction match <code>ORDER BY</code>? Does it cover every required
 column, including those used only in filters?</li>
-<li class="">For a single-table query, use <code>EXPLAIN (ANALYZE)</code> to compare estimated rows
-with actual rows and storage work. Join queries currently support plain
-<code>EXPLAIN</code> only; measure their execution separately.</li>
+<li class="">Use <code>EXPLAIN (ANALYZE)</code> to compare estimated rows with actual rows and
+storage work. On a join, the join row reports the work for its right side,
+and may also show the join-order estimate that selected the order.</li>
 <li class="">If repeated queries behave differently from a fresh plan, consider whether
 the optional plan cache is reusing a choice made for a different literal.
 Disabling it bypasses decision reuse. Change one optimizer setting at a time
