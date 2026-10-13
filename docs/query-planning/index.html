@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Query planning | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/query-planning/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Query planning | CamusDB"><meta data-rh="true" name="description" content="SQL states what you want. It does not state how CamusDB gets it. The planner"><meta data-rh="true" property="og:description" content="SQL states what you want. It does not state how CamusDB gets it. The planner"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/query-planning/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planning/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planning/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Query planning","item":"https://camusdb.github.io/docs/query-planning"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.b9b52b85.css">
-<script src="/assets/js/runtime~main.4172e3a8.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.6e9fb111.js" defer="defer"></script>
 <script src="/assets/js/main.21d680cf.js" defer="defer"></script>
 </head>
 <body>
@@ -21,6 +21,20 @@ It selects the algorithm of a join.</p>
 good choice. For the internal pipeline, see
 <a class="" href="/docs/query-planner-internals/">Query Planner Internals</a>. To see the choice for
 one query, use <a class="" href="/docs/explain/">EXPLAIN</a>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="start-with-a-small-example">Start with a small example<a href="#start-with-a-small-example" class="hash-link" aria-label="Direct link to Start with a small example" title="Direct link to Start with a small example" translate="no">​</a></h2>
+<p>Suppose <code>orders</code> has a million rows and an index on <code>customer_id</code>:</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">SELECT</span><span class="token plain"> customer_id</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> total</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> orders</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">WHERE</span><span class="token plain"> customer_id </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">42</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">ORDER</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">BY</span><span class="token plain"> total </span><span class="token keyword" style="color:#00009f">DESC</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">LIMIT</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">10</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
+<p>The planner has several separate decisions to make. It can scan every order or
+seek the customer index. After finding the customer&#x27;s orders, it still needs
+to order them by <code>total</code>: an index on <code>customer_id</code> alone does not provide that
+order. Finally, it returns at most ten rows. A small result does not necessarily
+mean a small amount of work; the engine may need to inspect many candidates
+before it knows which ten to return.</p>
+<p>Three terms help when reading a plan:</p>
+<table><thead><tr><th>Term</th><th>Meaning</th></tr></thead><tbody><tr><td>Access path</td><td>How rows enter the query: a table scan, an index range, or a point lookup.</td></tr><tr><td>Cardinality</td><td>The number of rows an operator is expected to produce.</td></tr><tr><td>Selectivity</td><td>The fraction of input rows expected to pass a condition. A filter that keeps 100 of 10,000 rows has selectivity 0.01.</td></tr></tbody></table>
+<p>The optimizer compares <strong>estimated work</strong>, not measured execution time. A lower
+cost is a prediction. Statistics, data skew, and the limits of the model can
+make another plan faster in practice.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-the-planner-can-do">What the planner can do<a href="#what-the-planner-can-do" class="hash-link" aria-label="Direct link to What the planner can do" title="Direct link to What the planner can do" translate="no">​</a></h2>
 <p>CamusDB can plan these shapes today:</p>
 <ul>
@@ -69,7 +83,7 @@ connected plan.</li>
 <p>Both flags default to <code>true</code>. With the statistics available, one SQL statement
 can change its choice in four ways. It can select a different index, a full
 scan, a different algorithm of a join, or a different order of a join. The
-optimizer found a plan of a lower cost.</p>
+optimizer found a plan of a lower estimated cost.</p>
 <p>CamusDB keeps the matching heuristic choice when you turn either flag off.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-camusdb-selects-a-scan">How CamusDB selects a scan<a href="#how-camusdb-selects-a-scan" class="hash-link" aria-label="Direct link to How CamusDB selects a scan" title="Direct link to How CamusDB selects a scan" translate="no">​</a></h2>
 <p>CamusDB tries to turn a predicate into an ordered access of the KV layer, at
@@ -182,33 +196,57 @@ join, and a merge join.</li>
 make a query incorrect. CamusDB falls back to a default. It also falls back to
 the planner with rules, when it cannot cost a plan reliably.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="an-access-path-by-cost">An access path by cost<a href="#an-access-path-by-cost" class="hash-link" aria-label="Direct link to An access path by cost" title="Direct link to An access path by cost" translate="no">​</a></h3>
-<p>With <code>cost_based_access_path_enabled: true</code>, CamusDB considers every viable
-access path of one table. That set holds each usable index, and the baseline of
-a full scan. CamusDB estimates the cost of each candidate. It keeps the cheapest
-one.</p>
+<p>With <code>cost_based_access_path_enabled: true</code>, the single-table planner compares
+viable predicate-driven index candidates against a full scan when the table has
+a positive row-count estimate and analyzed statistics. A table that has never
+been analyzed keeps the heuristic selection for this pass. The scans used to
+locate rows for <code>UPDATE</code> and <code>DELETE</code> also keep the heuristic path, to avoid
+widening exclusive lock ranges.</p>
+<p>The flag also enables eligible filtered index leaves in join plans; that path
+has its own selection rules. It does not mean every input of a join gets an
+independently optimized index scan.</p>
 <p>That behavior matters when more than one index could satisfy a predicate. A
 planner with rules can prefer the longest prefix of an equality. The planner
 with a cost can prefer a different index. It can even prefer a full scan, when
 the statistics show a smaller amount of data in total.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-order-of-a-join-by-cost">The order of a join by cost<a href="#the-order-of-a-join-by-cost" class="hash-link" aria-label="Direct link to The order of a join by cost" title="Direct link to The order of a join by cost" translate="no">​</a></h3>
-<p>With <code>cost_based_join_order_enabled: true</code>, CamusDB can reorder an eligible
-inner join by cost. It then depends on neither the order of the declaration nor
-a simple heuristic of the selectivity.</p>
-<p>Outer joins keep the order declared in the statement. Reordering them can change
-which side is preserved and where <code>NULL</code> padding happens, so CamusDB plans that
-tree in the written order.</p>
-<p>The enumerator of the joins searches the connected left-deep orders. It uses
-four inputs:</p>
-<ol>
-<li class="">The statistics of the tables.</li>
-<li class="">The selectivity of the filters.</li>
-<li class="">The counts of the distinct values of the join keys.</li>
-<li class="">The costs of the algorithms of a join.</li>
-</ol>
-<p>It then selects a cheaper tree.</p>
-<p>It falls back to the planner with rules for a join outside its current envelope
-of the search. Two examples are a very wide join, and a shape that it cannot
-reorder safely.</p>
+<p>For an eligible inner join, CamusDB searches connected <strong>left-deep</strong> orders:
+join two sources, add a third to their result, then add a fourth. This matters
+because an intermediate result becomes the input of the next join. Reducing
+it early can save more work than reducing the final result late.</p>
+<p>With <code>cost_based_join_order_enabled: true</code> and loaded row-count estimates for
+all base tables, the search considers up to <strong>12 sources</strong>. It uses table
+sizes, filter selectivity, distinct-value counts, and join algorithm costs.
+Histograms and distinct counts from <code>ANALYZE</code> improve these estimates, but a
+loaded row count is enough to enter this join-order search.</p>
+<p>The planner reads conditions joined by <code>AND</code> individually. Such a condition
+is called a <strong>conjunct</strong>. Eligible cross-table conditions from <code>WHERE</code> can
+connect tables just like conditions from <code>ON</code>.</p>
+<p>Consider three tables with these relationships:</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">SELECT</span><span class="token plain"> c</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">name</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> p</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">title</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> customers c</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> products p</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> orders o</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">WHERE</span><span class="token plain"> c</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">id </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> o</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">customer_id</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token keyword" style="color:#00009f">AND</span><span class="token plain"> p</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">id </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> o</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">product_id</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
+<p>There is no direct condition between <code>customers</code> and <code>products</code>. Joining them
+first could produce every customer/product pair before checking <code>orders</code>.
+CamusDB can instead join <code>customers</code> to <code>orders</code>, then add <code>products</code>:</p>
+<!-- -->
+<p>The graph describes which tables connect; it does not prescribe which table
+must come first. The optimizer picks an order from the usable connections.
+A condition is attached to the join where all its referenced tables first
+become available. Consequently, an <code>ON</code> condition can run earlier than its
+position in the SQL text, and a <code>WHERE</code> condition can become part of a join.</p>
+<p>When cost-based enumeration is disabled or unavailable, the heuristic still
+tries to repair an <strong>avoidable</strong> cross product using the same graph. This
+repair requires no statistics. If the query actually asks for an unconnected
+Cartesian product, the planner preserves it. Wider joins use the heuristic;
+the graph-based repair itself supports at most 64 sources.</p>
+<p>Outer joins keep their declared order after syntax normalization. Moving a
+condition across an outer join can change which unmatched rows receive <code>NULL</code>
+values. Volatile expressions also restrict movement: a condition involving
+<code>random()</code> must not be moved in a way that changes how often it runs.</p>
+<p>The search does not enumerate bushy trees, where both inputs are themselves
+joins. It also does not compare alternative output orderings or cost merge
+joins during enumeration; physical planning can choose a merge join afterward.
+See <a class="" href="/docs/query-planner-internals/#join-order-search">join enumeration internals</a>
+for the algorithm and its fallbacks.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-order-of-the-rows-and-the-omission-of-a-sort">The order of the rows, and the omission of a sort<a href="#the-order-of-the-rows-and-the-omission-of-a-sort" class="hash-link" aria-label="Direct link to The order of the rows, and the omission of a sort" title="Direct link to The order of the rows, and the omission of a sort" translate="no">​</a></h2>
 <p>An index can already yield the rows in the order that an <code>ORDER BY</code> needs.
 CamusDB can then omit a separate sort in memory.</p>
@@ -227,6 +265,15 @@ direction. For example, <code>(kind ASC, year DESC)</code> can satisfy <code>ORD
 <li class="">A difference of the direction, such as an <code>ORDER BY year ASC</code> when only
 <code>(year DESC)</code> is available.</li>
 </ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-bounded-sort-with-limit">A bounded sort with LIMIT<a href="#a-bounded-sort-with-limit" class="hash-link" aria-label="Direct link to A bounded sort with LIMIT" title="Direct link to A bounded sort with LIMIT" translate="no">​</a></h3>
+<p>When an eligible sort feeds a <code>LIMIT</code>, CamusDB can keep only the best
+<code>OFFSET + LIMIT</code> candidates. <code>EXPLAIN</code> calls this operator <code>topk</code>. It reduces
+the sort&#x27;s memory requirement, but still examines the qualifying input to find
+the best rows. It is different from stopping an already ordered scan early.</p>
+<p>The bound must fit the implementation&#x27;s limits. With spill enabled, a bound
+above the effective spill threshold keeps the ordinary sort so it can spill.
+A large offset increases the number of retained candidates even when the
+requested page is small.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-pushdown-of-a-limit">The pushdown of a LIMIT<a href="#the-pushdown-of-a-limit" class="hash-link" aria-label="Direct link to The pushdown of a LIMIT" title="Direct link to The pushdown of a LIMIT" translate="no">​</a></h2>
 <p>The shape of a query can be simple enough. CamusDB can then stop the scan below
 it early. It does not read the whole input first.</p>
@@ -319,7 +366,8 @@ null. It can also force a fallback strategy.</p>
 <ul>
 <li class="">A streaming distinct. It needs two conditions: every projected column of the
 distinct is <code>NOT NULL</code>, and the rows arrive in a compatible order of an index.</li>
-<li class="">A hash distinct. CamusDB must keep a set of the rows that it saw, in memory.</li>
+<li class="">A hash distinct. CamusDB tracks the rows it has seen, with eligible
+<a class="" href="/docs/spill-to-disk/">spill to disk</a> when the in-memory working set grows.</li>
 </ul>
 <p>A streaming distinct is the better path for a repeated read. It can use constant
 memory. It can also avoid a separate node of a <code>sort</code>, when the <code>ORDER BY</code>
@@ -357,6 +405,23 @@ the query misses.</p>
 <p>Use that hint with care. It is a tool for debugging and for tuning. It does not
 replace a good design of a schema. CamusDB honors the hint even when the forced
 index makes the query slower.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="reusing-a-plan">Reusing a plan<a href="#reusing-a-plan" class="hash-link" aria-label="Direct link to Reusing a plan" title="Direct link to Reusing a plan" translate="no">​</a></h2>
+<p>The optional plan cache saves optimization decisions for repeated query shapes.
+It is off by default. These are the relevant configuration defaults:</p>
+<div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token key atrule" style="color:#00a4db">cost_based_access_path_enabled</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#36acaa">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">cost_based_join_order_enabled</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#36acaa">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">plan_cache_enabled</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#36acaa">false</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">plan_cache_max_entries</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">512</span><br></div></code></pre></div></div>
+<p>A query shape describes the structure of the SQL without its literal values.
+For example, two lookups with different <code>customer_id</code> values can share a scan
+decision. The cache rebuilds bounds and predicates from the current query;
+it does not reuse the first query&#x27;s values or result rows.</p>
+<p>For joins, it remembers both the source order and how predicates were attached.
+Schema changes, index changes, and publication of new analyzed statistics
+invalidate affected entries. If a cached decision cannot be rebuilt, the
+planner performs a fresh search.</p>
+<p>The tradeoff is planning time versus sensitivity to individual values. One
+customer may have ten orders and another may have a million. Reusing a decision
+can be correct for both while being less efficient for one. See
+<a class="" href="/docs/query-planner-internals/#plan-cache">plan cache internals</a> for replay and
+invalidation details, and <a class="" href="/docs/configuration/">Configuration</a> for settings.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-hint-for-the-result-cache">A hint for the result cache<a href="#a-hint-for-the-result-cache" class="hash-link" aria-label="Direct link to A hint for the result cache" title="Direct link to A hint for the result cache" translate="no">​</a></h2>
 <p>For a repeated read of one table, a <code>SELECT</code> can opt into the result cache of
 the node:</p>
@@ -407,15 +472,15 @@ an index, a scan of a range, a scan for a join, or an extra sort.</li>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-current-limits">The current limits<a href="#the-current-limits" class="hash-link" aria-label="Direct link to The current limits" title="Direct link to The current limits" translate="no">​</a></h2>
 <p>The planner improves over time. Important limits nevertheless remain:</p>
 <ul>
-<li class="">The broad search of an access path by cost, and of an order of a join by cost,
-are on by default. Both depend on useful statistics.</li>
+<li class="">Statistics are estimates. Skewed values, correlated columns, and missing
+statistics can lead to a poor choice even with both cost-based passes enabled.</li>
 <li class="">The plan of a join exists. <code>EXPLAIN (ANALYZE)</code> does not support a join yet.</li>
 <li class=""><code>EXPLAIN (LOGICAL)</code> currently labels the same physical tree. It renders no
 separate view of a logical plan.</li>
 <li class="">The use of a descending order from an index is limited.</li>
-<li class="">The enumeration of the order of a join by cost is left-deep. CamusDB caps it
-for a very wide join. It currently applies to the shapes of an inner join that
-CamusDB can reorder.</li>
+<li class="">Join-order enumeration considers connected left-deep inner-join plans with at
+most 12 sources. It does not search bushy plans or compare the future value
+of an ordering supplied by a more expensive intermediate plan.</li>
 <li class="">A query that contains an outer join keeps its declared join order. CamusDB
 does not reorder an outer-join tree by cost.</li>
 <li class=""><code>FULL [OUTER] JOIN</code>, <code>NATURAL JOIN</code>, and <code>JOIN ... USING (...)</code> are not
@@ -427,14 +492,31 @@ table.</li>
 shape of a plan with probes of an index.</li>
 <li class="">CamusDB does not support <code>COUNT(DISTINCT ...)</code>.</li>
 </ul>
-<p>These are limits of the plan. They are not limits of the correctness. CamusDB
-still returns the correct rows. The difference is the speed of the available
-path.</p>
+<p>Unsupported SQL forms are rejected. For supported queries, an optimization
+fallback changes the execution strategy while preserving the query&#x27;s semantics.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-practical-investigation-workflow">A practical investigation workflow<a href="#a-practical-investigation-workflow" class="hash-link" aria-label="Direct link to A practical investigation workflow" title="Direct link to A practical investigation workflow" translate="no">​</a></h2>
+<ol>
+<li class="">Use plain <code>EXPLAIN</code> to identify the scan, join order, and any explicit sort.
+Treat example plans as illustrations: statistics and indexes affect the choice.</li>
+<li class="">Inspect <code>SHOW STATISTICS FOR orders</code> for each important source. Run
+<code>ANALYZE TABLE orders</code> after a bulk load or a major distribution change when
+you need fresh estimates immediately.</li>
+<li class="">Check the access requirements. Does the index start with the filtered
+columns? Does its direction match <code>ORDER BY</code>? Does it cover every required
+column, including those used only in filters?</li>
+<li class="">For a single-table query, use <code>EXPLAIN (ANALYZE)</code> to compare estimated rows
+with actual rows and storage work. Join queries currently support plain
+<code>EXPLAIN</code> only; measure their execution separately.</li>
+<li class="">If repeated queries behave differently from a fresh plan, consider whether
+the optional plan cache is reusing a choice made for a different literal.
+Disabling it bypasses decision reuse. Change one optimizer setting at a time
+when comparing plans, and keep the data and statistics comparable.</li>
+</ol>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="inspect-a-plan">Inspect a plan<a href="#inspect-a-plan" class="hash-link" aria-label="Direct link to Inspect a plan" title="Direct link to Inspect a plan" translate="no">​</a></h2>
 <p>Use <code>EXPLAIN</code> to see the choice of the planner:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">EXPLAIN</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">SELECT</span><span class="token plain"> </span><span class="token operator" style="color:#393A34">*</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> robots </span><span class="token keyword" style="color:#00009f">WHERE</span><span class="token plain"> </span><span class="token function" style="color:#d73a49">year</span><span class="token plain"> </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">2024</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token keyword" style="color:#00009f">EXPLAIN</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">(</span><span class="token keyword" style="color:#00009f">ANALYZE</span><span class="token punctuation" style="color:#393A34">)</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">SELECT</span><span class="token plain"> </span><span class="token operator" style="color:#393A34">*</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">FROM</span><span class="token plain"> robots </span><span class="token keyword" style="color:#00009f">WHERE</span><span class="token plain"> </span><span class="token function" style="color:#d73a49">year</span><span class="token plain"> </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">2024</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">LIMIT</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">5</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
 <p>See <a class="" href="/docs/explain/">EXPLAIN</a> for the format of the output, and for some
 examples. See <a class="" href="/docs/query-planner-internals/">Query Planner Internals</a> for the
-pipeline of the execution, and for the architecture of the planner.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/query-planning.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/sql-transactions/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Transactions in SQL</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/explain/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">EXPLAIN</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#what-the-planner-can-do" class="table-of-contents__link toc-highlight">What the planner can do</a></li><li><a href="#how-camusdb-selects-a-scan" class="table-of-contents__link toc-highlight">How CamusDB selects a scan</a><ul><li><a href="#an-equality-on-a-unique-index" class="table-of-contents__link toc-highlight">An equality on a unique index</a></li><li><a href="#an-equality-on-a-non-unique-index" class="table-of-contents__link toc-highlight">An equality on a non-unique index</a></li><li><a href="#a-predicate-of-a-range" class="table-of-contents__link toc-highlight">A predicate of a range</a></li><li><a href="#a-list-of-values-in-an-in-clause" class="table-of-contents__link toc-highlight">A list of values in an IN clause</a></li><li><a href="#type-matching-for-index-predicates" class="table-of-contents__link toc-highlight">Type matching for index predicates</a></li><li><a href="#a-residual-filter" class="table-of-contents__link toc-highlight">A residual filter</a></li><li><a href="#a-covering-index" class="table-of-contents__link toc-highlight">A covering index</a></li></ul></li><li><a href="#the-behavior-of-a-composite-index" class="table-of-contents__link toc-highlight">The behavior of a composite index</a></li><li><a href="#the-statistics-and-the-cost-based-optimizer" class="table-of-contents__link toc-highlight">The statistics, and the cost-based optimizer</a><ul><li><a href="#an-access-path-by-cost" class="table-of-contents__link toc-highlight">An access path by cost</a></li><li><a href="#the-order-of-a-join-by-cost" class="table-of-contents__link toc-highlight">The order of a join by cost</a></li></ul></li><li><a href="#the-order-of-the-rows-and-the-omission-of-a-sort" class="table-of-contents__link toc-highlight">The order of the rows, and the omission of a sort</a></li><li><a href="#the-pushdown-of-a-limit" class="table-of-contents__link toc-highlight">The pushdown of a LIMIT</a></li><li><a href="#a-parallel-scan-and-a-distributed-scan" class="table-of-contents__link toc-highlight">A parallel scan, and a distributed scan</a></li><li><a href="#joins" class="table-of-contents__link toc-highlight">Joins</a></li><li><a href="#the-rewrite-of-an-in-and-of-a-not-in-subquery" class="table-of-contents__link toc-highlight">The rewrite of an IN and of a NOT IN subquery</a></li><li><a href="#the-plan-of-a-distinct" class="table-of-contents__link toc-highlight">The plan of a DISTINCT</a></li><li><a href="#a-derived-table-and-a-subquery" class="table-of-contents__link toc-highlight">A derived table, and a subquery</a></li><li><a href="#force-an-index" class="table-of-contents__link toc-highlight">Force an index</a></li><li><a href="#a-hint-for-the-result-cache" class="table-of-contents__link toc-highlight">A hint for the result cache</a></li><li><a href="#what-helps-the-planner" class="table-of-contents__link toc-highlight">What helps the planner</a></li><li><a href="#the-current-limits" class="table-of-contents__link toc-highlight">The current limits</a></li><li><a href="#inspect-a-plan" class="table-of-contents__link toc-highlight">Inspect a plan</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Getting Started</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/databases/">Databases</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-cli/">camus-cli</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/sql/">SQL</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/sql-queries/">SELECT</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/joins-and-subqueries/">Joins And Subqueries</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/functions/">Functions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Transactions And Isolation</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster Mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/grpc-api/">gRPC API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET Driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/dapper/">Dapper</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core Provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-dump/">camus-dump</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/configuration/">Configuration</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/storage/">Storage</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/wal-recovery/">WAL &amp; Recovery</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">Source<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/camusdb/camusdb.github.io" target="_blank" rel="noopener noreferrer" class="footer__link-item">Docs Repo<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 CamusDB.</div></div></div></footer></div>
+pipeline of the execution, and for the architecture of the planner.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/query-planning.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/sql-transactions/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Transactions in SQL</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/explain/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">EXPLAIN</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#start-with-a-small-example" class="table-of-contents__link toc-highlight">Start with a small example</a></li><li><a href="#what-the-planner-can-do" class="table-of-contents__link toc-highlight">What the planner can do</a></li><li><a href="#how-camusdb-selects-a-scan" class="table-of-contents__link toc-highlight">How CamusDB selects a scan</a><ul><li><a href="#an-equality-on-a-unique-index" class="table-of-contents__link toc-highlight">An equality on a unique index</a></li><li><a href="#an-equality-on-a-non-unique-index" class="table-of-contents__link toc-highlight">An equality on a non-unique index</a></li><li><a href="#a-predicate-of-a-range" class="table-of-contents__link toc-highlight">A predicate of a range</a></li><li><a href="#a-list-of-values-in-an-in-clause" class="table-of-contents__link toc-highlight">A list of values in an IN clause</a></li><li><a href="#type-matching-for-index-predicates" class="table-of-contents__link toc-highlight">Type matching for index predicates</a></li><li><a href="#a-residual-filter" class="table-of-contents__link toc-highlight">A residual filter</a></li><li><a href="#a-covering-index" class="table-of-contents__link toc-highlight">A covering index</a></li></ul></li><li><a href="#the-behavior-of-a-composite-index" class="table-of-contents__link toc-highlight">The behavior of a composite index</a></li><li><a href="#the-statistics-and-the-cost-based-optimizer" class="table-of-contents__link toc-highlight">The statistics, and the cost-based optimizer</a><ul><li><a href="#an-access-path-by-cost" class="table-of-contents__link toc-highlight">An access path by cost</a></li><li><a href="#the-order-of-a-join-by-cost" class="table-of-contents__link toc-highlight">The order of a join by cost</a></li></ul></li><li><a href="#the-order-of-the-rows-and-the-omission-of-a-sort" class="table-of-contents__link toc-highlight">The order of the rows, and the omission of a sort</a><ul><li><a href="#a-bounded-sort-with-limit" class="table-of-contents__link toc-highlight">A bounded sort with LIMIT</a></li></ul></li><li><a href="#the-pushdown-of-a-limit" class="table-of-contents__link toc-highlight">The pushdown of a LIMIT</a></li><li><a href="#a-parallel-scan-and-a-distributed-scan" class="table-of-contents__link toc-highlight">A parallel scan, and a distributed scan</a></li><li><a href="#joins" class="table-of-contents__link toc-highlight">Joins</a></li><li><a href="#the-rewrite-of-an-in-and-of-a-not-in-subquery" class="table-of-contents__link toc-highlight">The rewrite of an IN and of a NOT IN subquery</a></li><li><a href="#the-plan-of-a-distinct" class="table-of-contents__link toc-highlight">The plan of a DISTINCT</a></li><li><a href="#a-derived-table-and-a-subquery" class="table-of-contents__link toc-highlight">A derived table, and a subquery</a></li><li><a href="#force-an-index" class="table-of-contents__link toc-highlight">Force an index</a></li><li><a href="#reusing-a-plan" class="table-of-contents__link toc-highlight">Reusing a plan</a></li><li><a href="#a-hint-for-the-result-cache" class="table-of-contents__link toc-highlight">A hint for the result cache</a></li><li><a href="#what-helps-the-planner" class="table-of-contents__link toc-highlight">What helps the planner</a></li><li><a href="#the-current-limits" class="table-of-contents__link toc-highlight">The current limits</a></li><li><a href="#a-practical-investigation-workflow" class="table-of-contents__link toc-highlight">A practical investigation workflow</a></li><li><a href="#inspect-a-plan" class="table-of-contents__link toc-highlight">Inspect a plan</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Getting Started</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/databases/">Databases</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-cli/">camus-cli</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/sql/">SQL</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/sql-queries/">SELECT</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/joins-and-subqueries/">Joins And Subqueries</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/functions/">Functions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Transactions And Isolation</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster Mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/grpc-api/">gRPC API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET Driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/dapper/">Dapper</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core Provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/camus-dump/">camus-dump</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/configuration/">Configuration</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/storage/">Storage</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/wal-recovery/">WAL &amp; Recovery</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">Source<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/camusdb/camusdb.github.io" target="_blank" rel="noopener noreferrer" class="footer__link-item">Docs Repo<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 CamusDB.</div></div></div></footer></div>
 </body>
 </html>
