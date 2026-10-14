@@ -2,217 +2,440 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://camusdb.github.io/blog/</id>
     <title>CamusDB Blog</title>
-    <updated>2026-10-07T00:00:00.000Z</updated>
+    <updated>2026-10-14T00:00:00.000Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://camusdb.github.io/blog/"/>
     <subtitle>CamusDB Blog</subtitle>
     <icon>https://camusdb.github.io/img/favicon.ico</icon>
     <entry>
-        <title type="html"><![CDATA[What we can prove about consistency]]></title>
-        <id>https://camusdb.github.io/blog/what-we-can-prove-about-consistency/</id>
-        <link href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/"/>
-        <updated>2026-10-07T00:00:00.000Z</updated>
-        <summary type="html"><![CDATA[A database for money needs a report, not a promise.]]></summary>
-        <content type="html"><![CDATA[<p>A database for money needs a report, not a promise.</p>
-<p>This post is that report. It follows the shape of a Jepsen analysis: what the
-system claims, how we tested the claims, what broke, what we fixed, and what we
-still cannot prove. Jepsen LLC did not write it. We wrote it, with our own
-harnesses, and two of those harnesses are built on the Jepsen library. Every
-number below comes from a file in one of four repositories, and the last section
-tells you how to run the same tests yourself.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-system-under-test">The system under test<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#the-system-under-test" class="hash-link" aria-label="Direct link to The system under test" title="Direct link to The system under test" translate="no">​</a></h2>
-<p>CamusDB is a SQL database on three layers. Kommander is the Raft implementation.
-Kahuna is the replicated transactional key-value store built on Kommander.
-CamusDB is the SQL engine on Kahuna. A bug can live in any layer, so each layer
-has its own test suite and its own history of findings.</p>
-<p>The report covers these versions.</p>
-<table><thead><tr><th>Layer</th><th>Version</th><th>Date</th></tr></thead><tbody><tr><td>CamusDB</td><td>commit <code>a02b144a</code></td><td>2026-10-07</td></tr><tr><td>Kahuna</td><td>1.11.2</td><td>2026-10-06</td></tr><tr><td>Kommander</td><td>1.10.2</td><td>2026-10-06</td></tr></tbody></table>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-claims">The claims<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#the-claims" class="hash-link" aria-label="Direct link to The claims" title="Direct link to The claims" translate="no">​</a></h2>
-<p>The transaction documentation makes these claims. The rest of the post tests
-them.</p>
-<ol>
-<li class="">The default isolation level is Serializable, for autocommit statements and
-for explicit transactions. Read Committed is an explicit opt-out.</li>
-<li class="">A Serializable read-write transaction uses strict two-phase locking. Reads
-take shared point locks and shared range locks, and hold them to commit.
-This blocks non-repeatable reads, phantoms, write skew, and lost updates.</li>
-<li class="">A Serializable read-only transaction reads one snapshot, pinned to one
-hybrid logical clock timestamp. It never blocks and is never blocked.</li>
-<li class="">Deadlocks resolve by wait-die. The older transaction waits and wins. The
-younger one aborts at once.</li>
-<li class="">A commit is durable when a majority of replicas hold it.</li>
-<li class="">A commit whose outcome the client cannot learn returns one specific error,
-and the client retries the same commit on the same handle.</li>
-</ol>
-<p>One claim is absent on purpose. CamusDB does not claim external consistency or
-linearizability across transactions. Transaction order is logically consistent
-through the hybrid logical clock. There is no commit-wait. Keep that in mind
-when you read the Kahuna and Kommander sections, where linearizability is
-checked at the key-value and log level.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-we-test">How we test<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#how-we-test" class="hash-link" aria-label="Direct link to How we test" title="Direct link to How we test" translate="no">​</a></h2>
-<p>Four suites test the three layers.</p>
-<table><thead><tr><th>Suite</th><th>Layer</th><th>Tool</th><th>Checkers</th><th>Faults</th></tr></thead><tbody><tr><td>kommander-jepsen</td><td>Kommander</td><td>Jepsen 0.3.7, 5 nodes</td><td>Knossos linearizability on a CAS register, a custom Log Matching checker, HLC monotonicity</td><td>partition, kill, pause, membership, HLC skew</td></tr><tr><td>kahuna-jepsen</td><td>Kahuna</td><td>Jepsen 0.3.7, 5 or 6 nodes</td><td>Knossos on a register, Elle list-append (serializable), lock fencing, sequencer, pinned snapshot</td><td>partition, kill, pause, membership, replica placement, key-range split and merge</td></tr><tr><td>Caraxes</td><td>CamusDB</td><td>Docker cluster, real SQL over gRPC</td><td>Elle list-append (serializable), bank balance conservation, divergent-apply scan, live <code>COUNT(*)</code> probe</td><td>kill, stop, pause, partition, slow link, packet loss, full disk, slow disk, leader transfer, clock skew</td></tr><tr><td>Unit and integration suites</td><td>all three</td><td>NUnit</td><td>assertions</td><td>injected faults in process</td></tr></tbody></table>
-<p>The faults are real. A kill is SIGKILL. A partition is a firewall rule. A slow
-disk is a kernel I/O limit of 4 KiB per second. A clock jump is a shim on the
-real-time clock, up to 12 hours.</p>
-<p>The two Jepsen suites run every night in CI. Both suites say in their design
-documents that they are not a per-pull-request gate, because the runs are
-nondeterministic. A green night is evidence. A red night is a finding to
-investigate, not always a bug.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="results-by-layer">Results by layer<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#results-by-layer" class="hash-link" aria-label="Direct link to Results by layer" title="Direct link to Results by layer" translate="no">​</a></h2>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="kommander-the-raft-log">Kommander: the Raft log<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#kommander-the-raft-log" class="hash-link" aria-label="Direct link to Kommander: the Raft log" title="Direct link to Kommander: the Raft log" translate="no">​</a></h3>
-<p>The register workload checks linearizability per key with Knossos. The
-log-append workload checks the Raft Log Matching Property: every acknowledged
-entry is present on every replica that answers, no index holds two values, no
-value applies twice, and application is monotonic.</p>
-<p>The register workload found no linearizability violation in any recorded run.</p>
-<p>The latest stored run is a log-append run under kill plus HLC skew, from
-2026-09-29.</p>
-<table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody><tr><td>Operations</td><td>909</td></tr><tr><td>Acknowledged appends</td><td>599</td></tr><tr><td>Holes</td><td>0</td></tr><tr><td>Tail losses</td><td>0</td></tr><tr><td>Diverged indexes</td><td>0</td></tr><tr><td>Duplicates</td><td>0</td></tr><tr><td>Undelivered entries</td><td>0</td></tr><tr><td>HLC comparisons checked</td><td>3,015</td></tr><tr><td>HLC regressions</td><td>0</td></tr><tr><td>Kills</td><td>8</td></tr><tr><td>Clock bumps and strobes</td><td>16</td></tr><tr><td>Largest HLC lead injected</td><td>255 s</td></tr><tr><td>Converged after the run</td><td>yes, in 89 ms</td></tr></tbody></table>
-<p>The suite found five defects in August 2026. Four are fixed and verified by
-later runs. One is open.</p>
-<table><thead><tr><th>Finding</th><th>Exposed by</th><th>Status</th></tr></thead><tbody><tr><td>The leader did not apply some of its own committed entries. Pipelined proposals completed out of order and the applied frontier skipped one.</td><td>log-append, partition and kill</td><td>Fixed in commit <code>f1658ba</code>. About 14 later runs show zero holes.</td></tr><tr><td>A follower acknowledged appends from an old term after it voted in a new one. Acked writes at four indexes were lost.</td><td>register, ring partition</td><td>Fixed in Kommander on 2026-08-13. The nightly register jobs with partitions passed 9 of 9 on 2026-08-14.</td></tr><tr><td>Follower write-ahead log backpressure threw instead of pushed back. The leader resent blindly.</td><td>log-append, partition</td><td>Fixed in commits <code>985f017</code> and <code>6eb2a09</code>. Not yet reproduced often enough to call it verified under load.</td></tr><tr><td>Two different entries committed at the same index. The proposal index allocator regressed below an occupied index after a promotion.</td><td>log-append, partition and kill</td><td>Fixed in commit <code>04429b3</code>. Two nightly runs after the fix passed 9 of 9.</td></tr><tr><td>One acknowledged append was absent from every replica, and its index held a different entry. Three occurrences.</td><td>log-append, partition and kill</td><td>Open. Root cause not established.</td></tr></tbody></table>
-<p>The last row is the most important one in this section. It is a real
-durability defect, it occurred three times in August, and we do not know the
-cause yet. We have not seen it since the index allocator fix, but absence
-across a few weeks of nightly runs is not proof.</p>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="kahuna-the-transactional-key-value-store">Kahuna: the transactional key-value store<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#kahuna-the-transactional-key-value-store" class="hash-link" aria-label="Direct link to Kahuna: the transactional key-value store" title="Direct link to Kahuna: the transactional key-value store" translate="no">​</a></h3>
-<p>Kahuna is where most of the consistency logic lives, so it has the longest
-findings file: 25 server-side findings, plus about a dozen harness false
-positives that we fixed in the checkers.</p>
-<p>The latest fully recorded nightly matrix is from 2026-08-19, on Kahuna commit
-<code>70b75d2</code>.</p>
-<table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody><tr><td>Nightly jobs</td><td>25</td></tr><tr><td>Jobs passed</td><td>24</td></tr><tr><td>Job with no verdict</td><td>1, replication factor 1 under kill plus placement, insufficient data</td></tr></tbody></table>
-<p>Later verification runs, grouped by anomaly class:</p>
-<table><thead><tr><th>Property</th><th>Runs</th><th>Commits or operations</th><th>Anomalies</th></tr></thead><tbody><tr><td>No lost update (Elle, partition and kill)</td><td>11</td><td>1,936 commits</td><td>0</td></tr><tr><td>No aborted read, G1a (Elle, partition and kill)</td><td>22</td><td>6,713 commits</td><td>0</td></tr><tr><td>No write skew, G2-item (Elle, partition and kill)</td><td>29</td><td>78 to 744 commits each</td><td>0</td></tr><tr><td>Fencing tokens monotonic (lock, partition at 5 s interval)</td><td>16</td><td>66 to 155 acquires each</td><td>0</td></tr><tr><td>Pinned snapshot never changes (300 s, partition)</td><td>1</td><td>450 protected reads, depth up to 32</td><td>0</td></tr><tr><td>Key-range split and merge under partition and kill</td><td>1</td><td>6 splits, 2 merges, 167 range maps sampled</td><td>0, linearizable throughout</td></tr></tbody></table>
-<p>The findings that matter most for a database of record:</p>
-<table><thead><tr><th>Finding</th><th>Exposed by</th><th>Status</th></tr></thead><tbody><tr><td>A node in a minority partition served stale reads. Reads trusted the local leader belief.</td><td>register, partition</td><td>Fixed. Reads now confirm leadership with a quorum. 8 of 8 clean after the fix, against 1 in 3 before.</td></tr><tr><td>Lost update. The read-modify-write base was never validated at commit.</td><td>append, partition and kill</td><td>Fixed with a staged-base compare-and-set before propose.</td></tr><tr><td>Aborted read. A client received a definite Aborted without a durable abort record, and once after the commit landed.</td><td>append, partition and kill</td><td>Fixed. A refusal before the record exists now says retry, not aborted.</td></tr><tr><td>Fencing tokens went backwards after kill plus restart. A replay floor advanced past unflushed lock state.</td><td>lock, partition and kill</td><td>Fixed in Kahuna <code>485daa3</code> and <code>39ec8e0</code>.</td></tr><tr><td>Fencing tokens went backwards under partition alone. Promotion read the log while writes were still queued.</td><td>lock, partition</td><td>Fixed in Kommander 1.0.10. 16 of 16 clean.</td></tr><tr><td>A held snapshot rewound to an older revision. Compaction left a hole and the lookup skipped the disk. Reproduced with no fault at all.</td><td>snapshot</td><td>Fixed in <code>65fcc70</code>. 64 violating reads went to 0.</td></tr><tr><td>Read skew during a key-range split. The new partition leader served a stale read while prepared intents were unsettled.</td><td>append, range split</td><td>Fixed in <code>cfbb55d2</code> with a settle-before-cutover barrier. The first two runs after the fix passed. The base rate was 1 in 3, so this is weak evidence.</td></tr><tr><td>Write skew under key-range routing, before the split.</td><td>append, partition, placement, range</td><td>Open.</td></tr><tr><td>Fencing tokens went backwards and one token was reused by two owners under replica placement.</td><td>lock, partition and placement</td><td>Open.</td></tr><tr><td>The system partition never checkpoints its log.</td><td>placement jobs</td><td>Open.</td></tr></tbody></table>
-<p>Three findings are open. None of the three is on the default path of a CamusDB
-cluster today. Key-range sharding and online replica placement are opt-in
-features. That is a reason to keep them opt-in, not a reason to ignore them.</p>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="camusdb-sql-under-faults">CamusDB: SQL under faults<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#camusdb-sql-under-faults" class="hash-link" aria-label="Direct link to CamusDB: SQL under faults" title="Direct link to CamusDB: SQL under faults" translate="no">​</a></h3>
-<p>Caraxes runs real SQL through the gRPC client against a three-node cluster, and
-checks two things that a bank cares about.</p>
-<p>The first check is Elle. The append workload runs list-append transactions
-over 8 keys with 16 workers, and Elle searches the history for cycles under the
-serializable model. Only a verdict of valid passes. A timeout fails.</p>
-<p>The second check is the bank invariant. Transfers move money between random
-rows, and the sum of all balances must be identical after the run. Since the
-second dragon post, the verdict reads the sum twice, once through the aggregate
-and once through a full row scan, and both must match the seed.</p>
-<p>The local run archive holds 38 Elle runs on CamusDB 0.13.2 and 0.13.3, with
-Kahuna 1.9.8 to 1.10.4. The table lists the runs with a valid Elle verdict and
-zero divergent applies.</p>
-<table><thead><tr><th>Scenario</th><th>Fault</th><th>Operations</th><th>Elle</th></tr></thead><tbody><tr><td>append-smoke</td><td>none</td><td>20,689 and 22,944</td><td>valid, twice</td></tr><tr><td>append-rw-8keys</td><td>none</td><td>18,196 to 18,626</td><td>valid, 3 runs</td></tr><tr><td>append-rw-contended, 2 keys</td><td>none</td><td>23,013 and 22,920</td><td>valid, twice</td></tr><tr><td>append-read-committed</td><td>none, read-committed model</td><td>39,157 to 43,565</td><td>valid, 3 runs</td></tr><tr><td>append-optimistic</td><td>none, optimistic locking</td><td>17,915 and 19,296</td><td>valid, twice</td></tr><tr><td>append-partition</td><td>partition</td><td>13,489 and 13,727</td><td>valid, twice</td></tr><tr><td>append-pause</td><td>SIGSTOP</td><td>20,470 to 23,524</td><td>valid, 5 runs</td></tr><tr><td>append-slow</td><td>150 ms added latency</td><td>19,177 and 18,750</td><td>valid, twice</td></tr><tr><td>append-kill-optimistic</td><td>SIGKILL</td><td>15,842 and 17,808</td><td>valid, twice</td></tr><tr><td>append-leader-transfer</td><td>5 handovers in 90 s</td><td>26,187 to 36,642</td><td>valid in 5 runs, invalid in 2, no verdict in 2, see below</td></tr><tr><td>append-clock-skew-small</td><td>±2 s skew</td><td>37,035</td><td>valid</td></tr><tr><td>append-clock-jump</td><td>jump over 5 s</td><td>37,583</td><td>valid</td></tr><tr><td>append-clock-jump-locks</td><td>jump over 15 s</td><td>44,549</td><td>valid</td></tr><tr><td>append-clock-jump-liveness</td><td>3 min forward, 1 min back</td><td>29,556</td><td>valid</td></tr></tbody></table>
-<p>Thirteen of those runs still carry a FAIL verdict in the archive. The Elle
-check passed in each one. The failure was the recovery rule: the cluster did
-not regain 90 percent of its throughput within 45 seconds, or the 90 second
-window ended before the last fault healed. We report that as a performance
-finding, not a correctness one, and the two are graded apart.</p>
-<p>Two runs failed on correctness, and one more had a divergent apply with no
-Elle verdict. All three were leader-transfer runs on Kahuna 1.9.8 and 1.9.9.</p>
-<table><thead><tr><th>Run</th><th>Kahuna</th><th>What Elle saw</th></tr></thead><tbody><tr><td>cp2</td><td>1.9.8</td><td>G0, G2-item, incompatible order. Four divergent applies on two keys.</td></tr><tr><td>k198b-r1</td><td>1.9.8</td><td>Three divergent applies on one row key at log entry 41723, on all three nodes. Elle crashed.</td></tr><tr><td>k199-r1</td><td>1.9.9</td><td>G-single-item, incompatible order. Not read committed.</td></tr></tbody></table>
-<p>These are the most serious CamusDB-level findings of the year, so they get the
-detail.</p>
-<p>A transaction's staged writes lived only in the memory of the partition leader.
-A leader change dropped them, and nothing told the transaction. The new leader
-answered the next read with the committed value, and staged the next write
-from the committed head, as if the key were untouched. The commit then wrote
-the last staged value and lost the transaction's own earlier write. The base
-check passed, because no other commit had moved the head. Kahuna 1.10.3 fences
-the staging chain. A restaged key must sit exactly one revision above the
-previous staging, and a break refuses the commit.</p>
-<p>The same class of bug had a second shape, found by the nightly on Kahuna
-1.10.6. A lock also lived only in the leader's memory. After a leader change,
-a renewal or a shared-to-exclusive upgrade came back as a fresh grant, and the
-commit never checked that the lock was still held. In between, the new leader
-granted the same key to a competitor. One writer overwrote a competitor's
-commit with a value computed from the old row. One reader committed a view of
-one key at two committed states. The fix on 2026-10-01 refuses a commit whose
-locks a leader change dropped. Both fixes ship in Kahuna 1.11.2, the version
-CamusDB uses today, and both carry regression tests in the Kahuna suite.</p>
-<p>The honest caveat: the local archive has no leader-transfer Elle run on 1.11.2.
-The nightly append matrix runs the scenario every night, and the nightly is
-where the second shape was found. We will post the numbers when a month of
-nights is in.</p>
-<p>The bank invariant history is in the second dragon post. The short version:
-one dropped transfer leg in 1,805,784 operations, three units out of three
-billion, found in July and fixed; a chain of eight 45-minute runs that ended
-with two consecutive clean windows; and a live scan probe after a run returned
-1,962 to 1,999 rows out of 2,000 under load. The rule that came out of that
-chain still holds. A build must pass two consecutive windows before we call it
-stable.</p>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-unit-and-integration-suites">The unit and integration suites<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#the-unit-and-integration-suites" class="hash-link" aria-label="Direct link to The unit and integration suites" title="Direct link to The unit and integration suites" translate="no">​</a></h3>
-<p>The four suites above are the ones that find the hard bugs. The ordinary suites
-are what keep them fixed. Every finding above has a regression test in one of
-them.</p>
-<table><thead><tr><th>Suite</th><th>Test cases</th><th>Latest full run</th><th>Passed</th><th>Failed</th></tr></thead><tbody><tr><td>CamusDB.Tests</td><td>7,270</td><td>2026-10-07, 36 min 54 s</td><td>7,261</td><td>0, 9 not executed</td></tr><tr><td>Kahuna.Server.Tests</td><td>3,807</td><td>2026-10-07, working tree</td><td>3,797</td><td>2</td></tr><tr><td>Kahuna.Client.Tests</td><td>145</td><td>2026-09-25</td><td>145</td><td>0</td></tr><tr><td>Kommander.Tests</td><td>2,938</td><td>2026-10-01, working tree</td><td>2,922</td><td>1</td></tr></tbody></table>
-<p>That is 14,160 test cases across the three layers. The two Kahuna failures and
-the one Kommander failure are from local runs on uncommitted working trees.
-This report does not analyse them. The CamusDB run is on commit <code>a02b144a</code>.</p>
-<p>Inside the CamusDB suite, the consistency-specific coverage breaks down like
-this:</p>
-<table><thead><tr><th>Area</th><th>Test methods</th></tr></thead><tbody><tr><td>Named for Serializable behavior</td><td>93</td></tr><tr><td>Named for retry contracts</td><td>58</td></tr><tr><td>Named for concurrent access</td><td>56</td></tr><tr><td>Named for snapshot reads</td><td>40</td></tr><tr><td>Named for range locks</td><td>30</td></tr><tr><td>Phantom, lost update, write skew, non-repeatable read, by name</td><td>15</td></tr><tr><td>Files that inject Kahuna faults through a delegating seam</td><td>18</td></tr></tbody></table>
-<p>The anomaly suite covers every class the documentation claims to block: a
-non-repeatable read, a phantom, write skew, a lost update, and two writers of
-one row where the younger aborts at once.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-this-report-does-not-prove">What this report does not prove<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#what-this-report-does-not-prove" class="hash-link" aria-label="Direct link to What this report does not prove" title="Direct link to What this report does not prove" translate="no">​</a></h2>
-<p>A consistency report is only as good as its list of gaps. These are ours.</p>
+        <title type="html"><![CDATA[What the dragon found, part three]]></title>
+        <id>https://camusdb.github.io/blog/what-the-dragon-found-part-three/</id>
+        <link href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/"/>
+        <updated>2026-10-14T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[A dragon breaking one artic city of glowing pyramids]]></summary>
+        <content type="html"><![CDATA[<p><img decoding="async" loading="lazy" alt="A dragon breaking one artic city of glowing pyramids" src="https://camusdb.github.io/assets/images/caraxes3-4fc0f2ffbc942758047a0b2cc00d0ee9.png" width="1448" height="1086" class="img_ev3q"></p>
+<p>A ten-minute test finds the bugs that happen in ten minutes.</p>
+<p>A distributed database is hard to build, and the code is the smaller half of
+the work. The larger half is verification. You check the results again and
+again, you dig into the system until you know what it really does, and you push
+it past the point where it should break. A guarantee on a documentation page is
+worth exactly what the evidence behind it can show, and that evidence has to
+cover speed and correctness at the same time.</p>
+<p><a class="" href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/">Part one</a> introduced Caraxes, the
+harness that attacks a real CamusDB cluster in Docker. <a class="" href="https://camusdb.github.io/blog/what-the-dragon-found/">Part two</a>
+told what it found in its first month: a dropped transfer leg, a cluster that
+said healthy while it was dead, scans that lost rows under load.</p>
+<p>This part covers the three weeks after that. Most of it is about one test. It
+runs for two hours, it injects a fault every eight minutes, and it took eight
+attempts before it passed. Every failed attempt found something, and the runs
+after the first pass kept finding things.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="three-weeks-in-numbers">Three weeks, in numbers<a href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/#three-weeks-in-numbers" class="hash-link" aria-label="Direct link to Three weeks, in numbers" title="Direct link to Three weeks, in numbers" translate="no">​</a></h2>
+<p>CamusDB still runs on two lower layers. Kahuna is the replicated key-value
+store under the SQL engine. Kommander is the Raft implementation under Kahuna.
+A chaos run attacks all three at once.</p>
+<table><thead><tr><th>Repository</th><th>Commits since 2026-09-21</th><th>Versions consumed by CamusDB</th></tr></thead><tbody><tr><td>CamusDB</td><td>116</td><td></td></tr><tr><td>Kahuna</td><td>100</td><td>from 1.9.2 to 1.11.10</td></tr><tr><td>Kommander</td><td>68</td><td>from 1.7.6 to 1.10.9</td></tr><tr><td>Caraxes</td><td>25</td><td></td></tr><tr><td>.NET client</td><td>26</td><td></td></tr></tbody></table>
+<p>Caraxes now has 332 scenario files, up from about 200. More than thirty of
+the runs in this period were two hours long. That is more than sixty hours of
+a cluster under attack, on one host, with the same seed.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-two-hours">Why two hours<a href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/#why-two-hours" class="hash-link" aria-label="Direct link to Why two hours" title="Direct link to Why two hours" translate="no">​</a></h2>
+<p>Every ten-minute scenario in part two passed on the stack we shipped at the
+time. In those runs, node memory climbed to between 3.3 and 3.9 GB of a 4 GiB
+limit within ten minutes and then stayed there. Whether that plateau holds for
+two hours, or creeps, is a question no ten-minute run can answer. Snapshot
+installs, log compaction and retention floors are also things that only start
+to matter when the log is tens of millions of entries long.</p>
+<p>So we wrote the soak. Three nodes with 4 GiB each, one partition replicated
+three times, the bank workload from part two with 128 workers over 2,000 rows,
+and a two-hour measured window. Fourteen faults land one every eight minutes.
+Six of them kill the current leader and restart it 30 seconds later. Four
+freeze a process for 30 seconds. Four pause one node's disk at 4 KiB per
+second for 30 seconds.</p>
+<div class="language-yml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yml codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token key atrule" style="color:#00a4db">nemesis</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">seed</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">1</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">events</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token punctuation" style="color:#393A34">-</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">at</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 8m</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain">   </span><span class="token key atrule" style="color:#00a4db">fault</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> kill</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain">      </span><span class="token key atrule" style="color:#00a4db">target</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> leader</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">duration</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 30s </span><span class="token punctuation" style="color:#393A34">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token punctuation" style="color:#393A34">-</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">at</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 16m</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">fault</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> slow</span><span class="token punctuation" style="color:#393A34">-</span><span class="token plain">disk</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">target</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> camus1</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">duration</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 30s </span><span class="token punctuation" style="color:#393A34">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token punctuation" style="color:#393A34">-</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">at</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 24m</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">fault</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> kill</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain">      </span><span class="token key atrule" style="color:#00a4db">target</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> leader</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">duration</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 30s </span><span class="token punctuation" style="color:#393A34">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token punctuation" style="color:#393A34">-</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">at</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 32m</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain">  </span><span class="token key atrule" style="color:#00a4db">fault</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> pause</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain">     </span><span class="token key atrule" style="color:#00a4db">target</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> camus2</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">duration</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 30s </span><span class="token punctuation" style="color:#393A34">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token comment" style="color:#999988;font-style:italic"># ... fourteen windows in all ...</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token punctuation" style="color:#393A34">-</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">at</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 104m</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">fault</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> pause</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain">     </span><span class="token key atrule" style="color:#00a4db">target</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> leader</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">duration</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 30s </span><span class="token punctuation" style="color:#393A34">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token punctuation" style="color:#393A34">-</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">at</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 112m</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">fault</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> kill</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain">      </span><span class="token key atrule" style="color:#00a4db">target</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> leader</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#00a4db">duration</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> 30s </span><span class="token punctuation" style="color:#393A34">}</span><br></div></code></pre></div></div>
+<p>A soak passes when all of these hold:</p>
 <ul>
-<li class=""><strong>No linearizability claim for SQL.</strong> Elle checks serializable, not strict
-serializable. Real-time order across transactions is not asserted anywhere
-for CamusDB. The register workloads check linearizability for Kahuna keys
-and Kommander entries, not for SQL rows.</li>
-<li class=""><strong>Clock faults are thin.</strong> Caraxes jumps the real-time clock, and Kommander
-skews the hybrid logical clock. The Kahuna Jepsen suite does not test clock
-skew at all. Raft timers run on a monotonic clock, so the exposure is in
-transaction timestamps, not elections.</li>
-<li class=""><strong>No disk faults in the Kommander suite.</strong> Full-disk and slow-disk faults are
-Caraxes only.</li>
-<li class=""><strong>Kill mid-transaction in NUnit is absent.</strong> The NUnit restart tests close
-and reopen a database on one node. No NUnit test kills a Raft node in the
-middle of a transaction. That coverage lives in the three chaos suites.</li>
-<li class=""><strong>The 3-node anomaly claim in the docs is not a test.</strong> The anomaly suite in
-NUnit runs on one node. The documentation says the same suite passes on a
-3-node cluster, and the Caraxes Elle runs support it, but no checked-in test
-asserts it.</li>
-<li class=""><strong>Verification is probabilistic.</strong> Several closures rest on an absence. A
-1-in-3 bug that passes two runs is not fixed with confidence. The findings
-files say so for each case, and this post repeats it.</li>
-<li class=""><strong>Replication factor 1 and online placement are weakly verified.</strong> The
-placement job at factor 1 is bistable in CI, and completed moves at factor 1
-are not asserted.</li>
-<li class=""><strong>One Kommander durability finding is open.</strong> An acknowledged append absent
-from every replica is the kind of bug a bank cannot accept. It has not
-recurred since August. That is not closure.</li>
+<li class="">The window completes, and no node dies on its own.</li>
+<li class="">The sum of all balances is exactly 2,993,071,553 at the end, the same
+number as in part two.</li>
+<li class="">Every indeterminate write is resolved. An indeterminate write is a commit
+whose answer the client never received, because the connection was cut
+while the commit travelled. The ledger resolves them afterwards: the sum of
+all row versions must land inside a band whose floor is the committed writes
+and whose ceiling adds the indeterminate ones.</li>
+<li class="">The per-row ledger, joined against the seeded data, names no lost, missing,
+duplicated or half-applied row.</li>
+<li class="">No two replicas applied the same log entry with different verdicts.</li>
+<li class="">Every fault window recovers, and the cluster makes progress inside every
+window.</li>
 </ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-to-run-it-yourself">How to run it yourself<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#how-to-run-it-yourself" class="hash-link" aria-label="Direct link to How to run it yourself" title="Direct link to How to run it yourself" translate="no">​</a></h2>
-<p>Each suite builds the layer from source on your disk.</p>
-<div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain"># Kommander: linearizable register under partitions, 5 nodes</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">cd kommander-jepsen</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">lein run test --workload register --faults partition --time-limit 180 --rate 10</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"># Kahuna: Elle list-append under partition and kill</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">cd kahuna-jepsen</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">lein run test --workload append --faults partition,kill --time-limit 180 --rate 10</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"># CamusDB: Elle list-append during five leader transfers, real Docker cluster</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">cd camusdb-caraxes</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">dotnet run --project Caraxes -- run --scenario scenarios/append-leader-transfer.yml</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"># CamusDB: the bank invariant under a node kill</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">dotnet run --project Caraxes -- run --scenario scenarios/bank-kill.yml</span><br></div></code></pre></div></div>
-<p>Every run writes a history, a verdict, and the node logs. A FAIL exits with
-code 1. The findings files in the two Jepsen repositories are public, and they
-record the false alarms next to the real bugs.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-this-means-for-a-ledger">What this means for a ledger<a href="https://camusdb.github.io/blog/what-we-can-prove-about-consistency/#what-this-means-for-a-ledger" class="hash-link" aria-label="Direct link to What this means for a ledger" title="Direct link to What this means for a ledger" translate="no">​</a></h2>
-<p>A bank asks three questions of a database. Did a confirmed write survive? Did
-any transaction see half of another? Can you show me?</p>
-<p>For the first two, the answer today is: under every fault we inject on the
-default configuration, with the current versions, the checkers find nothing.
-Under two opt-in features, key-range sharding and online placement, two
-anomalies are open. One Raft-level durability defect from August has no root
-cause.</p>
-<p>For the third question, this post is the answer, and it is not finished. The
-next report will carry a month of nightly leader-transfer results on Kahuna
-1.11.2, a strict-serializable Elle arm, and clock skew in the Kahuna suite. A
-database earns trust on its worst day, and the only way to know what that day
-looks like is to keep causing it.</p>]]></content>
+<p>Throughput gates are not what the soak is for. The host's NVMe changes regime
+after 30 to 35 GB of writes, as part two explained, and a two-hour run always
+crosses that line. The harness marks a throughput finding inadmissible when
+the device moved inside the window, and most windows after minute 30 are. The
+verdict rests on the correctness checks, which do not depend on the device.</p>
+<p>Since late September every soak runs as a pair. One arm has the new settle
+path on, where a transaction's resolved values are installed on every replica
+when the transaction settles. The other arm has it off, so a replica can keep
+a reference to the intent and fill in the value later. We call those
+by-reference records. The settle path writes 4.0 Raft entries per commit
+instead of 6.4, and it is the default today. Both arms must pass.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="run-one-two-nodes-die-and-the-first-three-diagnoses-are-wrong">Run one: two nodes die, and the first three diagnoses are wrong<a href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/#run-one-two-nodes-die-and-the-first-three-diagnoses-are-wrong" class="hash-link" aria-label="Direct link to Run one: two nodes die, and the first three diagnoses are wrong" title="Direct link to Run one: two nodes die, and the first three diagnoses are wrong" translate="no">​</a></h2>
+<p>The first soak completed its window: 17.9 million operations in two hours. It
+also finished with one node alive, and the reconciliation could not read the
+sum.</p>
+<p>The first node died at minute 51. It was the leader, it was killed on
+schedule, it restarted, and it ran out of memory while it deserialized the
+backfill from the new leader. The runtime terminated it on purpose, with a
+message that said the orchestrator would restart it. Nothing did, because the
+harness only restarts a node as part of a kill fault, and that fault had
+already healed. The second node died after the window closed, while the
+reconciliation tried to read the sum from a two-node cluster. It was at 99.6
+percent of its memory limit, with no trace and no dump. The kernel killed it.</p>
+<p>The memory was real. What it was took four runs to find.</p>
+<table><thead><tr><th>Suspect</th><th>Test</th><th>Result</th></tr></thead><tbody><tr><td>Transaction record retention. The heap valve logged 185,064 resident records.</td><td>Read the node metrics</td><td>The retention stores peaked at 117 to 131 MB per node, about 3 percent of the container, and held flat. Wrong.</td></tr><tr><td>RocksDB block cache and memtables</td><td>fs2: one shared budget of 768 MiB for both storage engines</td><td>Native memory unchanged at about 3 GB per node. A node died at minute 36, earlier than before. Wrong.</td></tr><tr><td>Index and filter blocks of the Raft log, kept outside every cache</td><td>Measured at 8.9 percent of live SST bytes in a probe. Fixed in Kommander, with new gauges. fs3.</td><td>Table readers read 0 MB. Native memory still 3,069 MB. The live SST was 262 MB, not the 34 GB the ratio implied. Wrong.</td></tr><tr><td>glibc malloc arenas</td><td>Read the process maps on a live node</td><td>116 anonymous mappings of 60 to 70 MB each, 1,227 MB resident. The process ran 133 threads on 16 cores, right at the allocator's ceiling of eight arenas per core.</td></tr></tbody></table>
+<p>glibc is the C library under .NET on Linux. Its allocator keeps a memory
+arena per thread, and freed memory stays in the arena. It does not return to
+the kernel. No subsystem gauge could find that memory, because it was not any
+subsystem's live data.</p>
+<p>The fourth soak ran with one environment variable added, <code>MALLOC_ARENA_MAX=2</code>.
+The 60 MB mappings fell from 116 to 7.</p>
+<table><thead><tr><th>Node</th><th>fs3 peak</th><th>fs4 peak</th></tr></thead><tbody><tr><td>camus1</td><td>4,095 MiB, 100%</td><td>3,463 MiB, 85%</td></tr><tr><td>camus2</td><td>4,000 MiB, 98%</td><td>2,947 MiB, 72%</td></tr><tr><td>camus3</td><td>3,957 MiB, 97%</td><td>3,268 MiB, 80%</td></tr></tbody></table>
+<p>No node died. Memory came down between faults, with no creep. Three soaks
+died of this, and the remedy was a deployment variable, not a change in either
+codebase. The fix for the Raft log's index blocks stays anyway. It bounded an
+allocation that had no bound, and its gauges are what made the measurement
+possible.</p>
+<p>One native memory table from the first run says why the first diagnosis was
+wrong. On the node that died last, the working set grew from 382 MB to 4,057
+MB over two hours, while the managed heap shrank from 767 MB to 441 MB. Read
+the difference between those two numbers before you blame anything the garbage
+collector manages.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-wedge-under-the-memory-wall">The wedge under the memory wall<a href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/#the-wedge-under-the-memory-wall" class="hash-link" aria-label="Direct link to The wedge under the memory wall" title="Direct link to The wedge under the memory wall" translate="no">​</a></h2>
+<p>With the deaths out of the way, the fourth soak showed a worse defect.</p>
+<p>An hour into the window, with no fault active, client throughput went from
+2,160 operations per second to zero in one second. It stayed at zero for 59 minutes.
+All three nodes were alive and answered every health probe.</p>
+<p>All three voters shared a hole in their Raft log. The log was contiguous
+through entry 48,266,403, and entries were present up to 48,266,486. Neither
+recovery path could get past the hole:</p>
+<ul>
+<li class="">One node won a term and refused to lead on the hole guard. It did that 598
+times.</li>
+<li class="">Another node won a term and its promotion barrier timed out. It reverted 297
+times.</li>
+<li class="">The third node never led. Terms climbed to 614. One node logged that the
+leader could not be resolved 167,244 times.</li>
+</ul>
+<p>The trigger was a transient disk stall on one follower that cleared in
+seconds. The wedge outlived it by an hour.</p>
+<p>This was not a new defect. The Kommander Jepsen suite found it in August, and
+its findings file recorded 90 nightly runs since then without a reproduction.
+This was its first reproduction outside Jepsen, on a far newer build, from
+ordinary device jitter rather than an injected fault. The soak also carried two
+details the Jepsen runs did not have. The refusal counter reset on every
+promotion attempt, so the truncation escape hatch could never fire. And 296 of
+the 297 barrier timeouts named no cause, while the real obstacle was the
+shared hole. Kommander 1.7.7 fixed it, and the next soak had no wedge.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-replica-that-came-back-with-less-than-it-left-with">A replica that came back with less than it left with<a href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/#a-replica-that-came-back-with-less-than-it-left-with" class="hash-link" aria-label="Direct link to A replica that came back with less than it left with" title="Direct link to A replica that came back with less than it left with" translate="no">​</a></h2>
+<p>The fifth soak ran on the published Kommander 1.7.7. No wedge, no node death,
+peak memory 55 percent. And the cluster stopped before minute 50 anyway, with
+all three nodes alive.</p>
+<table><thead><tr><th>Minutes</th><th>0-10</th><th>10-20</th><th>20-30</th><th>30-40</th><th>40-50</th><th>50-60</th><th>60-70</th><th>70-90</th><th>90-120</th></tr></thead><tbody><tr><td>Ops/s</td><td>5,086</td><td>4,310</td><td>2,225</td><td>4,480</td><td>1,755</td><td>59</td><td>43</td><td>0</td><td>31-85</td></tr></tbody></table>
+<p>The leader was killed at minute 24 and rejoined. The new leader escalated to a
+snapshot install, and chunk 22 of 23 was rejected after a 16-second install.
+Within 41 seconds the node's checkpoint jumped ahead of the gap. The retry
+at that index was answered "already covered, nothing was imported".</p>
+<p>From then on, that node held committed values for fewer rows than its peers at
+the same applied log position: 1,828 rows, then 1,777, then 1,756 of 2,000.
+Kahuna's fingerprint probe caught the difference three times at error level.
+The probe only logged, so the node was elected leader twice with the
+incomplete state. It also kept 172 prepared intents that the other two
+replicas settled long before. Under retention pressure those intents lost their
+records, and recovery must hold a record-less intent forever. 86 transactions'
+keys went read-only, workers piled onto them, and every full-table scan failed
+its page budget. The reconciliation could not read the table.</p>
+<p>The sixth soak, on Kahuna 1.9.7 and Kommander 1.7.9, showed the same defect on
+a different node, after a snapshot install that completed cleanly with no
+chunk rejected. So the loss survives a clean install. The seventh soak ran a
+local Kommander fix for the skip. Same divergence, after two full installs,
+and this time no kill was involved: the leader stepped down on its own during
+a disk stall, with a hole in its own log.</p>
+<p>Three Kommander changes closed it:</p>
+<ol>
+<li class="">A skip must deliver the committed entries below the index, or it must
+become an install.</li>
+<li class="">The installer skips the import when the application already applied past
+the index. An import there rewound state below the apply cursor, and those
+entries were never re-delivered.</li>
+<li class="">The leader does not escalate to a snapshot for a peer that already reports
+committed through the checkpoint.</li>
+</ol>
+<p>The eighth soak passed. It was the first complete, clean two-hour window:
+conservation exact, 2,912 indeterminate writes all resolved, zero divergence,
+all fourteen windows recovered in at most 0.8 seconds. The ninth soak repeated
+it on published packages, Kahuna 1.9.9 and Kommander 1.8.0. That run matters
+more than the eighth, because it hit the exact shapes that wedged runs five to
+seven three times. One node went through a rejected chunk, a forced install
+and a 24-chunk re-install, and was then elected leader three times with no
+divergence and no held intents.</p>
+<p>Kahuna 1.9.11 then added containment. A replica whose apply projection
+diverges from its peers is gated: it gives up leadership, withholds its
+candidacy, and is re-seeded. Live intents are part of the fingerprint now, and
+a record-less hold is cross-checked with peers. The tenth soak passed with the
+containment in the build and silent, which is what it should be with nothing
+to contain.</p>
+<table><thead><tr><th>Run</th><th>Stack</th><th>Result</th><th>What it found</th></tr></thead><tbody><tr><td>fs1</td><td>Kahuna 1.9.3, Kommander 1.7.6</td><td>Two nodes dead, no verdict</td><td>Native memory grew while the managed heap shrank</td></tr><tr><td>fs2</td><td>Same, with a 768 MiB storage budget</td><td>One node dead at minute 36</td><td>Not the block cache</td></tr><tr><td>fs3</td><td>Raft log index blocks charged to the cache</td><td>One node dead at minute 85, sum exact</td><td>Not the table readers. Allocator arenas.</td></tr><tr><td>fs4</td><td><code>MALLOC_ARENA_MAX=2</code></td><td>No deaths. Leaderless for 59 minutes.</td><td>Three voters shared one hole in the log</td></tr><tr><td>fs5</td><td>Kahuna 1.9.4, Kommander 1.7.7</td><td>Read-only wedge by minute 50</td><td>A replica rejoined with about 10 percent of its rows behind, and led twice</td></tr><tr><td>fs6</td><td>Kahuna 1.9.7, Kommander 1.7.9</td><td>Same</td><td>The loss survives a clean install</td></tr><tr><td>fs7</td><td>Local Kommander skip fix</td><td>Same, with no kill involved</td><td>An import below the apply cursor rewound state</td></tr><tr><td>fs8</td><td>Three Kommander changes, local</td><td>Pass</td><td>The first clean two hours</td></tr><tr><td>fs9</td><td>Kahuna 1.9.9, Kommander 1.8.0</td><td>Pass</td><td>Repair paths exercised three times, no divergence</td></tr><tr><td>fs10</td><td>Kahuna 1.9.11, Kommander 1.8.2</td><td>Pass</td><td>Containment in the build, silent</td></tr></tbody></table>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-rest-of-the-chain">The rest of the chain<a href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/#the-rest-of-the-chain" class="hash-link" aria-label="Direct link to The rest of the chain" title="Direct link to The rest of the chain" translate="no">​</a></h2>
+<p>We ran the soak again on every new stack after it passed, and it found more.
+None of them was a lost write on a published package. Several of them
+were one step away from it.</p>
+<p><strong>A candidate that discarded valid votes.</strong> The eleventh soak paused the
+leader's process for 30 seconds, and the cluster completed zero operations
+for all 30. One survivor campaigned in terms 72 through 78. The other granted
+its vote every time. The candidate discarded every grant, because it re-checked
+the voter's log by index only, while the voter judged by term and index. Each
+grant also put the voter into its post-vote cooldown, so it never campaigned
+itself. The partition had no leader until the paused node woke up. The same
+discarded-vote line appeared 4 times in fs9 and zero times in fs8 and fs10, so
+the condition depends on timing and a soak alone cannot prove it gone.
+Kommander now judges a grant by the voter's own rule, and a deterministic test
+holds the shape.</p>
+<p><strong>A veto that arrived late.</strong> One error line grew with every build: 2 or 3 per
+node in fs3, 21 in fs8, 47 in fs9, 78 distinct transactions in fs10. The ledger
+found zero lost writes every time, so it sat on the watch list. The cause was a
+prepare re-driven to a successor after a step-down. Its first copy had already
+settled, and the re-driven copy installed a phantom intent that the fence then
+refused against the transaction's own commit. Kahuna now remembers settled
+identities from the log, and the count went from 78 to zero.</p>
+<p><strong>The faster commit path broke the retention floor.</strong> A Kommander change that
+fans a proposal out before the leader's local write took one fsync out of every
+round. On this host's device that is 5,292 operations per second against
+2,243 on the same body. It also turned the log retention budget of one million
+entries from 80 seconds of log into 37. A leader killed for 30 seconds came
+back 1.7 million entries behind, below the compaction floor, and needed a
+whole-partition transfer. The import ran out of memory. Retention is sized in
+time as well as entries since Kommander 1.9.2, and that soak passed at 4,235
+operations per second, with 6,971 in its first ten minutes before the device
+changed regime.</p>
+<p><strong>An install loop with a 15-second deadline.</strong> On Kahuna 1.10.5 a restarted
+leader entered a snapshot install loop. The last chunk's install took longer
+than the 15-second acknowledgement deadline on a busy device. The retry
+started a new export at a new index instead of a resume. The follower rejected
+the retry while its own install was in progress. Six attempts in four minutes,
+and the node's memory went from 1.15 GB to 4.08 GB in three and a half
+minutes, then it crashed. The same loop ran in the previous soak and finished
+on the second to fourth attempt, with memory at 96.6 percent. The margin was
+between 100 and 300 MB. The settle-path arm of the same pair landed five of six
+installs on the first attempt in 8 to 15 seconds, because its snapshot carries
+fewer intents. A smaller snapshot hid the race, and did not fix it.</p>
+<p><strong>Lost writes, twice, on local packs.</strong> The packs that fixed the loop lost
+committed writes. In the first run the sum came back short by 4. Two rows were
+58 and 180 version increments behind, about 100 seconds of each row's writes.
+The restarted node received a checkpoint over its replication gap. The
+leader escalated to a snapshot at exactly that index, the receiver answered
+"already covered, nothing was imported", and the leader moved its cursors past
+the gap. The node led one minute later. The entries between its frontier and
+the boundary never reached its application. In the second run the sum was
+short by 2, from a different cause. On restart, the node replayed the window
+below its certified position as history, and 82,536 by-reference records on
+all 2,000 keys found no intent to resolve against. The values were missing on
+that one node. The control arm, with the settle path on, on the same packs and
+the same schedule, passed. One variable, one answer.</p>
+<p><strong>A gate that fired nine minutes late.</strong> With the replay fixed, the next soak
+passed, and one of its six restarts left 10,773 unresolved records on 13 keys.
+Kahuna's new recovery gate caught it nine minutes later, after the node had
+won three terms. The node refused to serve, handed leadership to the fuller
+replica, re-seeded in 19.6 seconds and ungated. No loss. Nine minutes is too
+long, so the gate now fires at detection, and the next pair passed on both
+arms with the unresolved counter at zero on six restarts.</p>
+<p><strong>A paused follower re-seeded three times.</strong> The soak on the published Kahuna
+1.11.5 and Kommander 1.10.4 passed on both arms, and both arms showed the same
+thing. A 30-second pause at minute 104, with 60 to 70 million entries in the
+log, was followed by three consecutive whole-partition re-seeds: 32, 38 and 31
+chunks in 60, 41 and 8 seconds, with the follower at 92 percent of its memory
+during the first. The first diagnosis said the follower fell below the
+compaction floor. The code said otherwise. The retention window covered it by
+an order of magnitude. The backfill's no-progress probe counted four shipments
+fruitless because the follower's reported commit frontier did not move, while
+its presence frontier advanced at 1,100 entries per second against a stream of
+6,700. Each install left the follower a million entries behind, and the probe
+fired again. With the probe reading every frontier, the same pause was repaired
+by backfill: 92,000 entries behind to 13 in 28 seconds. Kommander 1.10.7 ships
+it, and in the latest soak the minute-104 pause hit the leader, which caught up
+from 188,000 entries behind to 3,000 in three minutes with no escalation.</p>
+<table><thead><tr><th>Run</th><th>Stack</th><th>Result</th><th>What it found</th></tr></thead><tbody><tr><td>fs11</td><td>Kahuna veto fix, local</td><td>Fail: 30 s with zero ops during a leader pause</td><td>A candidate discarded valid votes</td></tr><tr><td>fs12</td><td>Kommander vote fix, local</td><td>Pass</td><td></td></tr><tr><td>fs13</td><td>Kahuna 1.10.1, Kommander 1.9.0</td><td>Correct. Harness fail.</td><td>A health probe issued 0.28 s before the kill</td></tr><tr><td>r3a6</td><td>Kommander round pack, local</td><td>Fail: import ran out of memory</td><td>2.4x the throughput made a 30 s kill fall below the retention floor</td></tr><tr><td>rl4b</td><td>Kahuna 1.10.4, Kommander 1.9.2</td><td>Pass, both arms</td><td>The version band had the wrong unit</td></tr><tr><td>rl5</td><td>Kahuna 1.10.5, Kommander 1.9.3</td><td>Fail: node dead in an install loop</td><td>A 15 s chunk deadline the last chunk could not meet</td></tr><tr><td>sn1</td><td>Local snapshot packs</td><td>Fail: sum short by 4</td><td>A skipped install over a gap, then the node led</td></tr><tr><td>sn2</td><td>Local, skip fixed</td><td>Fail: sum short by 2. Control arm passed.</td><td>Restart replay left 82,536 values unresolved</td></tr><tr><td>sn3</td><td>Local, replay fixed</td><td>Pass</td><td>The recovery gate caught 10,773 unresolved records, nine minutes late</td></tr><tr><td>sn4</td><td>Local, gate at detection</td><td>Pass, both arms</td><td></td></tr><tr><td>rl6</td><td>Kahuna 1.11.5, Kommander 1.10.4</td><td>Pass, both arms</td><td>A paused follower re-seeded three times in four minutes</td></tr><tr><td>ps1</td><td>Local probe fix</td><td>Pass, both arms</td><td>The same pause repaired by backfill in 28 s</td></tr><tr><td>rl7</td><td>Kahuna 1.11.7, Kommander 1.10.7</td><td>One arm failed a harness rule</td><td>A client check on one 1-second sample</td></tr><tr><td>rl7b</td><td>Same</td><td>Pass</td><td>Two green verdicts on one published stack</td></tr></tbody></table>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="when-the-dragon-was-wrong-again">When the dragon was wrong, again<a href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/#when-the-dragon-was-wrong-again" class="hash-link" aria-label="Direct link to When the dragon was wrong, again" title="Direct link to When the dragon was wrong, again" translate="no">​</a></h2>
+<p>Part two had a section with this name. Here is the new list. Every item cost
+us a wrong reading once, and every item is a check now.</p>
+<ul>
+<li class=""><strong>A node that died on its own, twice, did not.</strong> In one run the health probe
+was issued 0.28 seconds before the scheduled SIGKILL, and the harness graded
+the missed probe as a death with no fault active. In another, <code>docker kill</code>
+took 6.8 seconds to return on a device at 98 percent busy, and the harness
+opened the fault window when the command returned, seven seconds after the
+node died. Fault windows now open when the fault is issued, and a probe in
+flight within its own timeout before a window is excused. Both runs re-grade
+as passes on recorded data.</li>
+<li class=""><strong>801 version increments above the band were the band's unit.</strong> One run's
+version sum exceeded the ceiling that the indeterminate writes allowed. The
+ceiling counted one row per indeterminate transaction. A transfer increments
+two rows. With the right unit the sum was inside the band and the excess
+above the floor was even, so every transfer applied whole. We replayed the
+corrected band over 410 archived runs. Thirty runs that had read "above the
+maximum" were inside. One run from August 28, with zero indeterminate writes
+and a conserved balance, grew the version sum by 8: four transfers applied
+that the client never committed. The check was waived under faults
+at the time, and the waiver hid it. The band is graded in bank mode now, and
+an odd excess fails as a half-applied transfer.</li>
+<li class=""><strong>An Elle history with holes in it.</strong> On Docker Desktop for macOS the
+workload wrote its history through a bind mount, and every time a fault
+started a helper container, a page-aligned run of zero bytes appeared in the
+host copy. Elle could not parse the history, so one scenario never had a
+verdict. The measured run now writes inside its container and the harness
+copies the output out.</li>
+<li class=""><strong>A node that left the cluster, except it did not.</strong> The node-removal fault
+posted its leave request from the host. The request arrived through Docker's
+port proxy from the bridge gateway, and the node refused it, because cluster
+administration over the network requires authentication. The vacuity check
+described below caught it: a run that promised replica moves had none. The
+request now runs from inside the target's own network namespace.</li>
+<li class=""><strong>A clock library that broke sleep.</strong> The first clock-skew shim was
+libfaketime. Under .NET 10 it made timed waits return at once, so the test
+subject was a database with no timers. The shim is now a small C library
+that moves the wall clock and leaves monotonic time alone.</li>
+<li class=""><strong>A client check on one sample.</strong> A soak with every database signal clean
+failed on the load generator's thread-pool queue, which peaked at 103 against
+a bar of 100 for one second. The rule now judges the queue on dwell time and
+the 95th percentile. In the same run a fault aimed at the leader was skipped,
+because one placement sweep taken mid-election saw no leader. The resolver
+now sweeps every half second for up to ten seconds.</li>
+<li class=""><strong>An idle disk probe that predicted nothing.</strong> We waited up to three hours
+for the host's idle fsync latency to drop below a threshold before a soak.
+It read 2.4 to 3.1 ms the whole time on a rebooted idle host, and the run
+then opened at 0.05 ms anyway. The in-run regime rules are the signal. The
+gate is gone.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-test-that-did-nothing-must-not-pass">A test that did nothing must not pass<a href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/#a-test-that-did-nothing-must-not-pass" class="hash-link" aria-label="Direct link to A test that did nothing must not pass" title="Direct link to A test that did nothing must not pass" translate="no">​</a></h2>
+<p>A fault that never fires leaves a green run behind. The node-removal item above
+was found by a rule we added for exactly that reason. A scenario can now
+declare that it requires a range split, or a replica move, and the harness
+fails the run as vacuous when the placement samples show neither happened.</p>
+<p>That rule guards four new scenarios. Two run key-range sharding, where a table
+is split into ranges by key and the ranges move between nodes as they grow.
+The seeded data starts a cascade of splits that outlasts the warm-up, and a
+partition and a kill land while ranges still split. Two run replica
+placement on five nodes with three replicas each: a kill at 25 seconds, then a
+decommission at 80 seconds that drains every replica the node hosts onto the
+others, so the cluster finishes the run with four nodes. Each pair has an Elle
+arm, which looks for isolation anomalies in a list-append history, and a bank
+arm, where the conserved sum and the per-row ledger see a row that a split copy
+or a seeded replica lost.</p>
+<p>Both features are opt-in. The consistency report listed them as the two
+weakest verified parts of the system. They now have CamusDB-level scenarios
+that run every night.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="clocks-and-the-nightly">Clocks, and the nightly<a href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/#clocks-and-the-nightly" class="hash-link" aria-label="Direct link to Clocks, and the nightly" title="Direct link to Clocks, and the nightly" translate="no">​</a></h2>
+<p>Part one promised clocks that disagree between nodes. Caraxes can now move one
+node's wall clock forward or back, by up to twelve hours, and move it back on
+heal. Only the wall clock moves, so the fault reaches the hybrid logical clock
+and every lease built on it, and not Raft, whose elections use monotonic time.</p>
+<p>Four scenarios target what a given skew can reach: 2 seconds on three nodes as
+a control, a jump past the 5-second snapshot clock fence, a jump past the
+15-second intent and prepare lease, and 3 minutes forward then 1 minute back,
+past the gossip and schema leases. All four passed with a serializable Elle
+history. One change came out of them: Kahuna now refuses a snapshot read whose
+timestamp leads the node's clock, and no longer serves it unfenced.</p>
+<p>Caraxes also has CI now. Tests run on every push. Every night at 05:00 UTC a
+workflow builds CamusDB from main and runs the ten Elle list-append scenarios,
+one job per scenario. The nightly runs in a correctness-only mode: the
+recovery-time and throughput rules are reported as not graded, because a
+hosted runner's speed says nothing about the change. Elle, the ledger, the
+divergent-apply check, node health and the total-outage rule still grade the
+run.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="notes-from-the-performance-side">Notes from the performance side<a href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/#notes-from-the-performance-side" class="hash-link" aria-label="Direct link to Notes from the performance side" title="Direct link to Notes from the performance side" translate="no">​</a></h2>
+<p>The harness is also how we measure speed, and three of its findings in this
+period were about the measurement or the client, not the server.</p>
+<ul>
+<li class=""><strong>TLS was never the cost.</strong> A pair of ten-minute runs on one image, with the
+client path in TLS and in cleartext, read 9,082 and 9,240 operations per
+second at an identical 0.90 CPU-milliseconds per operation on the leader.
+Cleartext is now the control shape. Raft keeps its certificate.</li>
+<li class=""><strong>A pipelined client that landed on the wrong node.</strong> The new client sends a
+transfer as two frames instead of six exchanges. Its first measurement was
+5,029 operations per second against 9,236 for the sequential client. A
+pipelined statement carried no routing negotiation, so two thirds of first
+frames began on a follower, and follower CPU per operation went up four
+times. With routing fixed in client 0.15.1 the pipelined arm reads 5,737.
+The second frame, two updates and a commit, costs 27.9 ms against 13.6 ms
+for the same statements sent one by one. That question is open.</li>
+<li class=""><strong>A thread pool with a floor of 1,024.</strong> Scheduler statistics put 6.8 of the
+leader's 8.3 cores in 233 to 284 pool workers, at 29 to 33 time slices per
+client operation, on a host with 16 hardware threads. The server's default
+minimum of 1,024 threads is what lets the pool grow that far. The pair at a
+floor of 64 and 128 is the next run.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-the-database-looks-like-today">What the database looks like today<a href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/#what-the-database-looks-like-today" class="hash-link" aria-label="Direct link to What the database looks like today" title="Direct link to What the database looks like today" translate="no">​</a></h2>
+<ul>
+<li class="">A node that runs out of memory was a deployment problem. Every Caraxes node
+runs with <code>MALLOC_ARENA_MAX=2</code>, the Raft log's index blocks are charged to
+the shared storage budget, and node memory peaks between 80 and 93 percent
+of 4 GiB over two hours and comes down between faults.</li>
+<li class="">A partition whose voters share a hole in the log elects a leader.</li>
+<li class="">A replica that diverges is contained. It gives up leadership, withholds its
+candidacy, and is re-seeded. A restart that leaves unresolved by-reference
+records gates at detection, before the node can win a term.</li>
+<li class="">A snapshot install cannot skip over a gap, an import cannot rewind below the
+apply cursor, and a leader does not re-seed a peer that catches up on its
+own.</li>
+<li class="">A vote is judged by term and index on both sides.</li>
+<li class="">Log retention is sized in time as well as entries, so a faster commit path
+does not shrink the window a 30-second restart needs.</li>
+<li class="">A re-driven prepare whose first copy settled is rejected, instead of
+installed as a phantom.</li>
+</ul>
+<p>The last pair on a published stack, Kahuna 1.11.7 and Kommander 1.10.7, is
+double green.</p>
+<table><thead><tr><th>Check</th><th>Settle path off</th><th>Settle path on</th></tr></thead><tbody><tr><td>Conservation</td><td>exact</td><td>exact</td></tr><tr><td>Lost rows, divergent applies, unresolved records</td><td>0, 0, 0</td><td>0, 0, 0</td></tr><tr><td>Faults recovered</td><td>14 of 14</td><td>13 of 13</td></tr><tr><td>Longest recovery</td><td>0.9 s</td><td>0.7 s</td></tr><tr><td>Snapshot installs</td><td>0</td><td>0</td></tr><tr><td>Pauses repaired by backfill</td><td>4 of 4</td><td>3 of 3</td></tr><tr><td>Memory peak</td><td>90%</td><td>90%</td></tr></tbody></table>
+<p>The settle-path arm injected thirteen faults, not fourteen. One pause aimed at
+the leader was skipped by the resolver bug listed above, which is fixed since.</p>
+<p>CamusDB today pins a Kahuna three releases past that pair. The pin is ahead of
+its evidence, as it was in part two, and the next soak closes that gap.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="three-lessons">Three lessons<a href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/#three-lessons" class="hash-link" aria-label="Direct link to Three lessons" title="Direct link to Three lessons" translate="no">​</a></h2>
+<p>Some bugs need two hours. Every ten-minute run in part two plateaued at 3.3 to
+3.9 GB and passed. In hindsight those plateaus were the memory wall, a few
+hundred megabytes away. A plateau is not evidence of a bound. Only a long run
+with the same budget is.</p>
+<p>Measure the quantity. Do not infer it from a ratio. The table-reader ratio of
+8.9 percent was right, and the SST volume it was multiplied against was never
+measured. The inference said 34 GB. The gauge said 262 MB. Two subsystem
+hypotheses failed in a row for the same reason, and the one that held came
+from reading the process maps.</p>
+<p>Change one thing. The sum came back short by 2 on a pack that changed two
+things. The control arm with the settle path on, same pack, same schedule,
+passed, and that isolated the loss to the by-reference replay in one run.
+Three soaks died of memory, and the fix was one environment variable with no
+code change. A result you cannot attribute to one variable is a story, not a
+finding.</p>
+<p>Part two's third lesson held as well. The chain from the first soak to the
+latest is memory, then a wedge, then a divergence, then a livelock, then an
+install loop, then two lost writes, then a re-seed storm. Every fix uncovered
+the next failure when it removed the one in front of it.</p>
+<p>This is what most of the engineering on a distributed database looks like. Not
+new features, but a long check that the ones we promised still hold, under
+faults, under load, for hours, on a real device. A database earns its
+guarantees twice, once in the code and once in the evidence, and the second
+time never ends. The soak is that second time, for performance and for
+correctness in the same run.</p>
+<p>The dragon is not done. The next runs are the kill matrix under load, a second
+kill window measured on a device that holds its regime, and the two open
+questions from the performance side. But a server that dies on a busy
+afternoon now dies on a build that survived fourteen of those afternoons in a
+row, twice, with the sum exact at the end.</p>]]></content>
         <author>
             <name>Andres Gutierrez</name>
             <uri>https://github.com/andresgutierrez</uri>
         </author>
         <category label="camusdb" term="camusdb"/>
         <category label="reliability" term="reliability"/>
-        <category label="consistency" term="consistency"/>
-        <category label="jepsen" term="jepsen"/>
+        <category label="chaos-testing" term="chaos-testing"/>
         <category label="distributed-systems" term="distributed-systems"/>
     </entry>
     <entry>
