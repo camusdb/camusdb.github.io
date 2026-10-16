@@ -221,14 +221,54 @@ A restore is offline. Follow this sequence:
    the backup, then use a
    [logical dump and reimport](/docs/logical-dump-and-reimport).
 
-4. In a cluster, the restored node holds the data of the restore point. Ordinary
-   Raft replication brings it up to date after it rejoins. Recovery of a whole
-   cluster means two steps: restore every node to one coordinated point, then
-   start the cluster together.
+4. For whole-cluster disaster recovery, restore every node to one coordinated
+   point and start the cluster together. To add a node to a running cluster from
+   a backup, use the seeded join below. Starting a restored data root as an
+   ordinary joining node does not preserve its restored data.
 
 `kahuna.backup_restore_throttle_bytes_per_sec` limits the rate of the checkpoint
 copy of a restore. Use it when the restore shares a volume with something that
 matters to you.
+
+## Seed a joining node from a backup
+
+An ordinary node joining a running cluster with an empty WAL starts at Raft
+index zero. The leader sends it a full snapshot, replacing the restored store.
+A seeded join instead replays the backup chain before Raft starts and writes a
+committed checkpoint for each partition at the index reached by that chain.
+The leader then sends only newer log entries.
+
+1. Restore a backup chain into a fresh data root with `POST /v1/restore`. Keep
+   the `leafBackupId` and `targetTimeMs`.
+2. Copy that complete data root to the joining host. Do not start CamusDB on it;
+   its WAL must remain empty.
+3. Make the same backup catalog available on the joining host and configure
+   `kahuna.backup_dir` to point to it.
+4. Start the node with the seed settings:
+
+   ```yaml
+   mode: cluster
+   peers:
+     - 10.0.0.1:7070
+     - 10.0.0.2:7070
+   join_existing: true
+   pitr_bootstrap_from: <leafBackupId>
+   pitr_bootstrap_target_time_ms: 0
+   kahuna:
+     backup_dir: /opt/camusdb/backups
+   ```
+
+   The equivalent command-line option is `--pitr-bootstrap-from
+   <leafBackupId>`, together with `--join-existing true`. Set
+   `--pitr-bootstrap-target-time-ms` when the restore targeted a specific time.
+5. Remove `pitr_bootstrap_from` after the node joins successfully.
+
+The target time must match the point used to restore the data root. CamusDB
+fails startup with `CADB0710 PitrBootstrapFailed` when the restored image is
+missing, the WAL is not empty, the storage backend is unsupported, the chain
+or its MAC is invalid, the backup belongs to another configured cluster, or the
+seeded point is older than the leader's retained log window. Copy a fresh
+restored root before retrying after a partial seed attempt.
 
 ## Clusters
 
@@ -337,6 +377,7 @@ position of that line.
 | `CADB070D` | `BackupTopologyChanged` | 503 | The topology changed during a coordinated backup. CamusDB published nothing. Retry. |
 | `CADB070E` | `BackupNotCoordinator` | 421 | A caller requested a coordinated backup on a node that is not the coordinator. |
 | `CADB070F` | `BackupInsecureRoot` | 500 | The backup root or the restore root is a symbolic link, or the group or the world can write to it. |
+| `CADB0710` | `PitrBootstrapFailed` | 500 | A joining node could not validate or seed its restored data root and WAL from the configured backup chain. |
 
 Three codes are retryable: `CADB070A`, `CADB070B`, and `CADB070D`. Each one
 leaves nothing published. The other codes need a decision from an operator

@@ -18,23 +18,38 @@ The name of a function is not case-sensitive.
 
 ## Categories
 
-- [Session Functions](/docs/functions-session)
-- [String Functions](/docs/functions-string)
-- [Math Functions](/docs/functions-math)
-- [Hash Functions](/docs/functions-hash)
-- [Date/Time Functions](/docs/functions-datetime)
-- [JSON Functions](/docs/functions-json)
-- [Regex Functions](/docs/functions-regex)
-- [Conversion Functions](/docs/functions-conversion)
-- [Null Functions](/docs/functions-null)
-- [UUID Functions](/docs/functions-uuid)
-- [Object Id Functions](/docs/functions-object-id)
-- [Array Functions](/docs/functions-array), which are `cardinality`,
-  `array_length`, and `array_contains`
-- [Sequence functions](/docs/sequences#use-values), which are `nextval`,
-  `currval`, `lastval`, and `setval`
-- [Vector functions](/docs/vector-search), which are `octet_length`,
-  `vector_dims`, `l2_distance`, `cosine_distance`, and `inner_product`
+- [Session Functions](/docs/functions-session) report the current database,
+  authenticated user, role, and superuser status.
+- [String Functions](/docs/functions-string) inspect, normalize, slice, replace,
+  and combine text.
+- [Bytes Functions](/docs/functions-bytes) encode, decode, inspect, and modify
+  binary values.
+- [Math Functions](/docs/functions-math) round, truncate, compare, and calculate
+  with numeric values.
+- [Hash Functions](/docs/functions-hash) calculate hexadecimal and binary
+  digests, HMACs, and CRC-32 checksums.
+- [Date/Time Functions](/docs/functions-datetime) construct, inspect, calculate,
+  format, and parse dates and timestamps.
+- [Set-returning Functions](/docs/functions-set-returning) produce rows in a
+  `FROM` clause, including numeric and temporal series.
+- [JSON Functions](/docs/functions-json) validate JSON text and inspect or
+  extract values with paths.
+- [Regex Functions](/docs/functions-regex) match, extract, replace, count, and
+  split text with regular expressions.
+- [Conversion Functions](/docs/functions-conversion) convert scalar values with
+  functions or SQL `CAST` syntax.
+- [Null Functions](/docs/functions-null) select fallback values for nullable
+  expressions.
+- [UUID Functions](/docs/functions-uuid) generate native version 4 and version 7
+  UUID values.
+- [Object ID Functions](/docs/functions-object-id) generate and convert native
+  `OID` values.
+- [Array Functions](/docs/functions-array) inspect array length and test element
+  membership.
+- [Sequence Functions](/docs/sequences#use-values) allocate, inspect, and set
+  values from named counters.
+- [Vector Functions](/docs/vector-search) inspect vector dimensions and compare
+  vectors with distance and similarity metrics.
 
 ## Two rules worth your attention
 

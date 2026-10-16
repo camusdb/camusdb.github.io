@@ -11,12 +11,13 @@ CamusDB.
 
 Use it when you want a graphical workspace. It lets you browse schemas, run
 SQL, inspect results, edit small result sets, export tables, view node
-configuration and engine metrics, and administer backups from a browser.
+configuration and engine metrics, read `EXPLAIN` plans as visual flows, and
+administer backups from a browser.
 
 ## Requirements
 
 - A CamusDB server that runs.
-- Docker.
+- Docker, or the .NET 10 SDK when running from source.
 
 CamusDB exposes REST on the port `5095` by default. It exposes the gRPC of a
 client on the port `5096`. The Web Console can use either protocol.
@@ -66,6 +67,8 @@ container, set the same keys as environment variables with two underscores.
 | `User` | `CamusDB__User` | The user of the authentication. An empty value means no authentication. |
 | `Password` | `CamusDB__Password` | The password of the `User`. |
 | `AccessToken` | `CamusDB__AccessToken` | A bearer token from another source. The console uses it instead of a login. |
+| `RequireAccessToken` | `CamusDB__RequireAccessToken` | Refuse user/password sign-in. The console then accepts access tokens only. |
+| `AllowInsecureCredentials` | `CamusDB__AllowInsecureCredentials` | Allow credentials to a non-loopback `http://` endpoint. Use only behind a trusted TLS terminator, private link, or tunnel. |
 | `LockEndpoint` | `CamusDB__LockEndpoint` | Prevent browser sessions and vendor launch payloads from changing the configured endpoint or protocol. |
 | `TokenLifetimeSeconds` | `CamusDB__TokenLifetimeSeconds` | The fallback window for the reuse of a token, when the server reports no expiry. |
 | `BackupEndpoint` | `CamusDB__BackupEndpoint` | Optional REST endpoint for backup administration. Use it when the main protocol is gRPC, or when the main endpoint is a pool and backups must target one node. |
@@ -84,6 +87,8 @@ Here is an example:
     "User": "",
     "Password": "",
     "AccessToken": "",
+    "RequireAccessToken": false,
+    "AllowInsecureCredentials": false,
     "LockEndpoint": false,
     "TokenLifetimeSeconds": 0,
     "BackupEndpoint": "",
@@ -104,6 +109,48 @@ to CamusDB through gRPC, set `BackupEndpoint` to the HTTP/REST endpoint. If the
 main `Endpoint` is a comma-separated pool of nodes, set `BackupEndpoint` to the
 specific node that should receive backup commands. A coordinated backup must
 reach the backup coordinator.
+
+## Security controls
+
+The Web Console has two local throttles in front of surfaces that an
+unauthenticated caller can reach: sign-in from the Configure dialog, and vendor
+launch endpoints. They are on by default under the `Security` section:
+
+```json
+{
+  "Security": {
+    "LoginThrottleEnabled": true,
+    "LoginFreeAttempts": 3,
+    "LoginMaxAttempts": 10,
+    "LoginSprayMultiplier": 5,
+    "LoginWindowSeconds": 300,
+    "LoginLockoutSeconds": 300,
+    "LoginMaxDelaySeconds": 8,
+    "MaxTrackedClients": 20000,
+    "RateLimitEnabled": true,
+    "LaunchPermitLimit": 30,
+    "LaunchWindowSeconds": 60
+  }
+}
+```
+
+| Setting | Environment variable | Description |
+| --- | --- | --- |
+| `LoginThrottleEnabled` | `Security__LoginThrottleEnabled` | Count and slow failed sign-ins from the Configure dialog. |
+| `LoginFreeAttempts` | `Security__LoginFreeAttempts` | Failed sign-ins that add no delay. |
+| `LoginMaxAttempts` | `Security__LoginMaxAttempts` | Failures for one address and one user before the console refuses to try for the lockout window. |
+| `LoginSprayMultiplier` | `Security__LoginSprayMultiplier` | Multiplies the per-user limit to cap one address across all user names. |
+| `LoginWindowSeconds` | `Security__LoginWindowSeconds` | How long failures are remembered. |
+| `LoginLockoutSeconds` | `Security__LoginLockoutSeconds` | How long a refusal lasts. |
+| `LoginMaxDelaySeconds` | `Security__LoginMaxDelaySeconds` | Maximum delay added before an attempt. |
+| `MaxTrackedClients` | `Security__MaxTrackedClients` | Maximum number of client addresses kept in memory. |
+| `RateLimitEnabled` | `Security__RateLimitEnabled` | Rate-limit vendor launch endpoints per client address. |
+| `LaunchPermitLimit` | `Security__LaunchPermitLimit` | Requests one address may make to each launch endpoint per window. |
+| `LaunchWindowSeconds` | `Security__LaunchWindowSeconds` | Length of the vendor launch rate-limit window. |
+
+The client key is the socket peer address. The console does not trust
+`X-Forwarded-For` by default, because a caller can choose that header unless
+forwarded headers are configured carefully at the reverse proxy.
 
 ## Authentication
 
@@ -140,6 +187,21 @@ value in `appsettings.json`, or in a `CamusDB__*` environment variable. The
 console then signs in automatically. Prefer an environment variable, or a store
 of secrets, to a password inside a commit.
 
+### Token-only consoles
+
+Set `CamusDB__RequireAccessToken=true` when the console must never accept a
+user/password sign-in. The Configure dialog then offers only the access token
+field, and the session service rejects any user or password supplied by a
+caller.
+
+This pins the sign-in method, not the server's authentication policy. If the
+CamusDB server has authentication disabled, the console can still connect
+without an identity because the server allows it.
+
+`RequireAccessToken` cannot be combined with configured `User` or `Password`.
+Startup fails instead of silently dropping those credentials. A supplied token
+is not renewable, so the browser session ends when the server expires it.
+
 Manage the users and the grants with SQL, from a session of a superuser:
 
 ```camussql
@@ -164,6 +226,11 @@ endpoint with `https://`.
 TLS can terminate before a request reaches CamusDB. Keep that plaintext hop
 inside the boundary of your trust. Then configure CamusDB with
 `--require-tls-when-auth-enabled false`.
+
+The driver also refuses credentials to a non-loopback `http://` endpoint before
+anything is sent. Set `CamusDB__AllowInsecureCredentials=true` only when that
+plaintext hop is protected by another mechanism, such as a private network, VPN,
+SSH tunnel, or a trusted TLS terminator.
 
 ### The errors of the authentication
 
@@ -286,8 +353,8 @@ The Web Console provides these features:
   protocol, the backup endpoint, the timeout, the cap of the rows, and the
   credentials.
 - A browser of the schema. It uses `SHOW DATABASES`, `SHOW TABLES`, `SHOW
-  COLUMNS FROM`, `SHOW INDEXES FROM`, schema comments, and the metadata of a
-  branch.
+  COLUMNS FROM`, `SHOW INDEXES FROM`, `SHOW CREATE TABLE`, `SHOW SEQUENCES`,
+  schema comments, foreign-key metadata, sequences, and the metadata of a branch.
 - The Monaco editor of SQL.
 - A highlight of the SQL of CamusDB, with a completion of a keyword and of a
   function.
@@ -297,10 +364,13 @@ The Web Console provides these features:
 - A workspace of queries, with several tabs.
 - A run of a query that you can cancel.
 - The times of the execution, and a bar of the status.
-- A grid of the results that knows the types. It warns you at the cap of the
-  rows.
+- A grid of the results that knows the types, including exact `NUMERIC` text. It
+  warns you at the cap of the rows.
+- A flow view for `EXPLAIN` and `EXPLAIN (ANALYZE)` results, beside the raw
+  result table.
 - The actions of a context on a table, such as an edit of the data, a view of
-  the data, an export of the table, and a delete of the table.
+  the data, an export of the table, adding a column, adding an index, adding or
+  dropping a foreign key, and deleting the table.
 - The actions of an edit and of a delete of a row, when a result set belongs to
   the context of a table.
 - An export of a table to CSV, and to JSON. `MaxRows` caps both.
@@ -318,8 +388,22 @@ SELECT * FROM table_name
 LIMIT 100
 ```
 
-Right-click a database to create a table or drop the database. Right-click a
-table to view or edit data, add an index, export the table, or drop the table.
+Right-click a database to create a table or drop the database. The create-table
+dialog can define columns, primary keys, single-column foreign keys, and
+defaults such as `nextval('sequence')` or `NUMERIC '9.99'`.
+
+Right-click a table to view or edit data, add a column, add an index, add a
+foreign key, export the table, or drop the table. The add-column dialog runs
+`ALTER TABLE ... ADD COLUMN`; a `NOT NULL` column needs a constant default
+because existing rows get that value. The add-foreign-key dialog can create
+multi-column foreign keys and lets the server validate existing rows.
+
+Foreign keys appear under the table. Hover one to see its columns, referenced
+table, and `ON DELETE` / `ON UPDATE` actions. Right-click a foreign key to drop
+the constraint.
+
+Sequences appear after tables. Double-click a sequence to insert
+`SHOW CREATE SEQUENCE ...`; right-click one to show its definition or drop it.
 Dangerous actions require confirmation.
 
 ## The behavior of a query
@@ -328,6 +412,8 @@ The console routes SQL by statement shape:
 
 - Statements that return rows, such as `SELECT`, `SHOW`, `EXPLAIN`, and `WITH`,
   render into the result grid.
+- `INSERT ... RETURNING`, and other write statements with a `RETURNING` clause,
+  render the returned rows into the result grid and show the affected-row count.
 - DML and DDL statements render affected row counts and status messages.
 - Database lifecycle actions in the schema browser run through the same
   database-level operations exposed by CamusDB.
@@ -339,8 +425,37 @@ When part of the editor text is selected, the console executes only the
 selection. When nothing is selected, it executes the current tab.
 
 The result grid styles values by type. It distinguishes `NULL`, numbers,
-booleans, timestamps, blobs, UUIDs, and ordinary strings, and it warns when the
-result was truncated by `MaxRows`.
+booleans, timestamps, blobs, UUIDs, exact `NUMERIC` values, and ordinary
+strings, and it warns when the result was truncated by `MaxRows`.
+
+## Query plan flow
+
+When a statement returns an `EXPLAIN`, `EXPLAIN (LOGICAL)`, `EXPLAIN
+(PHYSICAL)`, or `EXPLAIN (ANALYZE)` result, the toolbar above the result adds a
+`Table` / `Flow` switch. `Table` shows the raw rows returned by CamusDB. `Flow`
+draws the plan as a diagram, with the source operator at the top and each
+operator below the one that feeds it.
+
+![CamusDB Web Console query plan flow](/img/webconsole-query-plan.png)
+
+Each operator card shows the operator family, the server's detail text, the
+table or index involved, and its share of the estimated cost. The highest-cost
+operator is marked so expensive parts of a plan are visible without scanning
+every row of the `EXPLAIN` table.
+
+The edges show the estimated row flow between operators. With `EXPLAIN
+(ANALYZE)`, the flow also includes measured rows, rows read, KV lookups, KV scan
+entries, and the measured plan time. When an operator's measured row count is
+far away from the estimate, the diagram marks it as an estimate miss.
+
+Joins have a right input that is described in the join row rather than emitted
+as a separate plan row. The flow renders that input as a dashed side box beside
+the join, using the alias, index, or subquery table that the detail text
+contains.
+
+Rows that describe the whole plan, such as `plan-info`, `distribution`, and
+`cache`, appear below the diagram as plan notes. The console remembers whether
+you last used `Table` or `Flow`, so the next plan opens in the same view.
 
 ## Row Editing
 
@@ -353,6 +468,9 @@ The edit dialog is generated from the table schema:
 - Nullable fields get a `NULL` toggle.
 - Values are validated against the column type before the console builds the
   SQL statement.
+- `NUMERIC` values are kept as canonical decimal text and written back as
+  `NUMERIC '...'`, so large exact decimals are not rounded through .NET
+  `decimal` or JavaScript `number`.
 - `UPDATE` and `DELETE` use the table primary key.
 
 If a table has no primary key, edit and delete row actions are disabled with a
@@ -390,7 +508,8 @@ formats:
 - JSON.
 
 CSV uses proper quoting and escaping. JSON downloads an array of objects with
-dates as ISO-8601 strings, blobs as hex, and UUIDs in standard textual form.
+dates as ISO-8601 strings, blobs as hex, UUIDs in standard textual form, and
+`NUMERIC` values as strings so no digits are lost.
 
 The table can hold more rows than `MaxRows`. The export then reports that the
 result was truncated.

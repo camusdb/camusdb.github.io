@@ -72,6 +72,14 @@ every node applied a committed schema version. It waits for the convergence of
 the current stage across the live cluster, before it advances to the next stage
 of an online change.
 
+The leader both receives pushed acknowledgements and probes peers for their
+applied version. This matters with partial replica placement, where two nodes
+may share no data partition and therefore may not appear together in one local
+Raft membership view. A lost or redirected acknowledgement does not let a DDL
+return early: the probe discovers nodes that hold the database open and waits
+for their applied schema version. A peer reporting that the database is closed
+removes its stale acknowledgement record.
+
 The practical effect is simple. A schema change is more than a commit on a
 leader. CamusDB stages the change. The cluster therefore moves forward, and the
 schema versions do not drift far apart.

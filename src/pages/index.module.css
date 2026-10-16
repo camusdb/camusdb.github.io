@@ -5,9 +5,8 @@
   color: #f8fbff;
   border-bottom: 1px solid rgba(72, 164, 255, 0.22);
   background:
-    radial-gradient(circle at 78% 25%, rgba(38, 132, 255, 0.4), transparent 32%),
-    radial-gradient(circle at 18% 12%, rgba(0, 198, 255, 0.13), transparent 30%),
-    linear-gradient(135deg, #02050d 0%, #06142b 50%, #010713 100%);
+    linear-gradient(90deg, rgba(1, 7, 19, 0.68), rgba(1, 7, 19, 0.34) 55%, rgba(1, 7, 19, 0.52)),
+    url('/img/camusdb-clouds-hero.webp') center 46% / cover no-repeat;
 }
 
 .heroBanner::before,

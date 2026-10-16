@@ -15,6 +15,10 @@ no request of the API of the database by hand.
 The MCP server speaks MCP over `stdio`. The MCP client starts it. The server
 connects to CamusDB through the published provider `CamusDB.Client`.
 
+The [CamusDB agent skills](/docs/agent-skills) complement the MCP server with
+guidance for CamusDB SQL, schema design, transactions, query performance,
+troubleshooting, client libraries, migrations, and local development.
+
 ## Prerequisites
 
 - A CamusDB server that runs, and that the machine of the MCP client can reach.

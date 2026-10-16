@@ -37,11 +37,19 @@ See [Database Branching](/docs/database-branching).
 
 ```camussql
 SHOW TABLES;
+SHOW TABLES FROM application;
+SHOW TABLES IN application LIKE 'order%';
 SHOW COLUMNS FROM robots;
 DESCRIBE robots;
 DESC robots;
 SHOW CREATE TABLE robots;
 ```
+
+`SHOW TABLES FROM <database>` and `SHOW TABLES IN <database>` inspect a named
+database without changing the current database. They work even when the session
+has no current database. With authentication enabled, an invisible target is
+reported as `DatabaseDoesntExist`, and the result includes only tables on which
+the caller has at least one privilege.
 
 Use `SHOW CREATE TABLE` when you want the whole picture. It is the statement
 that renders the comment of the table, of its columns, and of its secondary

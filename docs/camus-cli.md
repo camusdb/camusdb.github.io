@@ -20,6 +20,7 @@ features:
 - non-interactive SQL execution with `-e`, and whole-file execution with `-f`
 - database switching
 - vertical query output for wide rows
+- JSON or YAML row output for scripts
 - prepared-statement inspection
 - backup administration
 - built-in workload helpers
@@ -130,11 +131,13 @@ Against a server with the authentication enabled, pass a user and a password:
 camus-cli northwind -u app -p app-secret
 ```
 
-You can give a `-u` without a `-p`. The shell then asks for the password. It
-shows no character of that password:
+Prefer a prompt instead of putting the password on the command line. You can
+give a `-u` without `-p`, or give a bare `-p`; both forms ask for the password
+without echoing it:
 
 ```bash
 camus-cli northwind -u app
+camus-cli northwind -u app -p
 ```
 
 Credentials can also come from environment variables:
@@ -161,8 +164,14 @@ The driver exchanges the password one time, for a bearer token with a short
 life. A later statement carries the token. It does not carry the password. The
 driver renews the token before its expiry, while it holds the password.
 
-Prefer the prompt, or a `CAMUS_PASSWORD`, to a `-p` on a shared host. Another
-local user can see the command line of a process.
+Prefer the prompt, or a `CAMUS_PASSWORD`, to `-p app-secret` on a shared host.
+Another local user can see the command line of a process, and the shell prints a
+warning when a password is passed that way.
+
+The shell refuses to send credentials to a non-local `http://` endpoint. Use
+`https://` for remote authenticated connections. If TLS terminates before
+CamusDB and the final hop is protected by your own network, pass
+`--allow-insecure-credentials`; the shell then connects and prints a warning.
 
 The administration of a user and of a grant works before a selected database.
 Those statements belong to the level of the server:
@@ -204,9 +213,12 @@ Options:
 | `-c`, `--connection-source` | Full connection string. If it has no `Database=...`, the shell starts without a selected database. |
 | `-e`, `--execute` | Execute one SQL string, or several separated by semicolons, and exit instead of starting the interactive shell. |
 | `-f`, `--file` | Execute the statements in a `.sql` file and exit, stopping at the first error. Use `-f -` to read the script from standard input. |
+| `--format` | Output format for `-e` and `-f`: `table`, `json`, or `yaml`. The default is `table`. |
 | `-u`, `--user` | User to authenticate as. |
-| `-p`, `--password` | Password for `-u`. If omitted in interactive use, the shell prompts. |
+| `-p`, `--password` | Password for `-u`. Use bare `-p`, or omit it when `-u` is present, to prompt without echo. |
 | `--token` | Use an existing bearer token instead of logging in with a password. |
+| `--allow-insecure-credentials` | Allow credentials on a non-local plaintext `http://` endpoint. |
+| `--no-history` | Do not load or save statement history. |
 | `--tui` | Open the full-screen mode with catalog, editor, and result panes. |
 | `--force-rich` | Force the rich editor on terminals whose capabilities are not detected automatically. |
 | `--diagnose-terminal` | Print terminal capability detection details and exit. |
@@ -235,6 +247,7 @@ camus-cli -c "Endpoint=http://localhost:5095;Database=mydb;Protocol=rest"
 camus-cli -c "Endpoint=http://node1:5096,http://node2:5096;Database=mydb;Protocol=grpc"
 camus-cli -c "Endpoint=http://localhost:5095"
 camus-cli mydb -e "SELECT * FROM users"
+camus-cli mydb -e "SELECT * FROM users" --format json
 camus-cli mydb -f schema.sql
 cat schema.sql | camus-cli mydb -f -
 camus-cli mydb --tui
@@ -314,8 +327,7 @@ Common keys:
 | Key | Action |
 | --- | --- |
 | `Tab` / `Shift+Tab` | Move between panes. |
-| `F5` / `Ctrl+R` | Run every statement in the editor. |
-| `Shift+Enter` | Run the editor on terminals that support the disambiguating keyboard protocol; otherwise inserts a new line. |
+| `F5` / `Ctrl+R` / `Shift+Enter` | Run every statement in the editor. |
 | `Esc` | Cancel the running query or close the help bar. |
 | `F1` | Show or hide the key list. |
 | `F2` | Turn the result row cap on or off. |
@@ -331,14 +343,15 @@ editor pane uses `Ctrl+N` and `Ctrl+P` to move through completions because
 The result grid pages rows in chunks of 200. A display cap of 500 rows is on at
 startup; press `F2` to remove that display cap. The cap is not a SQL `LIMIT`.
 
-The editor text is persisted between TUI sessions in the system temporary
-directory as:
+The editor text is persisted between TUI sessions as `query.sql` in the same
+state directory as the history file:
 
 ```text
-camusdb.query.sql
+query.sql
 ```
 
-Backup commands run at the prompt only. In `--tui`, they report an error.
+Backup commands do not run inside `--tui`. Use the prompt, `source`, `-e`, or
+`-f`.
 
 The mode needs an ANSI terminal. If detection fails for a capable terminal, use
 `--force-rich` or set `CAMUS_FORCE_RICH=1`.
@@ -439,6 +452,28 @@ what the file wrote:
 camus-cli demo -f seed.sql -e "select count(*) from users"
 ```
 
+### JSON and YAML output
+
+Use `--format json` or `--format yaml` with `-e` or `-f` when another program
+will read the rows:
+
+```bash
+camus-cli demo -e "select id, name from users" --format json | jq '.[].name'
+camus-cli demo -e "select id, name from users" --format yaml > users.yaml
+```
+
+With these formats, standard output contains only row documents. The version
+banner, `rows in set`, `Query OK`, and errors go to standard error. Each
+statement that returns rows emits one document. JSON emits an array of objects.
+YAML emits a sequence of mappings and separates multiple result sets with
+`---`. A query with no rows emits an empty array. A statement that returns no
+rows emits no document.
+
+Values keep their useful types: integers, floats, and booleans stay scalar;
+`NULL` stays null; `NUMERIC` is written as a string to avoid losing precision;
+`BYTES` is base64; arrays are arrays. The `\G` vertical-output suffix has no
+effect in JSON or YAML mode.
+
 ## Prepared statements
 
 The driver registers a statement with the server, after it sees the same text of
@@ -533,6 +568,8 @@ Things worth knowing:
   the commands work with no database selected.
 - The server must opt in. Backups are off until `kahuna.backup_dir` is set;
   until then every command fails with `CADB0700 BackupNotConfigured`.
+- The commands work at the prompt, in `source` files, with `-e`, and with `-f`.
+  They do not run inside `--tui`.
 - A superuser only. While the authentication is enabled, connect as a superuser,
   with a `-u` or a `--token`. While the authentication is disabled, the server
   limits this surface to a caller on loopback. It therefore refuses a remote
@@ -577,20 +614,23 @@ automatically as well.
 
 History file:
 
-```text
-camusdb.history.json
-```
+| Platform | Path |
+| --- | --- |
+| Any, when `XDG_STATE_HOME` is set | `$XDG_STATE_HOME/camusdb/history.json` |
+| Linux and macOS | `~/.config/camusdb/history.json` |
+| Windows | `%LOCALAPPDATA%\camusdb\history.json` |
 
-The shell stores the file under the temporary directory of the system.
-
-The current source gives this behavior:
+The shell gives this behavior:
 
 - history is loaded on startup
 - history is saved on normal exit
 - history is also saved on `Ctrl+C`
+- the state directory and history file are created with owner-only permissions
+  on Unix-like systems
 - adjacent duplicate entries are removed
 - statements that inline passwords with `IDENTIFIED ... BY ...` are kept out of
   the on-disk history file
+- `--no-history` disables loading and saving for the session
 
 ## Keyboard shortcuts
 
@@ -599,7 +639,8 @@ The rich editor supports these features:
 | Key | Action |
 | --- | --- |
 | `Enter` | Submit the current statement. |
-| `Shift+Enter` | Insert a new line. |
+| `Shift+Enter` | Insert a new line when the terminal reports the modifier. |
+| `Alt+Enter` / `Ctrl+O` | Insert a new line on terminals that do not report `Shift+Enter`. |
 | `Up` / `Down` | Navigate lines or command history. |
 | `Left` / `Right` | Move the cursor. |
 | `Ctrl+Left` / `Ctrl+Right` | Move by word. |
@@ -609,77 +650,24 @@ The rich editor supports these features:
 | `Tab` | Autocomplete the current word. |
 | `Ctrl+Tab` | Cycle to the previous completion. |
 
-## SQL execution
+## Statement handling
 
-`camus-cli` routes a statement by its shape:
+`camus-cli` sends SQL to the server and formats the response. Query statements
+are shown as result tables, DDL prints `Query OK`, and writes print affected row
+counts. `INSERT ... RETURNING` is run through a reader so the shell can show the
+returned rows and still print the affected-row count.
 
-- query statements are shown as result tables
-- DDL prints `Query OK`
-- inserts, updates, and deletes print affected row counts
+Most SQL syntax belongs to the server, not to the shell. Use the SQL reference
+pages for statement semantics:
 
-Queries include:
+- [SQL overview](/docs/sql)
+- [SQL schema](/docs/sql-schema)
+- [SQL writes](/docs/sql-writes)
+- [SQL inspection](/docs/sql-inspection)
+- [Query activity](/docs/query-activity)
 
-```camussql
-select * from users;
-select * from users where year >= 1980;
-explain select * from users;
-explain (logical) select * from users;
-explain (physical) select * from users;
-explain (analyze) select * from users;
-show tables;
-desc users;
-describe users;
-show databases;
-show variables;
-show variables like 'query_result_cache_%';
-show cluster settings;
-show columns from users;
-describe indexes from users;
-show branches from app;
-show ancestors from app_test;
-```
-
-DDL includes:
-
-```camussql
-create database app;
-create database if not exists app;
-show databases;
-rename database app to app_prod;
-drop database if exists app_prod;
-create database app_test branch from app_prod;
-
-create table users (
-  id oid primary key not null,
-  name string not null
-);
-
-create table inactive_users as
-select id as old_id, name
-from users
-where active = false;
-
-create index users_name_idx on users (name);
-alter table users add column active bool default (true);
-alter table users rename column name to display_name;
-alter table users rename to app_users;
-alter table app_users add constraint active_check check (active is not null);
-truncate table app_users;
-drop table users;
-
-set cluster setting max_mutations_per_transaction = 40000;
-reset cluster setting max_mutations_per_transaction;
-```
-
-Mutations include:
-
-```camussql
-insert into users (id, name) values (gen_id(), 'Ada');
-insert into archived_users (id, name)
-select id, name from users where active = false;
-update users set name = 'A. Lovelace' where id = '...';
-delete from users where name = 'A. Lovelace';
-```
+The shell only intercepts a small set of client-side commands, such as `use`,
+`source`, `show prepared`, `backup`, `clear`, `exit`, and `quit`.
 
 ## Vertical output
 
@@ -742,12 +730,11 @@ The shell holds the list of the keywords and of the functions inside itself.
 That list therefore follows the colors of the CLI. It does not affect the
 support of the SQL on the server.
 
-The current highlighter holds the newer types, keywords, system statements, and
-maintenance statements of CamusSQL. Examples are `UUID`, `GUID`, `BYTES`,
-`BLOB`, `DATE`, `DATETIME`, `TIMESTAMP`, `ARRAY`, `DATABASES`, `BRANCH`,
-`BRANCHES`, `ANCESTORS`, `ISOLATION LEVEL`, `READ COMMITTED`, `SERIALIZABLE`,
-`SHOW VARIABLES`, `SHOW ENGINE STATS`, `SHOW STATISTICS FOR`,
-`SET CLUSTER SETTING`, `RESET CLUSTER SETTING`, `TRUNCATE`, and `WITH NO DATA`.
+The current highlighter follows the newer CamusSQL vocabulary, including
+`NUMERIC`/`DECIMAL`, `SERIAL`/`BIGSERIAL`, arrays, UUIDs, blobs, temporal
+types, joins, `RETURNING`, sequences, foreign keys, query activity statements,
+storage strategy statements, and the inspection statements under
+[SQL Inspection](/docs/sql-inspection).
 
 It also highlights line and block comments:
 
@@ -764,9 +751,17 @@ forward through the matches. Press `Ctrl+Tab` to move backward.
 
 The completion knows its context. These positions expect the name of a relation:
 `from`, `into`, `update`, `join`, `table`, `view`, `desc`, `describe`,
-`truncate`, and the table position of `show statistics for`. After one of them,
-the shell offers the names of the tables and of the views of the current
-database.
+`truncate`, `references`, and the table position of `show statistics for`. After
+one of them, the shell offers the names of the tables, views, and materialized
+views of the current database.
+
+The shell also offers:
+
+- `table@index` targets after `show ranges from index`.
+- sequence names after `alter sequence`, `drop sequence`, `show create
+  sequence`, and `comment on sequence`.
+- runtime configuration keys after `set cluster setting` and `reset cluster
+  setting`.
 
 At any other position, it offers a keyword of SQL, a function, a constant, and a
 command of the shell.
@@ -775,15 +770,15 @@ command of the shell.
 select * from us<Tab>
 insert into <Tab>
 show statistics for <Tab>
+show ranges from index users@<Tab>
+drop sequence <Tab>
 sel<Tab>
 ```
 
-For runtime cluster settings, completion also offers configuration keys after
-`SET CLUSTER SETTING` and `RESET CLUSTER SETTING`. The shell loads those names
-from `SHOW VARIABLES` and omits restart-only keys from the completion list.
-
-The shell loads the names of relations with three statements: `SHOW TABLES`,
-`SHOW VIEWS`, and `SHOW MATERIALIZED VIEWS`.
+The shell loads relation names with `SHOW TABLES`, `SHOW VIEWS`, and
+`SHOW MATERIALIZED VIEWS`. It loads sequence names with `SHOW SEQUENCES`. It
+loads configuration keys with `SHOW VARIABLES` and omits restart-only keys from
+the completion list.
 
 It refreshes those names at its startup, and after a `use <database>`. It also
 refreshes them after any statement that changes the set of the relations. Such a
@@ -793,6 +788,11 @@ statement is one of these:
 - A `CREATE VIEW`, a `CREATE OR REPLACE VIEW`, a `DROP VIEW`, or an `ALTER
   VIEW`.
 - The equivalent form of any of those, for a materialized view.
+- A sequence create, alter, drop, or rename.
+
+Index completions are loaded table by table with `SHOW INDEXES`. A statement
+that creates or drops an index clears that cache, and the next relevant `Tab`
+loads fresh names.
 
 ## Database switching
 
@@ -894,7 +894,8 @@ Workload options:
 | `--isolation` | Isolation level: `serializable` or `read-committed`. Default: `serializable`. |
 | `--no-prepare` | Run every statement inline instead of preparing it, to compare against the default prepared path. |
 | `-u`, `--user` | User to authenticate as. Also read from `CAMUS_USER`. |
-| `-p`, `--password` | Password for `-u`. Also read from `CAMUS_PASSWORD`. |
+| `-p`, `--password` | Password for `-u`. Give bare `-p` to prompt. Also read from `CAMUS_PASSWORD`. |
+| `--allow-insecure-credentials` | Allow credentials on a non-local plaintext `http://` endpoint. |
 
 Examples:
 

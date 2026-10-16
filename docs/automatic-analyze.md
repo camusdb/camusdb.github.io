@@ -250,6 +250,9 @@ analyze only keeps the statistics fresh between two manual runs.
   writer wins. The count for the whole cluster can therefore be too low. That
   error only delays a refresh. It never corrupts data. A durable counter for
   each table is a possible improvement in the future.
-- Fresh statistics do not invalidate a cached query plan. A plan that is already
-  in the plan cache continues to run until CamusDB plans that query again for
-  another reason. Automatic analyze does not force a new plan.
+- On the node that publishes fresh statistics, the publication increments the
+  table's analyze generation. A cached decision that depends on that table then
+  misses and is planned again. A query already running keeps its current plan.
+- Other nodes keep their loaded statistics until the table entry is evicted or
+  the node restarts. Until then, their newly built and cached plans use that
+  older local copy of the statistics.

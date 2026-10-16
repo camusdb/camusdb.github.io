@@ -42,7 +42,6 @@ const sidebars = {
           id: 'sql',
           label: 'SQL overview',
         },
-        'best-practices',
         'data-types',
         {
           type: 'category',
@@ -128,9 +127,15 @@ const sidebars = {
             },
             'functions-session',
             'functions-string',
+            'functions-bytes',
             'functions-math',
             'functions-hash',
             'functions-datetime',
+            {
+              type: 'doc',
+              id: 'functions-set-returning',
+              label: 'Set-returning functions',
+            },
             'functions-json',
             'functions-regex',
             'functions-conversion',
@@ -198,6 +203,7 @@ const sidebars = {
           id: 'sql-inspection',
           label: 'Inspecting the database',
         },
+        'best-practices'
       ],
     },
     {
@@ -272,6 +278,11 @@ const sidebars = {
             'performance-diagnostics',
             'operator-dashboard',
             'engine-stats',
+            {
+              type: 'doc',
+              id: 'node-stats',
+              label: 'Node resource stats',
+            },
             'slow-query-log',
             {
               type: 'doc',
@@ -288,6 +299,7 @@ const sidebars = {
       collapsed: false,
       items: [
         'architecture',
+        'connection-model',
         {
           type: 'category',
           label: 'Storage and durability',
@@ -306,6 +318,11 @@ const sidebars = {
             'query-planner-internals',
             'transactions-locking-internals',
             'distributed-schema',
+            {
+              type: 'doc',
+              id: 'plan-quality-testing',
+              label: 'Plan quality testing',
+            },
           ],
         },
       ],
@@ -317,6 +334,7 @@ const sidebars = {
       items: [
         'browser-playground',
         'mcp-server',
+        'agent-skills',
         'web-console',
         'camus-cli',        
         'camus-dump',

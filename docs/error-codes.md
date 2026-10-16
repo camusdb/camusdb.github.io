@@ -151,6 +151,7 @@ reference.
 | `CADB070D` | `BackupTopologyChanged` | Cluster topology changed during a coordinated backup, so the captured partition set is not one consistent cut. Nothing was published. |
 | `CADB070E` | `BackupNotCoordinator` | A coordinated backup was requested on a node that does not lead the backup meta partition. |
 | `CADB070F` | `BackupInsecureRoot` | The backup or restore root is a symlink, or is group- or world-writable. |
+| `CADB0710` | `PitrBootstrapFailed` | A joining node could not seed itself from a restored backup chain. The restored data root may be missing, its WAL may not be empty, the chain or MAC may be invalid, or the seeded point may be outside the leader's retained log window. |
 
 ## Corruption and internal-state errors
 

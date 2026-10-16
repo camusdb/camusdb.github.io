@@ -29,11 +29,8 @@ CamusDB rejects an option word that it does not know, such as
 `EXPLAIN (VERBOSE) ...`. It reports an error. It does not treat the statement as
 a plain `EXPLAIN` in silence.
 
-Three limits are worth your attention:
+Two notes are worth your attention:
 
-- A join. `EXPLAIN (ANALYZE)` does not support a query with a `JOIN` yet. It
-  raises an error. Use a plain `EXPLAIN` to inspect the plan of a join. Full
-  instrumentation of a join is planned for a future release.
 - A subquery. The plan of a statement with a subquery without a correlation
   executes that inner subquery one time. CamusDB materializes it during the
   plan. An `EXPLAIN` of such a statement therefore reads the storage for the
@@ -77,9 +74,14 @@ estimate that looks wrong. It also shows whether CamusDB collected them at all.
 `estimated_cost` also holds a term for the network, the `NetworkFactor`. That
 term applies to a deployment with sharding by key range. It is 0 on one node.
 
-An estimate for one table is accurate. An estimate of a node of a join is
-accurate while the flag of the order of a join by cost is on. Otherwise it stays
-heuristic.
+These are predictions, not accuracy guarantees. Missing statistics, skew, and
+correlated values can make an estimate differ substantially from execution.
+
+The displayed values come from `CostEstimator.AnnotatePlan`, independently of
+the subset estimates used during join-order search. They are not a trace of
+that search. For a join over a join, annotation uses the alias of a left key to
+find its base table's distinct count. It does not assume that a unique base-table
+key remains unique after earlier joins have repeated its rows.
 
 `(LOGICAL)` and `(PHYSICAL)` currently render the same physical tree. Only the
 label of the `stage` differs. See
@@ -102,6 +104,53 @@ On a node of a scan, `actual_rows` is at or below `rows_read`. `rows_read`
 counts the rows that CamusDB decoded from the storage, before the evaluation of
 a predicate. `actual_rows` counts the rows that passed every filter, and that
 the node gave upward.
+
+### Runtime counters for a join
+
+`EXPLAIN (ANALYZE)` supports join plans. A join plan is rendered as a chain:
+each join node has one visible input, its left side, and names the right side in
+the detail of the join row. The right side does not get a separate scan row.
+For that reason, a join row's storage counters describe the work done on its
+right side:
+
+- `nested-loop-join` counts every reread of the right side. Four left rows over
+  seven right rows therefore report 28 rows read.
+- `index-nested-loop-join` counts the index probes and the matching right rows.
+  A unique-index probe increments `kv_lookups`; a non-unique index walk
+  increments `kv_scan_entries`.
+- `hash-join` counts one read of the right side, whether that side becomes the
+  build side or the probe side.
+- `merge-join` adds the reads of its ordered right input to the join row,
+  because that input is not rendered as its own plan row.
+
+The root row of a join plan is the last join. Work that happens after the last
+join, such as grouping, ordering, a final filter, projection, or a `LIMIT`, is
+not rendered as a separate join-plan node.
+
+A join row can append runtime-only detail:
+
+| Suffix | Meaning |
+| --- | --- |
+| `ran=grace-hash` | A hash join spilled and ran as a Grace hash join. |
+| `ran=nested-loop-fallback` | A hash join exceeded its build limit while spilling was disabled, so execution used a nested-loop fallback. |
+| `ran=broadcast` | A distributed hash join broadcast the small build side and probed ranges remotely. |
+| `join-order-est-rows=<n>` | The row estimate used by the join-order search, shown beside the plan annotation and the actual rows. |
+
+`estimated_rows` still comes from the rendered plan annotation. The
+`join-order-est-rows` suffix comes from the join-order search that chose the
+order. They can differ. Seeing both beside `actual_rows` helps diagnose whether
+the planner's search estimate or the final plan annotation was closer.
+
+The `plan-info` row of `EXPLAIN (ANALYZE)` also reports deterministic planning
+facts. Plain `EXPLAIN` leaves these fields out:
+
+| Suffix | Meaning |
+| --- | --- |
+| `planning-ms=<ms>` | Time spent binding and planning, including subqueries folded into literals. It is diagnostic and can vary between runs. |
+| `join-order=cost-based` | Cost-based search selected the join order. |
+| `join-order=heuristic` | The heuristic selected or repaired the order because search was disabled or unavailable. |
+| `join-order=cached` | The plan cache replayed an earlier join-order decision. |
+| `join-steps-costed=<n>` | Join steps evaluated by cost-based search. It is deterministic for the same query and statistics; cache replay and a skipped search report `0`. |
 
 ## The canonical names of the nodes
 
@@ -128,11 +177,12 @@ depth-first, and a parent comes before its children.
 | `nested-loop-join`       | A join without a usable index on the right side | `on=<expr>, right=<alias>` |
 | `index-nested-loop-join` | A join where an index covers the join key of the right side | `on=<expr>, index=<name>, left=<col>, right=<col>` |
 | `hash-join`              | An equi-join with a hash table in memory. CamusDB selects it over an indexed nested loop when the outer side is large against the inner side. | `on=<left>=<right>, build=<alias>`. A filter that CamusDB pushed down appends to the detail. |
-| `merge-join`             | An equi-join with a streaming merge of two pointers. CamusDB selects it when both sides have a free order of the join key, from an index. | `on=<left>=<right>`. A filter on the right side appends to the detail. |
+| `merge-join`             | An equi-join over ordered inputs. | `on=<left>=<right>, right-order=forced-index=<name>` or `right-order=sort`. A right-side filter appends to the detail. |
 | `derived-table-scan`     | A subquery in the `FROM` clause | `alias=<alias>` |
+| `function-scan`          | A set-returning function in `FROM` | `function=<name>, alias=<alias>` |
 | `constant-source`        | The one synthetic row of a `SELECT` without a `FROM` clause. It touches no table. | `1 row` |
 
-Note these four points:
+Additional details:
 
 - An `IN` or a `NOT IN` without a correlation, over an indexed inner column,
   becomes a `semi-join`, an `anti-join`, or a `null-aware-anti-join`. With an
@@ -160,10 +210,11 @@ the cost-based optimizer: the access path of a table, and the order of the nodes
 of a join.
 
 `EXPLAIN` shows the heuristic plan while the planner works from its rules only.
-The same query can show a different index, or a different order of a join, when
-two things hold: `cost_based_access_path_enabled` or
-`cost_based_join_order_enabled` is on, and CamusDB collected the statistics with
-an `ANALYZE <table>`. That plan is cheaper.
+The same query can show a different index or join order when the cost-based
+passes are enabled and their statistics requirements are met. Both flags default
+to true. `ANALYZE TABLE <table>` supplies richer estimates; a lower modeled cost
+does not guarantee a shorter runtime. The heuristic path can also repair an
+avoidable cross product without statistics.
 
 The output is correct for the configuration that produced it. See
 [the query planner guide](/docs/query-planner-internals#statistics-and-cost).
@@ -173,6 +224,50 @@ columns are the stable part of the output. Every row also carries an
 `estimated_rows` and an `estimated_cost`, as above. The examples with an
 `EXPLAIN ANALYZE` show the full set of the columns.
 
+## Reading a join plan
+
+A join plan is a compact view of execution, not a reproduction of the SQL text.
+Read the scan near the bottom as the starting input, then follow the joins
+upward. The result rows are emitted parent first. The `node` field itself has
+no indentation or parent identifier.
+
+The renderer follows a join's **left input**. Its right source does not get a
+separate scan row. Details on the join describe parts of that work:
+
+- `index=...` identifies the right-side probe index for an indexed nested loop.
+- `build=...` identifies the hash build side.
+- `right-order=forced-index=...` identifies the right merge input's ordering
+  index; `right-order=sort` means it needs sorting instead.
+
+### Why a predicate moved or seems absent
+
+When the planner rebuilds an eligible inner join through its predicate graph,
+each movable condition runs where its last referenced source enters the tree.
+A condition from a later `ON`, or an eligible cross-table `WHERE` condition,
+can therefore appear at an earlier join.
+
+Suppose an equality `a.z = b.z` is written in the `ON` clause that adds `c`.
+If `a` and `b` join first, the planner can evaluate that equality there. A hash
+join may show it as an additional key pair. This is predicate placement, even
+when the source order itself stays unchanged.
+
+There are also deliberate gaps in the rendering:
+
+| Operator or stage | What EXPLAIN shows |
+| --- | --- |
+| Nested loop and indexed nested loop | The full `on=` expression. |
+| Hash join and merge join | The equality key pairs. Other ON conditions still execute but are not all rendered. |
+| Final post-join filter | It is stored outside the physical node chain and has no separate plan row. |
+
+An absent condition in this output does not prove that execution skipped it.
+See [predicate graph internals](/docs/query-planner-internals#the-join-predicate-graph)
+for movement rules and safeguards.
+
+A `nested-loop-join` with `on=true` is a Cartesian-product step. It can be
+necessary for an unconnected query, or remain when the graph cannot safely
+rebuild the query. Eligible connected graphs receive cross-product repair even
+when cost-based join-order enumeration is off.
+
 ## The informational rows at the end
 
 `EXPLAIN` can add a few informational rows after the rows of the nodes. Such a
@@ -181,7 +276,7 @@ row is not an operator of the plan. Its `estimated_rows` and its
 
 | Node name   | When it appears | Detail |
 |-------------|-----------------|--------|
-| `plan-info` | The plan carries an id of its shape, which is metadata of the plan cache. | `shape=<id>, schema-deps=[table@version, ...]` |
+| `plan-info` | The plan carries query-shape and planner metadata. `EXPLAIN (ANALYZE)` adds planning and join-search facts. | `shape=<id>, schema-deps=[table@version, ...]`; analyzed joins can add `planning-ms`, `join-order`, and `join-steps-costed`. |
 | `cache`     | The query carries a hint of the result cache, in the form `{cache=…}` or `@{cache=…}`. | `family=<name>, eligible=<true\|false>[, reason=<why>], ttl=<n>ms\|default, strict=<true\|false>` |
 
 The `cache` row answers one question: will CamusDB cache this result? The answer
@@ -332,15 +427,16 @@ EXPLAIN SELECT o.name, li.product
 stage     node        detail
 physical  hash-join   on=o.id=order_id, build=li
 physical  table-scan  table=orders
-physical  table-scan  table=line_items
 ```
 
 `build=li` means that CamusDB materializes `line_items` into the hash table in
 memory. It streams `orders` as the probe side. The planner selected `li` as the
 build side, because its estimate held fewer rows than `orders`.
 
-The build side can exceed `HashJoinMaxBuildRows`, whose default is 1,000,000.
-The executor then falls back to a nested-loop join, for that query.
+The right input has no separate scan row; the join detail identifies the build
+side here. If it exceeds `HashJoinMaxBuildRows` (default 1,000,000), execution
+can use [spill to disk](/docs/spill-to-disk) when enabled. With spill disabled,
+it falls back to nested-loop execution for that query.
 
 ### A merge join, with a secondary index on the join key of both sides
 
@@ -350,18 +446,18 @@ EXPLAIN SELECT o.name, li.product
         JOIN line_items li ON li.order_id = o.ext_key;
 -- orders has index orders_ext_key_idx on (ext_key)
 -- line_items has index li_order_id_idx on (order_id)
--- both sides estimated > 100 rows → cost model picks merge
+-- illustrative plan: compatible ordering and left estimate > 100 rows
 ```
 
 ```
 stage     node              detail
-physical  merge-join        on=o.ext_key=order_id
+physical  merge-join        on=o.ext_key=order_id, right-order=forced-index=li_order_id_idx
 physical  table-scan        table=orders, forced-index=orders_ext_key_idx
-physical  table-scan        table=line_items, forced-index=li_order_id_idx
 ```
 
-Both scans use a `forced-index`. Their rows therefore arrive in the order of the
-join key. The executor streams both sides together. It buffers only the current
+Both inputs use a forced index. The left scan has its own row; the right scan
+is described by `right-order` on the join. Their rows arrive in join-key order.
+The executor streams both sides together. It buffers only the current
 run of equal keys, and it materializes neither side in full. The `MergeJoinNode`
 holds `LeftIsOrdered = RightIsOrdered = true`.
 
@@ -455,6 +551,28 @@ analyze  index-range-scan   index=year_idx, from>=2022, to<2023   ...           
 The `estimated_*` columns are estimates of the cost model. They vary with the
 statistics that CamusDB collected.
 
+### EXPLAIN ANALYZE, for a join
+
+```camussql
+EXPLAIN (ANALYZE)
+SELECT c.name, o.total
+FROM customers c
+JOIN orders o ON o.customer_id = c.id;
+```
+
+One possible plan, with an index on `orders(customer_id)`, looks like this:
+
+```
+stage    node                    detail                                      actual_rows  rows_read  kv_lookups  kv_scan_entries
+analyze  index-nested-loop-join  on=o.customer_id=c.id, index=orders_idx     6            6          0           10
+analyze  table-scan              table=customers                             4            4          0           4
+```
+
+Read the rows from the bottom upward. The leaf scan reads the four customers.
+The join probes the right-side index for those customers and emits six matching
+orders. The join row owns those right-side reads because the right input is not
+rendered as a separate node.
+
 ## The mode with the properties of a distributed plan
 
 `PlanRenderer.Render(plan, includeDistributedProperties: true)` adds metadata
@@ -486,4 +604,5 @@ pipeline. Three results follow:
   attributes every cost of the storage to the node of the scan directly below.
 - The `actual_time_ms` is `NULL`. CamusDB does not measure the time of the
   filter separately. That time is part of the wall clock of the scan, and
-  CamusDB reports it on the root node only.
+  CamusDB reports it on the root node only. When the filter itself is the root
+  node, it carries the time of the whole plan like any other root node.

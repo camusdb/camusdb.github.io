@@ -73,6 +73,8 @@ no `--mode` flag.
 | `peers` | `--initial-cluster` | `[]` |
 | `http_peers` | `--http-peers` | `[]` |
 | `join_existing` | `--join-existing` | `false` |
+| `pitr_bootstrap_from` | `--pitr-bootstrap-from` | Unset. Backup id used to seed a joining node; see [Backup and restore](/docs/backup-and-restore#seed-a-joining-node-from-a-backup). |
+| `pitr_bootstrap_target_time_ms` | `--pitr-bootstrap-target-time-ms` | `0`, the latest point covered by the chain. |
 | `schema_ack_wait_timeout_ms` | `--schema-ack-wait-timeout-ms` | `30000` |
 | `schema_ack_live_node_lease_ms` | `--schema-ack-live-node-lease-ms` | `30000` |
 | `schema_freshness_check_interval_ms` | (none) | `10000` |
@@ -83,6 +85,7 @@ no `--mode` flag.
 | `http3_enabled` | (none) | `false` |
 | `raft_certificate` | `--raft-certificate` | `""` |
 | `grpc_certificate` | (none) | `""`. Falls back to `raft_certificate`. |
+| `grpc_tls_enabled` | (none) | `true`. Set to `false` to serve client gRPC as plaintext h2c even when a gRPC or Raft certificate is configured. The Raft port is unaffected. |
 | `peer_tls_enabled` | (none) | `false` |
 | `require_tls_when_auth_enabled` | `--require-tls-when-auth-enabled` | `true` |
 | `login_max_attempts_per_source_per_minute` | (none) | `200` |
@@ -198,7 +201,11 @@ HTTP/3 has these requirements:
   `-p 7141:7141/tcp -p 7141:7141/udp`.
 - **A QUIC library.** Linux and macOS need `libmsquic`. Windows needs Windows 11
   or Windows Server 2022, or a later version. Without the library, the port
-  serves HTTP/1.1 and HTTP/2 only.
+  serves HTTP/1.1 and HTTP/2 only. On macOS, .NET does not search the Homebrew
+  library folder by default; start the node with
+  `DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib`. macOS removes `DYLD_*`
+  variables for system binaries such as `nohup`, so set the variable in the
+  environment of the node process itself.
 
 A client that connects over TCP receives an `Alt-Svc` header on each response.
 This header tells the client that the same port serves HTTP/3. Browsers and
@@ -216,6 +223,7 @@ The client-facing gRPC API is enabled by default:
 grpc_enabled: true
 grpc_port: 5096
 grpc_batch_max_in_flight: 64
+grpc_tls_enabled: true
 ```
 
 `grpc_port` is separate from the HTTP API port. When `raft_certificate` is set,
@@ -223,6 +231,11 @@ CamusDB reuses that certificate for the gRPC listener unless
 `grpc_certificate` names a separate PFX certificate. Otherwise the listener
 uses plaintext HTTP/2, which is suitable for local development and trusted
 private test networks.
+
+Set `grpc_tls_enabled: false` to force plaintext h2c on the client-facing gRPC
+port even when `grpc_certificate` or `raft_certificate` is configured. This does
+not change the Raft port. Use it only on a trusted network or behind a proxy
+that terminates TLS for clients.
 
 Use `grpc_certificate` when the Raft port and the client-facing gRPC port serve
 different trust domains. A cluster-internal certificate is often right for Raft,
@@ -514,6 +527,12 @@ Transient managed allocations and the .NET garbage collector dominate that peak.
 The server garbage collector is the default, and it uses one heap per core.
 `DOTNET_gcServer=0` in the environment is the control for that half of the
 memory footprint. It is a runtime setting, not a CamusDB setting.
+
+`CAMUS_THREADPOOL_MIN_THREADS` overrides CamusDB's .NET worker-thread floor. The
+default floor is `1024` worker threads, with a completion-port floor of `512`.
+Use the override for controlled load tests or diagnostics when runtime metrics
+show queued work in the thread pool. It is an environment variable and takes
+effect when the process starts.
 
 An explicit `kahuna.*` budget always beats the profile. `dev` together with one
 raised budget is therefore a valid combination. It is not a conflict.

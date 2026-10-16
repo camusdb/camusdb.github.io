@@ -59,8 +59,8 @@ Rows come back newest first.
 | `user` | `STRING` | Authenticated user, or `NULL` when auth is disabled. |
 | `kind` | `STRING` | Statement kind, such as `select`, `insert`, or `create_table`. |
 | `rows_returned` | `INT64` | Rows returned, or rows affected for a mutation. |
-| `rows_read` | `INT64` | Rows fetched from storage before filtering. |
-| `full_scan` | `BOOL` | Whether any part of the statement read a whole relation. |
+| `rows_read` | `INT64` | Rows fetched from storage before filtering, across every side of the plan. A nested-loop join counts each reread of its right side. A distributed scan or broadcast join counts rows when they are delivered to the coordinator; rows a peer scanned but did not ship stay local to that peer. |
+| `full_scan` | `BOOL` | Whether any part of the statement read a whole relation, including the right side of a hash join or nested-loop join. |
 | `spilled` | `BOOL` | Whether a blocking operator spilled to disk. |
 | `outcome` | `STRING` | `completed`, `abandoned`, or `failed`. |
 | `error_code` | `STRING` | Error code for failed statements. |

@@ -82,6 +82,7 @@ authenticated while the token was valid; see
 | `RollbackTransaction` | unary | Roll back an explicit transaction by handle. |
 | `BatchExecute` | bidirectional stream | Pipeline SQL operations, transaction lifecycle messages, and prepared-statement lifecycle messages on one stream. |
 | `Ping` | unary | Check liveness and round-trip connectivity. |
+| `GetNodeStats` | unary | Read disk, CPU, memory, identity, and uptime for the node that receives the call. Requires superuser or `MONITOR` when authentication is enabled. |
 
 A client sends the parameters of the SQL as a `map<string, Value>`. Prefer a
 parameter to a value inside the string of the SQL. A typed value then crosses

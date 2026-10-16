@@ -253,6 +253,7 @@ GRANT SELECT, INSERT ON app.* TO myapp;
 GRANT SELECT ON app.orders TO reader;
 GRANT ALTER, INDEX ON app.orders TO migrator;
 GRANT ALL PRIVILEGES ON app.* TO poweruser;
+GRANT MONITOR ON *.* TO monitoring;
 
 REVOKE INSERT ON app.* FROM myapp;
 
@@ -285,6 +286,7 @@ CamusDB supports these privileges:
 | `ALTER` | Alter the metadata of a table or of a database in the scope. |
 | `INDEX` | Create, alter, or drop an index in the scope. |
 | `CREATE` | Create a database, or another object with a create scope where that applies. |
+| `MONITOR` | Read node resource statistics. It is valid on `*.*` only and grants no access to application data. |
 | `ALL PRIVILEGES` | The union of the concrete privileges that CamusDB knows today. |
 
 Creating a foreign key also requires `SELECT` on the referenced parent table.
@@ -411,8 +413,9 @@ a `db.*` grant, or any grant on one table in the database is enough to make the
 database visible, but the statement still needs its normal table privilege.
 
 Catalog statements are filtered by the same visibility rule. `SHOW DATABASES`
-lists only databases the caller can reach. `SHOW TABLES` lists only tables the
-caller has any privilege on. `SHOW BRANCHES`, `SHOW ANCESTORS`, and
+lists only databases the caller can reach. `SHOW TABLES` and `SHOW TABLES FROM
+db` list only tables on which the caller has any privilege. An invisible target
+of `SHOW TABLES FROM db` is reported as `DatabaseDoesntExist`. `SHOW BRANCHES`, `SHOW ANCESTORS`, and
 `SHOW ORPHAN DATABASES` omit databases the caller cannot see.
 
 Some statements open no table. An authenticated user may run them when the
@@ -432,6 +435,10 @@ nothing higher.
 
 `SHOW ENGINE STATS` inspects the operation of one node. It needs a superuser. It
 is not scoped to a grant on a database or on a table.
+
+The REST and gRPC [node resource stats](/docs/node-stats) calls accept either a
+superuser or an account with `MONITOR`. `MONITOR` is outside `ALL PRIVILEGES`
+and is intentionally narrower than superuser access.
 
 The configuration surface has the same requirement. `SHOW VARIABLES`, `SHOW
 CLUSTER SETTINGS`, and

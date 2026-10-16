@@ -13,6 +13,19 @@ For a client of HTTP/2, and for a client that uses Protobuf, see
 reach the same engine. That engine covers the SQL, the transactions, and the
 operations on a row.
 
+## Transport
+
+The HTTP API serves JSON over HTTP/1.1 and HTTP/2. The HTTPS port can also serve
+HTTP/3 over QUIC when `http3_enabled: true` is set and the node has an HTTPS
+certificate.
+
+HTTP/3 uses the same endpoints, request bodies, responses, authentication
+headers, and error format as the HTTP/1.1 and HTTP/2 API. It changes only the
+transport used between the client and the node.
+
+See [Configuration](/docs/configuration#http3-on-the-https-port) for the
+certificate, UDP, and platform QUIC library requirements.
+
 ## Status and errors
 
 Successful responses use:

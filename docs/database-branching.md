@@ -22,6 +22,8 @@ and a change of the schema go into the private overlay of the branch.
 A branch is therefore useful when you want realistic data, and no risk to the
 base database. Five uses are common:
 
+![CamusDB database branching diagram](/img/database_branching.png)
+
 - Create one database for each feature, for development and for CI.
 - Test a migration of a schema against data that is like the data of production.
 - Reproduce a defect that appears in production only. You write nothing to

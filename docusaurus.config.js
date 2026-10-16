@@ -52,6 +52,8 @@ const config = {
           {from: '/docs/sql-comments', to: '/docs/sql'},
           // Merged into the prepared statements page.
           {from: '/docs/sql-parameters', to: '/docs/prepared-statements'},
+          // Merged into the date/time functions page.
+          {from: '/docs/functions-date-patterns', to: '/docs/functions-datetime'},
           // Folded into the cluster page during the operations section rewrite.
           {from: '/docs/multi-active-availability', to: '/docs/cluster'},
         ],

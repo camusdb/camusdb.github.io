@@ -69,6 +69,8 @@ them and sets aside an unreachable endpoint for 30 seconds.
 | `channelPoolSize` | `ChannelPoolSize` | gRPC streams per endpoint. Default is `2`. |
 | `coalescingThreshold` | `CoalescingThreshold` | gRPC batch coalescing threshold. Default is `10`; `1` disables coalescing. |
 | `coalescingDelayMs` | `CoalescingDelay` | gRPC coalescing delay in milliseconds. Default is `0`. |
+| `requestFrames` | `RequestFrames` | gRPC only. Packs operations that are already waiting together into one stream message when the server supports it. Default is `true`. |
+| `streamDrainTimeoutMs` | `StreamDrainTimeout` | gRPC only. How long a rotated-out stream can stay open for transactions that began on it. Default is `300000`. |
 | `backupEndpoint` | `BackupEndpoint` | HTTP endpoint for the backup admin API. Required when `protocol` is `grpc`. |
 | `backupTimeoutSeconds` | `BackupTimeout` | Backup admin timeout in seconds. Default is `300`. |
 | `allowInsecureCredentials` | `AllowInsecureCredentials` | Allows credentials over a remote plaintext endpoint. Use only behind a trusted TLS terminator or private hop. |
@@ -106,6 +108,10 @@ result.columns;
 result.rowCount;
 ```
 
+If a projection repeats a column name, the connector keeps every column. The
+leftmost column keeps the original name and later duplicates become `name_2`,
+`name_3`, and so on.
+
 Use `queryOne<T>()` for the first row, and `scalar<T>()` for the first column of
 the first row.
 
@@ -119,6 +125,38 @@ const result = await client.execute(
 
 result.affectedRows;
 ```
+
+`query<T>()`, `queryOne<T>()`, `scalar<T>()`, and `queryStream<T>()` also accept
+an `INSERT`, `UPDATE`, or `DELETE` with a `RETURNING` clause. The returned rows
+are the stored values after defaults, identity values, sequences, and coercions
+have been applied. `QueryResult.affectedRows` reports the written-row count:
+
+```ts
+import { camus } from 'camusdb';
+
+const inserted = await client.query<{ id: string; total: string }>(
+  `INSERT INTO orders (id, total)
+   VALUES (GEN_ID(), @total)
+   RETURNING id, total`,
+  { total: camus.numeric('19.99') },
+);
+
+const updated = await client.query<{ id: string; status: string }>(
+  `UPDATE orders
+   SET status = 'paid'
+   WHERE id = @id
+   RETURNING id, status`,
+  { id },
+);
+
+inserted.affectedRows;
+updated.rows;
+```
+
+`execute()` can run a statement with `RETURNING`, but it asks the server to
+discard the returned rows and reports only the count. Use `queryStream()` for a
+large `RETURNING` result; the buffered `query()` path receives all rows in one
+reply.
 
 Use `executeDdl()` for schema statements when you want to make that route
 explicit. Use `insert(table, values)` for the row-level insert endpoint:
@@ -155,6 +193,7 @@ import { camus, ColumnType } from 'camusdb';
 await client.query('SELECT * FROM events WHERE id = @id AND event_uuid = @uuid', {
   id: camus.id('507f1f77bcf86cd799439011'),
   uuid: camus.uuid('550e8400-e29b-41d4-a716-446655440000'),
+  price: camus.numeric('12345678901234567890.123456789'),
   tags: camus.array([], ColumnType.String),
 });
 ```
@@ -162,6 +201,14 @@ await client.query('SELECT * FROM events WHERE id = @id AND event_uuid = @uuid',
 `INT64` values stay exact on both transports. With `int64: 'auto'`, safe values
 return as `number` and larger values return as `bigint`. Set `int64: 'bigint'`
 when you want one uniform type.
+
+`NUMERIC` and `DECIMAL` values return as canonical decimal text. JavaScript has
+no built-in decimal type, so the connector does not round them through
+`number`. Bind exact decimal values with `camus.numeric(value)`, where `value`
+is a decimal string, a `bigint`, or a finite `number`. A plain JavaScript
+`number` still binds as `INT64` or `FLOAT64`; use `camus.numeric` when an exact
+numeric comparison or insert matters. CamusDB does not support `ARRAY(NUMERIC)`,
+so numeric arrays are rejected by the connector before the request is sent.
 
 `DATE` and `DATETIME` values return as UTC `Date` objects. JavaScript dates have
 millisecond precision; use `ticksToDate` and `dateToTicks` when you need to
@@ -292,6 +339,15 @@ const client = new CamusClient({
 gRPC statements ride a small pool of long-lived `BatchExecute` streams and carry
 the session causal token between requests.
 
+When a server announces support for gRPC request frames, the connector can pack
+operations that are already waiting together into one stream message. This is on
+by default and can be disabled with `requestFrames: false` for measurement or as
+a kill switch.
+
+When authentication rotates a gRPC token, new work moves to a fresh stream. A
+retired stream stays open for transactions that began on it until they finish,
+or until `streamDrainTimeoutMs` elapses.
+
 For multi-node clusters, learned routing can use server routing advice to send
 future executions of the same statement directly to the data leader:
 
@@ -313,7 +369,7 @@ opaque node identity, and the connector routes only to endpoints that the
 operator mapped and also listed in the endpoint pool. See
 [SQL Routing Advice](/docs/sql-routing-advice).
 
-## Databases, branches, cache, and backups
+## Administration helpers
 
 The connector includes helpers for database administration:
 
@@ -325,6 +381,53 @@ await client.showBranches('production');
 await client.showAncestors('feature-x');
 client.changeDatabase('analytics');
 ```
+
+The connector also exports helpers for storage-strategy DDL and for rewriting
+already stored large values:
+
+```ts
+import { CamusColumnStorage, setColumnStorageStatement } from 'camusdb';
+
+await client.executeDdl(
+  setColumnStorageStatement('docs', 'embedding', CamusColumnStorage.Plain),
+);
+
+await client.rewriteStorage('docs', { timeoutSeconds: 3600 });
+await client.rewriteStorage('docs', { inline: true, timeoutSeconds: 3600 });
+```
+
+`rewriteStorage(table)` runs `ALTER TABLE ... REWRITE STORAGE`. With
+`inline: true`, it rewrites values back into the row and uncompressed, which is
+the form older servers can read before a downgrade.
+
+Sequence helpers build valid SQL and draw the next value as a `bigint`:
+
+```ts
+import {
+  createSequenceStatement,
+  dropSequenceStatement,
+  nextValueExpression,
+} from 'camusdb';
+
+await client.executeDdl(
+  createSequenceStatement('ticket_numbers', { startWith: 1000, ifNotExists: true }),
+);
+
+await client.executeDdl(`
+  CREATE TABLE tickets (
+    id OID PRIMARY KEY NOT NULL,
+    number INT64 DEFAULT (${nextValueExpression('ticket_numbers')}),
+    subject STRING
+  )
+`);
+
+const next = await client.nextSequenceValue('ticket_numbers');
+await client.executeDdl(dropSequenceStatement('ticket_numbers', { ifExists: true }));
+```
+
+Sequence values are not returned by rollback. With a transaction option,
+`nextSequenceValue` runs inside that transaction, but the server still never
+issues the same sequence value twice.
 
 Use `cacheHint(...)` to build query result cache hints and inspect
 `result.cacheMetadata` for the verdict:

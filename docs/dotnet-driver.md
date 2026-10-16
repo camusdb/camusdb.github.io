@@ -287,6 +287,20 @@ await using CamusCommand ping = connection.CreatePingCommand();
 int result = await ping.ExecuteNonQueryAsync();
 ```
 
+## Node resource stats
+
+The gRPC client can read operational statistics from the current endpoint, or
+from one explicit endpoint in a connection pool:
+
+```csharp
+NodeStatsReply current = await connection.GetNodeStatsAsync();
+NodeStatsReply node = await connection.GetNodeStatsAsync("db2.example.com:5096");
+```
+
+The result covers disk volumes, CPU, memory, node identity, and uptime. With
+authentication enabled, the connection must use a superuser or an account with
+the global `MONITOR` privilege. See [Node resource stats](/docs/node-stats).
+
 ## Run DDL
 
 Use `CreateCamusCommand(...)` for SQL statements:

@@ -22,6 +22,8 @@ consensus, the WAL replay, and the persistence. No layer above the KV mapping
 knows which node owns a key. No layer below the KV mapping knows what a table
 is.
 
+![CamusDB architecture diagram](/img/architecture.png)
+
 ## Overview
 
 A CamusDB process runs as a standalone node, or as one node of a cluster.

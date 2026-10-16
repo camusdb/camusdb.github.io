@@ -7,8 +7,10 @@ sidebar_position: 6.5
 This page describes two steps. CamusDB turns SQL text into a physical plan. It
 then executes that plan against the KV layer.
 
-For the view that a user needs, read [Query Planning](/docs/query-planning) and
-[EXPLAIN](/docs/explain) instead.
+Start with [Query Planning](/docs/query-planning) for SQL examples and tuning,
+and [EXPLAIN](/docs/explain) for reading a plan. This page follows the same
+concepts into the implementation: representations, rewrite safety, search,
+costing, cache replay, and execution.
 
 ## The mental model
 
@@ -171,9 +173,11 @@ index with rules such as these:
   a full scan.
 
 `cost_based_access_path_enabled` defaults to `true`. The planner therefore uses
-the cost-based selection of an access path when the statistics of the table are
-available. It enumerates every viable candidate scan, plus the baseline of a
-full scan. It estimates the cost of each candidate. It keeps the cheapest one.
+the cost-based selection of predicate-driven access paths when the table has
+a positive row-count estimate and analyzed statistics. A DML-maintained count
+alone does not enable this single-table enumeration pass. It compares viable
+index candidates with a full-scan baseline and keeps the cheapest estimate.
+Ordering and DISTINCT rules can further affect the final scan.
 
 The scans that locate the rows of an `UPDATE` and of a `DELETE` keep the
 heuristic path. That rule prevents an unexpected growth of the ranges of the
@@ -224,6 +228,18 @@ patterns are typical:
 | A grouped query | `Scan -> [Filter] -> Aggregate -> [Having] -> [Sort] -> [Project] -> [Limit]` |
 | A distinct query | `Scan -> [Filter] -> [Aggregate] -> [Having] -> [Project] -> Distinct -> [Sort] -> [Limit]` |
 
+### Reading fewer columns
+
+`ProjectionPushdownPlanner` and `RequiredColumnAnalyzer` determine which
+columns execution still needs. The set includes columns used by predicates,
+join keys, ordering, and aggregation, not just the final SELECT list. Scan-time
+decoding can then avoid building values for unrelated columns.
+
+This is distinct from index-only execution: partial decoding saves work on a
+row that was fetched, while a covering index can avoid fetching that primary
+row altogether. Both optimizations must retain columns needed by later stages,
+even if those columns never appear in the result.
+
 ## The plan for a join
 
 `JoinQueryPlanner` handles a query with several sources.
@@ -255,11 +271,271 @@ The main rules of the selection are these:
   key.
 - Use a `NestedLoopJoinNode` when the join fits none of those shapes.
 
-A hash join builds a hash table in memory, from the side that the estimate calls
-smaller. It then probes that table with the other side.
+An inner hash join builds a hash table from the side estimated to be smaller
+and probes it with the other side. A left outer hash join always builds the
+right side, leaving the preserved left input as the probe side. Unmatched
+left rows receive NULL values for right-side columns.
 
 A merge join streams two ordered inputs. It buffers only the current run of
 equal keys, while both sides are ordered.
+
+## The join predicate graph
+
+Before choosing an order, the planner must understand which conditions connect
+which sources. `JoinPredicatePushdown` separates single-source `WHERE` filters
+from conditions that must run after combining sources. `JoinGraph` then builds
+a graph from the remaining eligible conditions and the `ON` clauses.
+
+A graph leaf is a table or derived table identified by its bound alias. Each
+leaf occupies one bit in a mask. A conjunct stores the mask of the sources it
+references. For example, `a.id = b.a_id` names `{a,b}`, while
+`a.x + b.x = c.x` names `{a,b,c}`. The latter can connect `c` to `{a,b}`, but
+cannot connect `a` to `b` by itself: `c` is still needed to evaluate it.
+
+The graph splits top-level `AND`s, not arbitrary Boolean expressions. An `OR`
+expression remains one conjunct. Literal `TRUE` contributes no connection.
+Thus, an `ON TRUE` introduced when normalizing a comma join is an initial
+syntax representation, not a commitment to executing a cross product.
+
+### Moving a condition to the earliest eligible join
+
+For each proposed source order, `JoinGraph.BuildTree` attaches a movable
+conjunct where its last referenced source enters the tree. A constant or a
+condition referring only to the first source goes on the first join. Conditions
+keep their pool order: original `ON` conjuncts first, then adopted `WHERE`
+conjuncts. The builder checks that it attached every pooled conjunct once.
+
+```camussql
+SELECT a.id, b.id, c.id
+FROM a
+JOIN b ON a.x = b.x
+JOIN c ON b.y = c.y AND a.z = b.z
+WHERE c.kind = 'active' AND c.code = a.code;
+```
+
+For the order `a, b, c`, predicate placement is conceptually:
+
+| Location | Conditions |
+| --- | --- |
+| Input `c` | `c.kind = 'active'`, when eligible for scan pushdown. |
+| Join `a` with `b` | `a.x = b.x` and `a.z = b.z`. The second condition moved from the later `ON`. |
+| Join the result with `c` | `b.y = c.y` and `c.code = a.code`. The second condition moved from `WHERE`. |
+
+This example illustrates placement, not a promise that the optimizer chooses
+that order. A different order attaches the same movable conditions at different
+joins. `JoinOrderChoice` carries the rebuilt tree **together with** its remaining
+post-join filter, so a condition taken from `WHERE` is not evaluated again there.
+
+### Conditions that restrict movement
+
+A cross-table `WHERE` conjunct enters the graph only if all of its column
+references resolve, it contains no subquery, and
+`FragmentFilterShippability.IsShippable` accepts it. This last check preserves
+eligibility for [broadcast joins](/docs/distributed-queries): moving a condition
+must not silently introduce a predicate that a peer cannot execute.
+
+An unshippable `WHERE` conjunct stays after the joins. An unshippable `ON`
+conjunct is pinned and contributes no connection of its own:
+
+- A volatile condition, such as one involving `random()`, retains its original
+  join scope. All sources in that scope must join before a source outside it
+  enters. This preserves the combinations of rows on which the condition runs.
+- Other unshippable conditions, including parameterized expressions, remain
+  attached with their original `ON` clause's source requirements. They continue
+  to block broadcast at that join instead of moving that restriction elsewhere.
+
+If an `ON` contains a subquery or a column reference that cannot resolve to one
+source, the graph declines the tree and the planner uses the whole-predicate
+path. It also declines outer-join trees and trees with more than 64 leaves.
+The cost-based search has a tighter limit of 12 leaves.
+
+Predicate movement is not an evaluation-order guarantee. A deterministic cast
+or division can execute before a later join removes a row, and therefore can
+raise an error on that row. Single-table scan pushdown has the same implication.
+Do not rely on the textual order of SQL conditions to guard an unsafe expression.
+
+## Join-order search
+
+There are two order-selection paths. Both preserve outer-join order after
+normalization; `RIGHT JOIN` has already become a left join with swapped inputs.
+
+### Heuristic order and cross-product repair
+
+`JoinOrderOptimizer` assigns each leaf a simple score:
+
+| Score | Filter opportunity |
+| --- | --- |
+| 0 | Equality on a unique index. |
+| 1 | Another indexed predicate. |
+| 2 | No pushable indexed predicate. |
+
+It tries lower scores first, keeping declared order on ties, and rebuilds a
+left-deep tree from whole `ON` predicates when feasible. A volatile `ON`
+predicate prevents this heuristic reordering.
+
+`Choose` then checks for an avoidable cross product. If the heuristic tree has
+a join without a connecting conjunct, but the graph admits a connected order,
+it rebuilds through `JoinGraph`. The repair tries sources in heuristic score
+order and adds a remaining source only when it connects to the current set.
+A tree without an avoidable cross product keeps the whole-predicate plan.
+A query requiring a cross product retains the heuristic fallback.
+
+This repair does not need statistics. It remains available with the cost-based
+flag off, before row counts load, above the 12-source search limit, and when
+the dynamic program finds no eligible full plan.
+
+### Dynamic programming over subsets
+
+`JoinEnumerator` performs a bottom-up dynamic program, in the style of System R.
+It remembers the cheapest plan for each subset of sources, instead of repeatedly
+searching every permutation from scratch. Its candidates are left-deep:
+`((A join B) join C) join D`.
+
+```text
+best[{A}] = cost of scanning A as the first input
+
+For increasing subset sizes:
+    choose a source R in subset S
+    L = S without R
+    require a usable best[L]
+    require R to connect to L
+    require the subset to respect volatile-expression boundaries
+    candidate = best[L] + cost of joining R to the result of L
+    retain the candidate only if it is strictly cheaper
+```
+
+The search starts when `cost_based_join_order_enabled` is true, a statistics
+manager is available, and every base table has a loaded row-count estimate.
+It considers at most 12 leaves. It never enumerates a cross product. If no full
+connected order is available, the heuristic handles the query.
+
+Candidates for a subset are tried from the last declared source backward.
+Strict cost comparison makes ties deterministic and preserves a feasible
+declared order when it ties for the best cost. The winning order is rebuilt
+through the graph, so order search and cache replay use the same attachment rule.
+
+### Costing one join step
+
+Let `L` be the estimated rows from the current left result, `R` the right rows
+after its pushed filter, and `S` the cost of scanning the right table.
+`CostEstimator.JoinStepCost` uses these relative work estimates:
+
+| Candidate | Incremental cost | Eligibility |
+| --- | --- | --- |
+| Index nested loop | `2 × L` | A usable index on a right-side join key. |
+| Hash join | `S + L + 0.1 × min(L, R)` | A usable equality key. |
+| Nested loop | `max(1, L) × S` | Fallback without an equality key. |
+
+An available index lookup wins unless hash is strictly cheaper. Eligibility is
+checked with the same key analyzers as the physical builder. For a composite
+condition such as `a.x = b.x AND a.y = b.y`, an index on `b.x` can provide the
+probe while the full predicate still checks both comparisons.
+
+The distinction between `R` and `S` matters. A pushed filter can reduce the
+right table to ten output rows while still requiring a scan of a million rows.
+For the scan-based right-input alternatives, `S` is the unfiltered table row
+count. An index on that filter does not automatically reduce the right scan's
+read cost. The first input can instead use an eligible filtered range or
+`IN`-list index leaf; its initial scan cost reflects the builder's actual choice.
+
+The `L` term makes hash-only join orders meaningfully different. Every later
+join processes the intermediate result produced so far. Without charging for
+that result, many orders would tie merely because they read the same base tables.
+
+For an illustrative step with `L = 100`, `R = 10`, and `S = 100000`, indexed
+probes cost `200`, while hash costs `100101`. Pricing the scan as only ten rows
+would incorrectly make hash appear cheaper. These are model units, not timings.
+
+`JoinEnumerator.EstimateSteps` passes each winning step's estimates to
+`JoinQueryPlanner`. The builder uses them to compare indexed probes with hash,
+choose the hash build side, and apply the merge-size threshold. The builder can
+still prefer merge when both inputs have usable ordering and the left estimate
+exceeds 100 rows. **Merge is not costed by the dynamic program**, so the final
+operator is not always the operator priced during the search.
+
+### One cardinality estimate per subset
+
+A cached best plan for `{A,B,C}` needs a consistent row estimate regardless of
+how those sources were joined. `EstimateSubsetRows` therefore derives its
+estimate from the set of tables and predicates, rather than a particular tree:
+
+```text
+rows[subset] = product of filtered leaf row counts
+             × selectivity factors for predicate groups in the subset
+             × factors for classes of equal columns
+```
+
+For a simple equality between two keys, the selectivity is approximately
+`1 / max(NDV_left, NDV_right)`. **NDV** means number of distinct values.
+A recognized unique key uses its base table's row count as its distinct count;
+a composite key can use composite NDV. If neither side has a count, the
+fallback selectivity is `0.1`. Other edges, including non-equalities and
+expressions, also use a fallback rather than a detailed distribution model.
+
+With 1,000 orders and 100 customers joined through the unique customer key,
+matching distinct counts of 100 predict `1000 × 100 / 100 = 1000` rows.
+If a filter retains ten customers, the same assumptions predict 100 rows.
+This assumes a distribution; it does not establish that each customer actually
+has ten orders.
+
+Equalities can also be redundant:
+
+```text
+a.key = b.key AND b.key = c.key AND a.key = c.key
+```
+
+The third condition adds no new restriction. Multiplying three independent
+selectivities would underestimate the result. The estimator groups these
+columns into an equivalence class and, over `k` participating tables, uses
+`k - 1` factors. It omits the smallest distinct count from the denominators.
+Two-column classes between the same table pair are grouped so composite-key
+statistics can account for their correlation.
+
+These classes improve estimates; they do not synthesize new join edges.
+Writing only `a.key = b.key AND b.key = c.key` does not make `a` and `c`
+directly connected for enumeration. Estimates remain doubles during the search;
+conversion to bounded integer row counts happens where required.
+
+## Plan cache
+
+`PlanCache` is a per-process, thread-safe LRU cache. It defaults to disabled,
+with a default capacity of 512 entries when enabled. The key combines database
+identity with the literal-independent `QueryShapeId`.
+
+The cache stores **decisions**, not an executable tree containing old values:
+
+| Query kind | Cached decision | Work on a hit |
+| --- | --- | --- |
+| Single table | Index name and scan kind, or a primary-row scan. | Rebuild predicate bounds from current values, or restore an ordering/full-index scan after validating the index. |
+| Join | Alias order and `JoinBuildMode`. | Rebuild the source tree and its predicates from the current bound query. |
+
+There are three join build modes:
+
+- `WholePredicate` replays the heuristic order through `ReorderByAliases`.
+- `Conjunct` rebuilds the repaired order through `JoinGraph`.
+- `CostBased` rebuilds through the graph and recomputes the step estimates for
+  physical operator selection, while skipping the search for a new order.
+
+Recording the mode is necessary even when the alias order did not change:
+a condition may have moved to an earlier join within that same order. Replaying
+only the aliases would lose that decision. Rebuilding from the current query
+also ensures that literals in `ON` come from this execution.
+
+Dependencies include table identity, schema version, index-set generation, and
+analyze generation. A schema or index change, or publication of refreshed
+histograms/NDV, invalidates the corresponding cached decision. DML row-count
+changes alone are not an analyze-generation change. This is distinct from the
+freshness rules of the [query result cache](/docs/query-result-cache).
+
+A failed replay triggers a full replan. Internally, `ReplayFailures` counts
+hits that could not be rebuilt; `Hits` alone is not evidence that enumeration
+was skipped. Join replay validates the graph, the alias permutation, connectivity,
+and the availability of estimates needed by the recorded mode.
+
+Literal-independent reuse trades planning time for sensitivity to skew. A
+cached index choice or join order can remain valid while being less efficient
+for another value. New analyzed statistics invalidate the entry, but different
+literals alone do not force a fresh search.
 
 ## The nodes of a physical plan
 
@@ -270,18 +546,19 @@ These node types are the common ones:
 | `TableScanNode` | A full table scan, or a forced index scan. |
 | `IndexLookupNode` | A point lookup on a unique index. |
 | `IndexRangeScanNode` | A range on an index, with or without bounds. |
+| `IndexInListScanNode` | Multiple seeks for a literal IN list, with duplicate values removed. |
 | `FilterNode` | A residual predicate. |
 | `AggregateNode` | The stage of the aggregation and of the groups. |
 | `HavingFilterNode` | A filter after the aggregation. |
-| `SortNode` | A sort in memory. |
+| `SortNode` | A sort, with eligible spill support; a bounded variant renders as `topk` and retains offset + limit candidates. |
 | `ProjectNode` | The projection, and the shape of the aliases. |
 | `DistinctNode` | The removal of the duplicates. |
 | `LimitNode` | The stage of the limit and of the offset. |
 | `SemiJoinNode` | The rewrite of an indexed `IN` or `NOT IN` subquery. |
 | `NestedLoopJoinNode` | A join without an indexed probe on the right side. |
 | `IndexNestedLoopJoinNode` | A join with an indexed probe on the right side. |
-| `HashJoinNode` | An inner equi-join with a hash table in memory. |
-| `MergeJoinNode` | An inner equi-join over two ordered inputs. |
+| `HashJoinNode` | An inner or left outer equi-join using a hash table, with eligible spill support. |
+| `MergeJoinNode` | An inner or left outer equi-join over ordered inputs. |
 | `DerivedTableScanNode` | A scan of a derived table as a source. |
 
 `QueryPlan` also carries a flat `Steps` view, for the linear executor. The tree
@@ -354,7 +631,11 @@ executes the query, and it fills counters such as these:
 - `kv_scan_entries`
 - `actual_time_ms`, on the root node
 
-`EXPLAIN (ANALYZE)` supports a query without a join only, at present.
+Join plans use the same path. A join node records the work of its right side,
+because the right side is named in the join detail rather than rendered as a
+separate row. The detail can also add runtime facts such as `ran=grace-hash`,
+`ran=nested-loop-fallback`, `ran=broadcast`, and the join-order estimate used by
+the search.
 
 ## Statistics and cost
 
@@ -397,6 +678,13 @@ five decisions:
 - The enumeration of the join orders by cost, while
   `cost_based_join_order_enabled` is on.
 
+For a single-column equi-join that is unique on neither side, the estimator uses
+both histograms when they are available. `JoinKeyDistribution` separates values
+that occupy a complete equi-depth bucket from a uniform residual, then sums the
+matching frequencies. This avoids the uniform-distribution underestimate when
+both sides are concentrated on the same popular values. Without heavy values,
+or without both histograms, estimation falls back to the distinct-value model.
+
 The cost is a weighted sum of five quantities:
 
 1. The point lookups in the KV layer.
@@ -427,58 +715,89 @@ The planner already includes several concrete passes:
 - An enumeration of the join orders by cost, through
   `cost_based_join_order_enabled`.
 
-## The status of the cost model
+## Cost model boundaries
 
-The cost model is complete. CamusDB uses it in five layers:
+The cost model is implemented, but it is an approximation with separate uses.
+`PlanCost.Total` weights KV point lookups, range entries, and primary-row
+fetches at 1.0 each, in-memory rows at 0.1 each, then adds `NetworkFactor`.
+These units compare alternatives; they are not milliseconds or measured I/O.
 
-1. Always on: it annotates a node of a plan with an estimated cardinality and an
-   estimated cost.
-2. Always on: it replaces an index range scan of low value with a full scan,
-   when the estimate passes the point of equal cost.
-3. Always on: it compares the shapes of an indexed nested loop, of a hash join,
-   and of a merge join, for an eligible equi-join.
-4. Opt-in: it enumerates every viable access path of a table, and it costs each
-   one.
-5. Opt-in: it enumerates the connected left-deep orders of an inner join, and it
-   costs each one.
+A non-covering secondary scan usually pays twice per match: once for its index
+entry and once for the primary row. This explains the range-versus-table-scan
+breakeven near half the table. Covering access-path candidates remove the
+primary-row fetch charge. Selectivity, ordering requirements, and applicable
+planner rules still determine the final choice.
 
-The current limits are intentional boundaries around the search space. They are
-not the absence of a cost model.
+`CostEstimator.AnnotatePlan` fills the fields shown by `EXPLAIN` after planning.
+Those annotations are separate from the subset estimates used by join-order
+search and need not match them. For a join over a join, annotation resolves a
+left key's base table through its alias and uses its distinct count. It does
+not assume that a key unique in the base table is still unique after an earlier
+join has duplicated its rows.
 
-The enumeration of the join order is left-deep. CamusDB caps it for a very wide
-join. It falls back for a shape that it cannot reorder safely. The dynamic
-program does not keep several alternatives of an interesting order yet, for the
-same set of tables.
+The two search flags default to true. Turning them off selects the heuristic
+paths; it does not remove cost annotations, all cost-informed operator choices,
+or the heuristic's cross-product repair.
 
-## Metadata for a distributed plan
+## Metadata and distributed execution
 
-The execution is not a complete distributed query engine yet. A node of a
-physical plan nevertheless carries metadata for a distributed plan in the
-future:
+Physical nodes carry `OutputOrdering`, `EstimatedCardinality`, `Cost`,
+`DataDistribution`, and `CanDecomposeToLocalPlusMerge`. These describe ordering,
+estimated work, and whether computation can split into local work plus a merge.
+They do not imply that every operator executes remotely.
 
-- `OutputOrdering`
-- `EstimatedCardinality`
-- `Cost`
-- `DataDistribution`
-- `CanDecomposeToLocalPlusMerge`
-
-For that reason, the planner can already describe three things: an elision of a
-sort, the ability to divide work into a local part and a merge, and the
-annotations of a plan. It needs no complete distributed executor.
+With distributed execution enabled, eligible primary-row scans can become
+fragments on span leaders, with coordinator gathering and supported filter or
+partial-aggregate pushdown. Eligible inner hash joins can broadcast a bounded
+build side for remote probing. Outer joins do not use that broadcast path.
+See [Distributed Queries](/docs/distributed-queries) for exact eligibility,
+fallbacks, and configuration, and [Spill to Disk](/docs/spill-to-disk) for
+execution-time memory limits.
 
 ## Current gaps
 
-These limits come from the design of the source:
+| Boundary | Practical consequence |
+| --- | --- |
+| Connected left-deep enumeration, at most 12 sources | Wider queries and queries requiring a cross product use the heuristic; there is no bushy or component-by-component search. |
+| No interesting-order or distribution alternatives per subset | A more expensive intermediate plan that could avoid a later sort or exchange is not retained for that benefit. |
+| Merge join is outside the DP cost comparison | The physical builder can choose a merge operator after order selection. |
+| Simplified index-lookup cost | `2 × leftRows` assumes one match per probe; non-unique indexes can have much higher fan-out. |
+| Incomplete selectivity modeling | Missing statistics, correlations, and expression predicates can make row estimates poor. |
+| Outer join anywhere in the tree | The join-order DP is skipped for the whole tree. |
+| Heuristic/repaired trees use the builder's own estimates | A joined input can still receive the fixed 10,000-row fallback instead of a subset estimate. |
+| Separate EXPLAIN annotation | Displayed join cardinalities are not a trace of the DP's candidate costs. |
+| LOGICAL renders the physical tree | It is not a separate view of rewrite stages. |
+| Forward index ordering | An opposite requested direction cannot simply reverse an index scan. |
 
-- `EXPLAIN (ANALYZE)` does not support a join.
-- `EXPLAIN (LOGICAL)` is mostly cosmetic today.
-- The use of a descending order is limited.
-- The search of the access paths by cost, and the search of the join order by
-  cost, are on by default.
-- The dynamic program for the join order is left-deep. It does not keep several
-  alternatives of an interesting order or of a distribution, for each subset.
+## Finding the implementation
 
-These are the main boundaries for future work on the planner.
+In the engine repository, query controllers below are under
+`CamusDB.Core/Commands/Executor/Controllers/Queries/` unless another path is given.
+Read the implementation alongside its tests; comments describing older planner
+stages may predate a newer behavior.
+
+| Area | Starting points |
+| --- | --- |
+| Parse and logical query | `SQLParser/` and `Controllers/DML/SelectQueryCreator.cs`, under the core project and command executor respectively. |
+| Bind and resolve | `QueryBinder.cs`, `Models/Queries/BoundSelectQuery.cs`. |
+| Single-table scan selection | `QueryPlanner.cs`, `PredicateAnalyzer.cs`, `IndexScanSelector.cs`. |
+| Predicate movement | `CommaJoinNormalizer.cs`, `JoinPredicatePushdown.cs`, `JoinGraph.cs`. |
+| Join search | `JoinOrderOptimizer.cs`, `JoinEnumerator.cs`, `JoinOrderChoice.cs`. |
+| Statistics and costing | `CardinalityEstimator.cs`, `CostEstimator.cs`, core `Statistics/`, and executor `Models/Plans/PlanCost.cs`. |
+| Physical join selection | `JoinQueryPlanner.cs`, `JoinEquiJoinAnalyzer.cs`. |
+| Cache decisions | `QueryShapeComputer.cs`, `PlanCache.cs`, replay methods in both planners. |
+| Execution | `QueryJoinExecutor.cs`, `QueryScanner.cs`, `QueryPostScanPipeline.cs`, and parent `QueryExecutor.cs`. |
+| Explain | `PlanRenderer.cs` and `ExplainExecutor.cs`. |
+| Distributed planning | `BroadcastJoinPlanner.cs`, `FragmentFilterShippability.cs`, `PlacementReader.cs`. |
+
+`CamusDB.Tests/CommandsExecutor/TestJoinOrderConjunctGraph.cs` covers condition
+attachment, comma joins, cross-table WHERE predicates, redundant equalities,
+volatile boundaries, cache replay, and agreement between costed and built
+operators. `TestQueryPlanner.cs`, `TestJoinQueryPlanner.cs`, and
+`TestLeftOuterJoinPlanner.cs` cover the surrounding planning contracts.
+`CamusDB.Cluster.Tests/TestClusterBroadcastJoin.cs` exercises the distributed
+join path. These are useful starting points for understanding a behavior before
+changing the planner.
 
 ## Related pages
 
