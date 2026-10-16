@@ -337,10 +337,10 @@ function tokenizeSql(sql) {
   return tokens;
 }
 
-export function HighlightedSql({code, highlightRef}) {
+export function HighlightedSql({code, highlightRef, light = false}) {
   const tokens = useMemo(() => tokenizeSql(code), [code]);
   return (
-    <pre className={styles.highlightLayer} aria-hidden="true">
+    <pre className={clsx(styles.highlightLayer, light && styles.lightHighlight)} aria-hidden="true">
       <code ref={highlightRef}>
         {tokens.map((token, index) => (
           token.kind === 'plain'

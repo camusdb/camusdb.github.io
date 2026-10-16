@@ -643,3 +643,12 @@
 @media (prefers-reduced-motion: reduce) {
   .console button, .console a, .console select { transition: none; }
 }
+
+/* Explicit light editor surfaces keep readable tokens under either site theme. */
+.highlightLayer.lightHighlight .keyword { color: #1459db; }
+.highlightLayer.lightHighlight .type, .highlightLayer.lightHighlight .identifier { color: #0f8a74; }
+.highlightLayer.lightHighlight .function { color: #7c3aed; }
+.highlightLayer.lightHighlight .string { color: #b45309; }
+.highlightLayer.lightHighlight .number { color: #008aa8; }
+.highlightLayer.lightHighlight .operator { color: #6b7280; }
+.highlightLayer.lightHighlight .comment { color: #7a7f8d; }

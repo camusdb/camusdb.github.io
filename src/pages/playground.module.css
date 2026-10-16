@@ -1,5 +1,4 @@
 .page {
-  background: #0b1018;
-  background-image: radial-gradient(ellipse at 20% 0, #2d70f026, transparent 35%);
+  background: linear-gradient(135deg, #f8faff, #eef4ff 65%, #f8faff);
   min-height: calc(100vh - 60px);
 }
