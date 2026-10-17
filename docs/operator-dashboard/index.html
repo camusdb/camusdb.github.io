@@ -11,9 +11,9 @@
 
 
 
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.9ae0cea7.css">
-<script src="/assets/js/runtime~main.7bff7515.js" defer="defer"></script>
-<script src="/assets/js/main.ad19fba8.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.671b1828.css">
+<script src="/assets/js/runtime~main.3e84212c.js" defer="defer"></script>
+<script src="/assets/js/main.dc3add81.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -28,7 +28,7 @@ offers no action that changes the database.</p>
 <p><img decoding="async" loading="lazy" alt="CamusDB operator dashboard" src="/assets/images/dashboard-fc581b4691309d91c697e3a9053bc21a.png" width="2592" height="1720" class="img_ev3q"></p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="enable-or-disable-it">Enable or disable it<a href="#enable-or-disable-it" class="hash-link" aria-label="Direct link to Enable or disable it" title="Direct link to Enable or disable it" translate="no">​</a></h2>
 <p>The dashboard is enabled by default:</p>
-<div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token key atrule" style="color:#00a4db">dashboard_enabled</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#36acaa">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token key atrule" style="color:#00a4db">dashboard_refresh_seconds</span><span class="token punctuation" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">2</span><br></div></code></pre></div></div>
+<div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">dashboard_enabled</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">dashboard_refresh_seconds</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">2</span><br></div></code></pre></div></div>
 <table><thead><tr><th>Setting</th><th>Default</th><th>Meaning</th></tr></thead><tbody><tr><td><code>dashboard_enabled</code></td><td><code>true</code></td><td>Serve the dashboard pages and <code>/v1/dashboard/*</code> endpoints.</td></tr><tr><td><code>dashboard_refresh_seconds</code></td><td><code>2</code></td><td>Browser refresh cadence for the load panel. Clamped from 1 to 300 seconds.</td></tr></tbody></table>
 <p>Set <code>dashboard_enabled: false</code> to remove the surface entirely. The pages and
 dashboard endpoints then return 404.</p>

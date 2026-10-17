@@ -11,9 +11,9 @@
 
 
 
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.9ae0cea7.css">
-<script src="/assets/js/runtime~main.7bff7515.js" defer="defer"></script>
-<script src="/assets/js/main.ad19fba8.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.671b1828.css">
+<script src="/assets/js/runtime~main.3e84212c.js" defer="defer"></script>
+<script src="/assets/js/main.dc3add81.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -67,7 +67,7 @@ CamusDB does not know that the transaction aborted, and the transaction may
 already have committed. A replay of the business operation therefore risks a
 second application of the same work.</p>
 <p>Send the same <code>COMMIT</code> or <code>ROLLBACK</code> again, for the same transaction id:</p>
-<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token keyword" style="color:#00009f">COMMIT</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token comment" style="color:#999988;font-style:italic">-- if CADB0509 is returned, send COMMIT again for the same transaction</span><br></div></code></pre></div></div>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">COMMIT</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token comment" style="color:#64748b;font-style:italic">-- if CADB0509 is returned, send COMMIT again for the same transaction</span><br></div></code></pre></div></div>
 <p>After the finalize starts, CamusDB accepts no further data statement on that
 transaction. The server-side session timeout bounds an abandoned transaction
 that stays in the finalize state.</p>
