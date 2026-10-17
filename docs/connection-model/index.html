@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">The connection model | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/connection-model/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="The connection model | CamusDB"><meta data-rh="true" name="description" content="A client talks to CamusDB through two APIs: REST with JSON over HTTP, and gRPC"><meta data-rh="true" property="og:description" content="A client talks to CamusDB through two APIs: REST with JSON over HTTP, and gRPC"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/connection-model/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/connection-model/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/connection-model/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"The connection model","item":"https://camusdb.github.io/docs/connection-model"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.b2e24d9b.css">
-<script src="/assets/js/runtime~main.464eb5d5.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.47a22291.js" defer="defer"></script>
 <script src="/assets/js/main.f2c64146.js" defer="defer"></script>
 </head>
 <body>
@@ -17,9 +17,13 @@
 over HTTP/2. Neither API gives a connection its own process or its own thread.
 A connection is only a socket. The server does work for a request, not for a
 connection.</p>
+<p>This model matters when many clients connect at the same time. Thousands of
+application instances, serverless functions, or small services can connect to
+CamusDB without an external connection pooler, because an idle connection costs
+only one open socket.</p>
 <p>This page compares that model with the model of PostgreSQL and the model of
-MySQL. It also states the costs of the CamusDB model, while it has its advantages,
-it comes with costs and isn&#x27;t entirely free.</p>
+MySQL. It also states the costs of the CamusDB model, because the model has
+costs as well as advantages.</p>
 <p><img decoding="async" loading="lazy" alt="CamusDB connection pool diagram" src="/assets/images/connection-pool-070807c89c79dbff43ff0267fe340601.png" width="1536" height="1024" class="img_ev3q"></p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-short-version">The short version<a href="#the-short-version" class="hash-link" aria-label="Direct link to The short version" title="Direct link to The short version" translate="no">​</a></h2>
 <table><thead><tr><th></th><th>PostgreSQL</th><th>MySQL</th><th>CamusDB</th></tr></thead><tbody><tr><td>The unit of work on the server</td><td>One operating-system process for each connection</td><td>One thread for each connection, by default</td><td>One asynchronous request on a shared pool of threads</td></tr><tr><td>The cost of an idle connection</td><td>A full process, with its own memory</td><td>A full thread, with its stack and its buffers</td><td>One open socket</td></tr><tr><td>Where the state of a transaction lives</td><td>Inside the process of the connection</td><td>Inside the session of the thread</td><td>In a table on the node, under a handle that the client holds</td></tr><tr><td>The usual answer to many clients</td><td>An external pooler, for example PgBouncer</td><td>A larger <code>max_connections</code>, or a thread pool plugin</td><td>Nothing extra: many requests share few connections</td></tr><tr><td>Concurrent statements on one connection</td><td>One at a time</td><td>One at a time</td><td>Many, through HTTP/2 multiplexing</td></tr></tbody></table>

@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Automatic analyze | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/automatic-analyze/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Automatic analyze | CamusDB"><meta data-rh="true" name="description" content="CamusDB keeps the statistics of the optimizer fresh without your help. Tables"><meta data-rh="true" property="og:description" content="CamusDB keeps the statistics of the optimizer fresh without your help. Tables"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/automatic-analyze/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/automatic-analyze/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/automatic-analyze/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Automatic analyze","item":"https://camusdb.github.io/docs/automatic-analyze"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed"><link rel="stylesheet" href="/assets/css/styles.b2e24d9b.css">
-<script src="/assets/js/runtime~main.464eb5d5.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.47a22291.js" defer="defer"></script>
 <script src="/assets/js/main.f2c64146.js" defer="defer"></script>
 </head>
 <body>
@@ -17,6 +17,11 @@
 change over time. A background job detects when the histograms and the counts of
 distinct values of a table become stale. It then runs <code>ANALYZE</code> on that table
 again.</p>
+<p>The statistics tell the <a class="" href="/docs/query-planning/">query planner</a> how many rows a
+table has, and how the values in each column spread. The planner uses them to
+select between an index and a full scan, and to order a join. Old statistics
+can therefore make a fast query slow after the data changes. This job keeps the
+statistics current, so you do not need to schedule <code>ANALYZE</code> yourself.</p>
 <p>The job needs no <code>ANALYZE TABLE</code> statement from a user. It does not cause a spike
 in memory, in CPU, or in disk use. It does not interfere with a query or a write
 in the foreground.</p>
