@@ -62,6 +62,10 @@ See [.NET Driver](/docs/dotnet-driver#connection-string) for the full
 connection string reference, including authentication, gRPC, endpoint pools,
 and learned routing.
 
+Dapper commands also emit the driver's OpenTelemetry traces and metrics. See
+[.NET Driver OpenTelemetry](/docs/dotnet-driver#opentelemetry) for registration,
+attributes, metrics, and SQL-text privacy.
+
 ## Query rows
 
 Dapper maps rows to your classes as usual:

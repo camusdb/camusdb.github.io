@@ -40,6 +40,10 @@ of a connection string. See
 [.NET Driver Authentication](/docs/dotnet-driver#authentication) for a connection
 with an authentication.
 
+EF Core commands also emit the driver's OpenTelemetry traces and metrics. See
+[.NET Driver OpenTelemetry](/docs/dotnet-driver#opentelemetry) for registration
+and for the interaction with EF Core's own instrumentation.
+
 You can also configure it in `OnConfiguring`:
 
 ```csharp

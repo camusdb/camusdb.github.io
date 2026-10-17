@@ -237,6 +237,7 @@ const sidebars = {
           collapsed: false,
           items: [
             'cluster',
+            'kubernetes-operator',
             'key-range-sharding',
             'configuration',
             {

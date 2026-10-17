@@ -96,3 +96,23 @@ test('startup stays informative and SQL highlighting follows editing and scrolli
   await expect(highlighted).toContainText('SELECT title, author, year');
   await page.screenshot({path: '/tmp/camus-highlight-ready.png', fullPage: true});
 });
+
+test('partition blades track leadership and failed servers show fire until recovery', async ({page}) => {
+  await page.goto('/playground/');
+  await expect(page.getByRole('button', {name: 'Run query', exact: true})).toBeEnabled({timeout: 60000});
+  const server = page.getByRole('button', {name: 'Inspect camusdb-0', exact: true});
+  await expect(server.locator('[data-role]')).toHaveCount(8);
+  await expect.poll(() => page.locator('button [data-role="leader"]').count()).toBe(8);
+  const front = await server.evaluate((el) => parseFloat(el.parentElement.style.top));
+  const back = await page.getByRole('button', {name: 'Inspect camusdb-3', exact: true}).evaluate((el) => parseFloat(el.parentElement.style.top));
+  expect(front).toBeGreaterThan(back);
+  await page.getByRole('button', {name: 'Simulate node failure', exact: true}).click();
+  const fire = page.getByRole('img', {name: 'camusdb-0 is down', exact: true});
+  await expect(fire).toBeVisible();
+  await expect(server.locator('[data-role="offline"]')).toHaveCount(8);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.getByLabel('Interactive 3D server racks').screenshot({path: '/tmp/camusdb-fire.png'});
+  await page.getByRole('button', {name: 'Restart node', exact: true}).click();
+  await expect(fire).toHaveCount(0);
+  await expect(server.locator('[data-role="offline"]')).toHaveCount(0);
+});

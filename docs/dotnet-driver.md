@@ -57,6 +57,7 @@ Supported keys:
 | `CoalescingThreshold` | No | gRPC only: operations a batch drain tries to collect before it stops waiting. Defaults to `10`; `1` disables coalescing. |
 | `CoalescingDelay` | No | gRPC only: milliseconds to wait for a larger batch. Defaults to `2`; `0` disables coalescing. |
 | `RequestFrames` | No | gRPC only: whether the client may pack waiting batch operations into negotiated stream frames. Defaults to `true`; set `false` as a compatibility or measurement switch. |
+| `TraceQueryText` | No | Adds SQL text to driver spans as `db.query.text`. Defaults to `false`, because SQL literals can contain sensitive values. |
 | `BackupEndpoint` | No | HTTP endpoint for the backup admin API. Defaults to `Endpoint`; required when `Protocol=grpc`. |
 | `BackupTimeout` | No | Backup admin timeout in seconds. Defaults to `300`. |
 | `AllowInsecureCredentials` | No | Set `true` to allow credentials over a non-loopback plaintext endpoint. Use only when another trusted layer protects that hop. |
@@ -300,6 +301,127 @@ NodeStatsReply node = await connection.GetNodeStatsAsync("db2.example.com:5096")
 The result covers disk volumes, CPU, memory, node identity, and uptime. With
 authentication enabled, the connection must use a superuser or an account with
 the global `MONITOR` privilege. See [Node resource stats](/docs/node-stats).
+
+## OpenTelemetry
+
+`CamusDB.Client` emits traces and metrics through the .NET `ActivitySource` and
+`Meter` APIs. The driver itself has no dependency on the OpenTelemetry SDK. Both
+sources use the name `CamusDB.Client`, exposed as
+`CamusTelemetry.ActivitySourceName` and `CamusTelemetry.MeterName`.
+
+Register the sources with the OpenTelemetry SDK and then configure the exporter
+that your application uses:
+
+```csharp
+using CamusDB.Client;
+
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing =>
+        tracing.AddSource(CamusTelemetry.ActivitySourceName))
+    .WithMetrics(metrics =>
+        metrics.AddMeter(CamusTelemetry.MeterName));
+```
+
+The optional `CamusDB.OpenTelemetry` package provides convenience extension
+methods for the same registration:
+
+```bash
+dotnet add package CamusDB.OpenTelemetry
+```
+
+```csharp
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
+
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing.AddCamusDBInstrumentation())
+    .WithMetrics(metrics => metrics.AddCamusDBInstrumentation());
+```
+
+The package depends only on `OpenTelemetry.Api`. The application still chooses
+and configures its OpenTelemetry SDK and exporters.
+
+### Traces
+
+The driver creates an `ActivityKind.Client` span for:
+
+- Each command execution, including queries, writes, and DDL.
+- Each typed insert through `CamusInsertCommand`.
+- `BEGIN`, `COMMIT`, and `ROLLBACK`. One finalize span covers all retries after
+  `CADB0509 TransactionFinalizeUnresolved`.
+- Each pipeline exchange, as one `BATCH` span.
+
+Dapper and EF Core execute through the same command APIs, so their operations
+receive driver spans too. A span is a child of the current application activity.
+The HTTP or gRPC transport spans, when enabled, are children of the driver span.
+
+A span name has the form `{operation} {target}`, such as `SELECT shop`. The
+target is the table for a typed insert and the database for other operations.
+The driver adds these attributes where they apply:
+
+| Attribute | Value |
+| --- | --- |
+| `db.system.name` | `camusdb` |
+| `db.namespace` | The database from the connection string. |
+| `db.operation.name` | The SQL verb, or `BEGIN`, `COMMIT`, `ROLLBACK`, or `BATCH`. |
+| `db.collection.name` | The table of a typed insert. |
+| `db.operation.batch.size` | The number of operations in a pipeline exchange. |
+| `server.address`, `server.port` | The endpoint that received the operation after routing. |
+| `camusdb.transport` | `rest` or `grpc`. |
+| `db.query.text` | The SQL text, only when `TraceQueryText=true`. |
+| `error.type` | The `CADBxxxx` code, or the exception type for a non-CamusDB failure. |
+| `db.response.status_code` | The `CADBxxxx` code of a failed CamusDB operation. |
+
+SQL text is off by default because a literal in a statement can contain
+sensitive data. Enable it for one connection with:
+
+```text
+Endpoint=http://localhost:5095;Database=app;TraceQueryText=true
+```
+
+The driver never records parameter values. A retry made while a driver span is
+current also adds a `camusdb.retry` event with `camusdb.retry.kind` and
+`error.type`.
+
+A buffered query span ends when the command returns. A streaming query span
+remains open until the reader reaches the end, fails while reading, or is
+closed. This makes its duration include the time that the application spends
+consuming the stream.
+
+### Metrics
+
+The `CamusDB.Client` meter emits the database operation duration and metrics for
+retries, endpoint health, and automatic prepared statements:
+
+| Metric | Type | Meaning |
+| --- | --- | --- |
+| `db.client.operation.duration` | Histogram, seconds | Duration of the same operations that produce spans. It includes database, operation, endpoint, and error attributes, but never SQL text. |
+| `camusdb.client.operation.retries` | Counter | Operations sent again. `camusdb.retry.kind` is `finalize`, `autocommit`, `token_renewal`, or `create_database`. |
+| `camusdb.client.endpoint.quarantines` | Counter | Times a transport failure caused the driver to set an endpoint aside for 30 seconds. |
+| `camusdb.client.endpoint.quarantined` | Gauge | `1` while an endpoint is set aside and `0` while it can receive traffic. |
+| `camusdb.client.prepared_statement.lookups` | Counter | Prepared-statement lookups by result: `hit`, `registered`, or `miss`. |
+| `camusdb.client.prepared_statement.registrations` | Counter | Preparation attempts by result: `success`, `refused`, or `unsupported`. |
+| `camusdb.client.prepared_statement.evictions` | Counter | Prepared statements released to make room for more recently used statements. |
+| `camusdb.client.prepared_statement.count` | Up-down counter | Statements currently held in the driver's prepared-statement cache. |
+
+The operation metrics use low-cardinality attributes such as the database,
+operation name, endpoint, and error code. Prepared-statement metrics use
+`db.namespace` and `camusdb.prepared_statement.result` where applicable.
+
+Use these signals together:
+
+- Rising endpoint quarantines identify transport failures and endpoint churn.
+- Retry counts separate transaction conflicts, unresolved finalization, token
+  renewal, and database-creation retries.
+- A prepared-statement count that remains at `MaxAutoPrepare` while evictions
+  grow indicates that the cache is too small for the active statement set.
+
+When no listener enables the activity source or instruments, the driver creates
+no spans, tags, or timestamps for an operation. `OpenAsync()` opens no physical
+database connection, so the driver does not publish `db.client.connection.*`
+metrics. If the application also enables
+`OpenTelemetry.Instrumentation.EntityFrameworkCore`, an EF Core query produces
+both an EF Core span and a CamusDB driver span.
 
 ## Run DDL
 

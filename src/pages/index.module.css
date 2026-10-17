@@ -112,15 +112,15 @@
 
 .playgroundAction {
   color: #ffffff;
-  border-color: #1558c9;
-  background: #124fb8;
-  box-shadow: 0 12px 34px rgba(18, 79, 184, 0.34);
+  border-color: #3d82eb;
+  background: #2869d7;
+  box-shadow: 0 12px 34px rgba(40, 105, 215, 0.32);
 }
 
 .playgroundAction:hover {
   color: #ffffff;
-  border-color: #276fe4;
-  background: #1a62d1;
+  border-color: #62a0f4;
+  background: #3479e5;
   transform: translateY(-1px);
 }
 

@@ -47,8 +47,8 @@ export default function DatacenterPlayground() {
   const slots = Array.from({length: MAX}, (_, id) => ({
     id,
     x: 90 + (id % 3) * 150,
-    // Parallel rack rows follow the same ground-plane perspective.
-    y: 90 + Math.floor(id / 3) * 150,
+    // Fill the front row first; capacity expands toward the back.
+    y: 390 - Math.floor(id / 3) * 150,
   }));
   const status = !cluster
     ? busy
@@ -69,12 +69,12 @@ export default function DatacenterPlayground() {
           <span className={styles.brand}>
             CAMUSDB <span>/</span> PLAYGROUND
           </span>
-          <h1>A database you can play with.</h1>
+          <h1>A distributed database you can play with</h1>
         </div>
         <a href="/docs/browser-playground">Playground guide ↗</a>
       </header>
           <div className={styles.caption}>
-            <span className={styles.badge}>REAL CAMUSDB · WASM</span> Live
+            <span className={styles.badge}>REAL CAMUSDB via WASM</span> Live
             membership, placement, and elections · in-memory engines in this tab{' '}
             <a href="/docs/browser-playground#data-center">How it works ↗</a>
           </div>
@@ -233,19 +233,32 @@ export default function DatacenterPlayground() {
                           disabled={!cluster || joining}
                           onClick={() => setSelected(p.id)}
                         >
-                          <span className={styles.serverTop}><span>{joining ? 'JOINING' : inspect === p.id ? 'SELECTED' : 'CAMUS'}</span></span>
+                          <span className={styles.serverTop}><span>{down ? 'DOWN' : joining ? 'JOINING' : inspect === p.id ? 'SELECTED' : 'CAMUS'}</span></span>
                           <span className={styles.serverSide} />
                           <span className={styles.serverBack} />
                           <span className={styles.serverLeft} />
                           <span className={styles.serverFront}>
                             <span className={styles.serverName}>{nodeName(p.id)}</span>
-                            {[0, 1, 2, 3].map((slot) => <span className={styles.drive} key={slot}><i /><b /><b /></span>)}
+                            {(partitions.length ? partitions : Array.from({length: 8}, (_, id) => ({id, replicas: [], leader: null}))).map((part) => {
+                              const role = down ? 'offline' : part.leader === p.id ? 'leader' : part.replicas.includes(p.id) ? 'follower' : 'absent';
+                              const label = `P${part.id}: ${role === 'absent' ? 'not hosted' : role}`;
+                              return <span className={styles.drive} data-role={role} key={part.id} title={label} aria-label={label}><i /><span>P{part.id}</span><b>{role === 'leader' ? 'L' : role === 'follower' ? 'F' : '–'}</b></span>;
+                            })}
                           </span>
                         </button>
+                        {down && <div className={styles.fire} role="img" aria-label={`${nodeName(p.id)} is down`}>
+                          {Array.from({length: 12}, (_, spark) => <i key={spark} style={{'--spark-x': `${(spark * 17) % 48 - 24}px`, '--drift': `${(spark % 3 - 1) * 16}px`, '--delay': `${-spark * .19}s`, '--duration': `${1.1 + (spark % 4) * .2}s`}} />)}
+                        </div>}
                       </> : <div className={styles.expansion}>0{p.id + 1}</div>}
                     </div>;
                   })}
                 </div>
+              </div>
+              <div className={styles.bladeLegend} aria-label="Partition blade colors">
+                <span><i data-role="leader" /> Leader · L</span>
+                <span><i data-role="follower" /> Follower · F</span>
+                <span><i data-role="absent" /> Not hosted · –</span>
+                <span><i data-role="offline" /> Down</span>
               </div>
               {lab.joiningNode !== null && <p className={styles.joiningNotice} role="status"><span className={styles.spinner} aria-hidden="true" />{nodeName(lab.joiningNode)} is joining · catching up before becoming available</p>}
               <div className={styles.selectedNode} aria-live="polite">
