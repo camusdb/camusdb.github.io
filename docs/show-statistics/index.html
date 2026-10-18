@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.671b1828.css">
-<script src="/assets/js/runtime~main.3e84212c.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.9a81b930.js" defer="defer"></script>
 <script src="/assets/js/main.dc3add81.js" defer="defer"></script>
 </head>
 <body>
@@ -108,7 +108,13 @@ nothing to keep, and they need no statement of maintenance.</p>
 counts of the distinct values of each column, and the same counts for a prefix
 of a composite key. <code>ANALYZE</code> also records the minimum and the maximum of the
 columns without an index that it collects, up to <code>stats_analyze_max_columns</code>
-columns of a table; those bounds stay as they are until the next <code>ANALYZE</code>.</p>
+columns of a table; those bounds stay as they are until the next <code>ANALYZE</code>.
+Each histogram can also keep up to <code>stats_top_values</code> common values with their
+observed counts, and <code>ANALYZE</code> records the fraction of each column that is
+<code>NULL</code>. The planner uses those internal values for skewed equalities, join
+cardinality, and the number of index probes. <code>SHOW STATISTICS</code> currently shows
+that the histogram exists and how many buckets it has; it does not expand its
+common-value list or its NULL fraction into separate result columns.</p>
 <p>The second group makes an estimate of a range, and an estimate of an equality,
 accurate. Their absence is what a <code>NULL</code> in <code>histogram_buckets</code> or in
 <code>distinct_count</code> tells you.</p>
@@ -116,9 +122,11 @@ accurate. Their absence is what a <code>NULL</code> in <code>histogram_buckets</
 <p><a class="" href="/docs/explain/">EXPLAIN</a> can report an <code>estimated_rows</code> that you doubt. This
 statement then shows the source of that number.</p>
 <ul>
-<li class="">CamusDB prices <code>col = v</code> at <code>1 / distinct_count</code>. A <code>distinct_count</code> of <code>NULL</code>
-means that the estimate fell back to a fixed constant. An index can then look
-far less attractive than it is.</li>
+<li class="">CamusDB prices <code>col = v</code> from the observed frequency when <code>v</code> is one of the
+common values kept with the histogram. Other values share the remaining rows
+over the remaining <code>distinct_count</code>. A <code>distinct_count</code> of <code>NULL</code> means that
+the estimate fell back to a fixed constant. An index can then look far less
+attractive than it is.</li>
 <li class="">CamusDB prices a predicate of a range from the histogram. A
 <code>histogram_buckets</code> of <code>NULL</code> means the same fallback.</li>
 <li class="">CamusDB prices <code>WHERE a = ? AND b = ?</code> over a composite index from the <code>key</code>

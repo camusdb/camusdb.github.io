@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.671b1828.css">
-<script src="/assets/js/runtime~main.3e84212c.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.9a81b930.js" defer="defer"></script>
 <script src="/assets/js/main.dc3add81.js" defer="defer"></script>
 </head>
 <body>
@@ -121,9 +121,12 @@ right side:</p>
 <ul>
 <li class=""><code>nested-loop-join</code> counts every reread of the right side. Four left rows over
 seven right rows therefore report 28 rows read.</li>
-<li class=""><code>index-nested-loop-join</code> counts the index probes and the matching right rows.
-A unique-index probe increments <code>kv_lookups</code>; a non-unique index walk
-increments <code>kv_scan_entries</code>.</li>
+<li class=""><code>index-nested-loop-join</code> probes a page of outer rows at a time. The distinct
+keys in the page share a batched index read and a batched row read. A
+unique-index probe increments <code>kv_lookups</code>; a non-unique index walk increments
+<code>kv_scan_entries</code>. A non-unique key wider than one probe page is streamed on
+its own, page by page. Repeated keys can be answered from the join memo, so
+the storage counters describe distinct probes rather than outer rows.</li>
 <li class=""><code>hash-join</code> counts one read of the right side, whether that side becomes the
 build side or the probe side.</li>
 <li class=""><code>merge-join</code> adds the reads of its ordered right input to the join row,
@@ -133,7 +136,7 @@ because that input is not rendered as its own plan row.</li>
 join, such as grouping, ordering, a final filter, projection, or a <code>LIMIT</code>, is
 not rendered as a separate join-plan node.</p>
 <p>A join row can append runtime-only detail:</p>
-<table><thead><tr><th>Suffix</th><th>Meaning</th></tr></thead><tbody><tr><td><code>ran=grace-hash</code></td><td>A hash join spilled and ran as a Grace hash join.</td></tr><tr><td><code>ran=nested-loop-fallback</code></td><td>A hash join exceeded its build limit while spilling was disabled, so execution used a nested-loop fallback.</td></tr><tr><td><code>ran=broadcast</code></td><td>A distributed hash join broadcast the small build side and probed ranges remotely.</td></tr><tr><td><code>join-order-est-rows=&lt;n&gt;</code></td><td>The row estimate used by the join-order search, shown beside the plan annotation and the actual rows.</td></tr></tbody></table>
+<table><thead><tr><th>Suffix</th><th>Meaning</th></tr></thead><tbody><tr><td><code>ran=grace-hash</code></td><td>A hash join spilled and ran as a Grace hash join.</td></tr><tr><td><code>ran=nested-loop-fallback</code></td><td>A hash join exceeded its build limit while spilling was disabled, so execution used a nested-loop fallback.</td></tr><tr><td><code>ran=broadcast</code></td><td>A distributed hash join broadcast the small build side and probed ranges remotely.</td></tr><tr><td><code>probe-memo-hits=&lt;n&gt;</code></td><td>The indexed nested-loop join answered <code>n</code> repeated keys from its memo, without another storage read.</td></tr><tr><td><code>probe-batches=&lt;n&gt;</code></td><td>The indexed nested-loop join issued <code>n</code> batches that reached the index. A page answered entirely from the memo is not counted.</td></tr><tr><td><code>join-order-est-rows=&lt;n&gt;</code></td><td>The row estimate used by the join-order search, shown beside the plan annotation and the actual rows.</td></tr></tbody></table>
 <p><code>estimated_rows</code> still comes from the rendered plan annotation. The
 <code>join-order-est-rows</code> suffix comes from the join-order search that chose the
 order. They can differ. Seeing both beside <code>actual_rows</code> helps diagnose whether
