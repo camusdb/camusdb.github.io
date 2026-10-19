@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en" dir="ltr" class="blog-wrapper blog-post-page plugin-blog plugin-id-default" data-has-hydrated="false">
+<head>
+<meta charset="UTF-8">
+<meta name="generator" content="Docusaurus v3.10.2">
+<title data-rh="true">A young database meets the Join Order Benchmark | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/blog/join-order-benchmark/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docusaurus_tag" content="default"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docsearch:docusaurus_tag" content="default"><meta data-rh="true" property="og:title" content="A young database meets the Join Order Benchmark | CamusDB"><meta data-rh="true" name="description" content="If your queries join five, ten or fifteen tables, CamusDB now plans them"><meta data-rh="true" property="og:description" content="If your queries join five, ten or fifteen tables, CamusDB now plans them"><meta data-rh="true" property="og:type" content="article"><meta data-rh="true" property="article:published_time" content="2026-10-18T00:00:00.000Z"><meta data-rh="true" property="article:author" content="https://github.com/andresgutierrez"><meta data-rh="true" property="article:tag" content="camusdb,query-optimizer,sql,benchmarks"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/blog/join-order-benchmark/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/blog/join-order-benchmark/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/blog/join-order-benchmark/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","@id":"https://camusdb.github.io/blog/join-order-benchmark","mainEntityOfPage":"https://camusdb.github.io/blog/join-order-benchmark","url":"https://camusdb.github.io/blog/join-order-benchmark","headline":"A young database meets the Join Order Benchmark","name":"A young database meets the Join Order Benchmark","description":"If your queries join five, ten or fifteen tables, CamusDB now plans them","datePublished":"2026-10-18T00:00:00.000Z","author":{"@type":"Person","name":"Andres Gutierrez","description":"Creator of CamusDB","url":"https://github.com/andresgutierrez","image":"https://github.com/andresgutierrez.png"},"keywords":[],"isPartOf":{"@type":"Blog","@id":"https://camusdb.github.io/blog","name":"Blog"}}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
+<link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed">
+
+
+
+
+
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.671b1828.css">
+<script src="/assets/js/runtime~main.391d568f.js" defer="defer"></script>
+<script src="/assets/js/main.1685a31d.js" defer="defer"></script>
+</head>
+<body>
+<svg style="display: none;"><defs>
+<symbol id="theme-svg-external-link" viewBox="0 0 24 24"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
+</defs></svg>
+<script>!function(){var t=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();document.documentElement.setAttribute("data-theme",t||"light"),document.documentElement.setAttribute("data-theme-choice",t||"light")}(),function(){try{const c=new URLSearchParams(window.location.search).entries();for(var[t,e]of c)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="theme-layout-navbar navbar navbar--fixed-top"><div class="navbar__inner"><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/"><div class="navbar__logo"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">CamusDB</b></a><a class="navbar__item navbar__link" href="/docs/intro/">Docs</a><a aria-current="page" class="navbar__item navbar__link navbar__link--active" href="/blog/">Blog</a><a class="navbar__item navbar__link" href="/playground/">Playground</a></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"></path></svg></button></div><div class="navbarSearchContainer_Bca1"></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class="container margin-vert--lg"><div class="row"><aside class="col col--3"><nav class="sidebar_re4s thin-scrollbar" aria-label="Blog recent posts navigation"><div class="sidebarItemTitle_pO2u margin-bottom--md">Recent posts</div><div role="group"><h3 class="yearGroupHeading_rMGB">2026</h3><ul class="sidebarItemList_Yudw clean-list"><li class="sidebarItem__DBe"><a aria-current="page" class="sidebarItemLink_mo7H sidebarItemLinkActive_I1ZP" href="/blog/join-order-benchmark/">A young database meets the Join Order Benchmark</a></li><li class="sidebarItem__DBe"><a class="sidebarItemLink_mo7H" href="/blog/what-the-dragon-found-part-three/">What the dragon found, part three</a></li><li class="sidebarItem__DBe"><a class="sidebarItemLink_mo7H" href="/blog/what-the-dragon-found/">What the dragon found</a></li><li class="sidebarItem__DBe"><a class="sidebarItemLink_mo7H" href="/blog/player-inventories-are-bank-accounts/">Player inventories are bank accounts</a></li><li class="sidebarItem__DBe"><a class="sidebarItemLink_mo7H" href="/blog/a-dragon-to-attack-our-own-database/">We built a dragon to attack our own database</a></li></ul></div></nav></aside><main class="col col--7"><article class=""><header><h1 class="title_f1Hy">A young database meets the Join Order Benchmark</h1><div class="container_mt6G margin-vert--md"><time datetime="2026-10-18T00:00:00.000Z">October 18, 2026</time> · <!-- -->9 min read</div><div class="margin-top--md margin-bottom--sm row"><div class="col col--12 authorCol_Hf19"><div class="avatar margin-bottom--sm"><a href="https://github.com/andresgutierrez" target="_blank" rel="noopener noreferrer" class="avatar__photo-link"><img class="avatar__photo authorImage_XqGP" src="https://github.com/andresgutierrez.png" alt="Andres Gutierrez"></a><div class="avatar__intro authorDetails_lV9A"><div class="avatar__name"><a href="https://github.com/andresgutierrez" target="_blank" rel="noopener noreferrer"><span class="authorName_yefp" translate="no">Andres Gutierrez</span></a></div><small class="authorTitle_nd0D" title="Creator of CamusDB">Creator of CamusDB</small><div class="authorSocials_rSDt"></div></div></div></div></div></header><div id="__blog-post-container" class="markdown"><p>If your queries join five, ten or fifteen tables, CamusDB now plans them
+better and runs them faster. This post explains what changed in plain terms,
+so you can see what to expect from your own queries.</p>
+<p>A join query names its tables and its conditions. It does not say in which
+order to join the tables. The database picks the order, and the order decides
+how much data the query reads. A good order starts from the few rows that
+survive the filters. A bad order can build millions of rows and then throw
+most of them away.</p>
+<p>The <a href="https://www.vldb.org/pvldb/vol9/p204-leis.pdf" target="_blank" rel="noopener noreferrer" class="">Join Order Benchmark</a>
+(JOB) is a set of 113 queries from a 2015 paper by Leis and five co-authors.
+The queries run over a movie database of 21 tables, and each one joins 4 to
+17 tables. The paper tested mature databases and found that their estimates
+of how many rows a join returns were often wrong by orders of magnitude. The
+error grows with each join, and a wrong estimate leads to a slow plan. The
+benchmark exists to show that weakness.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="where-we-started">Where we started<a href="#where-we-started" class="hash-link" aria-label="Direct link to Where we started" title="Direct link to Where we started" translate="no">​</a></h2>
+<p>In July I wrote about
+<a class="" href="/blog/dynamic-programming-query-optimizer/">how CamusDB searches for a join order</a>.
+In short, the planner finds the cheapest plan for small groups of tables first
+and reuses those plans for larger groups.</p>
+<p>Our first run of the 113 JOB queries used synthetic movie data at 1/1000 of
+the real size. SQLite ran the same rows as an independent check. Every CamusDB
+result matched. But 25 queries did not finish in 30 seconds, and the full run
+took 1,159 seconds. Every plan contained a cross product, a join of every row
+against every row.</p>
+<p>The executor was fine. We put the tables of two queries in a good order by
+hand. One query went from 10 seconds to 0.4 seconds. Another went from a
+timeout to 40 milliseconds. The planner did not find the order on its own.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-changed">What changed<a href="#what-changed" class="hash-link" aria-label="Direct link to What changed" title="Direct link to What changed" translate="no">​</a></h2>
+<p>Six changes made the difference. Each one stands on its own, and each one
+applies to every join query, not only to the benchmark.</p>
+<p><strong>The planner reads every condition on its own.</strong> A JOB query lists its tables
+with commas and puts all conditions in <code>WHERE</code>. The old planner grouped the
+conditions as the query wrote them. A table whose only link came through a
+later table looked unconnected, so the planner joined it with a cross product.
+The planner now reads each condition on its own and finds the links between
+tables wherever they are. No JOB plan has a cross product today. The run went
+from 1,159 seconds to 184 seconds, with no timeouts.</p>
+<p><strong>One estimate per group of tables.</strong> To compare two orders, the planner
+estimates how many rows each step produces. JOB queries name the same movie
+through up to six columns and write every pair of them as equal. The old
+estimator treated each of those fifteen equalities as a separate filter and
+multiplied the estimate down to almost nothing. The new estimator sees one
+fact: these six columns hold the same value. The run went from 184 seconds to
+9.5 seconds.</p>
+<p><strong>Wide joins get the full search.</strong> The search compares every group of tables
+that an order can build. That number grows fast, so the old search stopped at
+12 tables and used a simple rule above that. Nine JOB queries have 14 or 17
+tables. The search now skips the groups that no order can build, which are
+most of them, and plans joins of up to 30 tables. Past a budget of steps it
+takes a fast greedy order instead of a slow search.</p>
+<p><strong>Statistics that see popular values.</strong> The planner sizes a join from the
+number of distinct values in the join column. That formula assumes every value
+is as common as every other. Real data is not like that: one movie has
+thousands of cast rows and most have a few. <code>ANALYZE</code> now keeps the most
+common values of each column with their counts, and the planner uses them. It
+also records how many rows hold NULL, because a NULL key joins with nothing.
+When a query filters a small lookup table down to one row, the planner reads
+that row before it plans. It then prices the join by the popularity of that
+key.</p>
+<p><strong>Each lookup costs less.</strong> With a good order, a join runs as a chain of index
+lookups. For each row on the left, the join finds the rows on the right that
+match. The old
+lookup asked the store for a page of 512 index entries and used 11 of them on
+average. The lookup now stops at the entries of its key. The join also keeps
+the rows of each key it found, so a repeated key costs nothing. And it sends a
+page of left rows to the store in one request instead of one request per row.</p>
+<p><strong>A test that watches plan quality.</strong> A correctness test does not catch a
+planner that returns the right rows and reads ten times more data to do it. A
+new test suite runs a fixed set of queries on fixed data and counts the rows
+and lookups of each plan. It compares the counts with a baseline file in git
+and fails when a query&#x27;s work grows by more than half. The JOB queries run
+every night, and every result is checked against SQLite.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-numbers">The numbers<a href="#the-numbers" class="hash-link" aria-label="Direct link to The numbers" title="Direct link to The numbers" translate="no">​</a></h2>
+<p>Work is the number of rows read, key lookups and index entries scanned over
+the whole plan, at a scale of about 225,000 rows.</p>
+<table><thead><tr><th>Baseline</th><th style="text-align:right">Total work, 113 queries</th><th style="text-align:right">Largest estimate error</th></tr></thead><tbody><tr><td>First baseline</td><td style="text-align:right">6,111,336</td><td style="text-align:right">78,378x</td></tr><tr><td>Current</td><td style="text-align:right">1,007,752</td><td style="text-align:right">1,240x</td></tr></tbody></table>
+<p>The engine does one sixth of the work it did at the first baseline, for the
+same results. The same test on the same laptop ran the 113 queries in 51
+seconds before the lookup changes and runs them in 7.9 seconds today. No query takes more than a
+second. The three 17-table queries took 4 to 5 seconds each and now run in
+under 15 milliseconds.</p>
+<p>The <a class="" href="/docs/plan-quality-testing/#comparison-with-sqlite-and-postgresql">plan quality page</a>
+in the docs compares the three engines on the same rows with warm runs.
+CamusDB takes 3.5 seconds, SQLite 7.2 seconds and PostgreSQL 0.74 seconds.
+CamusDB runs as an embedded node on a transactional key-value store, so this
+is a reference and not a race. Before this work, 25 of these queries did not
+finish at all.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-this-matters-outside-a-benchmark">Why this matters outside a benchmark<a href="#why-this-matters-outside-a-benchmark" class="hash-link" aria-label="Direct link to Why this matters outside a benchmark" title="Direct link to Why this matters outside a benchmark" translate="no">​</a></h2>
+<p>Each change answers a problem that real tables have. The benchmark only made
+them visible at the same time.</p>
+<p>The shape of a JOB query is common. One large table links to many small ones,
+and the filters sit on the small ones. That is a star schema, and most
+applications have one:</p>
+<ul>
+<li class="">An online store joins orders to customers, products, categories, warehouses
+and shipments. A report filters on one category or one month.</li>
+<li class="">A ledger joins transactions to accounts, counterparties, currencies and
+instruments. A statement filters on one account and a date range.</li>
+<li class="">A multi-tenant product joins events to tenants, users, projects and plans.
+Every query filters on one tenant.</li>
+<li class="">A game backend joins players, inventories, items, trades and guilds. A
+player&#x27;s screen filters on one player.</li>
+</ul>
+<p>The data behind those tables is skewed, has NULLs, and repeats its keys:</p>
+<ul>
+<li class="">A few products appear in most orders. A few accounts hold most of the
+transactions. One tenant can hold half of the rows. A planner that prices
+every value alike plans for the average and then meets the largest customer.</li>
+<li class="">Foreign keys are often NULL: an order without a coupon, a transaction
+without a counterparty, an item without an owner. An estimate that ignores
+NULLs is wrong by the NULL share.</li>
+<li class="">Keys repeat. Every line of an order carries the same order id, and every row
+of an inventory carries the same owner. A lookup that remembers its answers
+runs once per key.</li>
+<li class="">Nobody writes a <code>FROM</code> list in the best order, and an ORM or a report
+builder writes it in no order at all. The planner has to find it.</li>
+</ul>
+<p>The last point matters most for CamusDB. The store is distributed, so each
+lookup can be a network round trip. A plan that looks up a thousand times
+where ten would do is slow by the latency of the cluster.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-a-robust-optimizer-means-here">What a robust optimizer means here<a href="#what-a-robust-optimizer-means-here" class="hash-link" aria-label="Direct link to What a robust optimizer means here" title="Direct link to What a robust optimizer means here" translate="no">​</a></h2>
+<p>A benchmark win can hide a fragile optimizer. These are the properties I care
+about more than the time:</p>
+<ol>
+<li class=""><strong>Results never change.</strong> SQLite checks every plan on every nightly run. A
+plan that changes results is a bug, not an optimization.</li>
+<li class=""><strong>The search is bounded.</strong> The step budget and the greedy fallback keep
+planning time small at any width. The 17-table queries plan in 9 to 16
+milliseconds.</li>
+<li class=""><strong>The same query gets the same plan.</strong> Two orders of equal cost keep the
+order the user wrote.</li>
+<li class=""><strong>No statistics means a fallback, not a failure.</strong> Without statistics the
+planner uses a simple order and still removes avoidable cross products.</li>
+<li class=""><strong>The plan is visible.</strong> <code>EXPLAIN (ANALYZE)</code> shows the order the search
+chose, its estimate next to the actual rows, and the lookups each join saved.</li>
+<li class=""><strong>Regressions are caught before merge.</strong> The plan quality test runs on every
+pull request.</li>
+</ol>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-is-still-open">What is still open<a href="#what-is-still-open" class="hash-link" aria-label="Direct link to What is still open" title="Direct link to What is still open" translate="no">​</a></h2>
+<p>PostgreSQL executes the corpus five times faster, and the gap is in the
+executor, not in the planner. The search considers one shape of plan, a chain
+that adds one table at a time. Plans that join two groups of tables, and a
+search below an outer join, are not there yet. The worst estimate error is
+still above 1,000x on one query.</p>
+<p>A young database does not win a benchmark. It learns from one. JOB told us
+where the optimizer was wrong, in a form we could measure and gate. That is
+the victory I want to keep.</p></div><footer class="docusaurus-mt-lg"><div class="row margin-top--sm theme-blog-footer-edit-meta-row"><div class="col"><b>Tags:</b><ul class="tags_jXut padding--none margin-left--sm"><li class="tag_QGVx"><a rel="tag" class="tag_zVej tagRegular_sFm0" href="/blog/tags/camusdb/">camusdb</a></li><li class="tag_QGVx"><a rel="tag" class="tag_zVej tagRegular_sFm0" href="/blog/tags/query-optimizer/">query-optimizer</a></li><li class="tag_QGVx"><a rel="tag" class="tag_zVej tagRegular_sFm0" href="/blog/tags/sql/">sql</a></li><li class="tag_QGVx"><a rel="tag" class="tag_zVej tagRegular_sFm0" href="/blog/tags/benchmarks/">benchmarks</a></li></ul></div></div><div class="row margin-top--sm theme-blog-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/blog/2026-10-18-join-order-benchmark/index.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="pagination-nav docusaurus-mt-lg" aria-label="Blog post page navigation"><a class="pagination-nav__link pagination-nav__link--next" href="/blog/what-the-dragon-found-part-three/"><div class="pagination-nav__sublabel">Older post</div><div class="pagination-nav__label">What the dragon found, part three</div></a></nav></main><div class="col col--2"><div class="tableOfContents_bqdL thin-scrollbar"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#where-we-started" class="table-of-contents__link toc-highlight">Where we started</a></li><li><a href="#what-changed" class="table-of-contents__link toc-highlight">What changed</a></li><li><a href="#the-numbers" class="table-of-contents__link toc-highlight">The numbers</a></li><li><a href="#why-this-matters-outside-a-benchmark" class="table-of-contents__link toc-highlight">Why this matters outside a benchmark</a></li><li><a href="#what-a-robust-optimizer-means-here" class="table-of-contents__link toc-highlight">What a robust optimizer means here</a></li><li><a href="#what-is-still-open" class="table-of-contents__link toc-highlight">What is still open</a></li></ul></div></div></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 CamusDB.</div></div></div></footer></div>
+</body>
+</html>

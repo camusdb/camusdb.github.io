@@ -2,18 +2,181 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://camusdb.github.io/blog/</id>
     <title>CamusDB Blog</title>
-    <updated>2026-10-14T00:00:00.000Z</updated>
+    <updated>2026-10-18T00:00:00.000Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://camusdb.github.io/blog/"/>
     <subtitle>CamusDB Blog</subtitle>
     <icon>https://camusdb.github.io/img/favicon.ico</icon>
+    <entry>
+        <title type="html"><![CDATA[A young database meets the Join Order Benchmark]]></title>
+        <id>https://camusdb.github.io/blog/join-order-benchmark/</id>
+        <link href="https://camusdb.github.io/blog/join-order-benchmark/"/>
+        <updated>2026-10-18T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[If your queries join five, ten or fifteen tables, CamusDB now plans them]]></summary>
+        <content type="html"><![CDATA[<p>If your queries join five, ten or fifteen tables, CamusDB now plans them
+better and runs them faster. This post explains what changed in plain terms,
+so you can see what to expect from your own queries.</p>
+<p>A join query names its tables and its conditions. It does not say in which
+order to join the tables. The database picks the order, and the order decides
+how much data the query reads. A good order starts from the few rows that
+survive the filters. A bad order can build millions of rows and then throw
+most of them away.</p>
+<p>The <a href="https://www.vldb.org/pvldb/vol9/p204-leis.pdf" target="_blank" rel="noopener noreferrer" class="">Join Order Benchmark</a>
+(JOB) is a set of 113 queries from a 2015 paper by Leis and five co-authors.
+The queries run over a movie database of 21 tables, and each one joins 4 to
+17 tables. The paper tested mature databases and found that their estimates
+of how many rows a join returns were often wrong by orders of magnitude. The
+error grows with each join, and a wrong estimate leads to a slow plan. The
+benchmark exists to show that weakness.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="where-we-started">Where we started<a href="https://camusdb.github.io/blog/join-order-benchmark/#where-we-started" class="hash-link" aria-label="Direct link to Where we started" title="Direct link to Where we started" translate="no">​</a></h2>
+<p>In July I wrote about
+<a class="" href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/">how CamusDB searches for a join order</a>.
+In short, the planner finds the cheapest plan for small groups of tables first
+and reuses those plans for larger groups.</p>
+<p>Our first run of the 113 JOB queries used synthetic movie data at 1/1000 of
+the real size. SQLite ran the same rows as an independent check. Every CamusDB
+result matched. But 25 queries did not finish in 30 seconds, and the full run
+took 1,159 seconds. Every plan contained a cross product, a join of every row
+against every row.</p>
+<p>The executor was fine. We put the tables of two queries in a good order by
+hand. One query went from 10 seconds to 0.4 seconds. Another went from a
+timeout to 40 milliseconds. The planner did not find the order on its own.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-changed">What changed<a href="https://camusdb.github.io/blog/join-order-benchmark/#what-changed" class="hash-link" aria-label="Direct link to What changed" title="Direct link to What changed" translate="no">​</a></h2>
+<p>Six changes made the difference. Each one stands on its own, and each one
+applies to every join query, not only to the benchmark.</p>
+<p><strong>The planner reads every condition on its own.</strong> A JOB query lists its tables
+with commas and puts all conditions in <code>WHERE</code>. The old planner grouped the
+conditions as the query wrote them. A table whose only link came through a
+later table looked unconnected, so the planner joined it with a cross product.
+The planner now reads each condition on its own and finds the links between
+tables wherever they are. No JOB plan has a cross product today. The run went
+from 1,159 seconds to 184 seconds, with no timeouts.</p>
+<p><strong>One estimate per group of tables.</strong> To compare two orders, the planner
+estimates how many rows each step produces. JOB queries name the same movie
+through up to six columns and write every pair of them as equal. The old
+estimator treated each of those fifteen equalities as a separate filter and
+multiplied the estimate down to almost nothing. The new estimator sees one
+fact: these six columns hold the same value. The run went from 184 seconds to
+9.5 seconds.</p>
+<p><strong>Wide joins get the full search.</strong> The search compares every group of tables
+that an order can build. That number grows fast, so the old search stopped at
+12 tables and used a simple rule above that. Nine JOB queries have 14 or 17
+tables. The search now skips the groups that no order can build, which are
+most of them, and plans joins of up to 30 tables. Past a budget of steps it
+takes a fast greedy order instead of a slow search.</p>
+<p><strong>Statistics that see popular values.</strong> The planner sizes a join from the
+number of distinct values in the join column. That formula assumes every value
+is as common as every other. Real data is not like that: one movie has
+thousands of cast rows and most have a few. <code>ANALYZE</code> now keeps the most
+common values of each column with their counts, and the planner uses them. It
+also records how many rows hold NULL, because a NULL key joins with nothing.
+When a query filters a small lookup table down to one row, the planner reads
+that row before it plans. It then prices the join by the popularity of that
+key.</p>
+<p><strong>Each lookup costs less.</strong> With a good order, a join runs as a chain of index
+lookups. For each row on the left, the join finds the rows on the right that
+match. The old
+lookup asked the store for a page of 512 index entries and used 11 of them on
+average. The lookup now stops at the entries of its key. The join also keeps
+the rows of each key it found, so a repeated key costs nothing. And it sends a
+page of left rows to the store in one request instead of one request per row.</p>
+<p><strong>A test that watches plan quality.</strong> A correctness test does not catch a
+planner that returns the right rows and reads ten times more data to do it. A
+new test suite runs a fixed set of queries on fixed data and counts the rows
+and lookups of each plan. It compares the counts with a baseline file in git
+and fails when a query's work grows by more than half. The JOB queries run
+every night, and every result is checked against SQLite.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-numbers">The numbers<a href="https://camusdb.github.io/blog/join-order-benchmark/#the-numbers" class="hash-link" aria-label="Direct link to The numbers" title="Direct link to The numbers" translate="no">​</a></h2>
+<p>Work is the number of rows read, key lookups and index entries scanned over
+the whole plan, at a scale of about 225,000 rows.</p>
+<table><thead><tr><th>Baseline</th><th style="text-align:right">Total work, 113 queries</th><th style="text-align:right">Largest estimate error</th></tr></thead><tbody><tr><td>First baseline</td><td style="text-align:right">6,111,336</td><td style="text-align:right">78,378x</td></tr><tr><td>Current</td><td style="text-align:right">1,007,752</td><td style="text-align:right">1,240x</td></tr></tbody></table>
+<p>The engine does one sixth of the work it did at the first baseline, for the
+same results. The same test on the same laptop ran the 113 queries in 51
+seconds before the lookup changes and runs them in 7.9 seconds today. No query takes more than a
+second. The three 17-table queries took 4 to 5 seconds each and now run in
+under 15 milliseconds.</p>
+<p>The <a class="" href="https://camusdb.github.io/docs/plan-quality-testing/#comparison-with-sqlite-and-postgresql">plan quality page</a>
+in the docs compares the three engines on the same rows with warm runs.
+CamusDB takes 3.5 seconds, SQLite 7.2 seconds and PostgreSQL 0.74 seconds.
+CamusDB runs as an embedded node on a transactional key-value store, so this
+is a reference and not a race. Before this work, 25 of these queries did not
+finish at all.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-this-matters-outside-a-benchmark">Why this matters outside a benchmark<a href="https://camusdb.github.io/blog/join-order-benchmark/#why-this-matters-outside-a-benchmark" class="hash-link" aria-label="Direct link to Why this matters outside a benchmark" title="Direct link to Why this matters outside a benchmark" translate="no">​</a></h2>
+<p>Each change answers a problem that real tables have. The benchmark only made
+them visible at the same time.</p>
+<p>The shape of a JOB query is common. One large table links to many small ones,
+and the filters sit on the small ones. That is a star schema, and most
+applications have one:</p>
+<ul>
+<li class="">An online store joins orders to customers, products, categories, warehouses
+and shipments. A report filters on one category or one month.</li>
+<li class="">A ledger joins transactions to accounts, counterparties, currencies and
+instruments. A statement filters on one account and a date range.</li>
+<li class="">A multi-tenant product joins events to tenants, users, projects and plans.
+Every query filters on one tenant.</li>
+<li class="">A game backend joins players, inventories, items, trades and guilds. A
+player's screen filters on one player.</li>
+</ul>
+<p>The data behind those tables is skewed, has NULLs, and repeats its keys:</p>
+<ul>
+<li class="">A few products appear in most orders. A few accounts hold most of the
+transactions. One tenant can hold half of the rows. A planner that prices
+every value alike plans for the average and then meets the largest customer.</li>
+<li class="">Foreign keys are often NULL: an order without a coupon, a transaction
+without a counterparty, an item without an owner. An estimate that ignores
+NULLs is wrong by the NULL share.</li>
+<li class="">Keys repeat. Every line of an order carries the same order id, and every row
+of an inventory carries the same owner. A lookup that remembers its answers
+runs once per key.</li>
+<li class="">Nobody writes a <code>FROM</code> list in the best order, and an ORM or a report
+builder writes it in no order at all. The planner has to find it.</li>
+</ul>
+<p>The last point matters most for CamusDB. The store is distributed, so each
+lookup can be a network round trip. A plan that looks up a thousand times
+where ten would do is slow by the latency of the cluster.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-a-robust-optimizer-means-here">What a robust optimizer means here<a href="https://camusdb.github.io/blog/join-order-benchmark/#what-a-robust-optimizer-means-here" class="hash-link" aria-label="Direct link to What a robust optimizer means here" title="Direct link to What a robust optimizer means here" translate="no">​</a></h2>
+<p>A benchmark win can hide a fragile optimizer. These are the properties I care
+about more than the time:</p>
+<ol>
+<li class=""><strong>Results never change.</strong> SQLite checks every plan on every nightly run. A
+plan that changes results is a bug, not an optimization.</li>
+<li class=""><strong>The search is bounded.</strong> The step budget and the greedy fallback keep
+planning time small at any width. The 17-table queries plan in 9 to 16
+milliseconds.</li>
+<li class=""><strong>The same query gets the same plan.</strong> Two orders of equal cost keep the
+order the user wrote.</li>
+<li class=""><strong>No statistics means a fallback, not a failure.</strong> Without statistics the
+planner uses a simple order and still removes avoidable cross products.</li>
+<li class=""><strong>The plan is visible.</strong> <code>EXPLAIN (ANALYZE)</code> shows the order the search
+chose, its estimate next to the actual rows, and the lookups each join saved.</li>
+<li class=""><strong>Regressions are caught before merge.</strong> The plan quality test runs on every
+pull request.</li>
+</ol>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-is-still-open">What is still open<a href="https://camusdb.github.io/blog/join-order-benchmark/#what-is-still-open" class="hash-link" aria-label="Direct link to What is still open" title="Direct link to What is still open" translate="no">​</a></h2>
+<p>PostgreSQL executes the corpus five times faster, and the gap is in the
+executor, not in the planner. The search considers one shape of plan, a chain
+that adds one table at a time. Plans that join two groups of tables, and a
+search below an outer join, are not there yet. The worst estimate error is
+still above 1,000x on one query.</p>
+<p>A young database does not win a benchmark. It learns from one. JOB told us
+where the optimizer was wrong, in a form we could measure and gate. That is
+the victory I want to keep.</p>]]></content>
+        <author>
+            <name>Andres Gutierrez</name>
+            <uri>https://github.com/andresgutierrez</uri>
+        </author>
+        <category label="camusdb" term="camusdb"/>
+        <category label="query-optimizer" term="query-optimizer"/>
+        <category label="sql" term="sql"/>
+        <category label="benchmarks" term="benchmarks"/>
+    </entry>
     <entry>
         <title type="html"><![CDATA[What the dragon found, part three]]></title>
         <id>https://camusdb.github.io/blog/what-the-dragon-found-part-three/</id>
         <link href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/"/>
         <updated>2026-10-14T00:00:00.000Z</updated>
         <summary type="html"><![CDATA[A dragon breaking one artic city of glowing pyramids]]></summary>
-        <content type="html"><![CDATA[<p><img decoding="async" loading="lazy" alt="A dragon breaking one artic city of glowing pyramids" src="https://camusdb.github.io/assets/images/caraxes3-4fc0f2ffbc942758047a0b2cc00d0ee9.png" width="1448" height="1086" class="img_ev3q"></p>
+        <content type="html"><![CDATA[<p><img decoding="async" loading="lazy" alt="A dragon breaking one artic city of glowing pyramids" src="https://camusdb.github.io/assets/images/caraxes3-7c3e14191e14729e1f11789df370e5f9.png" width="1448" height="1086" class="img_ev3q"></p>
 <p>A ten-minute test finds the bugs that happen in ten minutes.</p>
 <p>A distributed database is hard to build, and the code is the smaller half of
 the work. The larger half is verification. You check the results again and
@@ -444,7 +607,7 @@ row, twice, with the sum exact at the end.</p>]]></content>
         <link href="https://camusdb.github.io/blog/what-the-dragon-found/"/>
         <updated>2026-09-21T00:00:00.000Z</updated>
         <summary type="html"><![CDATA[A dragon breaking one pyramid in a city of glowing pyramids]]></summary>
-        <content type="html"><![CDATA[<p><img decoding="async" loading="lazy" alt="A dragon breaking one pyramid in a city of glowing pyramids" src="https://camusdb.github.io/assets/images/caraxes2-90cc7f373dc5cf952680c78ab1ce1b47.png" width="1448" height="1086" class="img_ev3q"></p>
+        <content type="html"><![CDATA[<p><img decoding="async" loading="lazy" alt="A dragon breaking one pyramid in a city of glowing pyramids" src="https://camusdb.github.io/assets/images/caraxes2-2e569a45defaa899c2865bfb2cb757af.png" width="1448" height="1086" class="img_ev3q"></p>
 <p>In a world that's moving faster every day, where software verification is
 essential to keep up with that pace, building increasingly specialized
 harnesses, simulators, and test suites has become imperative.</p>
