@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.671b1828.css">
-<script src="/assets/js/runtime~main.391d568f.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.ab89ce33.js" defer="defer"></script>
 <script src="/assets/js/main.1685a31d.js" defer="defer"></script>
 </head>
 <body>
@@ -47,7 +47,7 @@ make counters vary between runs.</p>
 <p>The Join Order Benchmark also provides a reference comparison with SQLite and
 PostgreSQL. All three databases receive the same generated rows and indexes,
 run <code>ANALYZE</code>, and execute the same 113 queries. They return the same results.</p>
-<table><thead><tr><th>Measurement</th><th style="text-align:right">CamusDB</th><th style="text-align:right">SQLite</th><th style="text-align:right">PostgreSQL</th></tr></thead><tbody><tr><td>Total execution time</td><td style="text-align:right">3.5 s</td><td style="text-align:right">7.2 s</td><td style="text-align:right">0.74 s</td></tr><tr><td>Total planning time</td><td style="text-align:right">0.16 s</td><td style="text-align:right">Not reported separately</td><td style="text-align:right">0.72 s</td></tr><tr><td>Median query</td><td style="text-align:right">6.2 ms</td><td style="text-align:right">0.4 ms</td><td style="text-align:right">0.7 ms</td></tr></tbody></table>
+<table><thead><tr><th>Measurement</th><th style="text-align:right">CamusDB</th><th style="text-align:right">SQLite</th><th style="text-align:right">PostgreSQL</th></tr></thead><tbody><tr><td>Total execution time</td><td style="text-align:right">1.4 s</td><td style="text-align:right">7.2 s</td><td style="text-align:right">0.74 s</td></tr><tr><td>Total planning time</td><td style="text-align:right">0.09 s</td><td style="text-align:right">Not reported separately</td><td style="text-align:right">0.72 s</td></tr><tr><td>Median query</td><td style="text-align:right">2.8 ms</td><td style="text-align:right">0.4 ms</td><td style="text-align:right">0.7 ms</td></tr></tbody></table>
 <p>CamusDB runs as an embedded single node inside the test process, SQLite as an
 in-process library, and PostgreSQL as a local server. Each query is warmed up
 and the best repeated execution is used. CamusDB timing includes the counters

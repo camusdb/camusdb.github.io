@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.671b1828.css">
-<script src="/assets/js/runtime~main.391d568f.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.ab89ce33.js" defer="defer"></script>
 <script src="/assets/js/main.1685a31d.js" defer="defer"></script>
 </head>
 <body>
@@ -50,7 +50,7 @@ session.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="configuration">Configuration<a href="#configuration" class="hash-link" aria-label="Direct link to Configuration" title="Direct link to Configuration" translate="no">​</a></h2>
 <p>The Web Console reads the <code>CamusDB</code> section of the configuration. In a
 container, set the same keys as environment variables with two underscores.</p>
-<table><thead><tr><th>Setting</th><th>Environment variable</th><th>Description</th></tr></thead><tbody><tr><td><code>Endpoint</code></td><td><code>CamusDB__Endpoint</code></td><td>The base URL of CamusDB. Use the port of REST for <code>rest</code>. Use the port of gRPC for <code>grpc</code>.</td></tr><tr><td><code>Database</code></td><td><code>CamusDB__Database</code></td><td>The name of the database of the session.</td></tr><tr><td><code>Protocol</code></td><td><code>CamusDB__Protocol</code></td><td>It is <code>rest</code> by default. It also accepts <code>grpc</code>.</td></tr><tr><td><code>TimeoutSeconds</code></td><td><code>CamusDB__TimeoutSeconds</code></td><td>The timeout of a request.</td></tr><tr><td><code>MaxRows</code></td><td><code>CamusDB__MaxRows</code></td><td>The maximum number of rows that the console materializes into the grid of the results.</td></tr><tr><td><code>User</code></td><td><code>CamusDB__User</code></td><td>The user of the authentication. An empty value means no authentication.</td></tr><tr><td><code>Password</code></td><td><code>CamusDB__Password</code></td><td>The password of the <code>User</code>.</td></tr><tr><td><code>AccessToken</code></td><td><code>CamusDB__AccessToken</code></td><td>A bearer token from another source. The console uses it instead of a login.</td></tr><tr><td><code>RequireAccessToken</code></td><td><code>CamusDB__RequireAccessToken</code></td><td>Refuse user/password sign-in. The console then accepts access tokens only.</td></tr><tr><td><code>AllowInsecureCredentials</code></td><td><code>CamusDB__AllowInsecureCredentials</code></td><td>Allow credentials to a non-loopback <code>http://</code> endpoint. Use only behind a trusted TLS terminator, private link, or tunnel.</td></tr><tr><td><code>LockEndpoint</code></td><td><code>CamusDB__LockEndpoint</code></td><td>Prevent browser sessions and vendor launch payloads from changing the configured endpoint or protocol.</td></tr><tr><td><code>TokenLifetimeSeconds</code></td><td><code>CamusDB__TokenLifetimeSeconds</code></td><td>The fallback window for the reuse of a token, when the server reports no expiry.</td></tr><tr><td><code>BackupEndpoint</code></td><td><code>CamusDB__BackupEndpoint</code></td><td>Optional REST endpoint for backup administration. Use it when the main protocol is gRPC, or when the main endpoint is a pool and backups must target one node.</td></tr><tr><td><code>BackupTimeoutSeconds</code></td><td><code>CamusDB__BackupTimeoutSeconds</code></td><td>Optional timeout for backup administration calls. <code>0</code> uses the client default.</td></tr></tbody></table>
+<table><thead><tr><th>Setting</th><th>Environment variable</th><th>Description</th></tr></thead><tbody><tr><td><code>Endpoint</code></td><td><code>CamusDB__Endpoint</code></td><td>The base URL of CamusDB. Use the port of REST for <code>rest</code>. Use the port of gRPC for <code>grpc</code>.</td></tr><tr><td><code>Database</code></td><td><code>CamusDB__Database</code></td><td>The name of the database of the session.</td></tr><tr><td><code>Protocol</code></td><td><code>CamusDB__Protocol</code></td><td>It is <code>rest</code> by default. It also accepts <code>grpc</code>.</td></tr><tr><td><code>TimeoutSeconds</code></td><td><code>CamusDB__TimeoutSeconds</code></td><td>The timeout of a request.</td></tr><tr><td><code>MaxRows</code></td><td><code>CamusDB__MaxRows</code></td><td>Rows per page for pageable queries, and the cap for other results and exports.</td></tr><tr><td><code>User</code></td><td><code>CamusDB__User</code></td><td>The user of the authentication. An empty value means no authentication.</td></tr><tr><td><code>Password</code></td><td><code>CamusDB__Password</code></td><td>The password of the <code>User</code>.</td></tr><tr><td><code>AccessToken</code></td><td><code>CamusDB__AccessToken</code></td><td>A bearer token from another source. The console uses it instead of a login.</td></tr><tr><td><code>RequireAccessToken</code></td><td><code>CamusDB__RequireAccessToken</code></td><td>Refuse user/password sign-in. The console then accepts access tokens only.</td></tr><tr><td><code>AllowInsecureCredentials</code></td><td><code>CamusDB__AllowInsecureCredentials</code></td><td>Allow credentials to a non-loopback <code>http://</code> endpoint. Use only behind a trusted TLS terminator, private link, or tunnel.</td></tr><tr><td><code>LockEndpoint</code></td><td><code>CamusDB__LockEndpoint</code></td><td>Prevent browser sessions and vendor launch payloads from changing the configured endpoint or protocol.</td></tr><tr><td><code>TokenLifetimeSeconds</code></td><td><code>CamusDB__TokenLifetimeSeconds</code></td><td>The fallback window for the reuse of a token, when the server reports no expiry.</td></tr><tr><td><code>BackupEndpoint</code></td><td><code>CamusDB__BackupEndpoint</code></td><td>Optional REST endpoint for backup administration. Use it when the main protocol is gRPC, or when the main endpoint is a pool and backups must target one node.</td></tr><tr><td><code>BackupTimeoutSeconds</code></td><td><code>CamusDB__BackupTimeoutSeconds</code></td><td>Optional timeout for backup administration calls. <code>0</code> uses the client default.</td></tr></tbody></table>
 <p>Here is an example:</p>
 <div class="language-json codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-json codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token punctuation" style="color:#94a3b8">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token property" style="color:#7dd3fc">&quot;CamusDB&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token punctuation" style="color:#94a3b8">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;Endpoint&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;http://localhost:5095&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;Database&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;test&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;Protocol&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;rest&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;TimeoutSeconds&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">30</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;MaxRows&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">1000</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;User&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;Password&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;AccessToken&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;RequireAccessToken&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean" style="color:#fdba74">false</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;AllowInsecureCredentials&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean" style="color:#fdba74">false</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;LockEndpoint&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean" style="color:#fdba74">false</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;TokenLifetimeSeconds&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">0</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;BackupEndpoint&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;BackupTimeoutSeconds&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">0</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token punctuation" style="color:#94a3b8">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token punctuation" style="color:#94a3b8">}</span><br></div></code></pre></div></div>
 <p>A <code>Protocol=grpc</code> needs an <code>Endpoint</code> at the listener of gRPC. That address is
@@ -179,46 +179,50 @@ silently skipped.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="features">Features<a href="#features" class="hash-link" aria-label="Direct link to Features" title="Direct link to Features" translate="no">​</a></h2>
 <p>The Web Console provides these features:</p>
 <ul>
-<li class="">A dark layout of a console. It holds an app bar, a sidebar of the schema, an
-editor of SQL, a grid of the results, and a footer of the connection.</li>
+<li class="">A console layout with dark and light themes. It holds an app bar, a sidebar of
+the schema, an editor of SQL, a grid of the results, and a footer of the
+connection.</li>
 <li class="">A dialog of the configuration. It covers the endpoint, the database, the
 protocol, the backup endpoint, the timeout, the cap of the rows, and the
 credentials.</li>
 <li class="">A browser of the schema. It uses <code>SHOW DATABASES</code>, <code>SHOW TABLES</code>, <code>SHOW COLUMNS FROM</code>, <code>SHOW INDEXES FROM</code>, <code>SHOW CREATE TABLE</code>, <code>SHOW SEQUENCES</code>,
 schema comments, foreign-key metadata, sequences, and the metadata of a branch.</li>
 <li class="">The Monaco editor of SQL.</li>
-<li class="">A highlight of the SQL of CamusDB, with a completion of a keyword and of a
-function.</li>
-<li class="">A button to run a query. Ctrl and Enter, or Cmd and Enter, also runs one.</li>
-<li class="">A run of only the selected SQL text. When text is selected, the run button
-changes to <code>Run selection</code>.</li>
+<li class="">CamusDB SQL highlighting and completion for keywords, functions, tables, and
+columns in the current schema.</li>
+<li class=""><code>Run statement</code> runs the statement at the cursor with Ctrl/Cmd+Enter, or only
+the selected SQL when there is a selection.</li>
+<li class=""><code>Run script</code> runs each statement in order with Alt+X, stops at the first
+failure, and gives each statement its own result tab.</li>
 <li class="">A workspace of queries, with several tabs.</li>
 <li class="">A run of a query that you can cancel.</li>
 <li class="">The times of the execution, and a bar of the status.</li>
-<li class="">A grid of the results that knows the types, including exact <code>NUMERIC</code> text. It
-warns you at the cap of the rows.</li>
+<li class="">Searchable query history with database, duration, row count, and errors.</li>
+<li class="">A paged, sortable, and filterable result grid that knows the types, including
+exact <code>NUMERIC</code> text.</li>
 <li class="">A flow view for <code>EXPLAIN</code> and <code>EXPLAIN (ANALYZE)</code> results, beside the raw
 result table.</li>
-<li class="">The actions of a context on a table, such as an edit of the data, a view of
-the data, an export of the table, adding a column, adding an index, adding or
-dropping a foreign key, and deleting the table.</li>
+<li class="">Context actions to rename databases, tables, columns, indexes, and sequences,
+and to edit data, export tables, change schema, or delete objects.</li>
 <li class="">The actions of an edit and of a delete of a row, when a result set belongs to
 the context of a table.</li>
-<li class="">An export of a table to CSV, and to JSON. <code>MaxRows</code> caps both.</li>
+<li class="">CSV and JSON export for tables or the rows currently loaded in any result.</li>
 <li class="">Administration pages for node-local engine metrics, effective variables, and
 backup controls.</li>
 <li class="">The preferences of the interface that the console remembers, in the
 <code>localStorage</code> of the browser. Examples include open SQL tabs, editor text,
 the active database, the user name, the schema drawer width, and the
-editor/results split.</li>
+editor/results split and query history. The theme choice is remembered in a
+browser cookie so the correct theme is painted before the app connects.</li>
 </ul>
 <p>Two clicks on a table of the tree of the schema insert this text:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> </span><span class="token operator" style="color:#94a3b8">*</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> table_name</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">LIMIT</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">100</span><br></div></code></pre></div></div>
-<p>Right-click a database to create a table or drop the database. The create-table
+<p>Right-click a database to create, rename, or drop it. The create-table
 dialog can define columns, primary keys, single-column foreign keys, and
 defaults such as <code>nextval(&#x27;sequence&#x27;)</code> or <code>NUMERIC &#x27;9.99&#x27;</code>.</p>
-<p>Right-click a table to view or edit data, add a column, add an index, add a
-foreign key, export the table, or drop the table. The add-column dialog runs
+<p>Right-click a table to view or edit data, rename it, add a column, add an index,
+add a foreign key, export the table, or drop the table. Columns and indexes can
+also be renamed from their context menus. The add-column dialog runs
 <code>ALTER TABLE ... ADD COLUMN</code>; a <code>NOT NULL</code> column needs a constant default
 because existing rows get that value. The add-foreign-key dialog can create
 multi-column foreign keys and lets the server validate existing rows.</p>
@@ -226,7 +230,7 @@ multi-column foreign keys and lets the server validate existing rows.</p>
 table, and <code>ON DELETE</code> / <code>ON UPDATE</code> actions. Right-click a foreign key to drop
 the constraint.</p>
 <p>Sequences appear after tables. Double-click a sequence to insert
-<code>SHOW CREATE SEQUENCE ...</code>; right-click one to show its definition or drop it.
+<code>SHOW CREATE SEQUENCE ...</code>; right-click one to show, rename, or drop it.
 Dangerous actions require confirmation.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-behavior-of-a-query">The behavior of a query<a href="#the-behavior-of-a-query" class="hash-link" aria-label="Direct link to The behavior of a query" title="Direct link to The behavior of a query" translate="no">​</a></h2>
 <p>The console routes SQL by statement shape:</p>
@@ -239,13 +243,22 @@ render the returned rows into the result grid and show the affected-row count.</
 <li class="">Database lifecycle actions in the schema browser run through the same
 database-level operations exposed by CamusDB.</li>
 </ul>
-<p>The result grid materializes <code>MaxRows</code> rows at most. Keep that value reasonable
-for a large table.</p>
-<p>When part of the editor text is selected, the console executes only the
-selection. When nothing is selected, it executes the current tab.</p>
+<p>For a <code>SELECT</code> without its own <code>LIMIT</code> or <code>OFFSET</code>, <code>MaxRows</code> is the page size.
+Use <code>Fetch more</code> to append the next page. Add an <code>ORDER BY</code> when page order must
+be stable. Other row-returning statements are capped at <code>MaxRows</code> and report
+when the result was truncated.</p>
+<p>When part of the editor text is selected, <code>Run statement</code> executes only the
+selection. Otherwise it finds the statement at the cursor. <code>Run script</code> splits
+the selection or tab at semicolons outside strings, quoted names, and comments.</p>
+<p>The history control records the last 200 statements in <code>localStorage</code> and can
+search or reopen them in a new tab. Password literals in <code>CREATE USER</code> and
+<code>ALTER USER</code> are masked before storage.</p>
 <p>The result grid styles values by type. It distinguishes <code>NULL</code>, numbers,
 booleans, timestamps, blobs, UUIDs, exact <code>NUMERIC</code> values, and ordinary
 strings, and it warns when the result was truncated by <code>MaxRows</code>.</p>
+<p>Click a column heading to sort loaded rows, and use <code>Filter loaded rows</code> for a
+client-side filter. In an <code>Edit/View Data</code> tab, sorting and the <code>WHERE</code> box are
+sent to the server and reflected in the tab&#x27;s SQL.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="query-plan-flow">Query plan flow<a href="#query-plan-flow" class="hash-link" aria-label="Direct link to Query plan flow" title="Direct link to Query plan flow" translate="no">​</a></h2>
 <p>When a statement returns an <code>EXPLAIN</code>, <code>EXPLAIN (LOGICAL)</code>, <code>EXPLAIN (PHYSICAL)</code>, or <code>EXPLAIN (ANALYZE)</code> result, the toolbar above the result adds a
 <code>Table</code> / <code>Flow</code> switch. <code>Table</code> shows the raw rows returned by CamusDB. <code>Flow</code>
@@ -296,8 +309,10 @@ and runtime posture, and backups cover every database on the node.</p>
 coordinated backups, and offline restore.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="export">Export<a href="#export" class="hash-link" aria-label="Direct link to Export" title="Direct link to Export" translate="no">​</a></h2>
 <p>An export of a table runs a <code>SELECT * FROM &lt;table&gt;</code>. The <code>MaxRows</code> of the
-current session caps that statement. The console then downloads one of two
-formats:</p>
+current session caps that statement. The result toolbar can also export the
+rows currently loaded by any query, after the grid&#x27;s sort and filter. For a
+paged result, use <code>Fetch more</code> before export when more rows are needed. The
+console downloads one of two formats:</p>
 <ul>
 <li class="">CSV.</li>
 <li class="">JSON.</li>

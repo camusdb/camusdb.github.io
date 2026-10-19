@@ -12,8 +12,9 @@
         <id>https://camusdb.github.io/blog/join-order-benchmark/</id>
         <link href="https://camusdb.github.io/blog/join-order-benchmark/"/>
         <updated>2026-10-18T00:00:00.000Z</updated>
-        <summary type="html"><![CDATA[If your queries join five, ten or fifteen tables, CamusDB now plans them]]></summary>
-        <content type="html"><![CDATA[<p>If your queries join five, ten or fifteen tables, CamusDB now plans them
+        <summary type="html"><![CDATA[Data temple order]]></summary>
+        <content type="html"><![CDATA[<p><img decoding="async" loading="lazy" alt="Data temple order" src="https://camusdb.github.io/assets/images/temple-123be847206da451f9ef970ea8be92e1.png" width="1672" height="941" class="img_ev3q"></p>
+<p>If your queries join five, ten or fifteen tables, CamusDB now plans them
 better and runs them faster. This post explains what changed in plain terms,
 so you can see what to expect from your own queries.</p>
 <p>A join query names its tables and its conditions. It does not say in which
