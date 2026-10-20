@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -60,9 +60,9 @@ Check descending indexes after reimporting from an older dump.</p>
 <p>A branch is dumped as the full database view that the branch can read. The
 reimported copy is an independent database, not a copy-on-write branch of the
 original parent.</p>
-<p>A storage revision move starts the new server with a fresh user catalog. Accounts,
-grants, and sessions live in the same storage revision as the rows, so export
-accounts and grants with <code>camus-dump --all-users</code> (or <code>--users</code>). Passwords
+<p>A storage revision move starts the new server with a fresh user catalog.
+Accounts, grants, and sessions live in the same storage revision as the rows, so
+export accounts and grants with <code>camus-dump --all-users</code> (or <code>--users</code>). Passwords
 cannot be exported; plan to set a new password for each account after the
 reimport.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="dump">Dump<a href="#dump" class="hash-link" aria-label="Direct link to Dump" title="Direct link to Dump" translate="no">​</a></h2>
@@ -71,9 +71,9 @@ old revision directory:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">camus-dump -e http://db1.internal:5096 --all-databases --all-users -b 100 \</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  --output-directory /backup/camusdb-old/</span><br></div></code></pre></div></div>
 <p><code>--all-databases</code> asks the server for every database. <code>--all-users</code> writes
 <code>users.sql</code> (the <code>CREATE USER</code> statements) and <code>grants.sql</code> (the <code>GRANT</code>
-statements) next to the database files. It needs a superuser. <code>-b</code> controls
-rows per <code>INSERT</code>. Start with <code>-b 100</code>; it avoids one round trip per row without making
-statements too large for wide tables.</p>
+statements) next to the database files, and needs a superuser. <code>-b</code> controls
+rows per <code>INSERT</code>. Start with <code>-b 100</code>: it avoids one round trip per row without
+making statements too large for wide tables.</p>
 <p>With authentication enabled, pass credentials through the environment or an
 interactive prompt, not through shell history:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">CAMUSDB_PASSWORD=secret camus-dump -e https://db1.internal:5096 \</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  --all-databases --all-users -u admin -b 100 \</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  --output-directory /backup/camusdb-old/</span><br></div></code></pre></div></div>

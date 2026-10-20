@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -31,9 +31,9 @@ rules.</li>
 <li class="">The MCP server gives the agent typed tools for inspecting and working with a
 running CamusDB database.</li>
 </ul>
-<p>You can use either component on its own. Together, an agent can apply CamusDB
-guidance while it examines schemas, explains plans, runs read-only queries, or
-performs the database operations allowed by its MCP credentials.</p>
+<p>You can use either one on its own. Used together, they let an agent apply
+CamusDB guidance while it examines schemas, explains plans, runs read-only
+queries, or performs the database operations its MCP credentials allow.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="available-skills">Available skills<a href="#available-skills" class="hash-link" aria-label="Direct link to Available skills" title="Direct link to Available skills" translate="no">​</a></h2>
 <table><thead><tr><th>Skill</th><th>Use it to</th></tr></thead><tbody><tr><td><code>camusdb-schema-design</code></td><td>Design or review tables, keys, indexes, data types, constraints, sequences, and TTL.</td></tr><tr><td><code>camusdb-sql</code></td><td>Write CamusSQL and port SQL from PostgreSQL or MySQL.</td></tr><tr><td><code>camusdb-transactions</code></td><td>Choose transaction modes and implement correct conflict retries.</td></tr><tr><td><code>camusdb-query-performance</code></td><td>Diagnose queries with plans, statistics, indexes, and the result cache.</td></tr><tr><td><code>camusdb-troubleshooting</code></td><td>Diagnose <code>CADBxxxx</code> errors and slow or stuck workloads.</td></tr><tr><td><code>camusdb-dotnet</code></td><td>Use CamusDB through ADO.NET, Dapper, and Entity Framework Core.</td></tr><tr><td><code>camusdb-typescript</code></td><td>Use the TypeScript connector or call the HTTP API.</td></tr><tr><td><code>camusdb-vector-search</code></td><td>Store embeddings and write nearest-neighbor queries.</td></tr><tr><td><code>camusdb-migrations-and-recovery</code></td><td>Rehearse schema changes, recover data, and back up or restore a database.</td></tr><tr><td><code>camusdb-local-dev</code></td><td>Run CamusDB locally, use <code>camus-cli</code>, and connect the MCP server.</td></tr></tbody></table>
 <p>An agent reads the short description of each installed skill and loads the full
@@ -51,8 +51,8 @@ conversation.</p>
 <p>Run <code>./install.sh</code> without an <code>--agent</code> argument to install for all supported
 agents at once.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="install-in-a-project">Install in a project<a href="#install-in-a-project" class="hash-link" aria-label="Direct link to Install in a project" title="Direct link to Install in a project" translate="no">​</a></h2>
-<p>Install a copy in one project when the whole team should receive the same skill
-files from version control:</p>
+<p>Install a copy in a project when the whole team should get the same skill files
+from version control:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">./install.sh --project ~/code/my-app --copy</span><br></div></code></pre></div></div>
 <p>This writes the skills to <code>.claude/skills</code> and <code>.agents/skills</code> in the project.
 Use <code>--copy</code> for a project installation. A symbolic link points to your local

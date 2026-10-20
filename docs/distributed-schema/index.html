@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -27,136 +27,132 @@ cannot happen, because DDL updates one catalog that every session reads.
 CamusDB gives a cluster the same property: every node applies the same schema
 changes in the same order, and an online change never lets readers and writers
 see two incompatible layouts.</p>
-<p>CamusDB treats the schema as distributed state. The schema is not a local side
-table that each node updates on its own. In cluster mode, a change to a table, a
-column, or an index flows through the same replicated system that protects the
-data writes.</p>
-<p>For an operator of a cluster, these properties follow. Each section below
-explains one of them:</p>
+<p>CamusDB treats the schema as distributed state, not as a local side table that
+each node updates on its own. In cluster mode, changes to tables, columns, and
+indexes flow through the same replicated system that protects data writes.</p>
+<p>If you operate a cluster, you get these properties (each section below explains
+one of them):</p>
 <ol>
-<li class="">A schema change has one ordered source of truth. No node invents its own
+<li class="">Schema changes have one ordered source of truth. No node invents its own
 local schema history.</li>
-<li class="">Every node converges on the same schema version. A slow node does not block
-DDL forever.</li>
-<li class="">CamusDB stages an online change. A reader and a writer therefore never jump
-between two incompatible layouts.</li>
-<li class="">A node forwards DDL to the schema leader, the node that currently
+<li class="">Every node converges on the same schema version, and a slow node does not
+block DDL forever.</li>
+<li class="">CamusDB stages online changes, so readers and writers never jump between two
+incompatible layouts.</li>
+<li class="">Nodes forward DDL to the schema leader, the node that currently
 <a class="" href="/docs/concepts/#leader">leads</a> the database&#x27;s schema log. A retried DDL
 statement does not apply twice.</li>
-<li class="">A restart and a change of leader lose no committed schema work.</li>
+<li class="">Restarts and leader changes lose no committed schema work.</li>
 <li class="">A rename changes metadata only. It does not rewrite rows.</li>
 </ol>
-<p>CamusDB is in production use. Cluster mode is nevertheless an alpha feature. The
-APIs and the storage formats can change between versions.</p>
+<p>CamusDB is in production use, but cluster mode is still an alpha feature. Its
+APIs and storage formats can change between versions.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-this-exists">Why this exists<a href="#why-this-exists" class="hash-link" aria-label="Direct link to Why this exists" title="Direct link to Why this exists" translate="no">​</a></h2>
-<p>In a distributed database, a schema change is harder than a DDL statement on one
-node. Two nodes can receive a request at different times. A node can be slower,
-it can restart during a change, or it can lose its leadership.</p>
-<p>A schema in local metadata alone would create a risk. One node could accept a
-write with a newer definition, while another node still reads with an older
-one.</p>
-<p>CamusDB avoids that risk. It treats the schema as a replicated state machine.
-The cluster first agrees on the order of the schema changes. Each node then
-applies the same committed changes, in that order. The schema and the data use
-the same replicated storage model.</p>
+<p>Schema changes are harder in a distributed database than on a single node. Two
+nodes can receive a request at different times. A node can be slow, restart in
+the middle of a change, or lose its leadership.</p>
+<p>If the schema lived only in each node&#x27;s local metadata, one node could accept a
+write with a newer definition while another still reads with an older one.</p>
+<p>CamusDB avoids that by treating the schema as a replicated state machine. The
+cluster first agrees on the order of schema changes, and then each node applies
+the same committed changes in that order. The schema and the data use the same
+replicated storage model.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-source-of-truth">The source of truth<a href="#the-source-of-truth" class="hash-link" aria-label="Direct link to The source of truth" title="Direct link to The source of truth" translate="no">​</a></h2>
 <p>For a database in cluster mode, the source of truth is the committed schema log
-in <a class="" href="/docs/concepts/#kommander">Kommander</a>, the <a class="" href="/docs/concepts/#raft">Raft</a>
-library that replicates CamusDB&#x27;s logs. Raft is the consensus protocol that
-makes the nodes agree on one order of entries. The source of truth is not a
-local metadata file.</p>
-<p>CamusDB stores each schema change as a small record of the change:</p>
+in <a class="" href="/docs/concepts/#kommander">Kommander</a>, not a local metadata file. Kommander
+is the <a class="" href="/docs/concepts/#raft">Raft</a> library that replicates CamusDB&#x27;s logs, and
+Raft is the consensus protocol that makes the nodes agree on one order of
+entries.</p>
+<p>CamusDB stores each schema change as a small record:</p>
 <ul>
-<li class="">Create a table, or drop one.</li>
-<li class="">Add a column, or drop one.</li>
-<li class="">Add an index, or drop one.</li>
-<li class="">Advance a column or an index from one state of visibility to the next.</li>
+<li class="">Create or drop a table.</li>
+<li class="">Add or drop a column.</li>
+<li class="">Add or drop an index.</li>
+<li class="">Advance a column or an index to its next visibility state.</li>
 </ul>
-<p>Every node applies a schema entry in the same order, after Raft commits that
-entry. The persisted metadata in the KV storage is a checkpoint for a faster
-restart. After a restart, a node loads that checkpoint and replays the
-committed schema log entries to restore its in-memory schema. The committed
-schema log remains the authoritative history, so a restart or a change of
-leader loses no committed schema work.</p>
+<p>Every node applies schema entries in the same order, after Raft commits them.
+The metadata persisted in KV storage is a checkpoint for faster restarts: after
+a restart, a node loads that checkpoint and replays the committed schema log
+entries to rebuild its in-memory schema. The committed schema log remains the
+authoritative history, so a restart or a leader change loses no committed
+schema work.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="versions-and-convergence">Versions and convergence<a href="#versions-and-convergence" class="hash-link" aria-label="Direct link to Versions and convergence" title="Direct link to Versions and convergence" translate="no">​</a></h2>
-<p>CamusDB gives a schema change a version, and the versions only increase:</p>
+<p>Every schema change gets a version, and versions only increase:</p>
 <ul>
-<li class="">The schema of a database has a counter of the version.</li>
+<li class="">Each database&#x27;s schema has a version counter.</li>
 <li class="">Each table also carries its own version.</li>
-<li class="">A stored row keeps the schema version of its write.</li>
+<li class="">Each stored row keeps the schema version it was written with.</li>
 </ul>
-<p>Those versions let the cluster answer two questions precisely:</p>
+<p>These versions let the cluster answer two questions precisely:</p>
 <ol>
 <li class="">Which schema does a transaction use?</li>
-<li class="">Did every live node reach the same schema yet?</li>
+<li class="">Has every live node reached the same schema yet?</li>
 </ol>
-<p>CamusDB uses an acknowledgement from each live node. It therefore knows when
-every node applied a committed schema version. It waits for the convergence of
-the current stage across the live cluster, before it advances to the next stage
-of an online change.</p>
+<p>Each live node acknowledges the schema versions it applies, so CamusDB knows
+when every node has applied a committed version. Before it advances an online
+change to its next stage, it waits for the live cluster to converge on the
+current stage.</p>
 <p>The gate waits for every node that the current schema leader considers live,
-based on the live Raft membership, not on a static list of peers. A node that
-is dead, or fully inactive, therefore does not block a DDL statement forever.</p>
+based on the live Raft membership rather than a static peer list. A dead or
+fully inactive node therefore does not block a DDL statement forever.</p>
 <p>The leader both receives pushed acknowledgements and probes peers for their
 applied version. This matters with partial
 <a class="" href="/docs/concepts/#replica-and-replication-factor">replica</a> placement, where each
 <a class="" href="/docs/concepts/#partition">partition</a> keeps copies on only some of the nodes.
-Two nodes may then share no data partition and may not appear together in one
-local Raft membership view. A lost or redirected acknowledgement does not let a
-DDL return early: the probe discovers nodes that hold the database open and
-waits for their applied schema version. A peer reporting that the database is closed
-removes its stale acknowledgement record.</p>
-<p>The design uses a safety model of two versions during a staged DDL statement.
-Before it proposes the next schema version, the cluster tries to confirm that
-enough nodes applied the previous version already. The spread of the schema
-versions across the nodes therefore stays bounded, and a transaction and the
-encoding of a row always have a coherent view of the schema in force. When one
-node is too slow to acknowledge, see
+Two nodes may then share no data partition and may not appear together in any
+local Raft membership view. A lost or redirected acknowledgement cannot make a
+DDL statement return early: the probe finds the nodes that hold the database
+open and waits for their applied schema version. When a peer reports that the
+database is closed, the leader removes its stale acknowledgement record.</p>
+<p>During a staged DDL statement, the design follows a two-version safety model.
+Before proposing the next schema version, the cluster tries to confirm that
+enough nodes have already applied the previous one. This keeps the spread of
+schema versions across nodes bounded, so transactions and row encoding always
+see a coherent schema. For what happens when one node is too slow to
+acknowledge, see
 <a href="#a-slow-node-and-bounded-progress-of-a-ddl-statement" class="">A slow node</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-a-schema-change-flows">How a schema change flows<a href="#how-a-schema-change-flows" class="hash-link" aria-label="Direct link to How a schema change flows" title="Direct link to How a schema change flows" translate="no">​</a></h2>
-<p>At a high level, a DDL request in a cluster follows this path:</p>
+<p>A DDL request in a cluster follows this path:</p>
 <ol>
-<li class="">A client sends <code>CREATE TABLE</code>, <code>ALTER TABLE</code>, or a DDL statement for an index
-to any CamusDB node.</li>
-<li class="">That node forwards the request to the schema leader, if it is not the leader
-itself.</li>
+<li class="">A client sends <code>CREATE TABLE</code>, <code>ALTER TABLE</code>, or an index DDL statement to
+any CamusDB node.</li>
+<li class="">If that node is not the schema leader, it forwards the request to the
+leader.</li>
 <li class="">The leader validates the change against the current schema version.</li>
 <li class="">CamusDB writes the schema change as a replicated log entry.</li>
 <li class="">Raft commits the entry.</li>
 <li class="">Each node applies the committed change locally.</li>
-<li class="">The cluster waits for the acknowledgement of the applied version from the
-live nodes. It does so before it advances the next stage, where a next stage
-exists.</li>
+<li class="">If the change has a next stage, the cluster waits for the live nodes to
+acknowledge the applied version before advancing to it.</li>
 </ol>
 <!-- -->
-<p>A DDL statement therefore behaves like a distributed workflow. It does not
-behave like a local mutation of metadata.</p>
-<p>A forwarded DDL request carries a stable identifier of the operation. A retry
-after a lost response therefore does not apply the same schema change twice.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-slow-node-and-bounded-progress-of-a-ddl-statement">A slow node, and bounded progress of a DDL statement<a href="#a-slow-node-and-bounded-progress-of-a-ddl-statement" class="hash-link" aria-label="Direct link to A slow node, and bounded progress of a DDL statement" title="Direct link to A slow node, and bounded progress of a DDL statement" translate="no">​</a></h2>
-<p>A distributed DDL statement must select one of two modes of failure:</p>
+<p>So a DDL statement behaves like a distributed workflow, not a local metadata
+update.</p>
+<p>A forwarded DDL request carries a stable operation id, so retrying after a lost
+response does not apply the same schema change twice.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-slow-node-and-bounded-progress-of-a-ddl-statement">A slow node and bounded DDL progress<a href="#a-slow-node-and-bounded-progress-of-a-ddl-statement" class="hash-link" aria-label="Direct link to A slow node and bounded DDL progress" title="Direct link to A slow node and bounded DDL progress" translate="no">​</a></h2>
+<p>A distributed DDL statement has to choose how it fails:</p>
 <ul>
-<li class="">It waits forever for the slowest node.</li>
-<li class="">It lets the cluster continue, and it protects a node that lags in another way.</li>
+<li class="">Wait forever for the slowest node.</li>
+<li class="">Let the cluster continue, and protect lagging nodes some other way.</li>
 </ul>
-<p>CamusDB uses the second mode.</p>
-<p>After the commit of a schema step, the leader first waits for every live node
-to acknowledge it. A node can be slow, or unreachable for a time. After a
-bounded delay, the leader then treats a step that a
-<a class="" href="/docs/concepts/#majority">majority</a> (more than half) applied as sufficient
-progress, and it continues the staged change. One slow node therefore does
-not turn every schema change into a long stall.</p>
-<p>The safety side of that decision matters as much. A node that falls more than
-one schema version behind the committed schema head rejects reads and DML for
-that database with <code>CADB0503 SchemaCatchingUp</code>, until it catches up. Treat that
-state as a temporary condition for a retry. It is not a silent mode of stale
-reads.</p>
+<p>CamusDB takes the second option.</p>
+<p>After a schema step commits, the leader first waits for every live node to
+acknowledge it. A node can be slow, or unreachable for a while. After a bounded
+delay, the leader treats a step that a <a class="" href="/docs/concepts/#majority">majority</a>
+(more than half) of nodes applied as enough progress, and continues the staged
+change. One slow node therefore does not turn every schema change into a long
+stall.</p>
+<p>The safety side matters just as much. A node that falls more than one schema
+version behind the committed schema head rejects reads and DML for that
+database with <code>CADB0503 SchemaCatchingUp</code> until it catches up. Treat this as a
+temporary, retryable condition. It is never a silent stale-read mode.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="schema-freshness-reconciliation">Schema freshness reconciliation<a href="#schema-freshness-reconciliation" class="hash-link" aria-label="Direct link to Schema freshness reconciliation" title="Direct link to Schema freshness reconciliation" translate="no">​</a></h2>
-<p>Cluster nodes can miss a schema delta when a database is not open on that node,
-or during the brief gap between loading a schema checkpoint and subscribing to
-future schema entries. CamusDB repairs that case by comparing the in-memory
-schema version with the durable checkpoint version and reloading the schema when
-memory is behind.</p>
+<p>A cluster node can miss a schema change when the database is not open on that
+node, or during the brief gap between loading a schema checkpoint and
+subscribing to future schema entries. CamusDB repairs this by comparing the
+in-memory schema version with the durable checkpoint version, and reloading the
+schema when memory is behind.</p>
 <p>The repair runs in three places:</p>
 <ul>
 <li class="">When a database opens, after the schema subscription is registered.</li>
@@ -164,85 +160,81 @@ memory is behind.</p>
 <li class="">On a periodic background sweep in cluster mode.</li>
 </ul>
 <p>The sweep interval is <code>schema_freshness_check_interval_ms</code>, default <code>10000</code>.
-Each tick costs one small KV read per open database when nothing is stale. Set
+When nothing is stale, each tick costs one small KV read per open database. Set
 the value to <code>0</code> or below to disable the sweep.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-states-of-an-online-schema-change">The states of an online schema change<a href="#the-states-of-an-online-schema-change" class="hash-link" aria-label="Direct link to The states of an online schema change" title="Direct link to The states of an online schema change" translate="no">​</a></h2>
-<p>CamusDB does not expose every schema change at one time. It uses staged online
-states. A column or an index therefore becomes visible in steps:</p>
-<table><thead><tr><th>State</th><th>Meaning</th></tr></thead><tbody><tr><td><code>DeleteOnly</code></td><td>The new element exists in the metadata. It is not part of a normal read or a normal write yet.</td></tr><tr><td><code>WriteOnly</code></td><td>A new write maintains the element. A normal read does not depend on it yet.</td></tr><tr><td><code>Public</code></td><td>The element is fully visible to a normal query execution.</td></tr></tbody></table>
-<p>A new column and a new index therefore do not jump from &quot;absent&quot; to &quot;fully
-active&quot; in one step. CamusDB can take four steps:</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="online-schema-change-states">Online schema change states<a href="#online-schema-change-states" class="hash-link" aria-label="Direct link to Online schema change states" title="Direct link to Online schema change states" translate="no">​</a></h2>
+<p>CamusDB does not expose a schema change all at once. It uses staged online
+states, so a column or an index becomes visible in steps:</p>
+<table><thead><tr><th>State</th><th>Meaning</th></tr></thead><tbody><tr><td><code>DeleteOnly</code></td><td>The new element exists in the metadata, but normal reads and writes do not use it yet.</td></tr><tr><td><code>WriteOnly</code></td><td>New writes maintain the element, but normal reads do not depend on it yet.</td></tr><tr><td><code>Public</code></td><td>The element is fully visible to normal query execution.</td></tr></tbody></table>
+<p>A new column or index does not jump from &quot;absent&quot; to &quot;fully active&quot; in one
+step. CamusDB can take four steps:</p>
 <ol>
-<li class="">It adds the metadata, in an internal state.</li>
-<li class="">It lets a new write maintain the element.</li>
-<li class="">It backfills the existing rows.</li>
-<li class="">It publishes the element for the normal plan and the normal read.</li>
+<li class="">Add the metadata in an internal state.</li>
+<li class="">Let new writes maintain the element.</li>
+<li class="">Backfill the existing rows.</li>
+<li class="">Publish the element for normal plans and reads.</li>
 </ol>
 <!-- -->
-<p>That staged model is what keeps an online schema change compatible with live
+<p>This staged model is what keeps online schema changes compatible with live
 traffic.</p>
-<p>The number of stages differs by operation:</p>
+<p>The number of stages depends on the operation:</p>
 <ul>
-<li class="">CamusDB stages the addition of a column, and the addition of an index.</li>
-<li class="">CamusDB can stage the removal of a column, in the reverse order.</li>
-<li class="">The removal of an index is one replicated schema change today. It is not a
-staged rollout in reverse.</li>
+<li class="">Adding a column and adding an index are staged.</li>
+<li class="">Dropping a column can be staged, in reverse order.</li>
+<li class="">Dropping an index is a single replicated schema change today, not a staged
+rollout in reverse.</li>
 </ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-rename-changes-the-metadata-only">A rename changes the metadata only<a href="#a-rename-changes-the-metadata-only" class="hash-link" aria-label="Direct link to A rename changes the metadata only" title="Direct link to A rename changes the metadata only" translate="no">​</a></h2>
-<p>A rename of a table, of a column, or of an index needs no rewrite of the stored
-rows.</p>
-<p>CamusDB stores a row and an index with stable internal identifiers, and with a
-row layout by position. It does not put a readable name in the payload of every
-row. A rename of a column or of a table therefore updates the metadata and the
-rules of the visibility. It forces no rewrite of the data across the cluster.</p>
-<p>For a new table, the stable identifier is a short value in base62. CamusDB
-allocates it from a persistent monotonic sequence, before it commits the DDL
-statement. The replicated schema change carries the allocated id. A follower
-therefore applies the same identity for the table. It does not generate its own.
-An existing table with an older id of 24 characters stays valid.</p>
-<p>The practical benefit for a user is clear. A rename is much lighter than an
-operation that copies and rebuilds everything.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-backfill-and-its-safety">The backfill, and its safety<a href="#the-backfill-and-its-safety" class="hash-link" aria-label="Direct link to The backfill, and its safety" title="Direct link to The backfill, and its safety" translate="no">​</a></h2>
-<p>CamusDB can add a column or an index that needs the existing data. It then uses
-a coordinator that can resume. It does not assume that one short process
-finishes the whole job.</p>
-<p>That coordinator has four responsibilities:</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="renames-change-metadata-only">Renames change metadata only<a href="#renames-change-metadata-only" class="hash-link" aria-label="Direct link to Renames change metadata only" title="Direct link to Renames change metadata only" translate="no">​</a></h2>
+<p>Renaming a table, column, or index does not rewrite stored rows.</p>
+<p>CamusDB stores rows and index entries with stable internal ids and a positional
+row layout. It does not put readable names in every row&#x27;s payload. Renaming a
+column or table therefore updates the metadata and the visibility rules, and
+forces no data rewrite across the cluster.</p>
+<p>A new table&#x27;s stable id is a short base62 value. CamusDB allocates it from a
+persistent monotonic sequence before it commits the DDL statement. The
+replicated schema change carries the allocated id, so followers apply the same
+table identity instead of generating their own. Existing tables with older
+24-character ids stay valid.</p>
+<p>In practice, a rename is far cheaper than an operation that copies and rebuilds
+everything.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="backfill-safety">Backfill safety<a href="#backfill-safety" class="hash-link" aria-label="Direct link to Backfill safety" title="Direct link to Backfill safety" translate="no">​</a></h2>
+<p>When you add a column or an index that needs the existing data, CamusDB runs a
+resumable coordinator instead of assuming that one short process will finish
+the whole job.</p>
+<p>The coordinator:</p>
 <ul>
-<li class="">It moves the element one state at a time.</li>
-<li class="">It waits for the convergence of the cluster at each step.</li>
-<li class="">It runs the backfill before the element becomes fully public.</li>
-<li class="">It resumes the work after a restart, and after a change of leader.</li>
+<li class="">Moves the element one state at a time.</li>
+<li class="">Waits for the cluster to converge at each step.</li>
+<li class="">Runs the backfill before the element becomes fully public.</li>
+<li class="">Resumes the work after a restart or a leader change.</li>
 </ul>
-<p>One property matters most to a user. CamusDB does not forget partly completed
-online work, and a move of the leadership or a restart of a node does not change
-that.</p>
+<p>The property that matters most: CamusDB does not forget partly completed online
+work, even when leadership moves or a node restarts.</p>
 <p>For a new column with a default, CamusDB backfills the existing rows before the
-column becomes fully public. For a new index, CamusDB backfills the index
-entries before it publishes the index for the normal plan.</p>
-<p>CamusDB writes a checkpoint of the progress of a backfill. The leadership can
-change during the build of an online column or index. The next schema leader
-then continues from the recorded progress. It does not start the whole job
-again.</p>
+column becomes fully public. For a new index, it backfills the index entries
+before publishing the index for normal plans.</p>
+<p>CamusDB checkpoints backfill progress. If leadership changes while an online
+column or index is being built, the next schema leader continues from the
+recorded progress instead of restarting the whole job.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="reads-writes-and-compatibility">Reads, writes, and compatibility<a href="#reads-writes-and-compatibility" class="hash-link" aria-label="Direct link to Reads, writes, and compatibility" title="Direct link to Reads, writes, and compatibility" translate="no">​</a></h2>
-<p>CamusDB expresses each schema change as a move from one version to the next. It
-does not express the change as a mutation of a state without a version. The
-readers, the writers, the replication, and the backfill all use that one model
-of the versions.</p>
-<p>A transaction also pins the schema versions while it runs. A later DDL statement
-can invalidate the schema of a transaction. CamusDB then rejects the commit of
-that transaction. A long query and a long write therefore see one coherent view
-of the schema. Neither one blends an old layout with a new one.</p>
+<p>CamusDB expresses each schema change as a move from one version to the next,
+not as an unversioned state mutation. Readers, writers, replication, and
+backfill all share that one version model.</p>
+<p>A transaction also pins the schema versions it uses while it runs. If a later
+DDL statement invalidates that schema, CamusDB rejects the transaction&#x27;s
+commit. Long queries and long writes therefore see one coherent schema, and
+never blend an old layout with a new one.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-trade-off">The trade-off<a href="#the-trade-off" class="hash-link" aria-label="Direct link to The trade-off" title="Direct link to The trade-off" translate="no">​</a></h2>
-<p>A distributed DDL statement needs more coordination than a DDL statement on one
-node, and it can make a lagging node reject table work for a time. CamusDB
-prefers explicit convergence and recovery. The design does not make a schema
-change free. It makes the behavior of a schema change explicit and recoverable.</p>
+<p>Distributed DDL needs more coordination than DDL on a single node, and it can
+make a lagging node reject table work for a while. CamusDB prefers explicit
+convergence and recovery. The design does not make schema changes free; it
+makes their behavior explicit and recoverable.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="related-pages">Related pages<a href="#related-pages" class="hash-link" aria-label="Direct link to Related pages" title="Direct link to Related pages" translate="no">​</a></h2>
 <ul>
-<li class=""><a class="" href="/docs/architecture/">Architecture</a> for the wider layout of the system.</li>
-<li class=""><a class="" href="/docs/storage/">Storage</a> for the details of the KV mapping.</li>
-<li class=""><a class="" href="/docs/wal-recovery/">WAL And Recovery</a> for the replay and the durability.</li>
-<li class=""><a class="" href="/docs/cluster/">Cluster Mode</a> for the setup of a node.</li>
-</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/distributed-schema.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/transactions-locking-internals/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Transaction internals</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/plan-quality-testing/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Plan quality testing</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#why-this-exists" class="table-of-contents__link toc-highlight">Why this exists</a></li><li><a href="#the-source-of-truth" class="table-of-contents__link toc-highlight">The source of truth</a></li><li><a href="#versions-and-convergence" class="table-of-contents__link toc-highlight">Versions and convergence</a></li><li><a href="#how-a-schema-change-flows" class="table-of-contents__link toc-highlight">How a schema change flows</a></li><li><a href="#a-slow-node-and-bounded-progress-of-a-ddl-statement" class="table-of-contents__link toc-highlight">A slow node, and bounded progress of a DDL statement</a></li><li><a href="#schema-freshness-reconciliation" class="table-of-contents__link toc-highlight">Schema freshness reconciliation</a></li><li><a href="#the-states-of-an-online-schema-change" class="table-of-contents__link toc-highlight">The states of an online schema change</a></li><li><a href="#a-rename-changes-the-metadata-only" class="table-of-contents__link toc-highlight">A rename changes the metadata only</a></li><li><a href="#the-backfill-and-its-safety" class="table-of-contents__link toc-highlight">The backfill, and its safety</a></li><li><a href="#reads-writes-and-compatibility" class="table-of-contents__link toc-highlight">Reads, writes, and compatibility</a></li><li><a href="#the-trade-off" class="table-of-contents__link toc-highlight">The trade-off</a></li><li><a href="#related-pages" class="table-of-contents__link toc-highlight">Related pages</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
+<li class=""><a class="" href="/docs/architecture/">Architecture</a> for the overall system layout.</li>
+<li class=""><a class="" href="/docs/storage/">Storage</a> for details of the KV mapping.</li>
+<li class=""><a class="" href="/docs/wal-recovery/">WAL And Recovery</a> for replay and durability.</li>
+<li class=""><a class="" href="/docs/cluster/">Cluster Mode</a> for node setup.</li>
+</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/distributed-schema.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/transactions-locking-internals/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Transaction internals</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/plan-quality-testing/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Plan quality testing</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#why-this-exists" class="table-of-contents__link toc-highlight">Why this exists</a></li><li><a href="#the-source-of-truth" class="table-of-contents__link toc-highlight">The source of truth</a></li><li><a href="#versions-and-convergence" class="table-of-contents__link toc-highlight">Versions and convergence</a></li><li><a href="#how-a-schema-change-flows" class="table-of-contents__link toc-highlight">How a schema change flows</a></li><li><a href="#a-slow-node-and-bounded-progress-of-a-ddl-statement" class="table-of-contents__link toc-highlight">A slow node and bounded DDL progress</a></li><li><a href="#schema-freshness-reconciliation" class="table-of-contents__link toc-highlight">Schema freshness reconciliation</a></li><li><a href="#online-schema-change-states" class="table-of-contents__link toc-highlight">Online schema change states</a></li><li><a href="#renames-change-metadata-only" class="table-of-contents__link toc-highlight">Renames change metadata only</a></li><li><a href="#backfill-safety" class="table-of-contents__link toc-highlight">Backfill safety</a></li><li><a href="#reads-writes-and-compatibility" class="table-of-contents__link toc-highlight">Reads, writes, and compatibility</a></li><li><a href="#the-trade-off" class="table-of-contents__link toc-highlight">The trade-off</a></li><li><a href="#related-pages" class="table-of-contents__link toc-highlight">Related pages</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
 </body>
 </html>

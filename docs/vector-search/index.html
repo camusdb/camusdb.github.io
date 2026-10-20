@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -26,70 +26,69 @@ recommendations (&quot;products similar to this one&quot;), and retrieval for LL
 applications, where you fetch the most relevant passages to put in a prompt.
 Because the vectors live in ordinary CamusDB tables, a search can filter on
 regular columns, such as a tenant id, in the same query.</p>
-<p>A vector (also called an embedding) is a list of float32 numbers. A machine
-learning model produces one for each document, image, or sentence. The model
-puts related items close together, so the distance between two vectors measures
-how similar the items are.</p>
-<p>CamusDB stores a vector in a <code>BYTES</code> column. It ranks vectors with distance
+<p>A vector (also called an embedding) is a list of float32 numbers that a machine
+learning model produces for each document, image, or sentence. The model places
+related items close together, so the distance between two vectors measures how
+similar the items are.</p>
+<p>CamusDB stores vectors in <code>BYTES</code> columns and ranks them with distance
 functions. A nearest neighbor query is an ordinary <code>SELECT</code> with an <code>ORDER BY</code>
 and a <code>LIMIT</code>:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> id</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> docs</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> tenant_id </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token variable" style="color:#60a5fa">@tenant</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ORDER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">l2_distance</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain">embedding</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token variable" style="color:#60a5fa">@q</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">LIMIT</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">10</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p>The search is exact. CamusDB reads every row that the <code>WHERE</code> clause admits. It
-returns the true nearest rows. There is no approximation, and there is no recall
-parameter to tune.</p>
-<p>The cost grows in a straight line with the number of rows. Read
-<a href="#cost" class="">Cost</a> before you run this against a very large table.</p>
+<p>The search is exact: CamusDB reads every row the <code>WHERE</code> clause admits and
+returns the true nearest rows. There is no approximation and no recall parameter
+to tune.</p>
+<p>The cost grows linearly with the number of rows. Read <a href="#cost" class="">Cost</a> before you
+run this against a very large table.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-a-vector-is-stored">How a vector is stored<a href="#how-a-vector-is-stored" class="hash-link" aria-label="Direct link to How a vector is stored" title="Direct link to How a vector is stored" translate="no">​</a></h2>
 <p>A vector is a <code>BYTES</code> value with this layout:</p>
 <ol>
 <li class="">The elements are IEEE-754 float32 numbers.</li>
-<li class="">The byte order of each element is little-endian.</li>
-<li class="">The elements are packed together. There is no header, and there is no
-padding.</li>
+<li class="">Each element is little-endian.</li>
+<li class="">The elements are packed together, with no header and no padding.</li>
 </ol>
-<p>The dimension is the byte count divided by four. A 768-dimension embedding
+<p>The dimension is the byte count divided by four, so a 768-dimension embedding
 occupies 3,072 bytes.</p>
-<p>This layout is the full contract. The schema does not record it. A value that
-one client writes and another client reads is readable only because both clients
-follow the same layout. The float32 value <code>1.0</code> is <code>0x3F800000</code>. On the wire it
-is the four bytes <code>00 00 80 3F</code>, with the low byte first.</p>
+<p>This layout is the full contract, and the schema does not record it. A value one
+client writes is readable by another only because both follow the same layout.
+For example, the float32 value <code>1.0</code> is <code>0x3F800000</code>, which goes on the wire as
+the four bytes <code>00 00 80 3F</code>, low byte first.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TABLE</span><span class="token plain"> docs </span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  id </span><span class="token builtin class-name" style="color:#5eead4">OID</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">PRIMARY</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">KEY</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">NOT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">NULL</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  tenant_id </span><span class="token builtin class-name" style="color:#5eead4">INT64</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  embedding </span><span class="token builtin class-name" style="color:#5eead4">BYTES</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token number" style="color:#fdba74">3072</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">NOT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">NULL</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">STORAGE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">PLAIN</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">CONSTRAINT</span><span class="token plain"> embedding_is_768d </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">CHECK</span><span class="token plain"> </span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token function" style="color:#7dd3fc">vector_dims</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain">embedding</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"> </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">768</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
 <p><code>STORAGE PLAIN</code> keeps each embedding inside its row. Without it, a
 768-dimension embedding is large enough to move out of the row under the default
 large-value strategy. See <a href="#storage-strategy-for-embeddings" class="">Storage strategy for embeddings</a>.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="bytesn-is-a-maximum-not-a-fixed-width">BYTES(N) is a maximum, not a fixed width<a href="#bytesn-is-a-maximum-not-a-fixed-width" class="hash-link" aria-label="Direct link to BYTES(N) is a maximum, not a fixed width" title="Direct link to BYTES(N) is a maximum, not a fixed width" translate="no">​</a></h3>
-<p><code>BYTES(N)</code> declares that a value must not exceed <code>N</code> bytes. It does not declare
-that a value must be exactly <code>N</code> bytes. A 767-element embedding therefore fits a
-<code>BYTES(3072)</code> column without complaint.</p>
+<p><code>BYTES(N)</code> means a value must not exceed <code>N</code> bytes, not that it must be exactly
+<code>N</code> bytes. So a 767-element embedding fits a <code>BYTES(3072)</code> column without
+complaint.</p>
 <p>A value that exceeds the bound fails with <code>CADB0302 ValueTooLong</code>. A bare
 <code>BYTES</code> column uses the default maximum of 10,485,760 bytes. See
 <a class="" href="/docs/data-types/">Data types</a> for the full length rules.</p>
-<p>The <code>CHECK</code> constraint is what fixes the dimension. Without a <code>CHECK</code>, CamusDB
-stores a short vector, and it compares that vector against full-length vectors.
-The mismatch appears later, as an error in some query.</p>
-<p>Two functions support such a check:</p>
+<p>The <code>CHECK</code> constraint is what fixes the dimension. Without it, CamusDB stores a
+short vector and compares it against full-length vectors, and the mismatch shows
+up later as an error in some query.</p>
+<p>These functions support such a check:</p>
 <table><thead><tr><th>Function</th><th>Returns</th></tr></thead><tbody><tr><td><code>octet_length(bytes or string)</code></td><td>The byte count. For a string, this is the UTF-8 byte count. <code>octet_length(&#x27;áé&#x27;)</code> is 4, but <code>length(&#x27;áé&#x27;)</code> is 2.</td></tr><tr><td><code>vector_dims(bytes)</code></td><td>The element count, which is <code>octet_length / 4</code>.</td></tr></tbody></table>
-<p><code>vector_dims</code> rejects a byte count that is not a multiple of four. It does not
-round the value down. A 3,070-byte value would otherwise report 767 dimensions.
-That value would then satisfy a check written for 767 dimensions. The check
-exists to catch exactly this corruption.</p>
-<p>A <code>NULL</code> embedding passes <code>CHECK (vector_dims(embedding) = 768)</code>. SQL violates a
-check only when the condition is <code>false</code>, and <code>vector_dims(NULL)</code> is <code>NULL</code>. Use
-<code>NOT NULL</code> to forbid a missing vector. The check cannot do it. See
+<p><code>vector_dims</code> rejects a byte count that is not a multiple of four rather than
+rounding down. Otherwise a 3,070-byte value would report 767 dimensions and
+satisfy a check written for 767 dimensions, which is exactly the corruption the
+check exists to catch.</p>
+<p>A <code>NULL</code> embedding passes <code>CHECK (vector_dims(embedding) = 768)</code>, because SQL
+violates a check only when the condition is <code>false</code>, and <code>vector_dims(NULL)</code> is
+<code>NULL</code>. Use <code>NOT NULL</code> to forbid missing vectors; the check cannot do it. See
 <a class="" href="/docs/check-constraints/">Check constraints</a>.</p>
-<p>Both functions are deterministic, and neither is an aggregate. That is what
+<p>Both functions are deterministic and neither is an aggregate, which is what
 makes them legal inside a <code>CHECK</code> condition.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="storage-strategy-for-embeddings">Storage strategy for embeddings<a href="#storage-strategy-for-embeddings" class="hash-link" aria-label="Direct link to Storage strategy for embeddings" title="Direct link to Storage strategy for embeddings" translate="no">​</a></h3>
 <p>An embedding is a <code>BYTES</code> value, so the large-value rules in
 <a class="" href="/docs/storage-layout/">Large Values</a> apply to it. A 768-dimension embedding is
 3,072 bytes, which is above the default out-of-line threshold of 2,048 bytes.
 Under the default strategy, <code>EXTENDED</code>, each embedding moves out of its row.</p>
-<p>That is good for large values most queries skip. It is bad for exact KNN scans
-(k-nearest-neighbor: find the k rows closest to a query vector), because the
-ranking expression reads the embedding for every candidate row. The scan then
-pays an extra batched fetch for every batch it ranks. Float32 vectors also do
-not usually compress enough for LZ4 to help.</p>
-<p>Choose the strategy from the query that reads the column:</p>
+<p>That is good for large values that most queries skip. It is bad for exact KNN
+scans (k-nearest-neighbor: find the k rows closest to a query vector), because
+the ranking expression reads the embedding for every candidate row, so the scan
+pays an extra batched fetch for every batch it ranks. Float32 vectors also
+rarely compress enough for LZ4 to help.</p>
+<p>Choose the strategy based on the queries that read the column:</p>
 <ul>
 <li class="">Use <code>PLAIN</code> when KNN queries scan the embedding. The value stays inside the
 row and is never compressed.</li>
@@ -100,36 +99,36 @@ attempt.</li>
 <p>For an existing table, change the strategy and rewrite the stored rows:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">ALTER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TABLE</span><span class="token plain"> docs </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ALTER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">COLUMN</span><span class="token plain"> embedding </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SET</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">STORAGE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">PLAIN</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ALTER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TABLE</span><span class="token plain"> docs </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">REWRITE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">STORAGE</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="distance-functions">Distance functions<a href="#distance-functions" class="hash-link" aria-label="Direct link to Distance functions" title="Direct link to Distance functions" translate="no">​</a></h2>
-<p>All three functions take two vectors of equal dimension. All three return
+<p>All three functions take two vectors of equal dimension and return
 <code>FLOAT64</code>.</p>
 <table><thead><tr><th>Function</th><th>Meaning</th><th>Nearest is</th><th>Sort with</th></tr></thead><tbody><tr><td><code>l2_distance(a, b)</code></td><td>Euclidean distance</td><td>smaller</td><td><code>ASC</code>, the default</td></tr><tr><td><code>cosine_distance(a, b)</code></td><td><code>1 - cosine_similarity</code></td><td>smaller</td><td><code>ASC</code></td></tr><tr><td><code>inner_product(a, b)</code></td><td>Dot product</td><td>larger</td><td><code>DESC</code></td></tr></tbody></table>
-<p><code>inner_product</code> runs in the opposite direction from the other two functions. An
-ascending sort over <code>inner_product</code> returns the least similar rows. CamusDB
-raises no error for this, so the mistake looks like a working query.</p>
+<p><code>inner_product</code> runs in the opposite direction from the other two: an ascending
+sort over <code>inner_product</code> returns the least similar rows. CamusDB raises no
+error for this, so the mistake looks like a working query.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token comment" style="color:#64748b;font-style:italic">-- Cosine distance: nearest row first.</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> id </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> docs </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ORDER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">cosine_distance</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain">embedding</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token variable" style="color:#60a5fa">@q</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">LIMIT</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">10</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token comment" style="color:#64748b;font-style:italic">-- Inner product: most similar row first.</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> id </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> docs </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ORDER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">inner_product</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain">embedding</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token variable" style="color:#60a5fa">@q</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">DESC</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">LIMIT</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">10</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p><code>l2_distance</code> returns the true distance. It applies the square root. The squared
-form gives the same rank order, but it is not a distance. A projected column that
-shows 9.4 where the answer is 3.07 reads as a defect.</p>
-<p><code>cosine_distance</code> returns 0 for two identical directions. It returns 2 for two
-opposite directions. It never returns a negative value. CamusDB clamps the
-similarity to the range <code>[-1, 1]</code> before the subtraction. Rounding therefore
-cannot push an exact match below zero and sort it in front of itself.</p>
+<p><code>l2_distance</code> returns the true distance, with the square root applied. The
+squared form gives the same rank order, but it is not a distance, and a
+projected column showing 9.4 where the answer is 3.07 reads as a defect.</p>
+<p><code>cosine_distance</code> returns 0 for identical directions and 2 for opposite
+directions, and never returns a negative value. CamusDB clamps the similarity to
+<code>[-1, 1]</code> before the subtraction, so rounding cannot push an exact match below
+zero and sort it in front of itself.</p>
 <p>CamusDB widens every element to <code>double</code> before any arithmetic. A <code>float</code>
-accumulator loses the order between two near neighbors at 768 dimensions. It can
-also overflow on values that a <code>double</code> handles.</p>
+accumulator loses the order between two near neighbors at 768 dimensions, and
+can overflow on values that a <code>double</code> handles.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="simd-execution">SIMD execution<a href="#simd-execution" class="hash-link" aria-label="Direct link to SIMD execution" title="Direct link to SIMD execution" translate="no">​</a></h3>
 <p>The three functions use SIMD instructions on hardware that accelerates them.
 SIMD is a processor feature that applies one operation to several numbers at
 once.</p>
-<p>The vectorized loop keeps the same behavior as the plain loop:</p>
+<p>The vectorized loop behaves the same as the plain loop:</p>
 <ol>
 <li class="">It widens each element to <code>double</code> before any arithmetic.</li>
 <li class="">It rejects <code>NaN</code> and infinity with the same error.</li>
 <li class="">It names the same element in the error message.</li>
 </ol>
-<p>Only the order of the summation differs. That order can change the last bits of
-a result. A big-endian host uses the plain loop. A vector shorter than one SIMD
-lane group also uses the plain loop.</p>
+<p>Only the summation order differs, which can change the last bits of a result.
+Big-endian hosts, and vectors shorter than one SIMD lane group, use the plain
+loop.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="return-the-distance-as-a-column">Return the distance as a column<a href="#return-the-distance-as-a-column" class="hash-link" aria-label="Direct link to Return the distance as a column" title="Direct link to Return the distance as a column" translate="no">​</a></h3>
 <p>Sort by an alias when you also want the distance value:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> id</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">l2_distance</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain">embedding</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token variable" style="color:#60a5fa">@q</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">AS</span><span class="token plain"> distance</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> docs</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ORDER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> distance</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">LIMIT</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">10</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
@@ -137,118 +136,116 @@ lane group also uses the plain loop.</p>
 for how <code>ORDER BY</code> resolves an alias and which shapes it refuses.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="send-the-query-vector-as-a-parameter">Send the query vector as a parameter<a href="#send-the-query-vector-as-a-parameter" class="hash-link" aria-label="Direct link to Send the query vector as a parameter" title="Direct link to Send the query vector as a parameter" translate="no">​</a></h2>
 <p>Send the query vector as a bind parameter. A 768-dimension vector written as a
-hexadecimal literal adds about 6 KB of text to every statement. It also gives
-every query a different statement text, which prevents plan reuse.</p>
+hexadecimal literal adds about 6 KB of text to every statement, and gives every
+query a different statement text, which prevents plan reuse.</p>
 <table><thead><tr><th>Transport</th><th>Encoding</th></tr></thead><tbody><tr><td>SQL text</td><td>Hexadecimal, with an <code>X&#x27;...&#x27;</code> literal</td></tr><tr><td>REST (JSON)</td><td>Base64, under <code>bytesValue</code>, with <code>type</code> 7</td></tr><tr><td>gRPC</td><td>Raw bytes, in <code>Value.bytes_value</code></td></tr></tbody></table>
 <div class="language-json codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-json codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token punctuation" style="color:#94a3b8">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token property" style="color:#7dd3fc">&quot;databaseName&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;app&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token property" style="color:#7dd3fc">&quot;sql&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;SELECT id FROM docs ORDER BY l2_distance(embedding, @q) LIMIT 10&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token property" style="color:#7dd3fc">&quot;parameters&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token punctuation" style="color:#94a3b8">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;@q&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token punctuation" style="color:#94a3b8">{</span><span class="token plain"> </span><span class="token property" style="color:#7dd3fc">&quot;type&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">7</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token property" style="color:#7dd3fc">&quot;bytesValue&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;AAAAAAAAgD8=&quot;</span><span class="token plain"> </span><span class="token punctuation" style="color:#94a3b8">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token punctuation" style="color:#94a3b8">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token punctuation" style="color:#94a3b8">}</span><br></div></code></pre></div></div>
-<p>The value above is the two-element vector <code>[0.0, 1.0]</code>. A real embedding is
-4,096 base64 characters at 768 dimensions.</p>
+<p>The value above is the two-element vector <code>[0.0, 1.0]</code>. A real 768-dimension
+embedding is 4,096 base64 characters.</p>
 <p>The statement text never changes, so a thousand different query vectors share
-one cached plan. Prepared statements work the same way. Prepare the statement
+one cached plan. Prepared statements work the same way: prepare the statement
 once, then execute it with a different vector each time. See
 <a class="" href="/docs/prepared-statements/">Parameters and prepared statements</a>.</p>
-<p>The server logs the statement text. It never logs the parameter values, so an
-embedding does not reach a log file.</p>
-<p>A 3,072-byte vector is far below both transport limits. The gRPC message default
-is 4 MB. The request body default is 30 MB. Neither limit is narrower for
+<p>The server logs the statement text but never the parameter values, so embeddings
+do not reach log files.</p>
+<p>A 3,072-byte vector is far below both transport limits: the gRPC message default
+is 4 MB, and the request body default is 30 MB. Neither limit is narrower for
 vectors.</p>
 <p><code>LIMIT</code> also accepts a parameter. CamusDB binds the value before it builds the
 plan, so a parameterized limit still bounds the sort.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-the-plan-shows">What the plan shows<a href="#what-the-plan-shows" class="hash-link" aria-label="Direct link to What the plan shows" title="Direct link to What the plan shows" translate="no">​</a></h2>
 <p>Use <code>EXPLAIN</code> to see how CamusDB ranks the query. With a <code>LIMIT</code>, the sort is
-bounded, and the plan shows a <code>topk</code> node:</p>
+bounded and the plan shows a <code>topk</code> node:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">topk(k: 10, l2_distance(…) ASC)</span><br></div></code></pre></div></div>
-<p>Without a <code>LIMIT</code>, the plan shows a <code>sort</code> node instead. That node ranks and
+<p>Without a <code>LIMIT</code>, the plan shows a <code>sort</code> node instead, which ranks and
 materializes every matching row.</p>
-<p>The two names distinguish two different operators. A <code>sort</code> node holds the whole
-input, and it can spill to disk. A <code>topk</code> node holds at most <code>k</code> rows, and it
-never spills. This is what lets an exact nearest neighbor query over a large
-table finish at all.</p>
+<p>The names reflect two different operators. A <code>sort</code> node holds the whole input
+and can spill to disk. A <code>topk</code> node holds at most <code>k</code> rows and never spills.
+That is what lets an exact nearest neighbor query over a large table finish at
+all.</p>
 <!-- -->
-<p><code>EXPLAIN (ANALYZE)</code> reports the work of each node. The scan node reports every
-row that it examined. The <code>topk</code> node reports only the rows that it retained.</p>
+<p><code>EXPLAIN (ANALYZE)</code> reports each node&#x27;s work. The scan node reports every row
+it examined; the <code>topk</code> node reports only the rows it retained.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="when-the-bound-applies">When the bound applies<a href="#when-the-bound-applies" class="hash-link" aria-label="Direct link to When the bound applies" title="Direct link to When the bound applies" translate="no">​</a></h3>
-<p>CamusDB bounds the sort to <code>offset + limit</code> rows, not to <code>limit</code> rows. The rows
-that <code>OFFSET</code> skips must still be ranked before CamusDB can skip them.</p>
+<p>CamusDB bounds the sort to <code>offset + limit</code> rows, not <code>limit</code> rows, because the
+rows that <code>OFFSET</code> skips must still be ranked before CamusDB can skip them.</p>
 <p>CamusDB keeps the full sort in these cases:</p>
 <ul>
 <li class="">The <code>LIMIT</code> value is unknown or negative.</li>
 <li class="">The <code>OFFSET</code> value is negative.</li>
-<li class="">The sum of <code>OFFSET</code> and <code>LIMIT</code> overflows, or it exceeds the maximum 32-bit
+<li class="">The sum of <code>OFFSET</code> and <code>LIMIT</code> overflows or exceeds the maximum 32-bit
 integer.</li>
-<li class="">Spill to disk is enabled, and the bound exceeds the spill threshold. At that
-size the external sort is the operator designed to hold the rows. See
+<li class="">Spill to disk is enabled and the bound exceeds the spill threshold. At that
+size, the external sort is the operator designed to hold the rows. See
 <a class="" href="/docs/spill-to-disk/">Spill to disk</a>.</li>
 <li class="">A node between the sort and the limit changes the row count. A projection
-preserves rows, so a bound above it is safe. An aggregate does not.
-<code>SELECT count(*) FROM t ORDER BY x LIMIT 1</code> must count every row. A bound of
-one row would answer with a count of 1.</li>
+preserves rows, so a bound above it is safe, but an aggregate does not.
+<code>SELECT count(*) FROM t ORDER BY x LIMIT 1</code> must count every row; a one-row
+bound would answer with a count of 1.</li>
 </ul>
 <p><code>LIMIT 0</code> returns no rows. CamusDB never reads the input, so it never evaluates
 the ordering expression.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="order-among-equal-keys">Order among equal keys<a href="#order-among-equal-keys" class="hash-link" aria-label="Direct link to Order among equal keys" title="Direct link to Order among equal keys" translate="no">​</a></h3>
-<p>The <code>topk</code> node and the full sort return the same rows. They place <code>NULL</code> values
+<p>The <code>topk</code> node and the full sort return the same rows and place <code>NULL</code> values
 in the same position.</p>
-<p>They can disagree on the sequence of rows with equal keys. The <code>topk</code> node keeps
-the row that arrived first. SQL leaves this order unspecified. Add a
+<p>They can disagree on the order of rows with equal keys: the <code>topk</code> node keeps
+the row that arrived first, and SQL leaves this order unspecified. Add a
 tie-breaking key to <code>ORDER BY</code> when you need a fixed order among equal rows.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="errors">Errors<a href="#errors" class="hash-link" aria-label="Direct link to Errors" title="Direct link to Errors" translate="no">​</a></h2>
 <table><thead><tr><th>Condition</th><th>Error</th></tr></thead><tbody><tr><td>The byte count is not divisible by four</td><td><code>CADB0410</code> malformed vector</td></tr><tr><td>A vector has zero elements</td><td><code>CADB0410</code> malformed vector</td></tr><tr><td>The two operands have different dimensions</td><td><code>CADB0411</code> dimension mismatch, with both dimensions named</td></tr><tr><td>An element is <code>NaN</code> or an infinity</td><td><code>CADB0412</code> invalid vector value</td></tr><tr><td><code>cosine_distance</code> receives a zero-magnitude vector</td><td><code>CADB0412</code> invalid vector value</td></tr></tbody></table>
-<p>All five conditions map to HTTP 400. See <a class="" href="/docs/error-codes/">Error codes</a>.</p>
-<p>CamusDB refuses a dimension mismatch. It does not truncate the longer operand.
+<p>All of these conditions map to HTTP 400. See <a class="" href="/docs/error-codes/">Error codes</a>.</p>
+<p>CamusDB refuses a dimension mismatch rather than truncating the longer operand.
 Truncation would return a plausible rank order computed from mismatched data.</p>
 <p>CamusDB rejects a non-finite element when a vector function reads it, not when
 the row is written. The schema cannot tell an embedding from a file, so no write
 path may reject a <code>BYTES</code> value for a vector rule.</p>
-<p>A zero-element vector is a corrupt row, not a distance of zero. Every metric
+<p>A zero-element vector is a corrupt row, not a distance of zero: every metric
 over zero elements is meaningless or degenerate.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="transactions-and-time-travel">Transactions and time travel<a href="#transactions-and-time-travel" class="hash-link" aria-label="Direct link to Transactions and time travel" title="Direct link to Transactions and time travel" translate="no">​</a></h2>
-<p>A nearest neighbor query is an ordinary read. It obeys the ordinary visibility
-rules:</p>
+<p>A nearest neighbor query is an ordinary read and follows the ordinary
+visibility rules:</p>
 <ul>
-<li class="">It ranks the uncommitted rows of its own transaction.</li>
-<li class="">It ignores the rows of a transaction that rolled back.</li>
-<li class="">It ranks the rows of a past snapshot under <code>AS OF SYSTEM TIME</code>.</li>
+<li class="">It ranks its own transaction&#x27;s uncommitted rows.</li>
+<li class="">It ignores rows from transactions that rolled back.</li>
+<li class="">Under <code>AS OF SYSTEM TIME</code>, it ranks the rows of the past snapshot.</li>
 </ul>
 <p>See <a class="" href="/docs/serializable-transactions/">Transactions and isolation</a> and
 <a class="" href="/docs/time-travel-reads/">Time travel reads</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="cluster-behavior">Cluster behavior<a href="#cluster-behavior" class="hash-link" aria-label="Direct link to Cluster behavior" title="Direct link to Cluster behavior" translate="no">​</a></h2>
 <p>Every node ranks the whole table, not only the
-<a class="" href="/docs/concepts/#ranges-and-spans">spans</a> (key ranges) whose
-<a class="" href="/docs/concepts/#leader">leader</a> it is. The answer
-is the same on every node.</p>
-<p>The coordinator (the node that received the query) performs the rank. A query
-can therefore ship every qualifying row across the network to the node that runs
-it. There is no distributed top-k operator that bounds this traffic. See
+<a class="" href="/docs/concepts/#ranges-and-spans">spans</a> (key ranges) it is
+<a class="" href="/docs/concepts/#leader">leader</a> for, so the answer is the same on every node.</p>
+<p>The coordinator (the node that received the query) does the ranking, so a query
+can ship every qualifying row across the network to that node. No distributed
+top-k operator bounds this traffic. See
 <a class="" href="/docs/distributed-queries/">Distributed queries</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="cost">Cost<a href="#cost" class="hash-link" aria-label="Direct link to Cost" title="Direct link to Cost" translate="no">​</a></h2>
-<p>These figures come from an Apple M3, with 10,000 rows and 768 dimensions, and
-with the SIMD distance kernels active:</p>
+<p>These figures come from an Apple M3 with 10,000 rows, 768 dimensions, and the
+SIMD distance kernels active:</p>
 <table><thead><tr><th>Query</th><th style="text-align:right">Time</th></tr></thead><tbody><tr><td><code>ORDER BY l2_distance(...) LIMIT 10</code></td><td style="text-align:right">12 ms</td></tr><tr><td><code>ORDER BY l2_distance(...)</code> with no limit</td><td style="text-align:right">50 ms</td></tr><tr><td><code>SELECT id FROM docs</code> with no sort</td><td style="text-align:right">6 ms</td></tr></tbody></table>
-<p>The <code>LIMIT</code> cuts the query to about one quarter of the full sort. The value of
-<code>k</code> itself changes little. A limit of 10 and a limit of 100 measure the same,
-because the cost comes from the read and the rank of every row.</p>
-<p>One distance evaluation costs this much on the same hardware:</p>
+<p>The <code>LIMIT</code> cuts the query to about a quarter of the full sort time. The value
+of <code>k</code> itself matters little: a limit of 10 and a limit of 100 measure the same,
+because the cost comes from reading and ranking every row.</p>
+<p>A single distance evaluation on the same hardware costs:</p>
 <table><thead><tr><th style="text-align:right">Dimensions</th><th style="text-align:right"><code>l2_distance</code></th><th style="text-align:right"><code>inner_product</code></th><th style="text-align:right"><code>cosine_distance</code></th></tr></thead><tbody><tr><td style="text-align:right">128</td><td style="text-align:right">53 ns</td><td style="text-align:right">50 ns</td><td style="text-align:right">67 ns</td></tr><tr><td style="text-align:right">768</td><td style="text-align:right">240 ns</td><td style="text-align:right">214 ns</td><td style="text-align:right">320 ns</td></tr><tr><td style="text-align:right">1536</td><td style="text-align:right">459 ns</td><td style="text-align:right">405 ns</td><td style="text-align:right">607 ns</td></tr></tbody></table>
-<p>The cost grows in a straight line with rows multiplied by dimensions. The
-figures above give about 1.2 s for the same query over one million rows on the
-same hardware.</p>
-<p>Two rules follow:</p>
+<p>The cost grows linearly with rows times dimensions. From the figures above,
+the same query over one million rows takes about 1.2 s on the same hardware.</p>
+<p>So:</p>
 <ol>
 <li class="">Always pair a vector <code>ORDER BY</code> with a <code>LIMIT</code>.</li>
 <li class="">Narrow the candidate rows with a <code>WHERE</code> clause where you can. The filter
-runs before the rank, so a selective predicate reduces the rows that CamusDB
-measures.</li>
+runs before ranking, so a selective predicate reduces the rows CamusDB has to
+measure.</li>
 </ol>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="limits">Limits<a href="#limits" class="hash-link" aria-label="Direct link to Limits" title="Direct link to Limits" translate="no">​</a></h2>
 <p>CamusDB does not support these features yet:</p>
 <ul>
 <li class="">No approximate index. There is no HNSW index, no IVF index, and no
-quantization. Every query is an exact scan.</li>
+quantization, so every query is an exact scan.</li>
 <li class="">No vector index type. An ordinary index cannot help a distance sort, because
 distance is not an order-preserving function of the stored bytes.</li>
 <li class="">No native vector type. The dimension lives in a <code>CHECK</code> constraint, not in the
-catalog. The element type is a convention, not a fact that the schema records.</li>
+catalog, and the element type is a convention the schema does not record.</li>
 <li class="">No distributed top-k. See <a href="#cluster-behavior" class="">Cluster behavior</a> above.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="related">Related<a href="#related" class="hash-link" aria-label="Direct link to Related" title="Direct link to Related" translate="no">​</a></h2>

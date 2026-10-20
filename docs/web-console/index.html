@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -29,32 +29,32 @@ result sets, export tables, view node configuration and engine metrics, read
 <code>EXPLAIN</code> plans as visual flows, and administer backups.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="requirements">Requirements<a href="#requirements" class="hash-link" aria-label="Direct link to Requirements" title="Direct link to Requirements" translate="no">​</a></h2>
 <ul>
-<li class="">A CamusDB server that runs.</li>
+<li class="">A running CamusDB server.</li>
 <li class="">Docker, or the .NET 10 SDK when running from source.</li>
 </ul>
-<p>CamusDB exposes REST on the port <code>5095</code> by default. It exposes the gRPC of a
-client on the port <code>5096</code>. The Web Console can use either protocol.</p>
+<p>By default, CamusDB serves REST on port <code>5095</code> and client gRPC on port <code>5096</code>.
+The Web Console can use either protocol.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="run-it-with-docker">Run it with Docker<a href="#run-it-with-docker" class="hash-link" aria-label="Direct link to Run it with Docker" title="Direct link to Run it with Docker" translate="no">​</a></h2>
 <p>The Docker image contains everything needed to run the console:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">docker run --rm -p 8080:8080 \</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  -e CamusDB__Endpoint=http://host.docker.internal:5095 \</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  -e CamusDB__Database=demo \</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  camusdb/camusdb-webconsole:latest</span><br></div></code></pre></div></div>
 <p>Open this address:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">http://localhost:8080</span><br></div></code></pre></div></div>
-<p><code>host.docker.internal</code> reaches CamusDB on the host machine, with Docker Desktop.
-A host with Linux may not provide that name of the DNS. Use the LAN IP of the
-host in that case. You can also add this option:</p>
+<p>With Docker Desktop, <code>host.docker.internal</code> reaches CamusDB on the host machine.
+A Linux host may not provide that DNS name. In that case, use the host&#x27;s LAN IP,
+or add this option:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">--add-host=host.docker.internal:host-gateway</span><br></div></code></pre></div></div>
-<p>At the first load, the console uses its configured defaults. Use the Configure
-control of the app bar to change the endpoint, database, protocol, backup
+<p>On first load, the console uses its configured defaults. Use the Configure
+control in the app bar to change the endpoint, database, protocol, backup
 endpoint, timeout, maximum rows, and credentials for the current browser
 session.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="configuration">Configuration<a href="#configuration" class="hash-link" aria-label="Direct link to Configuration" title="Direct link to Configuration" translate="no">​</a></h2>
-<p>The Web Console reads the <code>CamusDB</code> section of the configuration. In a
-container, set the same keys as environment variables with two underscores.</p>
-<table><thead><tr><th>Setting</th><th>Environment variable</th><th>Description</th></tr></thead><tbody><tr><td><code>Endpoint</code></td><td><code>CamusDB__Endpoint</code></td><td>The base URL of CamusDB. Use the port of REST for <code>rest</code>. Use the port of gRPC for <code>grpc</code>.</td></tr><tr><td><code>Database</code></td><td><code>CamusDB__Database</code></td><td>The name of the database of the session.</td></tr><tr><td><code>Protocol</code></td><td><code>CamusDB__Protocol</code></td><td>It is <code>rest</code> by default. It also accepts <code>grpc</code>.</td></tr><tr><td><code>TimeoutSeconds</code></td><td><code>CamusDB__TimeoutSeconds</code></td><td>The timeout of a request.</td></tr><tr><td><code>MaxRows</code></td><td><code>CamusDB__MaxRows</code></td><td>Rows per page for pageable queries, and the cap for other results and exports.</td></tr><tr><td><code>User</code></td><td><code>CamusDB__User</code></td><td>The user of the authentication. An empty value means no authentication.</td></tr><tr><td><code>Password</code></td><td><code>CamusDB__Password</code></td><td>The password of the <code>User</code>.</td></tr><tr><td><code>AccessToken</code></td><td><code>CamusDB__AccessToken</code></td><td>A bearer token from another source. The console uses it instead of a login.</td></tr><tr><td><code>RequireAccessToken</code></td><td><code>CamusDB__RequireAccessToken</code></td><td>Refuse user/password sign-in. The console then accepts access tokens only.</td></tr><tr><td><code>AllowInsecureCredentials</code></td><td><code>CamusDB__AllowInsecureCredentials</code></td><td>Allow credentials to a non-loopback <code>http://</code> endpoint. Use only behind a trusted TLS terminator, private link, or tunnel.</td></tr><tr><td><code>LockEndpoint</code></td><td><code>CamusDB__LockEndpoint</code></td><td>Prevent browser sessions and vendor launch payloads from changing the configured endpoint or protocol.</td></tr><tr><td><code>TokenLifetimeSeconds</code></td><td><code>CamusDB__TokenLifetimeSeconds</code></td><td>The fallback window for the reuse of a token, when the server reports no expiry.</td></tr><tr><td><code>BackupEndpoint</code></td><td><code>CamusDB__BackupEndpoint</code></td><td>Optional REST endpoint for backup administration. Use it when the main protocol is gRPC, or when the main endpoint is a pool and backups must target one node.</td></tr><tr><td><code>BackupTimeoutSeconds</code></td><td><code>CamusDB__BackupTimeoutSeconds</code></td><td>Optional timeout for backup administration calls. <code>0</code> uses the client default.</td></tr></tbody></table>
-<p>Here is an example:</p>
+<p>The Web Console reads the <code>CamusDB</code> configuration section. In a container, set
+the same keys as environment variables with two underscores.</p>
+<table><thead><tr><th>Setting</th><th>Environment variable</th><th>Description</th></tr></thead><tbody><tr><td><code>Endpoint</code></td><td><code>CamusDB__Endpoint</code></td><td>CamusDB base URL. Use the REST port for <code>rest</code> and the gRPC port for <code>grpc</code>.</td></tr><tr><td><code>Database</code></td><td><code>CamusDB__Database</code></td><td>Session database name.</td></tr><tr><td><code>Protocol</code></td><td><code>CamusDB__Protocol</code></td><td><code>rest</code> by default. Also accepts <code>grpc</code>.</td></tr><tr><td><code>TimeoutSeconds</code></td><td><code>CamusDB__TimeoutSeconds</code></td><td>Request timeout.</td></tr><tr><td><code>MaxRows</code></td><td><code>CamusDB__MaxRows</code></td><td>Rows per page for pageable queries, and the cap for other results and exports.</td></tr><tr><td><code>User</code></td><td><code>CamusDB__User</code></td><td>User to authenticate as. An empty value means no authentication.</td></tr><tr><td><code>Password</code></td><td><code>CamusDB__Password</code></td><td>Password for <code>User</code>.</td></tr><tr><td><code>AccessToken</code></td><td><code>CamusDB__AccessToken</code></td><td>A bearer token from another source. The console uses it instead of a login.</td></tr><tr><td><code>RequireAccessToken</code></td><td><code>CamusDB__RequireAccessToken</code></td><td>Refuse user/password sign-in. The console then accepts access tokens only.</td></tr><tr><td><code>AllowInsecureCredentials</code></td><td><code>CamusDB__AllowInsecureCredentials</code></td><td>Allow credentials to a non-loopback <code>http://</code> endpoint. Use only behind a trusted TLS terminator, private link, or tunnel.</td></tr><tr><td><code>LockEndpoint</code></td><td><code>CamusDB__LockEndpoint</code></td><td>Prevent browser sessions and vendor launch payloads from changing the configured endpoint or protocol.</td></tr><tr><td><code>TokenLifetimeSeconds</code></td><td><code>CamusDB__TokenLifetimeSeconds</code></td><td>Fallback token reuse window when the server reports no expiry.</td></tr><tr><td><code>BackupEndpoint</code></td><td><code>CamusDB__BackupEndpoint</code></td><td>Optional REST endpoint for backup administration. Use it when the main protocol is gRPC, or when the main endpoint is a pool and backups must target one node.</td></tr><tr><td><code>BackupTimeoutSeconds</code></td><td><code>CamusDB__BackupTimeoutSeconds</code></td><td>Optional timeout for backup administration calls. <code>0</code> uses the client default.</td></tr></tbody></table>
+<p>For example:</p>
 <div class="language-json codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-json codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token punctuation" style="color:#94a3b8">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token property" style="color:#7dd3fc">&quot;CamusDB&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token punctuation" style="color:#94a3b8">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;Endpoint&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;http://localhost:5095&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;Database&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;test&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;Protocol&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;rest&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;TimeoutSeconds&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">30</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;MaxRows&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">1000</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;User&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;Password&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;AccessToken&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;RequireAccessToken&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean" style="color:#fdba74">false</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;AllowInsecureCredentials&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean" style="color:#fdba74">false</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;LockEndpoint&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean" style="color:#fdba74">false</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;TokenLifetimeSeconds&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">0</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;BackupEndpoint&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token property" style="color:#7dd3fc">&quot;BackupTimeoutSeconds&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">0</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token punctuation" style="color:#94a3b8">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token punctuation" style="color:#94a3b8">}</span><br></div></code></pre></div></div>
-<p>A <code>Protocol=grpc</code> needs an <code>Endpoint</code> at the listener of gRPC. That address is
-usually <code>http://localhost:5096</code>.</p>
+<p><code>Protocol=grpc</code> needs an <code>Endpoint</code> that points at the gRPC listener, usually
+<code>http://localhost:5096</code>.</p>
 <p>Set <code>LockEndpoint</code> to <code>true</code> when the console is reachable beyond localhost and
 users should not be able to repoint the server process at another CamusDB
 endpoint. The same lock also applies to vendor-launched sessions.</p>
@@ -74,34 +74,34 @@ launch endpoints. They are on by default under the <code>Security</code> section
 <code>X-Forwarded-For</code> by default, because a caller can choose that header unless
 forwarded headers are configured carefully at the reverse proxy.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="authentication">Authentication<a href="#authentication" class="hash-link" aria-label="Direct link to Authentication" title="Direct link to Authentication" translate="no">​</a></h2>
-<p>The authentication of CamusDB is off by default. Without a configured
-credential, the Web Console sends no <code>Authorization</code> header.</p>
-<p>A server can start with <code>CAMUSDB_AUTH_ENABLED=true</code>. Sign in through the
-Configure control of the app bar, in one of two ways:</p>
+<p>CamusDB authentication is off by default. Without a configured credential, the
+Web Console sends no <code>Authorization</code> header.</p>
+<p>When a server starts with <code>CAMUSDB_AUTH_ENABLED=true</code>, sign in through the
+Configure control in the app bar with either:</p>
 <ul>
-<li class="">With a user and a password.</li>
-<li class="">With an access token from another source.</li>
+<li class="">A user and password.</li>
+<li class="">An access token from another source.</li>
 </ul>
-<p>The console exchanges the password one time, for a bearer token with a short
-life. A later statement sends the token. It does not send the password.</p>
-<p>When the console has a password, it can renew a token before it expires. It can
-also sign in again if the server rejects a token early.</p>
-<p>Note this behavior of a session:</p>
+<p>The console exchanges the password once for a short-lived bearer token. Later
+statements send the token, not the password.</p>
+<p>When the console has a password, it can renew a token before it expires, and it
+can sign in again if the server rejects a token early.</p>
+<p>Session behavior:</p>
 <ul>
-<li class="">A credential from the Configure control belongs to one browser session.</li>
-<li class="">The console does not put the password of a session into the connection string.</li>
-<li class="">The console remembers the name of the user in <code>localStorage</code>. It uses that
-name to fill the dialog. It never stores passwords or access tokens there.</li>
-<li class="">The identity chip of the app bar holds a control to sign out. That control
-revokes a token that the console created. It then drops the connection.</li>
-<li class="">The console forgets a token that you supplied, at the sign-out. It does not
-revoke that token, because it did not create the token.</li>
-<li class="">The console cannot renew a token that you supplied.</li>
+<li class="">Credentials entered in the Configure control belong to one browser session.</li>
+<li class="">The console does not put the session password into the connection string.</li>
+<li class="">The console remembers the user name in <code>localStorage</code> to prefill the dialog.
+It never stores passwords or access tokens there.</li>
+<li class="">The identity chip in the app bar has a sign-out control. Signing out revokes a
+token that the console created, then drops the connection.</li>
+<li class="">When you sign out, the console forgets a token you supplied. It does not
+revoke that token, because it did not create it.</li>
+<li class="">The console cannot renew a token you supplied.</li>
 </ul>
-<p>You can also configure a <code>User</code>, a <code>Password</code>, or an <code>AccessToken</code>. Put the
-value in <code>appsettings.json</code>, or in a <code>CamusDB__*</code> environment variable. The
-console then signs in automatically. Prefer an environment variable, or a store
-of secrets, to a password inside a commit.</p>
+<p>You can also configure <code>User</code>, <code>Password</code>, or <code>AccessToken</code> in
+<code>appsettings.json</code> or in a <code>CamusDB__*</code> environment variable, and the console
+then signs in automatically. Use an environment variable or a secrets store
+rather than committing a password.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="token-only-consoles">Token-only consoles<a href="#token-only-consoles" class="hash-link" aria-label="Direct link to Token-only consoles" title="Direct link to Token-only consoles" translate="no">​</a></h3>
 <p>Set <code>CamusDB__RequireAccessToken=true</code> when the console must never accept a
 user/password sign-in. The Configure dialog then offers only the access token
@@ -113,19 +113,18 @@ without an identity because the server allows it.</p>
 <p><code>RequireAccessToken</code> cannot be combined with configured <code>User</code> or <code>Password</code>.
 Startup fails instead of silently dropping those credentials. A supplied token
 is not renewable, so the browser session ends when the server expires it.</p>
-<p>Manage the users and the grants with SQL, from a session of a superuser:</p>
+<p>Manage users and grants with SQL from a superuser session:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">USER</span><span class="token plain"> app </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">IDENTIFIED</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;app-password&#x27;</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">GRANT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">INSERT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ON</span><span class="token plain"> app_db</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token operator" style="color:#94a3b8">*</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TO</span><span class="token plain"> app</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">GRANTS</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FOR</span><span class="token plain"> app</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p>A user without a <code>SELECT</code> on a table still sees the name of that table in the
-tree of the schema. The tree shows that the columns are unavailable, because
-that user lacks the privilege.</p>
+<p>A user without <code>SELECT</code> on a table still sees the table name in the schema
+tree, but the tree shows its columns as unavailable because the user lacks the
+privilege.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="tls">TLS<a href="#tls" class="hash-link" aria-label="Direct link to TLS" title="Direct link to TLS" translate="no">​</a></h3>
-<p>While authentication is enabled, CamusDB refuses a request with a credential
-over plaintext. A request from loopback is the exception.</p>
-<p>A local development over <code>http://localhost</code> therefore works without a
-certificate. For a deployment outside loopback, point the console at a CamusDB
-endpoint with <code>https://</code>.</p>
-<p>TLS can terminate before a request reaches CamusDB. Keep that plaintext hop
-inside the boundary of your trust. Then configure CamusDB with
+<p>While authentication is enabled, CamusDB refuses credential-bearing requests
+over plaintext, except from loopback. Local development over
+<code>http://localhost</code> works without a certificate. For any deployment beyond
+loopback, point the console at an <code>https://</code> CamusDB endpoint.</p>
+<p>If TLS terminates before requests reach CamusDB, keep that plaintext hop inside
+your trust boundary and configure CamusDB with
 <code>--require-tls-when-auth-enabled false</code>.</p>
 <p>The driver also refuses credentials to a non-loopback <code>http://</code> endpoint before
 anything is sent. Set <code>CamusDB__AllowInsecureCredentials=true</code> only when that
@@ -135,7 +134,7 @@ SSH tunnel, or a trusted TLS terminator.</p>
 <p>Authentication failures use the codes <code>CADB0516</code> to <code>CADB0519</code>. See
 <a class="" href="/docs/error-codes/#common-user-facing-errors">Error codes</a> for what each one
 means.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="vendor-launch">Vendor Launch<a href="#vendor-launch" class="hash-link" aria-label="Direct link to Vendor Launch" title="Direct link to Vendor Launch" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="vendor-launch">Vendor launch<a href="#vendor-launch" class="hash-link" aria-label="Direct link to Vendor launch" title="Direct link to Vendor launch" translate="no">​</a></h2>
 <p>An external product can open the console with its own branding and a CamusDB
 access token that the user&#x27;s browser never sees. This is useful when another
 application already authenticates users and wants to offer a database console
@@ -163,7 +162,7 @@ browser receives an opaque session cookie.</p>
 spaces, and punctuation such as <code>-_.,&amp;&#x27;()+</code>, up to 64 characters. Control
 characters, path separators, angle brackets, quotes, backticks, and emoji are
 rejected.</p>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="endpoint-safety">Endpoint Safety<a href="#endpoint-safety" class="hash-link" aria-label="Direct link to Endpoint Safety" title="Direct link to Endpoint Safety" translate="no">​</a></h3>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="endpoint-safety">Endpoint safety<a href="#endpoint-safety" class="hash-link" aria-label="Direct link to Endpoint safety" title="Direct link to Endpoint safety" translate="no">​</a></h3>
 <p>A launch payload may include <code>endpoint</code> and <code>protocol</code>. The console process
 opens that endpoint, so allowing arbitrary values can let a caller make the
 console reach internal hosts. Use one of these controls for any deployed
@@ -179,26 +178,24 @@ wildcards:</p>
 <p>There is no wildcard syntax. Invalid entries fail startup instead of being
 silently skipped.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="features">Features<a href="#features" class="hash-link" aria-label="Direct link to Features" title="Direct link to Features" translate="no">​</a></h2>
-<p>The Web Console provides these features:</p>
+<p>The Web Console provides:</p>
 <ul>
-<li class="">A console layout with dark and light themes. It holds an app bar, a sidebar of
-the schema, an editor of SQL, a grid of the results, and a footer of the
-connection.</li>
-<li class="">A dialog of the configuration. It covers the endpoint, the database, the
-protocol, the backup endpoint, the timeout, the cap of the rows, and the
-credentials.</li>
-<li class="">A browser of the schema. It uses <code>SHOW DATABASES</code>, <code>SHOW TABLES</code>, <code>SHOW COLUMNS FROM</code>, <code>SHOW INDEXES FROM</code>, <code>SHOW CREATE TABLE</code>, <code>SHOW SEQUENCES</code>,
-schema comments, foreign-key metadata, sequences, and the metadata of a branch.</li>
-<li class="">The Monaco editor of SQL.</li>
+<li class="">A console layout with dark and light themes: an app bar, a schema sidebar, a
+SQL editor, a results grid, and a connection footer.</li>
+<li class="">A configuration dialog for the endpoint, database, protocol, backup endpoint,
+timeout, row cap, and credentials.</li>
+<li class="">A schema browser built on <code>SHOW DATABASES</code>, <code>SHOW TABLES</code>, <code>SHOW COLUMNS FROM</code>, <code>SHOW INDEXES FROM</code>, <code>SHOW CREATE TABLE</code>, <code>SHOW SEQUENCES</code>,
+schema comments, foreign-key metadata, sequences, and branch metadata.</li>
+<li class="">The Monaco SQL editor.</li>
 <li class="">CamusDB SQL highlighting and completion for keywords, functions, tables, and
 columns in the current schema.</li>
 <li class=""><code>Run statement</code> runs the statement at the cursor with Ctrl/Cmd+Enter, or only
 the selected SQL when there is a selection.</li>
 <li class=""><code>Run script</code> runs each statement in order with Alt+X, stops at the first
 failure, and gives each statement its own result tab.</li>
-<li class="">A workspace of queries, with several tabs.</li>
-<li class="">A run of a query that you can cancel.</li>
-<li class="">The times of the execution, and a bar of the status.</li>
+<li class="">A multi-tab query workspace.</li>
+<li class="">Cancellable query runs.</li>
+<li class="">Execution times and a status bar.</li>
 <li class="">Searchable query history with database, duration, row count, and errors.</li>
 <li class="">A paged, sortable, and filterable result grid that knows the types, including
 exact <code>NUMERIC</code> text.</li>
@@ -206,18 +203,17 @@ exact <code>NUMERIC</code> text.</li>
 result table.</li>
 <li class="">Context actions to rename databases, tables, columns, indexes, and sequences,
 and to edit data, export tables, change schema, or delete objects.</li>
-<li class="">The actions of an edit and of a delete of a row, when a result set belongs to
-the context of a table.</li>
+<li class="">Row edit and delete actions when a result set comes from a table context.</li>
 <li class="">CSV and JSON export for tables or the rows currently loaded in any result.</li>
 <li class="">Administration pages for node-local engine metrics, effective variables, and
 backup controls.</li>
-<li class="">The preferences of the interface that the console remembers, in the
-<code>localStorage</code> of the browser. Examples include open SQL tabs, editor text,
-the active database, the user name, the schema drawer width, and the
-editor/results split and query history. The theme choice is remembered in a
-browser cookie so the correct theme is painted before the app connects.</li>
+<li class="">Interface preferences remembered in the browser&#x27;s <code>localStorage</code>, such as
+open SQL tabs, editor text, the active database, the user name, the schema
+drawer width, the editor/results split, and query history. The theme choice
+is remembered in a browser cookie so the correct theme is painted before the
+app connects.</li>
 </ul>
-<p>Two clicks on a table of the tree of the schema insert this text:</p>
+<p>Double-click a table in the schema tree to insert:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> </span><span class="token operator" style="color:#94a3b8">*</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> table_name</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">LIMIT</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">100</span><br></div></code></pre></div></div>
 <p>Right-click a database to create, rename, or drop it. The create-table
 dialog can define columns, primary keys, single-column foreign keys, and
@@ -234,7 +230,7 @@ the constraint.</p>
 <p>Sequences appear after tables. Double-click a sequence to insert
 <code>SHOW CREATE SEQUENCE ...</code>; right-click one to show, rename, or drop it.
 Dangerous actions require confirmation.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-behavior-of-a-query">The behavior of a query<a href="#the-behavior-of-a-query" class="hash-link" aria-label="Direct link to The behavior of a query" title="Direct link to The behavior of a query" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="query-behavior">Query behavior<a href="#query-behavior" class="hash-link" aria-label="Direct link to Query behavior" title="Direct link to Query behavior" translate="no">​</a></h2>
 <p>The console routes SQL by statement shape:</p>
 <ul>
 <li class="">Statements that return rows, such as <code>SELECT</code>, <code>SHOW</code>, <code>EXPLAIN</code>, and <code>WITH</code>,
@@ -268,9 +264,9 @@ draws the plan as a diagram, with the source operator at the top and each
 operator below the one that feeds it.</p>
 <p><img decoding="async" loading="lazy" alt="CamusDB Web Console query plan flow" src="/assets/images/webconsole-query-plan-35cbfcf9bba733975eb2fbdd57a569c3.png" width="2900" height="1632" class="img_ev3q"></p>
 <p>Each operator card shows the operator family, the server&#x27;s detail text, the
-table or index involved, and its share of the estimated cost. The highest-cost
-operator is marked so expensive parts of a plan are visible without scanning
-every row of the <code>EXPLAIN</code> table.</p>
+table or index involved, and its share of the estimated cost. The console marks
+the highest-cost operator, so you can spot expensive parts of a plan without
+scanning every row of the <code>EXPLAIN</code> table.</p>
 <p>The edges show the estimated row flow between operators. With <code>EXPLAIN (ANALYZE)</code>, the flow also includes measured rows, rows read, KV lookups, KV scan
 entries, and the measured plan time. When an operator&#x27;s measured row count is
 far away from the estimate, the diagram marks it as an estimate miss.</p>
@@ -281,7 +277,7 @@ contains.</p>
 <p>Rows that describe the whole plan, such as <code>plan-info</code>, <code>distribution</code>, and
 <code>cache</code>, appear below the diagram as plan notes. The console remembers whether
 you last used <code>Table</code> or <code>Flow</code>, so the next plan opens in the same view.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="row-editing">Row Editing<a href="#row-editing" class="hash-link" aria-label="Direct link to Row Editing" title="Direct link to Row Editing" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="row-editing">Row editing<a href="#row-editing" class="hash-link" aria-label="Direct link to Row editing" title="Direct link to Row editing" translate="no">​</a></h2>
 <p><code>Edit/View Data</code> on a table opens a data tab. The tab runs <code>SELECT *</code> for that
 table and attaches the table schema to the result, which enables row actions.</p>
 <p>The edit dialog is generated from the table schema:</p>
@@ -310,29 +306,24 @@ and runtime posture, and backups cover every database on the node.</p>
 <a class="" href="/docs/backup-and-restore/">Backup And Restore</a> for backup setup, retention,
 coordinated backups, and offline restore.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="export">Export<a href="#export" class="hash-link" aria-label="Direct link to Export" title="Direct link to Export" translate="no">​</a></h2>
-<p>An export of a table runs a <code>SELECT * FROM &lt;table&gt;</code>. The <code>MaxRows</code> of the
-current session caps that statement. The result toolbar can also export the
-rows currently loaded by any query, after the grid&#x27;s sort and filter. For a
-paged result, use <code>Fetch more</code> before export when more rows are needed. The
-console downloads one of two formats:</p>
-<ul>
-<li class="">CSV.</li>
-<li class="">JSON.</li>
-</ul>
+<p>A table export runs <code>SELECT * FROM &lt;table&gt;</code>, capped by the current session&#x27;s
+<code>MaxRows</code>. The result toolbar can also export the rows currently loaded by any
+query, after the grid&#x27;s sort and filter. For a paged result, use <code>Fetch more</code>
+before exporting if you need more rows. The console downloads CSV or JSON.</p>
 <p>CSV uses proper quoting and escaping. JSON downloads an array of objects with
 dates as ISO-8601 strings, blobs as hex, UUIDs in standard textual form, and
 <code>NUMERIC</code> values as strings so no digits are lost.</p>
-<p>The table can hold more rows than <code>MaxRows</code>. The export then reports that the
-result was truncated.</p>
-<p>For a full logical backup, and for a dump of SQL that you can restore, use
+<p>If the table holds more rows than <code>MaxRows</code>, the export reports that the result
+was truncated.</p>
+<p>For a full logical backup or a restorable SQL dump, use
 <a class="" href="/docs/camus-dump/">camus-dump</a> instead.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="notes">Notes<a href="#notes" class="hash-link" aria-label="Direct link to Notes" title="Direct link to Notes" translate="no">​</a></h2>
 <ul>
-<li class="">The console uses the <code>SHOW</code> statements of SQL to browse a schema.</li>
-<li class="">The console does not use the endpoints of a client for the metadata only.</li>
-<li class="">The console is a user interface for an operation. It is not a boundary of the
-authorization by itself. The authentication and the grants on the server of
-CamusDB remain the durable boundary of a permission.</li>
+<li class="">The console browses schemas with SQL <code>SHOW</code> statements.</li>
+<li class="">The console does not use metadata-only client endpoints.</li>
+<li class="">The console is an operations UI, not an authorization boundary by itself.
+Authentication and grants on the CamusDB server remain the durable
+permission boundary.</li>
 <li class="">The console sends security headers that prevent framing, reduce MIME sniffing,
 and avoid leaking referrer details.</li>
 </ul>
@@ -344,6 +335,6 @@ and avoid leaking referrer details.</li>
 <li class=""><a class="" href="/docs/backup-and-restore/">Backup And Restore</a></li>
 <li class=""><a class="" href="/docs/typescript-connector/">TypeScript</a></li>
 <li class=""><a class="" href="/docs/dotnet-driver/">.NET Driver</a></li>
-</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/web-console.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/agent-skills/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Agent skills</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/camus-cli/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">camus-cli</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#requirements" class="table-of-contents__link toc-highlight">Requirements</a></li><li><a href="#run-it-with-docker" class="table-of-contents__link toc-highlight">Run it with Docker</a></li><li><a href="#configuration" class="table-of-contents__link toc-highlight">Configuration</a></li><li><a href="#security-controls" class="table-of-contents__link toc-highlight">Security controls</a></li><li><a href="#authentication" class="table-of-contents__link toc-highlight">Authentication</a><ul><li><a href="#token-only-consoles" class="table-of-contents__link toc-highlight">Token-only consoles</a></li><li><a href="#tls" class="table-of-contents__link toc-highlight">TLS</a></li><li><a href="#authentication-errors" class="table-of-contents__link toc-highlight">Authentication errors</a></li></ul></li><li><a href="#vendor-launch" class="table-of-contents__link toc-highlight">Vendor Launch</a><ul><li><a href="#endpoint-safety" class="table-of-contents__link toc-highlight">Endpoint Safety</a></li></ul></li><li><a href="#features" class="table-of-contents__link toc-highlight">Features</a></li><li><a href="#the-behavior-of-a-query" class="table-of-contents__link toc-highlight">The behavior of a query</a></li><li><a href="#query-plan-flow" class="table-of-contents__link toc-highlight">Query plan flow</a></li><li><a href="#row-editing" class="table-of-contents__link toc-highlight">Row Editing</a></li><li><a href="#administration" class="table-of-contents__link toc-highlight">Administration</a></li><li><a href="#export" class="table-of-contents__link toc-highlight">Export</a></li><li><a href="#notes" class="table-of-contents__link toc-highlight">Notes</a></li><li><a href="#related-pages" class="table-of-contents__link toc-highlight">Related pages</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
+</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/web-console.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/agent-skills/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Agent skills</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/camus-cli/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">camus-cli</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#requirements" class="table-of-contents__link toc-highlight">Requirements</a></li><li><a href="#run-it-with-docker" class="table-of-contents__link toc-highlight">Run it with Docker</a></li><li><a href="#configuration" class="table-of-contents__link toc-highlight">Configuration</a></li><li><a href="#security-controls" class="table-of-contents__link toc-highlight">Security controls</a></li><li><a href="#authentication" class="table-of-contents__link toc-highlight">Authentication</a><ul><li><a href="#token-only-consoles" class="table-of-contents__link toc-highlight">Token-only consoles</a></li><li><a href="#tls" class="table-of-contents__link toc-highlight">TLS</a></li><li><a href="#authentication-errors" class="table-of-contents__link toc-highlight">Authentication errors</a></li></ul></li><li><a href="#vendor-launch" class="table-of-contents__link toc-highlight">Vendor launch</a><ul><li><a href="#endpoint-safety" class="table-of-contents__link toc-highlight">Endpoint safety</a></li></ul></li><li><a href="#features" class="table-of-contents__link toc-highlight">Features</a></li><li><a href="#query-behavior" class="table-of-contents__link toc-highlight">Query behavior</a></li><li><a href="#query-plan-flow" class="table-of-contents__link toc-highlight">Query plan flow</a></li><li><a href="#row-editing" class="table-of-contents__link toc-highlight">Row editing</a></li><li><a href="#administration" class="table-of-contents__link toc-highlight">Administration</a></li><li><a href="#export" class="table-of-contents__link toc-highlight">Export</a></li><li><a href="#notes" class="table-of-contents__link toc-highlight">Notes</a></li><li><a href="#related-pages" class="table-of-contents__link toc-highlight">Related pages</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
 </body>
 </html>

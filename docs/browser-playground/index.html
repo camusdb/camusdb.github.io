@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -27,56 +27,60 @@ path, compiled to WebAssembly. No SQL or data is sent to a server.</p>
 can stop a node and watch the surviving replicas elect new leaders, or add a
 node and watch CamusDB move replicas to it, then run your queries again and see
 that the data is still there.</p>
-<p>Open the <a class="" href="/playground/">Playground</a> for one shared workspace: an interactive
-3D server scene beside a SQL console. Selecting a server changes the query
+<p>Open the <a class="" href="/playground/">Playground</a> for one shared workspace: an interactive 3D
+server scene beside a SQL console. Selecting a server changes the query
 coordinator and the node inspector without switching sessions. The
-<a class="" href="/docs/intro/#try-it-in-your-browser">tutorial</a> also includes an embedded SQL editor.</p>
+<a class="" href="/docs/intro/#try-it-in-your-browser">tutorial</a> also includes an embedded SQL
+editor.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="data-center">Data center<a href="#data-center" class="hash-link" aria-label="Direct link to Data center" title="Direct link to Data center" translate="no">​</a></h2>
 <p>The data center starts four real CamusDB engines automatically when you open it,
 with eight data <a class="" href="/docs/concepts/#partition">partitions</a> and
 <a class="" href="/docs/concepts/#replica-and-replication-factor">replication factor</a> three, so
-each partition has three copies. Starting racks remain visible while WebAssembly
+each partition has three copies. Starting racks stay visible while WebAssembly
 loads and the engines elect <a class="" href="/docs/concepts/#leader">leaders</a>. Metadata
-membership, data replica placement, hosted partitions, and leader claims come
-from the engines. Click a rack to inspect that node.</p>
-<p><strong>+</strong> starts a fresh engine using the running cluster as seeds. The cluster
+membership, data replica placement, hosted partitions, and leader claims all
+come from the engines. Click a rack to inspect that node.</p>
+<p><strong>+</strong> starts a fresh engine that uses the running cluster as seeds. The cluster
 first adds it as a <a class="" href="/docs/concepts/#learner-and-voter">learner</a>, a member that
 receives the log but does not vote, catches it up, and then promotes it to a
-voter. CamusDB&#x27;s placement rebalancer then moves replicas to it. <strong>−</strong> asks the highest ordinal to leave gracefully,
-waits for replica draining and committed removal, and only then disposes the
-engine. The browser host supports four to nine nodes in this mode. These operations
-do not reset the other engines or recreate the database.</p>
+voter. CamusDB&#x27;s placement rebalancer then moves replicas to it. <strong>−</strong> asks the
+node with the highest ordinal to leave gracefully, waits for replica draining
+and committed removal, and only then disposes of the engine. The browser host
+supports four to nine nodes in this mode. These operations do not reset the
+other engines or recreate the database.</p>
 <p>The SQL panel sends queries through the selected rack to the <code>playground</code>
-database. Create a table and insert rows, add or remove a node, and read them again
-to verify that the data survives membership changes. A newly joined or restarted
-node may need time to converge its schema before serving a query. After removal,
-leader hints can also take time to refresh; retry a query made during convergence.</p>
-<p><strong>Simulate node failure</strong> stops an actual engine. <strong>Restart node</strong> brings back an
-empty engine to catch up from surviving peers. You cannot stop a node if that
-would leave fewer than a <a class="" href="/docs/concepts/#majority">majority</a> (more than half)
-of the nodes running, because the cluster would then stop committing.
-Membership changes hold until all existing engines are voters and running. Three replicas tolerate one unavailable replica per data partition;
-adding nodes does not increase that partition&#x27;s fault tolerance.</p>
-<p><strong>Follow simulated demand</strong> optionally chooses a recommended size from synthetic
-traffic units, with a target of 4,000 units per node, 10% tolerance, and bounds of
-4–9 nodes. It waits four seconds before growth and ten before shrink, then asks
-for one real membership change. The input is not actual engine throughput or a
-Kubernetes autoscaler. Catch-up and draining run at engine speed, with no scripted
-completion time.</p>
+database. Create a table and insert rows, add or remove a node, then read the
+rows again to verify that the data survives membership changes. A newly joined
+or restarted node may need time to converge its schema before it serves a
+query. After a removal, leader hints can also take time to refresh; retry any
+query made during convergence.</p>
+<p><strong>Simulate node failure</strong> stops an actual engine. <strong>Restart node</strong> brings back
+an empty engine that catches up from the surviving peers. You cannot stop a node
+if that would leave fewer than a <a class="" href="/docs/concepts/#majority">majority</a> (more than
+half) of the nodes running, because the cluster would then stop committing.
+Membership changes wait until all existing engines are running voters. Three
+replicas tolerate one unavailable replica per data partition; adding nodes does
+not increase a partition&#x27;s fault tolerance.</p>
+<p><strong>Follow simulated demand</strong> optionally picks a recommended cluster size from
+synthetic traffic units, with a target of 4,000 units per node, 10% tolerance,
+and bounds of 4–9 nodes. It waits four seconds before growing and ten before
+shrinking, then asks for one real membership change. The input is not actual
+engine throughput, and this is not a Kubernetes autoscaler. Catch-up and
+draining run at engine speed, with no scripted completion time.</p>
 <p>Links and LEDs illustrate topology, not measured packets. When a node reports
 itself as leader, that is its own local claim. It does not prove that a majority
-currently agrees, or that the replicas are up to date.
-The scene refreshes once per second while no engine operation is in progress.
-Data is in memory and resets on reload or <strong>Reset data center</strong>.</p>
+currently agrees, or that the replicas are up to date. The scene refreshes once
+per second while no engine operation is in progress. Data is in memory and
+resets on reload or <strong>Reset data center</strong>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="sql-and-data">SQL and data<a href="#sql-and-data" class="hash-link" aria-label="Direct link to SQL and data" title="Direct link to SQL and data" translate="no">​</a></h2>
 <p>The SQL console is available immediately. Once the engines are ready, use
-<strong>Run query</strong> or <strong>Cmd/Ctrl + Enter</strong> to execute SQL through the selected server.
-The console includes examples for filtering, joins, subqueries, branching, returning,
-foreign keys, indexes, updates, schema inspection, and functions. The sample
-library (15 books and 7 authors) loads on startup and reset.</p>
+<strong>Run query</strong> or <strong>Cmd/Ctrl + Enter</strong> to run SQL through the selected server.
+The console includes examples for filtering, joins, subqueries, branching,
+returning, foreign keys, indexes, updates, schema inspection, and functions. The
+sample library (15 books and 7 authors) loads on startup and on reset.</p>
 <p>The <strong>Create a table</strong> example creates a <code>quick_notes</code> table and inserts a row;
-<strong>Read rows</strong> queries that table. Run the creation example once per fresh session.
-Results and SQL errors appear directly below the editor.</p>
+<strong>Read rows</strong> queries that table. Run the creation example once per fresh
+session. Results and SQL errors appear directly below the editor.</p>
 <p>Queries use the <code>playground</code> database. Scripts accept multiple statements;
 each statement autocommits and execution stops at the first error. Use
 <code>SHOW DATABASES;</code> to inspect databases. There is no SQL <code>USE</code> statement.</p>
@@ -84,7 +88,7 @@ each statement autocommits and execution stops at the first error. Use
 <p>The playground uses the default single-threaded .NET WebAssembly runtime and can
 be served by a static host without special isolation headers. All nodes share
 one tab and an in-memory transport; they do not connect to other tabs or hosts.</p>
-<p>There are no network sockets or durable database files. Backups and features that
-require external files are unavailable.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/browser-playground.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/plan-quality-testing/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Plan quality testing</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/mcp-server/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">MCP server</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#data-center" class="table-of-contents__link toc-highlight">Data center</a></li><li><a href="#sql-and-data" class="table-of-contents__link toc-highlight">SQL and data</a></li><li><a href="#webassembly-notes" class="table-of-contents__link toc-highlight">WebAssembly notes</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
+<p>There are no network sockets or durable database files, so backups and other
+features that need external files are unavailable.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/browser-playground.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/plan-quality-testing/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Plan quality testing</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/mcp-server/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">MCP server</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#data-center" class="table-of-contents__link toc-highlight">Data center</a></li><li><a href="#sql-and-data" class="table-of-contents__link toc-highlight">SQL and data</a></li><li><a href="#webassembly-notes" class="table-of-contents__link toc-highlight">WebAssembly notes</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
 </body>
 </html>

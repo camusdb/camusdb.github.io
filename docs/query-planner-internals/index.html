@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
-<title data-rh="true">Query planner internals | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/query-planner-internals/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Query planner internals | CamusDB"><meta data-rh="true" name="description" content="This page describes two steps. CamusDB turns SQL text into a physical plan. It"><meta data-rh="true" property="og:description" content="This page describes two steps. CamusDB turns SQL text into a physical plan. It"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/query-planner-internals/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planner-internals/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planner-internals/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Query planner internals","item":"https://camusdb.github.io/docs/query-planner-internals"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
+<title data-rh="true">Query planner internals | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/query-planner-internals/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Query planner internals | CamusDB"><meta data-rh="true" name="description" content="This page describes how CamusDB turns SQL text into a physical plan, then"><meta data-rh="true" property="og:description" content="This page describes how CamusDB turns SQL text into a physical plan, then"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/query-planner-internals/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planner-internals/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-planner-internals/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Query planner internals","item":"https://camusdb.github.io/docs/query-planner-internals"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed">
 
 
@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -20,74 +20,71 @@
 <symbol id="theme-svg-external-link" viewBox="0 0 24 24"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
 </defs></svg>
 <script>!function(){var t=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();document.documentElement.setAttribute("data-theme",t||"light"),document.documentElement.setAttribute("data-theme-choice",t||"light")}(),function(){try{const c=new URLSearchParams(window.location.search).entries();for(var[t,e]of c)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="theme-layout-navbar navbar navbar--fixed-top"><div class="navbar__inner"><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/"><div class="navbar__logo"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">CamusDB</b></a><a aria-current="page" class="navbar__item navbar__link navbar__link--active" href="/docs/why-camusdb/">Docs</a><a class="navbar__item navbar__link" href="/blog/">Blog</a><a class="navbar__item navbar__link" href="/playground/">Playground</a></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"></path></svg></button></div><div class="navbarSearchContainer_Bca1"></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class="docsWrapper_hBAB"><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type="button"></button><div class="docRoot_UBD9"><aside class="theme-doc-sidebar-container docSidebarContainer_YfHR"><div class="sidebarViewport_aRkj"><div class="sidebar_njMd"><nav aria-label="Docs sidebar" class="menu thin-scrollbar menu_SIkG"><ul class="theme-doc-sidebar-menu menu__list"><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" href="/docs/why-camusdb/"><span class="categoryLinkLabel_W154">Start here</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/why-camusdb/"><span class="linkLabel_WmDU">Why CamusDB?</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/intro/"><span class="linkLabel_WmDU">CamusDB tutorial</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/concepts/"><span class="linkLabel_WmDU">Key concepts</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/playground/"><span class="linkLabel_WmDU">Playground</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/databases/"><span class="linkLabel_WmDU">Databases</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/database-branching/"><span class="linkLabel_WmDU">Database branching</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/recover-dropped-objects/"><span class="linkLabel_WmDU">Recover dropped objects</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/advanced-samples/"><span class="linkLabel_WmDU">Advanced samples</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" href="/docs/sql/"><span class="categoryLinkLabel_W154">SQL</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql/"><span class="linkLabel_WmDU">SQL overview</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/data-types/"><span class="linkLabel_WmDU">Data types</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/sql-schema/"><span class="categoryLinkLabel_W154">Schema</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-schema/"><span class="linkLabel_WmDU">Tables and columns</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-indexes/"><span class="linkLabel_WmDU">Indexes</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/check-constraints/"><span class="linkLabel_WmDU">Check constraints</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/foreign-keys/"><span class="linkLabel_WmDU">Foreign keys</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sequences/"><span class="linkLabel_WmDU">Sequences</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/comment-on/"><span class="linkLabel_WmDU">Schema comments</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/sql-writes/"><span class="categoryLinkLabel_W154">Writing data</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-writes/"><span class="linkLabel_WmDU">Insert, update, delete</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/insert-select-and-ctas/"><span class="linkLabel_WmDU">Copying query results</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/truncate-table/"><span class="linkLabel_WmDU">Emptying a table</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/sql-queries/"><span class="categoryLinkLabel_W154">Reading data</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-queries/"><span class="linkLabel_WmDU">SELECT</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/joins-and-subqueries/"><span class="linkLabel_WmDU">Joins and subqueries</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/vector-search/"><span class="linkLabel_WmDU">Vector search</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/time-travel-reads/"><span class="linkLabel_WmDU">Time-travel reads</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-fromless-select/"><span class="linkLabel_WmDU">SELECT without FROM</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/views/"><span class="categoryLinkLabel_W154">Views</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/views/"><span class="linkLabel_WmDU">Views</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/materialized-views/"><span class="linkLabel_WmDU">Materialized views</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="false" tabindex="0" href="/docs/functions/"><span class="categoryLinkLabel_W154">Functions</span></a></div></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/csharp-extensions/"><span class="linkLabel_WmDU">C# extensions</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-transactions/"><span class="linkLabel_WmDU">Transactions in SQL</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/query-planning/"><span class="categoryLinkLabel_W154">Query performance</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/query-planning/"><span class="linkLabel_WmDU">Query planning</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/explain/"><span class="linkLabel_WmDU">EXPLAIN</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/show-statistics/"><span class="linkLabel_WmDU">SHOW STATISTICS</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/query-result-cache/"><span class="linkLabel_WmDU">Result cache</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/query-result-cache-internals/"><span class="linkLabel_WmDU">Result cache internals</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/query-activity/"><span class="linkLabel_WmDU">Query activity</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-routing-advice/"><span class="linkLabel_WmDU">SQL routing advice</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/distributed-queries/"><span class="linkLabel_WmDU">Distributed queries</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/show-ranges/"><span class="linkLabel_WmDU">SHOW RANGES</span></a></li></ul></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/prepared-statements/"><span class="linkLabel_WmDU">Parameters and prepared statements</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-inspection/"><span class="linkLabel_WmDU">Inspecting the database</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/best-practices/"><span class="linkLabel_WmDU">Best practices</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" href="/docs/serializable-transactions/"><span class="categoryLinkLabel_W154">Operations</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/serializable-transactions/"><span class="categoryLinkLabel_W154">Transactions</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/serializable-transactions/"><span class="linkLabel_WmDU">Transactions and isolation</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/serializable-retries/"><span class="linkLabel_WmDU">Retries and conflicts</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/transaction-limits/"><span class="linkLabel_WmDU">Transaction limits</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/transaction-priority/"><span class="linkLabel_WmDU">Transaction priority</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/distributed-transactions/"><span class="linkLabel_WmDU">Distributed transactions and HLC</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/cluster/"><span class="categoryLinkLabel_W154">Deployment</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/cluster/"><span class="linkLabel_WmDU">Cluster mode</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/kubernetes-operator/"><span class="linkLabel_WmDU">Kubernetes Operator</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/key-range-sharding/"><span class="linkLabel_WmDU">Key-range sharding</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/configuration/"><span class="linkLabel_WmDU">Configuration</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/runtime-cluster-settings/"><span class="linkLabel_WmDU">Runtime cluster settings</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-authentication/"><span class="linkLabel_WmDU">Authentication and authorization</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/backup-and-restore/"><span class="linkLabel_WmDU">Backup and restore</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/logical-dump-and-reimport/"><span class="linkLabel_WmDU">Logical dump and reimport</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/automatic-analyze/"><span class="categoryLinkLabel_W154">Background jobs</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/automatic-analyze/"><span class="linkLabel_WmDU">Automatic analyze</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/row-level-ttl/"><span class="linkLabel_WmDU">Row-level TTL</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/performance-diagnostics/"><span class="categoryLinkLabel_W154">Monitoring</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/performance-diagnostics/"><span class="linkLabel_WmDU">Performance diagnostics</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/operator-dashboard/"><span class="linkLabel_WmDU">Operator dashboard</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/engine-stats/"><span class="linkLabel_WmDU">Engine stats</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/node-stats/"><span class="linkLabel_WmDU">Node resource stats</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/slow-query-log/"><span class="linkLabel_WmDU">Slow query log</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/show-variables/"><span class="linkLabel_WmDU">SHOW VARIABLES</span></a></li></ul></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret menu__link--active" role="button" aria-expanded="true" href="/docs/architecture/"><span class="categoryLinkLabel_W154">Internals</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/architecture/"><span class="linkLabel_WmDU">Architecture</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/connection-model/"><span class="linkLabel_WmDU">The connection model</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/storage/"><span class="categoryLinkLabel_W154">Storage and durability</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/storage/"><span class="linkLabel_WmDU">Storage</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/wal-recovery/"><span class="linkLabel_WmDU">WAL and recovery</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/spill-to-disk/"><span class="linkLabel_WmDU">Spill to disk</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret menu__link--active" role="button" aria-expanded="true" tabindex="0" href="/docs/query-planner-internals/"><span class="categoryLinkLabel_W154">Execution and concurrency</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link menu__link--active" aria-current="page" tabindex="0" href="/docs/query-planner-internals/"><span class="linkLabel_WmDU">Query planner internals</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/transactions-locking-internals/"><span class="linkLabel_WmDU">Transaction internals</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/distributed-schema/"><span class="linkLabel_WmDU">Distributed schema changes</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/plan-quality-testing/"><span class="linkLabel_WmDU">Plan quality testing</span></a></li></ul></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" href="/docs/browser-playground/"><span class="categoryLinkLabel_W154">Reference</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/browser-playground/"><span class="linkLabel_WmDU">Browser playground</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/mcp-server/"><span class="linkLabel_WmDU">MCP server</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/agent-skills/"><span class="linkLabel_WmDU">Agent skills</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/web-console/"><span class="linkLabel_WmDU">Web Console</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/camus-cli/"><span class="linkLabel_WmDU">camus-cli</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/camus-dump/"><span class="linkLabel_WmDU">camus-dump</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/workload-utility/"><span class="linkLabel_WmDU">Workload utility</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/caraxes/"><span class="linkLabel_WmDU">Caraxes</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/typescript-connector/"><span class="linkLabel_WmDU">TypeScript</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/dotnet-driver/"><span class="categoryLinkLabel_W154">.NET</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/dotnet-driver/"><span class="linkLabel_WmDU">.NET driver</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/dapper/"><span class="linkLabel_WmDU">Dapper</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/ef-core/"><span class="linkLabel_WmDU">EF Core provider</span></a></li></ul></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/error-codes/"><span class="linkLabel_WmDU">Error codes</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/http-api/"><span class="linkLabel_WmDU">HTTP API</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/grpc-api/"><span class="linkLabel_WmDU">gRPC API</span></a></li></ul></li></ul></nav></div></div></aside><main class="docMainContainer_TBSr"><div class="container padding-top--md padding-bottom--lg"><div class="row"><div class="col docItemCol_VOVn"><div class="docItemContainer_Djhp"><article><nav class="theme-doc-breadcrumbs breadcrumbsContainer_Z_bl" aria-label="Breadcrumbs"><ul class="breadcrumbs"><li class="breadcrumbs__item"><a aria-label="Home page" class="breadcrumbs__link" href="/"><svg viewBox="0 0 24 24" class="breadcrumbHomeIcon_YNFT"><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill="currentColor"></path></svg></a></li><li class="breadcrumbs__item"><span class="breadcrumbs__link">Internals</span></li><li class="breadcrumbs__item"><span class="breadcrumbs__link">Execution and concurrency</span></li><li class="breadcrumbs__item breadcrumbs__item--active"><span class="breadcrumbs__link">Query planner internals</span></li></ul></nav><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type="button" class="clean-btn tocCollapsibleButton_TO0P">On this page</button></div><div class="theme-doc-markdown markdown"><header><h1>Query planner internals</h1></header>
-<p>This page describes two steps. CamusDB turns SQL text into a physical plan. It
-then executes that plan against the KV layer, the ordered key/value store that
-holds every row and index entry.</p>
+<p>This page describes how CamusDB turns SQL text into a physical plan, then
+executes that plan against the KV layer, the ordered key/value store that holds
+every row and index entry.</p>
 <p>Start with <a class="" href="/docs/query-planning/">Query Planning</a> for SQL examples and tuning,
 and <a class="" href="/docs/explain/">EXPLAIN</a> for reading a plan. This page follows the same
 concepts into the implementation: representations, rewrite safety, search,
 costing, cache replay, and execution.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-mental-model">The mental model<a href="#the-mental-model" class="hash-link" aria-label="Direct link to The mental model" title="Direct link to The mental model" translate="no">​</a></h2>
-<p>The planner of CamusDB sits between the SQL layer and the ordered transactional
-KV store. <a class="" href="/docs/concepts/#kahuna">Kahuna</a>, the key/value layer embedded in
-every CamusDB node, provides that store.</p>
-<p>The planner turns a declarative SQL query into a concrete plan of execution. It
-answers five questions:</p>
+<p>The CamusDB planner sits between the SQL layer and the ordered transactional KV
+store. <a class="" href="/docs/concepts/#kahuna">Kahuna</a>, the key/value layer embedded in every
+CamusDB node, provides that store.</p>
+<p>The planner turns a declarative SQL query into a concrete execution plan by
+answering these questions:</p>
 <ol>
 <li class="">Which scan does the query use?</li>
 <li class="">Which predicates can become bounds of that scan?</li>
-<li class="">Can the plan omit a sort?</li>
+<li class="">Can the plan skip a sort?</li>
 <li class="">Which join algorithm suits the query?</li>
-<li class="">Where do the stages belong for the aggregation, the <code>HAVING</code>, the projection,
-the <code>DISTINCT</code>, and the limit?</li>
+<li class="">Where do the aggregation, <code>HAVING</code>, projection, <code>DISTINCT</code>, and limit stages
+belong?</li>
 </ol>
-<p>CamusDB has a planner with rules, and a stack of cost-based optimizers. The cost
-model annotates a plan. It drives some decisions at all times. It can also take
-over a broader search, of the access paths and of the join order. It does that
-while the matching flags in the configuration are on. Those broad cost-based
-flags are on by default.</p>
-<p>The stack of the optimizer has four levels:</p>
+<p>CamusDB has a rule-based planner and a stack of cost-based optimizers. The cost
+model annotates every plan and always drives some decisions. While the matching
+configuration flags are on, it also takes over the broader access-path and
+join-order searches. Those cost-based flags are on by default.</p>
+<p>The optimizer stack has these levels:</p>
 <ol>
-<li class="">The statistics of a table, from live DML and from <code>ANALYZE</code>.</li>
-<li class="">The estimate of the cardinality, from the row counts, the histograms, the
-counts of distinct values, and the bounds of the minimum and the maximum.</li>
-<li class="">A weighted cost model. It covers a KV lookup, a range entry, a fetch of a
-primary row, work in memory, and the cost of the network.</li>
-<li class="">A search of the plans, for the access paths and for the join order. The
-cost-based flags control that search, and they are on by default.</li>
+<li class="">Table statistics, from live DML and from <code>ANALYZE</code>.</li>
+<li class="">Cardinality estimates, from row counts, histograms, distinct-value counts,
+and minimum and maximum bounds.</li>
+<li class="">A weighted cost model covering KV lookups, range entries, primary-row
+fetches, in-memory work, and network cost.</li>
+<li class="">A plan search over access paths and join order, controlled by the cost-based
+flags, which are on by default.</li>
 </ol>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-pipeline">The pipeline<a href="#the-pipeline" class="hash-link" aria-label="Direct link to The pipeline" title="Direct link to The pipeline" translate="no">​</a></h2>
-<p>Every <code>SELECT</code> follows this pipeline at a high level:</p>
+<p>At a high level, every <code>SELECT</code> follows this pipeline:</p>
 <ol>
 <li class="">CamusDB parses the SQL text into a <code>NodeAst</code>.</li>
 <li class="">It builds a typed logical model of the query.</li>
-<li class="">It binds the names, the sources, and the aliases against the catalog.</li>
-<li class="">It produces a tree for the physical plan.</li>
-<li class="">It executes the plan. It uses either the executor for one table, or the path
-for a join.</li>
+<li class="">It binds names, sources, and aliases against the catalog.</li>
+<li class="">It produces a physical plan tree.</li>
+<li class="">It executes the plan, using either the single-table executor or the join
+path.</li>
 </ol>
 <!-- -->
 <p>These are the important data structures:</p>
-<table><thead><tr><th>Stage</th><th>Main type</th><th>Purpose</th></tr></thead><tbody><tr><td>Parse</td><td><code>NodeAst</code></td><td>The raw tree of the syntax.</td></tr><tr><td>Logical model</td><td><code>SelectQuery</code></td><td>A structured form of the source, the projections, the filters, the groups, the order, the limit, the offset, and the distinct flag.</td></tr><tr><td>Bound model</td><td><code>BoundSelectQuery</code></td><td>The logical query, plus the resolved tables, the aliases, and the rules for the names.</td></tr><tr><td>Physical plan</td><td><code>QueryPlan</code> and <code>PhysicalPlanNode</code></td><td>The selected tree of operators, plus a flat list of steps for the older path of one table.</td></tr><tr><td>Results</td><td><code>QueryResultRow</code></td><td>The output rows for the caller.</td></tr></tbody></table>
+<table><thead><tr><th>Stage</th><th>Main type</th><th>Purpose</th></tr></thead><tbody><tr><td>Parse</td><td><code>NodeAst</code></td><td>The raw syntax tree.</td></tr><tr><td>Logical model</td><td><code>SelectQuery</code></td><td>A structured form of the source, projections, filters, grouping, ordering, limit, offset, and distinct flag.</td></tr><tr><td>Bound model</td><td><code>BoundSelectQuery</code></td><td>The logical query, plus the resolved tables, aliases, and name resolution rules.</td></tr><tr><td>Physical plan</td><td><code>QueryPlan</code> and <code>PhysicalPlanNode</code></td><td>The chosen operator tree, plus a flat list of steps for the older single-table path.</td></tr><tr><td>Results</td><td><code>QueryResultRow</code></td><td>The output rows for the caller.</td></tr></tbody></table>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="logical-plans-and-physical-plans">Logical plans and physical plans<a href="#logical-plans-and-physical-plans" class="hash-link" aria-label="Direct link to Logical plans and physical plans" title="Direct link to Logical plans and physical plans" translate="no">​</a></h2>
-<p>The logical model of a query records what the query asks for. The physical plan
-records how CamusDB obtains that result.</p>
-<p>Here are two examples:</p>
+<p>A query&#x27;s logical model records what the query asks for. The physical plan
+records how CamusDB gets that result. For example:</p>
 <ul>
 <li class="">The logical form is &quot;the rows of <code>robots</code> where <code>year = 2024</code>&quot;.</li>
 <li class="">The physical form is &quot;a range scan of <code>year_idx</code>, from <code>2024</code> to the next
-boundary of a key&quot;.</li>
+key boundary&quot;.</li>
 </ul>
-<p>CamusDB keeps an expression as a subtree of the AST, deep into the execution.
-That rule covers a predicate and a projection expression. The structured models
-mostly describe the shape of the query, and the relations between the sources.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="two-paths-of-execution">Two paths of execution<a href="#two-paths-of-execution" class="hash-link" aria-label="Direct link to Two paths of execution" title="Direct link to Two paths of execution" translate="no">​</a></h2>
-<p>CamusDB has two paths of execution today:</p>
-<table><thead><tr><th>Path</th><th>CamusDB uses it when</th><th>Main executor</th></tr></thead><tbody><tr><td>The linear path for one table</td><td>The query has exactly one source</td><td><code>QueryExecutor</code></td></tr><tr><td>The tree path for several sources</td><td>The query has a join or a derived table</td><td><code>QueryJoinExecutor</code></td></tr></tbody></table>
-<p>The two paths must agree on every behavior that a user sees. The path for
-several sources walks a tree recursively. It then uses the shared pipeline after
-the scan, for the aggregation, the sort, the projection, the <code>DISTINCT</code>, and the
-limit.</p>
+<p>CamusDB keeps expressions, both predicates and projection expressions, as AST
+subtrees deep into execution. The structured models mostly describe the shape
+of the query and the relations between its sources.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="two-execution-paths">Two execution paths<a href="#two-execution-paths" class="hash-link" aria-label="Direct link to Two execution paths" title="Direct link to Two execution paths" translate="no">​</a></h2>
+<p>CamusDB has two execution paths today:</p>
+<table><thead><tr><th>Path</th><th>CamusDB uses it when</th><th>Main executor</th></tr></thead><tbody><tr><td>The linear single-table path</td><td>The query has exactly one source</td><td><code>QueryExecutor</code></td></tr><tr><td>The tree path for several sources</td><td>The query has a join or a derived table</td><td><code>QueryJoinExecutor</code></td></tr></tbody></table>
+<p>The two paths must agree on every user-visible behavior. The multi-source path
+walks a tree recursively, then uses the shared post-scan pipeline for
+aggregation, sorting, projection, <code>DISTINCT</code>, and the limit.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="parse-and-build">Parse and build<a href="#parse-and-build" class="hash-link" aria-label="Direct link to Parse and build" title="Direct link to Parse and build" translate="no">​</a></h2>
 <p>The parser accepts these forms:</p>
 <ul>
@@ -97,14 +94,14 @@ limit.</p>
 <li class=""><code>HAVING</code></li>
 <li class=""><code>ORDER BY</code></li>
 <li class=""><code>LIMIT</code> and <code>OFFSET</code></li>
-<li class=""><code>JOIN</code>, and a join with a comma</li>
-<li class="">A derived table</li>
-<li class="">A scalar subquery, and an <code>IN</code>, <code>NOT IN</code>, or <code>EXISTS</code> subquery</li>
-<li class="">Membership of a value list, with <code>IN (...)</code> and <code>NOT IN (...)</code></li>
+<li class=""><code>JOIN</code> and comma joins</li>
+<li class="">Derived tables</li>
+<li class="">Scalar subqueries, and <code>IN</code>, <code>NOT IN</code>, and <code>EXISTS</code> subqueries</li>
+<li class="">Value-list membership, with <code>IN (...)</code> and <code>NOT IN (...)</code></li>
 <li class=""><code>EXPLAIN (LOGICAL|PHYSICAL|ANALYZE)</code></li>
 </ul>
-<p><code>SelectQueryCreator</code> turns the parsed tree into a <code>SelectQuery</code> record. That
-record holds nine fields:</p>
+<p><code>SelectQueryCreator</code> turns the parsed tree into a <code>SelectQuery</code> record with
+these fields:</p>
 <ul>
 <li class=""><code>Source</code></li>
 <li class=""><code>Projections</code></li>
@@ -117,23 +114,22 @@ record holds nine fields:</p>
 <li class=""><code>IsDistinct</code></li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="binding">Binding<a href="#binding" class="hash-link" aria-label="Direct link to Binding" title="Direct link to Binding" translate="no">​</a></h2>
-<p><code>QueryBinder</code> resolves the names of the sources. It opens the descriptors of the
-tables. It detects a collision between two aliases. It builds the resolver for
-the row names. That resolver decides whether a reference to a column is valid,
-ambiguous, or in need of a qualifier.</p>
-<p>The binder also validates four things:</p>
+<p><code>QueryBinder</code> resolves source names, opens the table descriptors, detects alias
+collisions, and builds the row-name resolver, which decides whether a column
+reference is valid, ambiguous, or needs a qualifier.</p>
+<p>The binder also validates:</p>
 <ul>
-<li class="">The references of the projections.</li>
-<li class="">The agreement between the <code>GROUP BY</code> and the projections.</li>
-<li class="">The references of the <code>ORDER BY</code>.</li>
-<li class="">The <code>ON</code> predicates of a join.</li>
+<li class="">Projection references.</li>
+<li class="">Agreement between <code>GROUP BY</code> and the projections.</li>
+<li class=""><code>ORDER BY</code> references.</li>
+<li class="">Join <code>ON</code> predicates.</li>
 </ul>
-<p>The binder also prepares the support for <code>EXISTS</code>. It uses the registry of the
-subqueries, which the execution then uses.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-plan-for-one-table">The plan for one table<a href="#the-plan-for-one-table" class="hash-link" aria-label="Direct link to The plan for one table" title="Direct link to The plan for one table" translate="no">​</a></h2>
-<p>The planner for one table runs in broad phases.</p>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="1-selection-of-the-scan">1. Selection of the scan<a href="#1-selection-of-the-scan" class="hash-link" aria-label="Direct link to 1. Selection of the scan" title="Direct link to 1. Selection of the scan" translate="no">​</a></h3>
-<p>The planner analyzes the predicate. It then tries to select one of five scans:</p>
+<p>It also prepares <code>EXISTS</code> support through the subquery registry, which execution
+then uses.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="single-table-planning">Single-table planning<a href="#single-table-planning" class="hash-link" aria-label="Direct link to Single-table planning" title="Direct link to Single-table planning" translate="no">​</a></h2>
+<p>The single-table planner runs in broad phases.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="1-scan-selection">1. Scan selection<a href="#1-scan-selection" class="hash-link" aria-label="Direct link to 1. Scan selection" title="Direct link to 1. Scan selection" translate="no">​</a></h3>
+<p>The planner analyzes the predicate, then tries to pick one of these scans:</p>
 <ul>
 <li class="">A full table scan.</li>
 <li class="">A forced index scan.</li>
@@ -141,63 +137,54 @@ subqueries, which the execution then uses.</p>
 <li class="">A range scan on an index.</li>
 <li class="">An index scan over an <code>IN</code> list, when repeated probes beat a wider scan.</li>
 </ul>
-<p><code>PredicateAnalyzer</code> divides the predicates into three groups:</p>
-<ul>
-<li class="">The comparisons that an index can serve.</li>
-<li class="">The comparisons between two columns.</li>
-<li class="">The residual conjuncts.</li>
-</ul>
-<p><code>IndexScanSelector</code> operates in two modes. The heuristic mode scores each usable
-index with rules such as these:</p>
+<p><code>PredicateAnalyzer</code> splits the predicates into comparisons an index can serve,
+column-to-column comparisons, and residual conjuncts.</p>
+<p><code>IndexScanSelector</code> has two modes. The heuristic mode scores each usable index
+with rules such as:</p>
 <ul>
 <li class="">A full equality on a unique index beats every other candidate.</li>
-<li class="">An equality on a non-unique index, and a match on a prefix of equalities, are
-strong candidates.</li>
-<li class="">A prefix of equalities, plus a range on the next column, can drive a composite
+<li class="">An equality on a non-unique index, or an equality-prefix match, is a strong
+candidate.</li>
+<li class="">An equality prefix plus a range on the next column can drive a composite
 range scan.</li>
-<li class="">A match on the prefix of an <code>ORDER BY</code> can win, even without a predicate that
-filters.</li>
+<li class="">An <code>ORDER BY</code> prefix match can win, even without a filtering predicate.</li>
 <li class="">An <code>IN (...)</code> list on an indexed column can compete with a range scan and with
 a full scan.</li>
 </ul>
-<p><code>cost_based_access_path_enabled</code> defaults to <code>true</code>. The planner therefore uses
-the cost-based selection of predicate-driven access paths when the table has
-a positive row-count estimate and analyzed statistics. A DML-maintained count
+<p><code>cost_based_access_path_enabled</code> defaults to <code>true</code>, so the planner uses
+cost-based selection of predicate-driven access paths when the table has a
+positive row-count estimate and analyzed statistics. A DML-maintained count
 alone does not enable this single-table enumeration pass. It compares viable
 index candidates with a full-scan baseline and keeps the cheapest estimate.
 Ordering and DISTINCT rules can further affect the final scan.</p>
-<p>The scans that locate the rows of an <code>UPDATE</code> and of a <code>DELETE</code> keep the
-heuristic path. That rule prevents an unexpected growth of the ranges of the
-exclusive locks.</p>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="2-absorption-of-the-filters">2. Absorption of the filters<a href="#2-absorption-of-the-filters" class="hash-link" aria-label="Direct link to 2. Absorption of the filters" title="Direct link to 2. Absorption of the filters" translate="no">​</a></h3>
-<p>The planner selects the bounds of the scan first. It then removes from the
-runtime filter every comparison that those bounds already imply. The remaining
-predicate becomes the residual filter of the execution.</p>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="3-elision-of-the-sort">3. Elision of the sort<a href="#3-elision-of-the-sort" class="hash-link" aria-label="Direct link to 3. Elision of the sort" title="Direct link to 3. Elision of the sort" translate="no">​</a></h3>
-<p>The selected scan can already produce the rows in the requested order. The
-planner then sets <code>OutputOrdering</code>. It omits the explicit <code>SortNode</code>.</p>
-<p>The order of an index has a direction. A scan over <code>(year ASC)</code> can satisfy
-<code>ORDER BY year ASC</code>. A scan over <code>(year DESC)</code> can satisfy <code>ORDER BY year DESC</code>.
-A difference in the direction keeps the <code>SortNode</code>. CamusDB does not invert a
-forward index scan into the opposite order.</p>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="4-the-strategy-for-distinct">4. The strategy for DISTINCT<a href="#4-the-strategy-for-distinct" class="hash-link" aria-label="Direct link to 4. The strategy for DISTINCT" title="Direct link to 4. The strategy for DISTINCT" translate="no">​</a></h3>
-<p>For a <code>SELECT DISTINCT</code>, the planner selects between two forms:</p>
+<p>The scans that locate rows for <code>UPDATE</code> and <code>DELETE</code> keep the heuristic path,
+which prevents exclusive lock ranges from growing unexpectedly.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="2-filter-absorption">2. Filter absorption<a href="#2-filter-absorption" class="hash-link" aria-label="Direct link to 2. Filter absorption" title="Direct link to 2. Filter absorption" translate="no">​</a></h3>
+<p>The planner chooses the scan bounds first, then removes from the runtime filter
+every comparison those bounds already imply. What remains becomes the residual
+filter at execution.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="3-sort-elision">3. Sort elision<a href="#3-sort-elision" class="hash-link" aria-label="Direct link to 3. Sort elision" title="Direct link to 3. Sort elision" translate="no">​</a></h3>
+<p>If the chosen scan already produces rows in the requested order, the planner
+sets <code>OutputOrdering</code> and leaves out the explicit <code>SortNode</code>.</p>
+<p>Index order has a direction. A scan over <code>(year ASC)</code> can satisfy
+<code>ORDER BY year ASC</code>, and a scan over <code>(year DESC)</code> can satisfy
+<code>ORDER BY year DESC</code>. A direction mismatch keeps the <code>SortNode</code>: CamusDB does
+not invert a forward index scan into the opposite order.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="4-distinct-strategy">4. DISTINCT strategy<a href="#4-distinct-strategy" class="hash-link" aria-label="Direct link to 4. DISTINCT strategy" title="Direct link to 4. DISTINCT strategy" translate="no">​</a></h3>
+<p>For <code>SELECT DISTINCT</code>, the planner chooses between:</p>
 <ul>
-<li class="">A <code>DistinctNode</code> in streaming mode. It needs three conditions: the projected
-columns are simple identifiers, every one of them is <code>NOT NULL</code>, and the order
-of the scan covers them.</li>
-<li class="">A <code>DistinctNode</code> in hash mode. The planner uses it when the streaming mode is
-unsafe or impossible.</li>
+<li class="">A streaming <code>DistinctNode</code>, which requires that the projected columns are
+simple identifiers, all <code>NOT NULL</code>, and covered by the scan order.</li>
+<li class="">A hash <code>DistinctNode</code>, used when streaming mode is unsafe or impossible.</li>
 </ul>
-<p>A distinct in streaming mode can also satisfy a matching <code>ORDER BY</code>. The plan
-then needs no separate <code>SortNode</code>.</p>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="5-pushdown-of-the-limit">5. Pushdown of the limit<a href="#5-pushdown-of-the-limit" class="hash-link" aria-label="Direct link to 5. Pushdown of the limit" title="Direct link to 5. Pushdown of the limit" translate="no">​</a></h3>
-<p>The shape of the query can be simple enough. The planner then pushes the limit
-on the row count into the scan. The KV read can therefore stop early.</p>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="6-construction-of-the-chain-of-operators">6. Construction of the chain of operators<a href="#6-construction-of-the-chain-of-operators" class="hash-link" aria-label="Direct link to 6. Construction of the chain of operators" title="Direct link to 6. Construction of the chain of operators" translate="no">​</a></h3>
-<p>The planner builds a chain of operators, from the leaf to the root. These
-patterns are typical:</p>
-<table><thead><tr><th>Shape of the query</th><th>Chain of operators</th></tr></thead><tbody><tr><td>A plain select</td><td><code>Scan -&gt; [Filter] -&gt; [Sort] -&gt; [Aggregate] -&gt; [Having] -&gt; [Project] -&gt; [Limit]</code></td></tr><tr><td>A grouped query</td><td><code>Scan -&gt; [Filter] -&gt; Aggregate -&gt; [Having] -&gt; [Sort] -&gt; [Project] -&gt; [Limit]</code></td></tr><tr><td>A distinct query</td><td><code>Scan -&gt; [Filter] -&gt; [Aggregate] -&gt; [Having] -&gt; [Project] -&gt; Distinct -&gt; [Sort] -&gt; [Limit]</code></td></tr></tbody></table>
+<p>A streaming distinct can also satisfy a matching <code>ORDER BY</code>, so the plan needs
+no separate <code>SortNode</code>.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="5-limit-pushdown">5. Limit pushdown<a href="#5-limit-pushdown" class="hash-link" aria-label="Direct link to 5. Limit pushdown" title="Direct link to 5. Limit pushdown" translate="no">​</a></h3>
+<p>When the query shape is simple enough, the planner pushes the row limit into the
+scan so the KV read can stop early.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="6-building-the-operator-chain">6. Building the operator chain<a href="#6-building-the-operator-chain" class="hash-link" aria-label="Direct link to 6. Building the operator chain" title="Direct link to 6. Building the operator chain" translate="no">​</a></h3>
+<p>The planner builds a chain of operators from leaf to root. Typical patterns:</p>
+<table><thead><tr><th>Query shape</th><th>Operator chain</th></tr></thead><tbody><tr><td>A plain select</td><td><code>Scan -&gt; [Filter] -&gt; [Sort] -&gt; [Aggregate] -&gt; [Having] -&gt; [Project] -&gt; [Limit]</code></td></tr><tr><td>A grouped query</td><td><code>Scan -&gt; [Filter] -&gt; Aggregate -&gt; [Having] -&gt; [Sort] -&gt; [Project] -&gt; [Limit]</code></td></tr><tr><td>A distinct query</td><td><code>Scan -&gt; [Filter] -&gt; [Aggregate] -&gt; [Having] -&gt; [Project] -&gt; Distinct -&gt; [Sort] -&gt; [Limit]</code></td></tr></tbody></table>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="reading-fewer-columns">Reading fewer columns<a href="#reading-fewer-columns" class="hash-link" aria-label="Direct link to Reading fewer columns" title="Direct link to Reading fewer columns" translate="no">​</a></h3>
 <p><code>ProjectionPushdownPlanner</code> and <code>RequiredColumnAnalyzer</code> determine which
 columns execution still needs. The set includes columns used by predicates,
@@ -207,32 +194,29 @@ decoding can then avoid building values for unrelated columns.</p>
 row that was fetched, while a covering index can avoid fetching that primary
 row altogether. Both optimizations must retain columns needed by later stages,
 even if those columns never appear in the result.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-plan-for-a-join">The plan for a join<a href="#the-plan-for-a-join" class="hash-link" aria-label="Direct link to The plan for a join" title="Direct link to The plan for a join" translate="no">​</a></h2>
-<p><code>JoinQueryPlanner</code> handles a query with several sources.</p>
-<p>Its work includes six tasks:</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="join-planning">Join planning<a href="#join-planning" class="hash-link" aria-label="Direct link to Join planning" title="Direct link to Join planning" translate="no">​</a></h2>
+<p><code>JoinQueryPlanner</code> handles queries with several sources. Its work includes:</p>
 <ul>
-<li class="">An optional change of the join order.</li>
-<li class="">A pushdown of a predicate that belongs to one source.</li>
-<li class="">A separation of the predicates after the join from the predicates local to a
-scan.</li>
-<li class="">The construction of a <code>NestedLoopJoinNode</code>, an <code>IndexNestedLoopJoinNode</code>, a
-<code>HashJoinNode</code>, or a <code>MergeJoinNode</code>.</li>
-<li class="">The construction of a variant of <code>SemiJoinNode</code>, for an eligible indexed <code>IN</code>
-or <code>NOT IN</code> subquery.</li>
-<li class="">The representation of a derived table as a <code>DerivedTableScanNode</code>.</li>
+<li class="">Optionally changing the join order.</li>
+<li class="">Pushing down predicates that belong to one source.</li>
+<li class="">Separating post-join predicates from scan-local predicates.</li>
+<li class="">Building a <code>NestedLoopJoinNode</code>, <code>IndexNestedLoopJoinNode</code>, <code>HashJoinNode</code>,
+or <code>MergeJoinNode</code>.</li>
+<li class="">Building a <code>SemiJoinNode</code> variant for an eligible indexed <code>IN</code> or <code>NOT IN</code>
+subquery.</li>
+<li class="">Representing a derived table as a <code>DerivedTableScanNode</code>.</li>
 </ul>
-<p>For an inner equi-join, the planner extracts the pairs of join keys. It does so
-even when no index is available. A hash join and a merge join therefore become
-possible, together with an indexed nested-loop join.</p>
-<p>The main rules of the selection are these:</p>
+<p>For an inner equi-join, the planner extracts the join key pairs even when no
+index is available, so hash and merge joins become possible alongside indexed
+nested-loop joins.</p>
+<p>The main selection rules are:</p>
 <ul>
-<li class="">Use an <code>IndexNestedLoopJoinNode</code> when the join key of the right side has a
-good index, and when the estimate makes repeated probes cheaper.</li>
-<li class="">Use a <code>MergeJoinNode</code> when CamusDB can read both sides in the order of the
-join key, and when the outer side is large enough.</li>
-<li class="">Use a <code>HashJoinNode</code> when a plan that builds and probes is cheaper for an
-equi-join. Use it also when the right side has no usable index on the join
-key.</li>
+<li class="">Use an <code>IndexNestedLoopJoinNode</code> when the right side&#x27;s join key has a good
+index and the estimate makes repeated probes cheaper.</li>
+<li class="">Use a <code>MergeJoinNode</code> when CamusDB can read both sides in join-key order and
+the outer side is large enough.</li>
+<li class="">Use a <code>HashJoinNode</code> when building and probing is cheaper for an equi-join,
+or when the right side has no usable index on the join key.</li>
 <li class="">Use a <code>NestedLoopJoinNode</code> when the join fits none of those shapes.</li>
 </ul>
 <p>An inner hash join builds a hash table from the side estimated to be smaller
@@ -413,18 +397,18 @@ and the availability of estimates needed by the recorded mode.</p>
 cached index choice or join order can remain valid while being less efficient
 for another value. New analyzed statistics invalidate the entry, but different
 literals alone do not force a fresh search.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-nodes-of-a-physical-plan">The nodes of a physical plan<a href="#the-nodes-of-a-physical-plan" class="hash-link" aria-label="Direct link to The nodes of a physical plan" title="Direct link to The nodes of a physical plan" translate="no">​</a></h2>
-<p>These node types are the common ones:</p>
-<table><thead><tr><th>Node</th><th>Meaning</th></tr></thead><tbody><tr><td><code>TableScanNode</code></td><td>A full table scan, or a forced index scan.</td></tr><tr><td><code>IndexLookupNode</code></td><td>A point lookup on a unique index.</td></tr><tr><td><code>IndexRangeScanNode</code></td><td>A range on an index, with or without bounds.</td></tr><tr><td><code>IndexInListScanNode</code></td><td>Multiple seeks for a literal IN list, with duplicate values removed.</td></tr><tr><td><code>FilterNode</code></td><td>A residual predicate.</td></tr><tr><td><code>AggregateNode</code></td><td>The stage of the aggregation and of the groups.</td></tr><tr><td><code>HavingFilterNode</code></td><td>A filter after the aggregation.</td></tr><tr><td><code>SortNode</code></td><td>A sort, with eligible spill support; a bounded variant renders as <code>topk</code> and retains offset + limit candidates.</td></tr><tr><td><code>ProjectNode</code></td><td>The projection, and the shape of the aliases.</td></tr><tr><td><code>DistinctNode</code></td><td>The removal of the duplicates.</td></tr><tr><td><code>LimitNode</code></td><td>The stage of the limit and of the offset.</td></tr><tr><td><code>SemiJoinNode</code></td><td>The rewrite of an indexed <code>IN</code> or <code>NOT IN</code> subquery.</td></tr><tr><td><code>NestedLoopJoinNode</code></td><td>A join without an indexed probe on the right side.</td></tr><tr><td><code>IndexNestedLoopJoinNode</code></td><td>A join with an indexed probe on the right side.</td></tr><tr><td><code>HashJoinNode</code></td><td>An inner or left outer equi-join using a hash table, with eligible spill support.</td></tr><tr><td><code>MergeJoinNode</code></td><td>An inner or left outer equi-join over ordered inputs.</td></tr><tr><td><code>DerivedTableScanNode</code></td><td>A scan of a derived table as a source.</td></tr></tbody></table>
-<p><code>QueryPlan</code> also carries a flat <code>Steps</code> view, for the linear executor. The tree
-and the linear list reference the same instances of the nodes.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="physical-plan-nodes">Physical plan nodes<a href="#physical-plan-nodes" class="hash-link" aria-label="Direct link to Physical plan nodes" title="Direct link to Physical plan nodes" translate="no">​</a></h2>
+<p>The common node types are:</p>
+<table><thead><tr><th>Node</th><th>Meaning</th></tr></thead><tbody><tr><td><code>TableScanNode</code></td><td>A full table scan, or a forced index scan.</td></tr><tr><td><code>IndexLookupNode</code></td><td>A point lookup on a unique index.</td></tr><tr><td><code>IndexRangeScanNode</code></td><td>An index range, with or without bounds.</td></tr><tr><td><code>IndexInListScanNode</code></td><td>Multiple seeks for a literal IN list, with duplicate values removed.</td></tr><tr><td><code>FilterNode</code></td><td>A residual predicate.</td></tr><tr><td><code>AggregateNode</code></td><td>The aggregation and grouping stage.</td></tr><tr><td><code>HavingFilterNode</code></td><td>A filter after aggregation.</td></tr><tr><td><code>SortNode</code></td><td>A sort, with eligible spill support; a bounded variant renders as <code>topk</code> and retains offset + limit candidates.</td></tr><tr><td><code>ProjectNode</code></td><td>The projection and alias shaping.</td></tr><tr><td><code>DistinctNode</code></td><td>Duplicate removal.</td></tr><tr><td><code>LimitNode</code></td><td>The limit and offset stage.</td></tr><tr><td><code>SemiJoinNode</code></td><td>The rewrite of an indexed <code>IN</code> or <code>NOT IN</code> subquery.</td></tr><tr><td><code>NestedLoopJoinNode</code></td><td>A join without an indexed probe on the right side.</td></tr><tr><td><code>IndexNestedLoopJoinNode</code></td><td>A join with an indexed probe on the right side.</td></tr><tr><td><code>HashJoinNode</code></td><td>An inner or left outer equi-join using a hash table, with eligible spill support.</td></tr><tr><td><code>MergeJoinNode</code></td><td>An inner or left outer equi-join over ordered inputs.</td></tr><tr><td><code>DerivedTableScanNode</code></td><td>A scan of a derived table as a source.</td></tr></tbody></table>
+<p><code>QueryPlan</code> also carries a flat <code>Steps</code> view for the linear executor. The tree
+and the linear list reference the same node instances.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="execution">Execution<a href="#execution" class="hash-link" aria-label="Direct link to Execution" title="Direct link to Execution" translate="no">​</a></h2>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-path-for-one-table">The path for one table<a href="#the-path-for-one-table" class="hash-link" aria-label="Direct link to The path for one table" title="Direct link to The path for one table" translate="no">​</a></h3>
-<p><code>QueryExecutor</code> walks the flat list of steps. It chains the operators of type
-<code>IAsyncEnumerable&lt;QueryResultRow&gt;</code>.</p>
-<p>A scan operator reads from <code>KvTableStore</code>. It decodes a row with <code>RowEncoder</code>.
-It applies the inline filters. It respects the limits on the rows of a scan.</p>
-<p>These are the other stages:</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="single-table-path">Single-table path<a href="#single-table-path" class="hash-link" aria-label="Direct link to Single-table path" title="Direct link to Single-table path" translate="no">​</a></h3>
+<p><code>QueryExecutor</code> walks the flat list of steps, chaining
+<code>IAsyncEnumerable&lt;QueryResultRow&gt;</code> operators.</p>
+<p>A scan operator reads from <code>KvTableStore</code>, decodes each row with <code>RowEncoder</code>,
+applies the inline filters, and respects scan row limits.</p>
+<p>The other stages are:</p>
 <ul>
 <li class=""><code>QuerySorter</code></li>
 <li class=""><code>QueryAggregator</code></li>
@@ -433,23 +417,20 @@ It applies the inline filters. It respects the limits on the rows of a scan.</p>
 <li class=""><code>QueryDistincter</code></li>
 <li class=""><code>QueryLimiter</code></li>
 </ul>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-path-for-a-join">The path for a join<a href="#the-path-for-a-join" class="hash-link" aria-label="Direct link to The path for a join" title="Direct link to The path for a join" translate="no">​</a></h3>
-<p><code>QueryJoinExecutor</code> walks the tree of the plan recursively:</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="join-path">Join path<a href="#join-path" class="hash-link" aria-label="Direct link to Join path" title="Direct link to Join path" translate="no">​</a></h3>
+<p><code>QueryJoinExecutor</code> walks the plan tree recursively:</p>
 <ul>
-<li class="">A table scan reads a source, with any filter that the planner pushed down.</li>
-<li class="">A derived table materializes the inner query one time.</li>
-<li class="">A nested loop join merges the rows of the left side and of the right side. It
-then evaluates the <code>ON</code> predicate.</li>
-<li class="">An indexed nested loop probes the index of the right side, once for each outer
-row.</li>
-<li class="">A hash join materializes the build side into a hash table in memory. The keys
-of that table are the columns of the equi-join. The executor then streams the
-other side, and it probes the table. The build side can exceed
-<code>HashJoinMaxBuildRows</code> while spill is enabled. <code>GraceHashJoinAsync</code> then
-divides both inputs into spill files by key hash. It joins one pair of spill
-files at a time. While
-spill is disabled, the execution of that query falls back to the behavior of a
-nested loop.</li>
+<li class="">A table scan reads a source, with any filter the planner pushed down.</li>
+<li class="">A derived table materializes the inner query once.</li>
+<li class="">A nested loop join merges left and right rows, then evaluates the <code>ON</code>
+predicate.</li>
+<li class="">An indexed nested loop probes the right side&#x27;s index once per outer row.</li>
+<li class="">A hash join materializes the build side into an in-memory hash table keyed by
+the equi-join columns, then streams the other side and probes the table. If
+the build side exceeds <code>HashJoinMaxBuildRows</code> while spill is enabled,
+<code>GraceHashJoinAsync</code> partitions both inputs into spill files by key hash and
+joins one pair of spill files at a time. While spill is disabled, that query
+falls back to nested-loop behavior.</li>
 <li class="">A merge join advances the ordered left input and the ordered right input
 together. <code>MergeJoinNode</code> records <code>LeftIsOrdered</code> and <code>RightIsOrdered</code>. When
 both are true, the executor streams both sides and buffers only the current
@@ -457,21 +438,20 @@ run of equal keys on the right side. Otherwise it materializes the unordered
 side and sorts it first. The planner always sets <code>LeftIsOrdered</code>, because the
 left input either has index order already or carries a <code>SortNode</code>.</li>
 </ul>
-<p>The merged result then passes through the shared pipeline after the scan.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-internals-of-explain">The internals of EXPLAIN<a href="#the-internals-of-explain" class="hash-link" aria-label="Direct link to The internals of EXPLAIN" title="Direct link to The internals of EXPLAIN" translate="no">​</a></h2>
-<p><code>PlanRenderer</code> is the one canonical renderer for the diagnostics of the planner.</p>
-<p>It supplies four things:</p>
+<p>The merged result then passes through the shared post-scan pipeline.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="explain-internals">EXPLAIN internals<a href="#explain-internals" class="hash-link" aria-label="Direct link to EXPLAIN internals" title="Direct link to EXPLAIN internals" translate="no">​</a></h2>
+<p><code>PlanRenderer</code> is the single canonical renderer for planner diagnostics. It
+supplies:</p>
 <ul>
-<li class="">Stable names for the nodes.</li>
-<li class="">The detail string of a node.</li>
-<li class="">A depth-first walk of the nodes, which the SQL statement <code>EXPLAIN</code> uses.</li>
-<li class="">Optional metadata for a distributed plan, such as <code>OutputOrdering</code> and the
-ability to decompose a node.</li>
+<li class="">Stable node names.</li>
+<li class="">Each node&#x27;s detail string.</li>
+<li class="">A depth-first walk of the nodes, which the SQL <code>EXPLAIN</code> statement uses.</li>
+<li class="">Optional distributed-plan metadata, such as <code>OutputOrdering</code> and whether a
+node can be decomposed.</li>
 </ul>
-<p><code>ExplainExecutor</code> uses the planned tree. It returns one row for each node of the
-plan.</p>
-<p><code>EXPLAIN (ANALYZE)</code> also enables the collection of the runtime statistics. It
-executes the query, and it fills counters such as these:</p>
+<p><code>ExplainExecutor</code> uses the planned tree and returns one row per plan node.</p>
+<p><code>EXPLAIN (ANALYZE)</code> also enables runtime statistics collection. It executes the
+query and fills counters such as:</p>
 <ul>
 <li class=""><code>actual_rows</code></li>
 <li class=""><code>rows_read</code></li>
@@ -486,59 +466,55 @@ separate row. The detail can also add runtime facts such as <code>ran=grace-hash
 the search.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="rendering-distributed-plan-properties">Rendering distributed plan properties<a href="#rendering-distributed-plan-properties" class="hash-link" aria-label="Direct link to Rendering distributed plan properties" title="Direct link to Rendering distributed plan properties" translate="no">​</a></h3>
 <p><code>PlanRenderer.Render(plan, includeDistributedProperties: true)</code> adds
-distributed-plan metadata to the line of each node:</p>
+distributed-plan metadata to each node&#x27;s line:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">table-scan(table=robots) order=[year ASC] decomposable=true dist=partitioned(id)</span><br></div></code></pre></div></div>
-<table><thead><tr><th>Suffix</th><th>Meaning</th></tr></thead><tbody><tr><td><code>order=[...]</code></td><td>The order that this node guarantees on its output, such as an index scan that satisfies an <code>ORDER BY</code>. The suffix is absent when the order is undefined.</td></tr><tr><td><code>decomposable=true/false</code></td><td>Whether CamusDB can split the node&#x27;s work into a local computation for each <a class="" href="/docs/concepts/#partition">partition</a> plus a merge on the coordinator. It is always <code>false</code> for a sort node and a limit node. An <code>aggregate</code> is <code>true</code> only for <code>COUNT</code>, <code>SUM</code>, <code>MIN</code>, and <code>MAX</code>. <code>AVG</code> is <code>false</code>.</td></tr><tr><td><code>dist=...</code></td><td>How the node&#x27;s output rows are distributed across the cluster. The value is <code>gathered</code> on one node, for a point lookup, and while <a class="" href="/docs/concepts/#hash-and-key-range-routing">key-range sharding</a> is off. It is <code>partitioned(col1,col2)</code> for a scan sharded by the range of those key columns. It can also be <code>replicated</code>. Only scan leaves carry this suffix.</td></tr></tbody></table>
-<p>Internal tools and tests use this mode. The SQL statement <code>EXPLAIN</code> does not
+<table><thead><tr><th>Suffix</th><th>Meaning</th></tr></thead><tbody><tr><td><code>order=[...]</code></td><td>The order this node guarantees on its output, such as an index scan that satisfies an <code>ORDER BY</code>. Absent when the order is undefined.</td></tr><tr><td><code>decomposable=true/false</code></td><td>Whether CamusDB can split the node&#x27;s work into a local computation per <a class="" href="/docs/concepts/#partition">partition</a> plus a merge on the coordinator. Always <code>false</code> for sort and limit nodes. An <code>aggregate</code> is <code>true</code> only for <code>COUNT</code>, <code>SUM</code>, <code>MIN</code>, and <code>MAX</code>; <code>AVG</code> is <code>false</code>.</td></tr><tr><td><code>dist=...</code></td><td>How the node&#x27;s output rows are distributed across the cluster: <code>gathered</code> on one node, for a point lookup, and while <a class="" href="/docs/concepts/#hash-and-key-range-routing">key-range sharding</a> is off; <code>partitioned(col1,col2)</code> for a scan sharded by ranges of those key columns; or <code>replicated</code>. Only scan leaves carry this suffix.</td></tr></tbody></table>
+<p>Internal tools and tests use this mode. The SQL <code>EXPLAIN</code> statement does not
 expose it.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="statistics-and-cost">Statistics and cost<a href="#statistics-and-cost" class="hash-link" aria-label="Direct link to Statistics and cost" title="Direct link to Statistics and cost" translate="no">​</a></h2>
-<p><code>StatisticsManager</code> keeps advisory statistics of a table in Kahuna:</p>
+<p><code>StatisticsManager</code> keeps advisory table statistics in Kahuna:</p>
 <ul>
-<li class="">The row count of each table.</li>
-<li class="">The count of the entries of each index.</li>
-<li class="">The running bounds of the minimum and the maximum, for an indexed column.</li>
-<li class="">Equi-depth histograms. A manual <code>ANALYZE</code> builds them, and an automatic
-<code>ANALYZE</code> builds them.</li>
-<li class="">The counts of the distinct values, for a column and for the prefix of a
-composite index. A manual <code>ANALYZE</code> builds them, and an automatic <code>ANALYZE</code>
-builds them.</li>
+<li class="">Each table&#x27;s row count.</li>
+<li class="">Each index&#x27;s entry count.</li>
+<li class="">Running minimum and maximum bounds for indexed columns.</li>
+<li class="">Equi-depth histograms, built by manual and automatic <code>ANALYZE</code>.</li>
+<li class="">Distinct-value counts for columns and composite index prefixes, built by
+manual and automatic <code>ANALYZE</code>.</li>
 </ul>
-<p><code>ANALYZE TABLE &lt;name&gt;</code> scans the table. For a larger table, it samples the
-configured number of rows instead. It then rebuilds the histograms and the
-counts of the distinct values, in one pass.</p>
-<p>Three statistics that DML maintains stay advisory: the row count, the counts of
-the index entries, and the bounds of the minimum and the maximum. An absent
-statistic falls back to a default. It does not make a query fail.</p>
-<p>Automatic analyze uses the same path of publication. It nevertheless runs from a
-background scheduler, against a read-only snapshot that takes no lock. It
-detects a stale table from the count of the mutations since the last analyze. It
-bounds the memory with a reservoir sketch and a HyperLogLog sketch. It throttles
-the rate of the scan. It publishes the refreshed statistics atomically, after it
-confirms the ownership in the cluster.</p>
-<p><code>CostEstimator</code> annotates a node of a plan with an estimated cardinality and an
-estimated cost. <code>EXPLAIN</code> exposes those annotations. The planner uses them for
-five decisions:</p>
+<p><code>ANALYZE TABLE &lt;name&gt;</code> scans the table, or for a larger table samples the
+configured number of rows, then rebuilds the histograms and distinct-value
+counts in one pass.</p>
+<p>The statistics DML maintains (the row count, index entry counts, and minimum and
+maximum bounds) stay advisory. A missing statistic falls back to a default; it
+does not make a query fail.</p>
+<p>Automatic analyze uses the same publication path, but runs from a background
+scheduler against a read-only snapshot that takes no locks. It detects stale
+tables from the mutation count since the last analyze, bounds memory with a
+reservoir sketch and a HyperLogLog sketch, throttles the scan rate, and
+publishes the refreshed statistics atomically after confirming cluster
+ownership.</p>
+<p><code>CostEstimator</code> annotates each plan node with an estimated cardinality and an
+estimated cost, which <code>EXPLAIN</code> exposes. The planner uses them for:</p>
 <ul>
 <li class="">A broad choice between an index range and a full scan.</li>
-<li class="">A choice between a plan of seeks for an indexed <code>IN (...)</code> and a wider scan.</li>
-<li class="">The selection of a join algorithm, among the indexed nested loop, the hash
-join, and the merge join.</li>
-<li class="">The enumeration of the access paths by cost, while
-<code>cost_based_access_path_enabled</code> is on.</li>
-<li class="">The enumeration of the join orders by cost, while
-<code>cost_based_join_order_enabled</code> is on.</li>
+<li class="">Choosing between seeks for an indexed <code>IN (...)</code> and a wider scan.</li>
+<li class="">Choosing the join algorithm: indexed nested loop, hash join, or merge join.</li>
+<li class="">Cost-based access-path enumeration, while <code>cost_based_access_path_enabled</code> is
+on.</li>
+<li class="">Cost-based join-order enumeration, while <code>cost_based_join_order_enabled</code> is
+on.</li>
 </ul>
-<p>The cost is a weighted sum of five quantities:</p>
+<p>The cost is a weighted sum of:</p>
 <ol>
-<li class="">The point lookups in the KV layer.</li>
-<li class="">The range entries.</li>
-<li class="">The fetches of a row after an index hit.</li>
-<li class="">The rows in memory.</li>
+<li class="">KV point lookups.</li>
+<li class="">Range entries.</li>
+<li class="">Row fetches after an index hit.</li>
+<li class="">In-memory rows.</li>
 <li class="">The <code>NetworkFactor</code>.</li>
 </ol>
-<p>The <code>NetworkFactor</code> comes from three inputs: the estimate of the remote rows,
-the width of a row, and the configured count of the partitions in the cluster.
-It is zero for a plan on one node, and for a plan without shards.</p>
+<p>The <code>NetworkFactor</code> is computed from the estimated remote rows, the row width,
+and the configured number of partitions in the cluster. It is zero for a
+single-node plan and for a plan without shards.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="skewed-join-keys">Skewed join keys<a href="#skewed-join-keys" class="hash-link" aria-label="Direct link to Skewed join keys" title="Direct link to Skewed join keys" translate="no">​</a></h3>
 <p>A plain distinct-value estimate assumes every key is equally common. That can
 badly underestimate a join when both tables hold many rows for the same popular
@@ -632,8 +608,8 @@ operators. <code>TestQueryPlanner.cs</code>, <code>TestJoinQueryPlanner.cs</code
 join path. These are useful starting points for understanding a behavior before
 changing the planner.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="related-pages">Related pages<a href="#related-pages" class="hash-link" aria-label="Direct link to Related pages" title="Direct link to Related pages" translate="no">​</a></h2>
-<p>See <a class="" href="/docs/query-planning/">Query Planning</a> for the capabilities that a user
-sees. See <a class="" href="/docs/explain/">EXPLAIN</a> for the inspection of a plan. See
-<a class="" href="/docs/architecture/">Architecture</a> for the wider layout of the system.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/query-planner-internals.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/spill-to-disk/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Spill to disk</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/transactions-locking-internals/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Transaction internals</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#the-mental-model" class="table-of-contents__link toc-highlight">The mental model</a></li><li><a href="#the-pipeline" class="table-of-contents__link toc-highlight">The pipeline</a></li><li><a href="#logical-plans-and-physical-plans" class="table-of-contents__link toc-highlight">Logical plans and physical plans</a></li><li><a href="#two-paths-of-execution" class="table-of-contents__link toc-highlight">Two paths of execution</a></li><li><a href="#parse-and-build" class="table-of-contents__link toc-highlight">Parse and build</a></li><li><a href="#binding" class="table-of-contents__link toc-highlight">Binding</a></li><li><a href="#the-plan-for-one-table" class="table-of-contents__link toc-highlight">The plan for one table</a><ul><li><a href="#1-selection-of-the-scan" class="table-of-contents__link toc-highlight">1. Selection of the scan</a></li><li><a href="#2-absorption-of-the-filters" class="table-of-contents__link toc-highlight">2. Absorption of the filters</a></li><li><a href="#3-elision-of-the-sort" class="table-of-contents__link toc-highlight">3. Elision of the sort</a></li><li><a href="#4-the-strategy-for-distinct" class="table-of-contents__link toc-highlight">4. The strategy for DISTINCT</a></li><li><a href="#5-pushdown-of-the-limit" class="table-of-contents__link toc-highlight">5. Pushdown of the limit</a></li><li><a href="#6-construction-of-the-chain-of-operators" class="table-of-contents__link toc-highlight">6. Construction of the chain of operators</a></li><li><a href="#reading-fewer-columns" class="table-of-contents__link toc-highlight">Reading fewer columns</a></li></ul></li><li><a href="#the-plan-for-a-join" class="table-of-contents__link toc-highlight">The plan for a join</a></li><li><a href="#the-join-predicate-graph" class="table-of-contents__link toc-highlight">The join predicate graph</a><ul><li><a href="#moving-a-condition-to-the-earliest-eligible-join" class="table-of-contents__link toc-highlight">Moving a condition to the earliest eligible join</a></li><li><a href="#conditions-that-restrict-movement" class="table-of-contents__link toc-highlight">Conditions that restrict movement</a></li></ul></li><li><a href="#join-order-search" class="table-of-contents__link toc-highlight">Join-order search</a><ul><li><a href="#heuristic-order-and-cross-product-repair" class="table-of-contents__link toc-highlight">Heuristic order and cross-product repair</a></li><li><a href="#dynamic-programming-over-subsets" class="table-of-contents__link toc-highlight">Dynamic programming over subsets</a></li><li><a href="#costing-one-join-step" class="table-of-contents__link toc-highlight">Costing one join step</a></li><li><a href="#one-cardinality-estimate-per-subset" class="table-of-contents__link toc-highlight">One cardinality estimate per subset</a></li></ul></li><li><a href="#plan-cache" class="table-of-contents__link toc-highlight">Plan cache</a></li><li><a href="#the-nodes-of-a-physical-plan" class="table-of-contents__link toc-highlight">The nodes of a physical plan</a></li><li><a href="#execution" class="table-of-contents__link toc-highlight">Execution</a><ul><li><a href="#the-path-for-one-table" class="table-of-contents__link toc-highlight">The path for one table</a></li><li><a href="#the-path-for-a-join" class="table-of-contents__link toc-highlight">The path for a join</a></li></ul></li><li><a href="#the-internals-of-explain" class="table-of-contents__link toc-highlight">The internals of EXPLAIN</a><ul><li><a href="#rendering-distributed-plan-properties" class="table-of-contents__link toc-highlight">Rendering distributed plan properties</a></li></ul></li><li><a href="#statistics-and-cost" class="table-of-contents__link toc-highlight">Statistics and cost</a><ul><li><a href="#skewed-join-keys" class="table-of-contents__link toc-highlight">Skewed join keys</a></li><li><a href="#plan-time-lookup" class="table-of-contents__link toc-highlight">Plan-time lookup of a small dimension table</a></li></ul></li><li><a href="#cost-model-boundaries" class="table-of-contents__link toc-highlight">Cost model boundaries</a></li><li><a href="#metadata-and-distributed-execution" class="table-of-contents__link toc-highlight">Metadata and distributed execution</a></li><li><a href="#current-gaps" class="table-of-contents__link toc-highlight">Current gaps</a></li><li><a href="#finding-the-implementation" class="table-of-contents__link toc-highlight">Finding the implementation</a></li><li><a href="#related-pages" class="table-of-contents__link toc-highlight">Related pages</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
+<p>See <a class="" href="/docs/query-planning/">Query Planning</a> for user-visible capabilities,
+<a class="" href="/docs/explain/">EXPLAIN</a> for inspecting a plan, and
+<a class="" href="/docs/architecture/">Architecture</a> for the wider system layout.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/query-planner-internals.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/spill-to-disk/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Spill to disk</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/transactions-locking-internals/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Transaction internals</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#the-mental-model" class="table-of-contents__link toc-highlight">The mental model</a></li><li><a href="#the-pipeline" class="table-of-contents__link toc-highlight">The pipeline</a></li><li><a href="#logical-plans-and-physical-plans" class="table-of-contents__link toc-highlight">Logical plans and physical plans</a></li><li><a href="#two-execution-paths" class="table-of-contents__link toc-highlight">Two execution paths</a></li><li><a href="#parse-and-build" class="table-of-contents__link toc-highlight">Parse and build</a></li><li><a href="#binding" class="table-of-contents__link toc-highlight">Binding</a></li><li><a href="#single-table-planning" class="table-of-contents__link toc-highlight">Single-table planning</a><ul><li><a href="#1-scan-selection" class="table-of-contents__link toc-highlight">1. Scan selection</a></li><li><a href="#2-filter-absorption" class="table-of-contents__link toc-highlight">2. Filter absorption</a></li><li><a href="#3-sort-elision" class="table-of-contents__link toc-highlight">3. Sort elision</a></li><li><a href="#4-distinct-strategy" class="table-of-contents__link toc-highlight">4. DISTINCT strategy</a></li><li><a href="#5-limit-pushdown" class="table-of-contents__link toc-highlight">5. Limit pushdown</a></li><li><a href="#6-building-the-operator-chain" class="table-of-contents__link toc-highlight">6. Building the operator chain</a></li><li><a href="#reading-fewer-columns" class="table-of-contents__link toc-highlight">Reading fewer columns</a></li></ul></li><li><a href="#join-planning" class="table-of-contents__link toc-highlight">Join planning</a></li><li><a href="#the-join-predicate-graph" class="table-of-contents__link toc-highlight">The join predicate graph</a><ul><li><a href="#moving-a-condition-to-the-earliest-eligible-join" class="table-of-contents__link toc-highlight">Moving a condition to the earliest eligible join</a></li><li><a href="#conditions-that-restrict-movement" class="table-of-contents__link toc-highlight">Conditions that restrict movement</a></li></ul></li><li><a href="#join-order-search" class="table-of-contents__link toc-highlight">Join-order search</a><ul><li><a href="#heuristic-order-and-cross-product-repair" class="table-of-contents__link toc-highlight">Heuristic order and cross-product repair</a></li><li><a href="#dynamic-programming-over-subsets" class="table-of-contents__link toc-highlight">Dynamic programming over subsets</a></li><li><a href="#costing-one-join-step" class="table-of-contents__link toc-highlight">Costing one join step</a></li><li><a href="#one-cardinality-estimate-per-subset" class="table-of-contents__link toc-highlight">One cardinality estimate per subset</a></li></ul></li><li><a href="#plan-cache" class="table-of-contents__link toc-highlight">Plan cache</a></li><li><a href="#physical-plan-nodes" class="table-of-contents__link toc-highlight">Physical plan nodes</a></li><li><a href="#execution" class="table-of-contents__link toc-highlight">Execution</a><ul><li><a href="#single-table-path" class="table-of-contents__link toc-highlight">Single-table path</a></li><li><a href="#join-path" class="table-of-contents__link toc-highlight">Join path</a></li></ul></li><li><a href="#explain-internals" class="table-of-contents__link toc-highlight">EXPLAIN internals</a><ul><li><a href="#rendering-distributed-plan-properties" class="table-of-contents__link toc-highlight">Rendering distributed plan properties</a></li></ul></li><li><a href="#statistics-and-cost" class="table-of-contents__link toc-highlight">Statistics and cost</a><ul><li><a href="#skewed-join-keys" class="table-of-contents__link toc-highlight">Skewed join keys</a></li><li><a href="#plan-time-lookup" class="table-of-contents__link toc-highlight">Plan-time lookup of a small dimension table</a></li></ul></li><li><a href="#cost-model-boundaries" class="table-of-contents__link toc-highlight">Cost model boundaries</a></li><li><a href="#metadata-and-distributed-execution" class="table-of-contents__link toc-highlight">Metadata and distributed execution</a></li><li><a href="#current-gaps" class="table-of-contents__link toc-highlight">Current gaps</a></li><li><a href="#finding-the-implementation" class="table-of-contents__link toc-highlight">Finding the implementation</a></li><li><a href="#related-pages" class="table-of-contents__link toc-highlight">Related pages</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
 </body>
 </html>

@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -32,144 +32,139 @@ without sending every row to the client and back:</p>
 also read the past with <a href="#time-travel-recover-historical-data" class="">time travel</a>,
 which turns a copy into a recovery tool.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token comment" style="color:#64748b;font-style:italic">-- Copy rows between tables</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">INSERT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">INTO</span><span class="token plain"> archived_orders </span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain">id</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> customer</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> total</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> id</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> customer</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> total </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> orders </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> created_at </span><span class="token operator" style="color:#94a3b8">&lt;</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;2026-01-01&#x27;</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token comment" style="color:#64748b;font-style:italic">-- Copy every column, in schema order</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">INSERT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">INTO</span><span class="token plain"> archived_orders </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> </span><span class="token operator" style="color:#94a3b8">*</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> orders </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> status </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;closed&#x27;</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token comment" style="color:#64748b;font-style:italic">-- Build a new table from a query&#x27;s result</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TABLE</span><span class="token plain"> order_totals </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">AS</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> customer</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">SUM</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain">total</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">AS</span><span class="token plain"> total_spent </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> orders </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">GROUP</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> customer</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token comment" style="color:#64748b;font-style:italic">-- Structure only, no rows</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TABLE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">IF</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">NOT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">EXISTS</span><span class="token plain"> orders_empty </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">AS</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> </span><span class="token operator" style="color:#94a3b8">*</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> orders </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WITH</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">NO</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">DATA</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p>The source is an ordinary <code>SELECT</code>. Eight features work exactly as they work in
-a query on its own: a join, a <code>GROUP BY</code>, a <code>DISTINCT</code>, a subquery, an <code>ORDER BY</code>, a <code>LIMIT</code>, an <code>OFFSET</code>, and a parameter.</p>
+<p>The source is an ordinary <code>SELECT</code>. Joins, <code>GROUP BY</code>, <code>DISTINCT</code>, subqueries,
+<code>ORDER BY</code>, <code>LIMIT</code>, <code>OFFSET</code>, and parameters work exactly as they do in a
+standalone query.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="insert-into--select">INSERT INTO ... SELECT<a href="#insert-into--select" class="hash-link" aria-label="Direct link to INSERT INTO ... SELECT" title="Direct link to INSERT INTO ... SELECT" translate="no">​</a></h2>
-<p>CamusDB matches the columns by position. It never matches them by name. Output
-column number k of the source feeds target column number k. The names of the two
-columns do not matter:</p>
+<p>CamusDB matches columns by position, never by name. The source&#x27;s k-th output
+column feeds the k-th target column, whatever their names:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token comment" style="color:#64748b;font-style:italic">-- b&#x27;s values land in a, and a&#x27;s in b</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">INSERT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">INTO</span><span class="token plain"> pairs </span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain">a</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> b</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> b</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> a </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> pairs</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p>The two lists must hold the same number of columns. CamusDB rejects a mismatch
+<p>Both lists must have the same number of columns. CamusDB rejects a mismatch
 before the query runs.</p>
-<p>The statement can have no explicit list of columns. The target is then every
-column of the table, in the order of the schema. <code>INSERT ... VALUES</code> uses the
-same rule.</p>
-<p>CamusDB coerces a value to the declared type of the target column. A target
-column that the statement does not name takes the default of that column. A
-default that calls a function, such as <code>gen_uuid_v7()</code>, runs one time for each
-row. Each row therefore receives its own value.</p>
-<p>CamusDB enforces a <code>NOT NULL</code>, a <code>CHECK</code>, a unique index, and a TTL exactly as
-it does for an <code>INSERT ... VALUES</code>. The same path of the insert writes the rows.</p>
-<p>The statement is all-or-nothing. A violation on one row aborts the whole
-statement. The result is the number of inserted rows. An empty source is a
-success, with a count of <code>0</code>.</p>
-<p>An <code>ORDER BY</code> in the source is valid. It nevertheless carries no meaning for the
-storage. CamusDB stores a row by a generated row id. It does not store the rows
-in the order of the insert.</p>
+<p>Without an explicit column list, the target is every column of the table, in
+schema order. <code>INSERT ... VALUES</code> uses the same rule.</p>
+<p>CamusDB coerces each value to the target column&#x27;s declared type. Target columns
+that the statement does not name take their defaults. A default that calls a
+function, such as <code>gen_uuid_v7()</code>, runs once per row, so each row gets its own
+value.</p>
+<p>CamusDB enforces <code>NOT NULL</code>, <code>CHECK</code>, unique indexes, and TTL exactly as it
+does for <code>INSERT ... VALUES</code>, because the rows go through the same insert path.</p>
+<p>The statement is all-or-nothing: a violation on one row aborts the whole
+statement. The result is the number of inserted rows. An empty source succeeds
+with a count of <code>0</code>.</p>
+<p>An <code>ORDER BY</code> in the source is valid but means nothing for storage. CamusDB
+stores rows by a generated row id, not in insert order.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="copy-a-table-into-itself">Copy a table into itself<a href="#copy-a-table-into-itself" class="hash-link" aria-label="Direct link to Copy a table into itself" title="Direct link to Copy a table into itself" translate="no">​</a></h3>
-<p><code>INSERT INTO t SELECT ... FROM t</code> is supported, and it terminates. The engine
-reads the whole source before it writes the first row. The scan therefore cannot
-observe the rows that the statement inserts.</p>
+<p><code>INSERT INTO t SELECT ... FROM t</code> is supported and terminates. The engine reads
+the whole source before it writes the first row, so the scan cannot see the rows
+the statement inserts.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="limits">Limits<a href="#limits" class="hash-link" aria-label="Direct link to Limits" title="Direct link to Limits" translate="no">​</a></h3>
-<p>One transaction may not insert more rows than <code>max_mutations_per_transaction</code>.
-The default is 20,000. This statement respects that bound.</p>
-<p>A larger copy fails with <code>CADB0506</code>. Divide the copy with a <code>WHERE</code> clause or a
-<code>LIMIT</code>. Then run it in several transactions.</p>
-<p>While the copy runs, CamusDB locks the rows that it reads against a concurrent
-writer. That lock lasts to the end of the transaction. The scan of the source
-decides what CamusDB writes. It therefore holds exclusive locks over the whole
-range of keys that it scanned. A large copy blocks a write to that range until
-it commits. A source with time travel is exempt. See below.</p>
+<p>A transaction cannot insert more rows than <code>max_mutations_per_transaction</code>
+(default 20,000), and this statement respects that bound.</p>
+<p>A larger copy fails with <code>CADB0506</code>. Split the copy with a <code>WHERE</code> clause or a
+<code>LIMIT</code>, and run it in several transactions.</p>
+<p>While the copy runs, CamusDB locks the rows it reads against concurrent writers
+until the transaction ends. Because the source scan decides what CamusDB writes,
+the scan holds exclusive locks over the entire key range it scanned. A large
+copy blocks writes to that range until it commits. A time travel source is
+exempt; see below.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="create-table--as-select">CREATE TABLE ... AS SELECT<a href="#create-table--as-select" class="hash-link" aria-label="Direct link to CREATE TABLE ... AS SELECT" title="Direct link to CREATE TABLE ... AS SELECT" translate="no">​</a></h2>
-<p>The columns of the new table are the output columns of the source query. They
-take the types that the query would report to a client.</p>
-<p>CamusDB inherits nothing else. It copies no index, no <code>CHECK</code> constraint, no
-<code>NOT NULL</code>, no default, no comment, and no setting of the table. It uses the
-shape of the result only.</p>
-<p>Add <code>WITH NO DATA</code> to create the table without a load of the rows. <code>WITH DATA</code>
-is the default.</p>
-<p>With <code>IF NOT EXISTS</code>, an existing table makes the statement do nothing. CamusDB
-then never executes the source query.</p>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-primary-key">The primary key<a href="#the-primary-key" class="hash-link" aria-label="Direct link to The primary key" title="Direct link to The primary key" translate="no">​</a></h3>
-<p>The result of a query has no key of its own. Every CamusDB table needs one.
-CamusDB therefore synthesizes a key. It adds a leading column <code>id oid NOT NULL DEFAULT gen_id()</code>. The source does not fill that column.</p>
-<p>The query can already output a column with the name <code>id</code>. The synthesized column
-then becomes <code>id2</code>, and after that <code>id3</code>.</p>
-<p>CamusDB never reuses a projected column as the key. A projection has no
-obligation to be unique. A join, and a projection without <code>DISTINCT</code>, both
-repeat a value. The copy would then fail in the middle, with a duplicate key.</p>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-rejected-projections">The rejected projections<a href="#the-rejected-projections" class="hash-link" aria-label="Direct link to The rejected projections" title="Direct link to The rejected projections" translate="no">​</a></h3>
-<p>Every output column must become a named column with a type. CamusDB therefore
-refuses three shapes, and it explains each one:</p>
-<table><thead><tr><th>Rejected</th><th>Why</th><th>Fix</th></tr></thead><tbody><tr><td><code>SELECT year + 1 FROM t</code></td><td>An expression without an alias has no name. CamusDB would call it <code>0</code>.</td><td><code>SELECT year + 1 AS next_year</code></td></tr><tr><td><code>SELECT NULL AS x</code></td><td>There is no type to declare.</td><td><code>SELECT CAST(NULL AS INT64) AS x</code></td></tr><tr><td><code>SELECT * FROM a JOIN b ...</code></td><td>A <code>*</code> over a join gives qualified names, such as <code>a.id</code>.</td><td>List the columns, with an alias for each one.</td></tr></tbody></table>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-schema-and-the-data-do-not-commit-together">The schema and the data do not commit together<a href="#the-schema-and-the-data-do-not-commit-together" class="hash-link" aria-label="Direct link to The schema and the data do not commit together" title="Direct link to The schema and the data do not commit together" translate="no">​</a></h3>
-<p>The creation of the table commits on its own. In cluster mode, CamusDB
-replicates that commit to the other nodes through <a class="" href="/docs/concepts/#raft">Raft</a>,
-the protocol the nodes use to agree on each change. The commit happens before
-any row arrives. The two steps are therefore not one atomic unit:</p>
+<p>The new table&#x27;s columns are the source query&#x27;s output columns, with the types
+the query would report to a client.</p>
+<p>Nothing else is inherited: no indexes, <code>CHECK</code> constraints, <code>NOT NULL</code>,
+defaults, comments, or table settings. CamusDB uses only the shape of the
+result.</p>
+<p>Add <code>WITH NO DATA</code> to create the table without loading any rows. <code>WITH DATA</code> is
+the default.</p>
+<p>With <code>IF NOT EXISTS</code>, if the table already exists, the statement does nothing
+and CamusDB never runs the source query.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="primary-key">Primary key<a href="#primary-key" class="hash-link" aria-label="Direct link to Primary key" title="Direct link to Primary key" translate="no">​</a></h3>
+<p>A query result has no key of its own, but every CamusDB table needs one, so
+CamusDB synthesizes one: a leading column <code>id oid NOT NULL DEFAULT gen_id()</code>.
+The source does not fill that column.</p>
+<p>If the query already outputs a column named <code>id</code>, the synthesized column
+becomes <code>id2</code>, then <code>id3</code>, and so on.</p>
+<p>CamusDB never reuses a projected column as the key. A projection does not have
+to be unique; joins and projections without <code>DISTINCT</code> both repeat values, and
+the copy would then fail partway through with a duplicate key.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="rejected-projections">Rejected projections<a href="#rejected-projections" class="hash-link" aria-label="Direct link to Rejected projections" title="Direct link to Rejected projections" translate="no">​</a></h3>
+<p>Every output column must become a named, typed column, so CamusDB refuses these
+shapes and explains why:</p>
+<table><thead><tr><th>Rejected</th><th>Why</th><th>Fix</th></tr></thead><tbody><tr><td><code>SELECT year + 1 FROM t</code></td><td>An expression without an alias has no name. CamusDB would call it <code>0</code>.</td><td><code>SELECT year + 1 AS next_year</code></td></tr><tr><td><code>SELECT NULL AS x</code></td><td>There is no type to declare.</td><td><code>SELECT CAST(NULL AS INT64) AS x</code></td></tr><tr><td><code>SELECT * FROM a JOIN b ...</code></td><td><code>*</code> over a join produces qualified names, such as <code>a.id</code>.</td><td>List the columns, with an alias for each one.</td></tr></tbody></table>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="schema-and-data-do-not-commit-together">Schema and data do not commit together<a href="#schema-and-data-do-not-commit-together" class="hash-link" aria-label="Direct link to Schema and data do not commit together" title="Direct link to Schema and data do not commit together" translate="no">​</a></h3>
+<p>Creating the table commits on its own. In cluster mode, CamusDB replicates that
+commit to the other nodes through <a class="" href="/docs/concepts/#raft">Raft</a>, the protocol the
+nodes use to agree on each change. This commit happens before any rows arrive,
+so the two steps are not one atomic unit:</p>
 <ul>
-<li class="">The rows load in your transaction. They become durable when you commit. The
-table is durable already.</li>
-<li class="">CamusDB drops the table again when the load fails. That drop is a compensating
-action. The drop can also fail, or the process can stop between the two
-commits. An empty table then remains. The error message says so where it can.</li>
-<li class="">Another session can see the empty table, between the two commits.</li>
+<li class="">The rows load in your transaction and become durable when you commit. The
+table is already durable.</li>
+<li class="">If the load fails, CamusDB drops the table again as a compensating action. If
+that drop also fails, or the process stops between the two commits, an empty
+table remains. The error message says so where it can.</li>
+<li class="">Other sessions can see the empty table between the two commits.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="time-travel-recover-historical-data">Time travel: recover historical data<a href="#time-travel-recover-historical-data" class="hash-link" aria-label="Direct link to Time travel: recover historical data" title="Direct link to Time travel: recover historical data" translate="no">​</a></h2>
-<p>Both statements accept <code>AS OF SYSTEM TIME</code> on the source. The source then reads
-at a past instant, while the statement writes into the present. That is the
-supported way to rebuild the data of an earlier moment:</p>
+<p>Both statements accept <code>AS OF SYSTEM TIME</code> on the source. The source reads at a
+past instant while the statement writes into the present. This is the supported
+way to rebuild data from an earlier moment:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token comment" style="color:#64748b;font-style:italic">-- Rescue a table as it looked before a bad UPDATE</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TABLE</span><span class="token plain"> orders_before_incident </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">AS</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> customer</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> total </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> orders </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">AS</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">OF</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SYSTEM</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TIME</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;2026-08-07 14:00:00+00:00&#x27;</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token comment" style="color:#64748b;font-style:italic">-- Put historical rows back into the live table</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">INSERT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">INTO</span><span class="token plain"> orders </span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain">id</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> customer</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> total</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">gen_id</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> customer</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> total </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> orders </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">AS</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">OF</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SYSTEM</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TIME</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;-2h&#x27;</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> customer </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;acme&#x27;</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p>The snapshot accepts four forms: a negative offset such as <code>&#x27;-2h&#x27;</code> or
-<code>&#x27;-500ms&#x27;</code>, an absolute timestamp, a value in Unix epoch milliseconds, and a
-parameter. It applies to the whole source query. An aggregate over that source
-therefore reports the historical value.</p>
-<p>A source with time travel is cheaper and safer than a live source. History
-cannot change. The scan therefore does not lock the range it reads, and it
-blocks no concurrent writer. It also can never observe the writes of its own
-statement.</p>
-<p>A plain historical <code>SELECT</code> does not work inside an explicit transaction. This
-form does. Only the source reads at the snapshot. The writes stay in your
+<p>The snapshot can be a negative offset such as <code>&#x27;-2h&#x27;</code> or <code>&#x27;-500ms&#x27;</code>, an
+absolute timestamp, a Unix epoch value in milliseconds, or a parameter. It
+applies to the whole source query, so an aggregate over the source reports the
+historical value.</p>
+<p>A time travel source is cheaper and safer than a live one. History cannot
+change, so the scan does not lock the range it reads and blocks no concurrent
+writers. It also can never see its own statement&#x27;s writes.</p>
+<p>A plain historical <code>SELECT</code> does not work inside an explicit transaction, but
+this form does. Only the source reads at the snapshot; the writes stay in your
 transaction.</p>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-time-travel-can-recover-and-what-it-cannot">What time travel can recover, and what it cannot<a href="#what-time-travel-can-recover-and-what-it-cannot" class="hash-link" aria-label="Direct link to What time travel can recover, and what it cannot" title="Direct link to What time travel can recover, and what it cannot" translate="no">​</a></h3>
-<p>Time travel reads the table as it was at the snapshot. Five consequences
-matter before you depend on it during an incident:</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-time-travel-can-and-cannot-recover">What time travel can and cannot recover<a href="#what-time-travel-can-and-cannot-recover" class="hash-link" aria-label="Direct link to What time travel can and cannot recover" title="Direct link to What time travel can and cannot recover" translate="no">​</a></h3>
+<p>Time travel reads the table as it was at the snapshot. Before you rely on it
+during an incident, know what that means:</p>
 <ul>
-<li class="">A modified row recovers well. You undo a wrong <code>UPDATE</code> with a copy of the
-values from before that update.</li>
-<li class="">A deleted row also recovers. A <code>DELETE</code> writes its tombstone (a deletion
-marker) as a <a class="" href="/docs/concepts/#mvcc">revision</a>, a stored version of the row, of
-its own. The history record of the last live value therefore survives. A
-snapshot from before the delete reads the row back. The retention of the
-revisions bounds that read, like every other historical read. See below.</li>
-<li class="">A dropped column cannot recover. CamusDB reads a historical value through the
-current schema. It therefore cannot project a column that no longer exists.</li>
-<li class="">A table that you dropped and created again is unreachable. It holds a
-different internal id. Its old rows are therefore not part of the history of
-the new table.</li>
-<li class="">The retention bounds how far back you can go. Time travel reaches only the
-revisions that the storage still keeps. An older snapshot reads as empty. It
-does not fail. CamusDB logs a warning for a recovery that returns no row. The
-warning says that it may have reclaimed the history already.</li>
+<li class="">Modified rows recover well. You undo a wrong <code>UPDATE</code> by copying the values
+from before the update.</li>
+<li class="">Deleted rows also recover. A <code>DELETE</code> writes its tombstone (a deletion
+marker) as a separate <a class="" href="/docs/concepts/#mvcc">revision</a>, a stored version of
+the row, so the record of the last live value survives. A snapshot from before
+the delete reads the row back. Revision retention bounds that read, like every
+other historical read; see below.</li>
+<li class="">Dropped columns cannot be recovered. CamusDB reads historical values through
+the current schema, so it cannot project a column that no longer exists.</li>
+<li class="">A table that you dropped and created again is unreachable. The new table has a
+different internal id, so the old rows are not part of its history.</li>
+<li class="">Retention bounds how far back you can go. Time travel reaches only the
+revisions that storage still keeps. An older snapshot reads as empty instead
+of failing. When a recovery returns no rows, CamusDB logs a warning that the
+history may already have been reclaimed.</li>
 </ul>
-<p>While a copy runs, the engine pins the floor of the revisions at the requested
-snapshot. The reclamation therefore cannot pass that floor during the copy. That
-protection starts at the start of the copy. It cannot return a revision that
-disappeared before that moment.</p>
+<p>While a copy runs, the engine pins the revision floor at the requested
+snapshot, so reclamation cannot pass that floor during the copy. This
+protection starts when the copy starts. It cannot bring back revisions that
+were already gone before then.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-the-response-tells-you">What the response tells you<a href="#what-the-response-tells-you" class="hash-link" aria-label="Direct link to What the response tells you" title="Direct link to What the response tells you" translate="no">​</a></h2>
-<p>Both statements report the number of rows that CamusDB wrote. Both also mark a
-copy with time travel that read nothing. The warning reaches the client, and not
-only the log of the server. An empty recovery therefore cannot look like a
-successful one.</p>
-<p>The endpoints are <code>POST /execute-sql-ddl</code> for CTAS, and
-<code>POST /execute-sql-non-query</code> for an <code>INSERT ... SELECT</code>:</p>
+<p>Both statements report the number of rows CamusDB wrote, and both flag a time
+travel copy that read nothing. The warning reaches the client, not just the
+server log, so an empty recovery cannot look like a successful one.</p>
+<p>The endpoints are <code>POST /execute-sql-ddl</code> for CTAS and
+<code>POST /execute-sql-non-query</code> for <code>INSERT ... SELECT</code>:</p>
 <div class="language-jsonc codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-jsonc codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">// CREATE TABLE totals AS SELECT customer, total FROM orders</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">{ &quot;status&quot;: &quot;ok&quot;, &quot;rows&quot;: 2, &quot;warning&quot;: null }</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">// CREATE TABLE recovered AS SELECT customer FROM orders AS OF SYSTEM TIME &#x27;-1h&#x27;</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">{ &quot;status&quot;: &quot;ok&quot;, &quot;rows&quot;: 0,</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  &quot;warning&quot;: &quot;AS OF SYSTEM TIME copy into &#x27;recovered&#x27; inserted no rows. The source may have been</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">              empty at that snapshot; the history may be older than the configured revision retention</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">              and already reclaimed; or the rows were deleted after the snapshot …&quot; }</span><br></div></code></pre></div></div>
-<p><code>rows</code> is 0 for every DDL statement that writes no row. <code>warning</code> is null unless
-there is something to report.</p>
-<p>Over gRPC, the same values arrive in two fields of each reply:
-<code>DdlReply.affected_rows</code> and <code>DdlReply.warning</code>, and
-<code>NonQueryReply.affected_rows</code> and <code>NonQueryReply.warning</code>. An absent warning is
-the empty string, as proto3 requires.</p>
+<p><code>rows</code> is 0 for every DDL statement that writes no rows. <code>warning</code> is null
+unless there is something to report.</p>
+<p>Over gRPC, the same values arrive in <code>DdlReply.affected_rows</code> and
+<code>DdlReply.warning</code>, and in <code>NonQueryReply.affected_rows</code> and
+<code>NonQueryReply.warning</code>. As proto3 requires, an absent warning is the empty
+string.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="privileges">Privileges<a href="#privileges" class="hash-link" aria-label="Direct link to Privileges" title="Direct link to Privileges" translate="no">​</a></h2>
-<p><code>INSERT ... SELECT</code> needs <code>Insert</code> on the target. It also needs <code>Select</code> on
-every source. That rule covers a table that the query reaches only through a
-join or a subquery.</p>
-<p><code>CREATE TABLE ... AS SELECT</code> needs <code>CreateTable</code> on the database. It also needs
-<code>Select</code> on every source.</p>
+<p><code>INSERT ... SELECT</code> needs <code>Insert</code> on the target and <code>Select</code> on every source,
+including tables the query reaches only through a join or subquery.</p>
+<p><code>CREATE TABLE ... AS SELECT</code> needs <code>CreateTable</code> on the database and <code>Select</code>
+on every source.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="returning">RETURNING<a href="#returning" class="hash-link" aria-label="Direct link to RETURNING" title="Direct link to RETURNING" translate="no">​</a></h2>
 <p>An <code>INSERT ... SELECT</code> can end with a <code>RETURNING</code> list that sends back values
 from the copied rows:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">INSERT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">INTO</span><span class="token plain"> archived_orders </span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain">id</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> customer</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> total</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> id</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> customer</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> total</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> orders</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> total </span><span class="token operator" style="color:#94a3b8">&gt;</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">100</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">RETURNING</span><span class="token plain"> id</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> customer</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p>See <a class="" href="/docs/sql-writes/#returning">RETURNING</a>.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/insert-select-and-ctas.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/sql-writes/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Insert, update, delete</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/truncate-table/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Emptying a table</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#insert-into--select" class="table-of-contents__link toc-highlight">INSERT INTO ... SELECT</a><ul><li><a href="#copy-a-table-into-itself" class="table-of-contents__link toc-highlight">Copy a table into itself</a></li><li><a href="#limits" class="table-of-contents__link toc-highlight">Limits</a></li></ul></li><li><a href="#create-table--as-select" class="table-of-contents__link toc-highlight">CREATE TABLE ... AS SELECT</a><ul><li><a href="#the-primary-key" class="table-of-contents__link toc-highlight">The primary key</a></li><li><a href="#the-rejected-projections" class="table-of-contents__link toc-highlight">The rejected projections</a></li><li><a href="#the-schema-and-the-data-do-not-commit-together" class="table-of-contents__link toc-highlight">The schema and the data do not commit together</a></li></ul></li><li><a href="#time-travel-recover-historical-data" class="table-of-contents__link toc-highlight">Time travel: recover historical data</a><ul><li><a href="#what-time-travel-can-recover-and-what-it-cannot" class="table-of-contents__link toc-highlight">What time travel can recover, and what it cannot</a></li></ul></li><li><a href="#what-the-response-tells-you" class="table-of-contents__link toc-highlight">What the response tells you</a></li><li><a href="#privileges" class="table-of-contents__link toc-highlight">Privileges</a></li><li><a href="#returning" class="table-of-contents__link toc-highlight">RETURNING</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
+<p>See <a class="" href="/docs/sql-writes/#returning">RETURNING</a>.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/insert-select-and-ctas.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/sql-writes/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Insert, update, delete</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/truncate-table/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Emptying a table</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#insert-into--select" class="table-of-contents__link toc-highlight">INSERT INTO ... SELECT</a><ul><li><a href="#copy-a-table-into-itself" class="table-of-contents__link toc-highlight">Copy a table into itself</a></li><li><a href="#limits" class="table-of-contents__link toc-highlight">Limits</a></li></ul></li><li><a href="#create-table--as-select" class="table-of-contents__link toc-highlight">CREATE TABLE ... AS SELECT</a><ul><li><a href="#primary-key" class="table-of-contents__link toc-highlight">Primary key</a></li><li><a href="#rejected-projections" class="table-of-contents__link toc-highlight">Rejected projections</a></li><li><a href="#schema-and-data-do-not-commit-together" class="table-of-contents__link toc-highlight">Schema and data do not commit together</a></li></ul></li><li><a href="#time-travel-recover-historical-data" class="table-of-contents__link toc-highlight">Time travel: recover historical data</a><ul><li><a href="#what-time-travel-can-and-cannot-recover" class="table-of-contents__link toc-highlight">What time travel can and cannot recover</a></li></ul></li><li><a href="#what-the-response-tells-you" class="table-of-contents__link toc-highlight">What the response tells you</a></li><li><a href="#privileges" class="table-of-contents__link toc-highlight">Privileges</a></li><li><a href="#returning" class="table-of-contents__link toc-highlight">RETURNING</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
 </body>
 </html>

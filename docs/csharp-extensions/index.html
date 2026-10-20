@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -24,7 +24,7 @@
 adding another network service or repeating a multi-step rule in every client.
 You can make C# code available as a SQL scalar function, run it automatically
 when rows change, or call a transactional procedure from SQL.</p>
-<p>Use extensions to gain one of these outcomes:</p>
+<p>Use extensions for:</p>
 <ul>
 <li class=""><strong>Reusable SQL expressions.</strong> Expose C# calculations as scalar functions for
 projections, filters, defaults, and checks.</li>
@@ -159,8 +159,8 @@ transaction fails with <code>CADB0824</code>.</p>
 supported by the extension contract in this version.</p>
 <p>CamusDB <code>NUMERIC</code> can hold more significant digits than .NET <code>decimal</code>. A value
 that does not fit fails with <code>CADB0810</code> instead of being truncated. Returned
-decimals with more than nine fractional digits use CamusDB&#x27;s normal half-away-
-from-zero rounding.</p>
+decimals with more than nine fractional digits use CamusDB&#x27;s normal
+half-away-from-zero rounding.</p>
 <p>Byte arrays are copied across the contract. Mutating an array received from a
 row or argument does not change stored data.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="deploy-extensions">Deploy extensions<a href="#deploy-extensions" class="hash-link" aria-label="Direct link to Deploy extensions" title="Direct link to Deploy extensions" translate="no">​</a></h2>

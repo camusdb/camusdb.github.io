@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -24,8 +24,8 @@
 node is simple, but it is a single point of failure. If the machine stops, the
 database stops. If the disk fails, the data that is not in a backup is lost.</p>
 <p>Cluster mode runs CamusDB on several nodes that act as one database. It keeps a
-copy of each write on more than one node. The database therefore continues to
-serve reads and writes when one node fails, and no committed write is lost.</p>
+copy of each write on more than one node, so the database continues to serve
+reads and writes when one node fails, and no committed write is lost.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-use-cluster-mode">Why use cluster mode<a href="#why-use-cluster-mode" class="hash-link" aria-label="Direct link to Why use cluster mode" title="Direct link to Why use cluster mode" translate="no">​</a></h2>
 <p>Use cluster mode when one of these needs applies:</p>
 <ul>
@@ -43,56 +43,55 @@ spreads the data and the work across several machines. See
 <a class="" href="/docs/key-range-sharding/">Key-range sharding</a> and
 <a class="" href="/docs/distributed-queries/">Distributed queries</a>.</li>
 </ul>
-<p>You do not need cluster mode for local development, for a tutorial, or for a
-quick test. A standalone node is enough, and it starts with one command. The SQL
-and the transaction guarantees are the same in both modes, so an application
-can move from standalone to a cluster without a change to its queries.</p>
+<p>You do not need cluster mode for local development, tutorials, or quick tests.
+A standalone node is enough, and it starts with one command. SQL and transaction
+guarantees are the same in both modes, so an application can move from
+standalone to a cluster without changing its queries.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-cluster-mode-works">How cluster mode works<a href="#how-cluster-mode-works" class="hash-link" aria-label="Direct link to How cluster mode works" title="Direct link to How cluster mode works" translate="no">​</a></h2>
-<p>Cluster mode does three things:</p>
+<p>In cluster mode, CamusDB:</p>
 <ol>
-<li class="">It divides the data across the nodes into
+<li class="">Divides the data across the nodes into
 <a class="" href="/docs/concepts/#partition">partitions</a>. A partition is one part of the
-<a class="" href="/docs/concepts/#key-space">key space</a> of the database.</li>
-<li class="">It elects one <a class="" href="/docs/concepts/#leader">leader</a> for each partition. The leader
-coordinates the writes to that partition.</li>
-<li class="">It replicates each write through the
-<a class="" href="/docs/concepts/#raft">Raft</a> consensus algorithm. Consensus means that a
-majority of the copies of a partition agree on each change before CamusDB
-commits it.</li>
+database&#x27;s <a class="" href="/docs/concepts/#key-space">key space</a>.</li>
+<li class="">Elects one <a class="" href="/docs/concepts/#leader">leader</a> for each partition. The leader
+coordinates writes to that partition.</li>
+<li class="">Replicates each write through the <a class="" href="/docs/concepts/#raft">Raft</a> consensus
+algorithm. Consensus means that a majority of a partition&#x27;s copies agree on
+each change before CamusDB commits it.</li>
 </ol>
 <p><a href="#how-distribution-works" class="">How distribution works</a> and
 <a href="#multi-active-availability" class="">Multi-active availability</a> give the details.</p>
 <p>To run a cluster on Kubernetes, use the
 <a class="" href="/docs/kubernetes-operator/">Kubernetes Operator</a>. It creates the nodes and
 manages their membership for you.</p>
-<p>CamusDB is in production use. Cluster mode is nevertheless an alpha feature. The
-APIs and the storage formats can change between versions.</p>
+<p>CamusDB is in production use, but cluster mode is still an alpha feature. Its
+APIs and storage formats can change between versions.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="run-a-standalone-node">Run a standalone node<a href="#run-a-standalone-node" class="hash-link" aria-label="Direct link to Run a standalone node" title="Direct link to Run a standalone node" translate="no">​</a></h2>
 <p>Standalone is the default. It needs no cluster configuration:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">dotnet tool install --global CamusDB.Server</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">camusdb</span><br></div></code></pre></div></div>
-<p>Use standalone mode for a local tutorial, for a quick experiment, and for
-single-node development.</p>
+<p>Use standalone mode for local tutorials, quick experiments, and single-node
+development.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="run-a-local-cluster">Run a local cluster<a href="#run-a-local-cluster" class="hash-link" aria-label="Direct link to Run a local cluster" title="Direct link to Run a local cluster" translate="no">​</a></h2>
-<p>The source repository includes a Docker Compose file for a cluster of three
-nodes:</p>
+<p>The source repository includes a Docker Compose file for a three-node
+cluster:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">docker compose -f docker/local.yml up --build</span><br></div></code></pre></div></div>
 <p>The three nodes start on a private bridge network:</p>
 <table><thead><tr><th>Node</th><th>HTTP SQL endpoint</th><th>HTTPS endpoint</th><th>gRPC endpoint</th><th>Raft port</th></tr></thead><tbody><tr><td><code>camus1</code></td><td><code>localhost:5095</code></td><td><code>localhost:7141</code></td><td><code>localhost:6095</code></td><td><code>7070</code></td></tr><tr><td><code>camus2</code></td><td><code>localhost:5096</code></td><td><code>localhost:7142</code></td><td><code>localhost:6096</code></td><td><code>7072</code></td></tr><tr><td><code>camus3</code></td><td><code>localhost:5097</code></td><td><code>localhost:7143</code></td><td><code>localhost:6097</code></td><td><code>7074</code></td></tr></tbody></table>
-<p>Point <code>camus-cli</code> at any one of the three nodes. These are the host ports. Inside
+<p>Point <code>camus-cli</code> at any of the three nodes. The table shows host ports; inside
 the network, every node listens on the defaults: HTTP <code>5095</code>, gRPC <code>5096</code>, and
-HTTPS <code>7141</code>. The gRPC API for clients is on by default. Configure it per node
-with <code>grpc_enabled</code> and <code>grpc_port</code>.</p>
+HTTPS <code>7141</code>. The client gRPC API is on by default. Configure it per node with
+<code>grpc_enabled</code> and <code>grpc_port</code>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="run-a-cluster-node-manually">Run a cluster node manually<a href="#run-a-cluster-node-manually" class="hash-link" aria-label="Direct link to Run a cluster node manually" title="Direct link to Run a cluster node manually" translate="no">​</a></h2>
-<p>Each node needs five values: <code>--mode=cluster</code>, a unique node name, its Raft host
-and port, the partition count, and the Raft address of every other node. List
-only the other nodes, never the node itself. Put these values in a <code>config.yml</code>
-file, or pass them as flags. This is the first of three nodes, one per machine:</p>
+<p>Each node needs <code>--mode=cluster</code>, a unique node name, its Raft host and port,
+the partition count, and the Raft address of every other node. List only the
+other nodes, never the node itself. Put these values in a <code>config.yml</code> file or
+pass them as flags. This is the first of three nodes, one per machine:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">camusdb \</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  --mode=cluster \</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  --raft-nodename=camus-1 \</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  --raft-host=192.168.1.10 \</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  --raft-port=7070 \</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  --http-port=5095 \</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  --initial-cluster-partitions=3 \</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  --initial-cluster 192.168.1.11:7070 192.168.1.12:7070 \</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  --http-peers 192.168.1.11:5095 192.168.1.12:5095</span><br></div></code></pre></div></div>
-<p>The other two nodes run the same command with their own name and host, and list
+<p>The other two nodes run the same command with their own name and host, listing
 the remaining two addresses.</p>
-<table><thead><tr><th>Flag</th><th>Purpose</th></tr></thead><tbody><tr><td><code>--config</code></td><td>Explicit YAML configuration file. A missing explicit file is a startup error.</td></tr><tr><td><code>--mode</code></td><td><code>standalone</code> or <code>cluster</code>.</td></tr><tr><td><code>--raft-nodename</code></td><td>Unique node name in the cluster.</td></tr><tr><td><code>--raft-nodeid</code></td><td>Numeric Raft node id.</td></tr><tr><td><code>--raft-host</code></td><td>Host address for Raft communication.</td></tr><tr><td><code>--raft-port</code></td><td>Port for Raft communication.</td></tr><tr><td><code>--http-port</code></td><td>Listener port of the HTTP API.</td></tr><tr><td><code>--initial-cluster</code></td><td>Raft address of every other node, in <code>host:port</code> form. Do not include the node itself.</td></tr><tr><td><code>--initial-cluster-partitions</code></td><td>Number of Raft partitions to initialize.</td></tr><tr><td><code>--http-peers</code></td><td>HTTP endpoint of each peer, in the same order as <code>--initial-cluster</code>.</td></tr></tbody></table>
-<p>A flag overrides the equivalent YAML value only when you supply the flag. The
-same settings in YAML look like this:</p>
+<table><thead><tr><th>Flag</th><th>Purpose</th></tr></thead><tbody><tr><td><code>--config</code></td><td>Explicit YAML configuration file. A missing explicit file is a startup error.</td></tr><tr><td><code>--mode</code></td><td><code>standalone</code> or <code>cluster</code>.</td></tr><tr><td><code>--raft-nodename</code></td><td>Unique node name in the cluster.</td></tr><tr><td><code>--raft-nodeid</code></td><td>Numeric Raft node id.</td></tr><tr><td><code>--raft-host</code></td><td>Host address for Raft communication.</td></tr><tr><td><code>--raft-port</code></td><td>Port for Raft communication.</td></tr><tr><td><code>--http-port</code></td><td>HTTP API listener port.</td></tr><tr><td><code>--initial-cluster</code></td><td>Raft address of every other node, in <code>host:port</code> form. Do not include the node itself.</td></tr><tr><td><code>--initial-cluster-partitions</code></td><td>Number of Raft partitions to initialize.</td></tr><tr><td><code>--http-peers</code></td><td>HTTP endpoint of each peer, in the same order as <code>--initial-cluster</code>.</td></tr></tbody></table>
+<p>A flag overrides the equivalent YAML value only when you supply it. The same
+settings in YAML look like this:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">data_dir</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> /data/</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">mode</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> cluster</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">node_name</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> camus</span><span class="token punctuation" style="color:#94a3b8">-</span><span class="token number" style="color:#fdba74">1</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">raft_host</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> 192.168.1.10</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">raft_port</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">7070</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">initial_partitions</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">3</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">http_port</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">5095</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">peers</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token punctuation" style="color:#94a3b8">-</span><span class="token plain"> 192.168.1.11</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token number" style="color:#fdba74">7070</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token punctuation" style="color:#94a3b8">-</span><span class="token plain"> 192.168.1.12</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token number" style="color:#fdba74">7070</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">http_peers</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token punctuation" style="color:#94a3b8">-</span><span class="token plain"> 192.168.1.11</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token number" style="color:#fdba74">5095</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token punctuation" style="color:#94a3b8">-</span><span class="token plain"> 192.168.1.12</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token number" style="color:#fdba74">5095</span><br></div></code></pre></div></div>
 <p>Give each node its own persistent <code>data_dir</code>. The Docker Compose setup mounts a
 separate volume for each node.</p>
@@ -102,29 +101,28 @@ separate volume for each node.</p>
 <li class="">CamusDB divides the data across the Raft partitions.</li>
 <li class="">Each partition elects its own leader.</li>
 <li class="">Every node exposes the database API.</li>
-<li class="">CamusDB routes a read and a write to the partition that owns the target key
+<li class="">CamusDB routes reads and writes to the partition that owns the target key
 range.</li>
-<li class="">A read sees only committed row versions. CamusDB keeps several versions of
-each row (<a class="" href="/docs/concepts/#mvcc">MVCC</a>), so a read sees a consistent snapshot.</li>
-<li class="">A write uses locks, <a class="" href="/docs/concepts/#write-intent">write intents</a> (provisional
+<li class="">Reads see only committed row versions. CamusDB keeps several versions of each
+row (<a class="" href="/docs/concepts/#mvcc">MVCC</a>), so a read sees a consistent snapshot.</li>
+<li class="">Writes use locks, <a class="" href="/docs/concepts/#write-intent">write intents</a> (provisional
 values that become visible only at commit), and atomic commit.</li>
 <li class="">A write across more than one partition uses
 <a class="" href="/docs/concepts/#two-phase-commit">two-phase commit</a>.</li>
 </ul>
-<p>Every row of a table lives under the same key prefix. An ordered table scan
-therefore still works. The storage layer handles the partition ownership and the
-replication.</p>
-<p>By default, the node that receives a query executes the whole query. It reads a
-remote page through the storage locator. Turn
-<a class="" href="/docs/distributed-queries/">distributed queries</a> on to change that behavior.
-CamusDB then divides an eligible scan into one fragment per partition. It runs
-each fragment on the node that owns the rows. It therefore applies the filters
-and the aggregates before the data crosses the network.</p>
+<p>Every row of a table lives under the same key prefix, so ordered table scans
+still work. The storage layer handles partition ownership and replication.</p>
+<p>By default, the node that receives a query executes the whole query, reading
+remote pages through the storage locator. Turn on
+<a class="" href="/docs/distributed-queries/">distributed queries</a> to change that. CamusDB then
+splits an eligible scan into one fragment per partition and runs each fragment
+on the node that owns the rows, so filters and aggregates apply before the data
+crosses the network.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="multi-active-availability">Multi-active availability<a href="#multi-active-availability" class="hash-link" aria-label="Direct link to Multi-active availability" title="Direct link to Multi-active availability" translate="no">​</a></h2>
 <p>There is no single active process that can fail. An application talks to any
-node that it can reach. CamusDB routes each write to the leader that can commit
+node it can reach, and CamusDB routes each write to the leader that can commit
 it safely.</p>
-<p>Two older models make the contrast clear:</p>
+<p>Compare this with older models:</p>
 <table><thead><tr><th>Model</th><th>Write path</th><th>Failure behavior</th></tr></thead><tbody><tr><td>Active/standby</td><td>One active node</td><td>A standby must become active before writes continue</td></tr><tr><td>Classic active-active</td><td>Any node</td><td>Needs conflict resolution to prevent a divergent state</td></tr><tr><td>CamusDB</td><td>Any node, routed to the partition leader</td><td>The remaining members of the partition elect a new leader</td></tr></tbody></table>
 <p>A write on a three-node cluster with one partition follows these steps:</p>
 <ol>
@@ -137,24 +135,23 @@ it safely.</p>
 </ol>
 <!-- -->
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="consistency-before-split-brain-writes">Consistency before split-brain writes<a href="#consistency-before-split-brain-writes" class="hash-link" aria-label="Direct link to Consistency before split-brain writes" title="Direct link to Consistency before split-brain writes" translate="no">​</a></h3>
-<p>A partition needs enough healthy members to reach consensus. It stops all
-commits when it cannot reach consensus. It does not accept a change that could
+<p>A partition needs enough healthy members to reach consensus. When it cannot
+reach consensus, it stops all commits rather than accept a change that could
 conflict with another copy of the same data.</p>
-<p>Availability is useful only while the data stays correct. CamusDB therefore
-takes the unavailable side of that trade.</p>
-<p>Serializable isolation is the default in a cluster, exactly as it is on one
-node. See <a class="" href="/docs/serializable-transactions/">Transactions And Isolation</a> for the
-guarantees. See
-<a class="" href="/docs/distributed-transactions/">Distributed Transactions And HLC</a> for the
+<p>Availability is useful only while the data stays correct, so CamusDB takes the
+unavailable side of that trade.</p>
+<p>Serializable isolation is the default in a cluster, exactly as on one node. See
+<a class="" href="/docs/serializable-transactions/">Transactions And Isolation</a> for the guarantees
+and <a class="" href="/docs/distributed-transactions/">Distributed Transactions And HLC</a> for the
 cross-partition commit protocol.</p>
-<p>Configuration uses the same machinery. CamusDB commits a setting from
-<a class="" href="/docs/runtime-cluster-settings/"><code>SET CLUSTER SETTING</code></a> through Raft, on its own
-partition. Every node therefore applies the settings in the same order. A node
+<p>Configuration uses the same machinery. CamusDB commits each
+<a class="" href="/docs/runtime-cluster-settings/"><code>SET CLUSTER SETTING</code></a> change through Raft on
+its own partition, so every node applies settings in the same order, and a node
 that was down catches up on replay. There is no rolling restart, and no node
 keeps a stale value.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="transfer-partition-leadership">Transfer partition leadership<a href="#transfer-partition-leadership" class="hash-link" aria-label="Direct link to Transfer partition leadership" title="Direct link to Transfer partition leadership" translate="no">​</a></h2>
-<p>Operators and reliability tests can ask the current leader of a data partition
-to hand leadership to another replica:</p>
+<p>Operators and reliability tests can ask a data partition&#x27;s current leader to
+hand leadership to another replica:</p>
 <div class="language-http codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-http codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">POST /v1/cluster/transfer-leadership</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">Content-Type: application/json</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">{ &quot;partitionId&quot;: 1, &quot;targetEndpoint&quot;: &quot;10.0.0.3:7072&quot; }</span><br></div></code></pre></div></div>
 <p>The request is a graceful handoff, not a crash failover. Send it to the node
 that currently leads the partition. <code>targetEndpoint</code> is the replica&#x27;s Raft

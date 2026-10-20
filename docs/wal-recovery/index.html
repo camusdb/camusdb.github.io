@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -23,165 +23,147 @@
 <p>When <code>COMMIT</code> returns, you need the change to survive whatever happens next.
 CamusDB writes every storage change to a <a class="" href="/docs/concepts/#wal">write-ahead log</a>
 (WAL) before it applies it, and replays committed log entries at startup. A
-committed change stays recoverable after a crash of the process, a restart of a
-node, or a change of <a class="" href="/docs/concepts/#leader">leadership</a>. A transaction that
-did not commit never comes back as committed.</p>
+committed change stays recoverable after a process crash, a node restart, or a
+<a class="" href="/docs/concepts/#leader">leadership</a> change. A transaction that did not commit
+never comes back as committed.</p>
 <p>The idea is the same as the WAL in PostgreSQL or the redo log in MySQL. The
 difference is that each <a class="" href="/docs/concepts/#partition">partition</a> keeps its own log,
 replicated by <a class="" href="/docs/concepts/#raft">Raft</a>. In a cluster, an entry commits only
 after a <a class="" href="/docs/concepts/#majority">majority</a> of the partition&#x27;s replicas persist
-it, so a committed write
-does not depend on one machine. Checkpoints keep the log, and the time a
-restart takes, bounded.</p>
+it, so a committed write does not depend on one machine. Checkpoints keep both
+the log size and restart time bounded.</p>
 <p>You do not need this page to use CamusDB. The WAL works with no configuration.
 Read it when you want to know why a committed write survives a crash, when you
-tune the settings of the WAL, or when you diagnose a slow restart.</p>
+tune WAL settings, or when you diagnose a slow restart.</p>
 <p>The WAL is part of the distributed storage layer:
 <a class="" href="/docs/concepts/#kommander">Kommander</a> stores the ordered
 <a class="" href="/docs/concepts/#raft">Raft</a> log, and <a class="" href="/docs/concepts/#kahuna">Kahuna</a> replays
 committed entries into the persistent key/value store. See
 <a class="" href="/docs/architecture/#storage-components">Architecture: storage components</a> for
 what each component does.</p>
-<p>This mechanism is separate from the SQL model. A user writes SQL. The storage
-layer records the committed mutations of a row, an index, the schema, a lock,
-and a transaction as replicated log entries. Only then are those changes
-durable.</p>
+<p>This mechanism is separate from the SQL model. You write SQL, and the storage
+layer records the committed row, index, schema, lock, and transaction mutations
+as replicated log entries. Only then are those changes durable.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-two-durable-paths">The two durable paths<a href="#the-two-durable-paths" class="hash-link" aria-label="Direct link to The two durable paths" title="Direct link to The two durable paths" translate="no">​</a></h2>
-<p>CamusDB has two related paths for persistence:</p>
-<table><thead><tr><th>Path</th><th>Owner</th><th>Purpose</th></tr></thead><tbody><tr><td>Raft WAL</td><td>Kommander</td><td>Stores the Raft log entries of each <a class="" href="/docs/concepts/#partition">partition</a>. An entry can be proposed, committed, rolled back, or part of a checkpoint.</td></tr><tr><td>KV persistence</td><td>Kahuna</td><td>Stores the materialized key/value state that the committed log entries produce.</td></tr></tbody></table>
+<p>CamusDB has two related persistence paths:</p>
+<table><thead><tr><th>Path</th><th>Owner</th><th>Purpose</th></tr></thead><tbody><tr><td>Raft WAL</td><td>Kommander</td><td>Stores each <a class="" href="/docs/concepts/#partition">partition</a>&#x27;s Raft log entries. An entry can be proposed, committed, rolled back, or part of a checkpoint.</td></tr><tr><td>KV persistence</td><td>Kahuna</td><td>Stores the materialized key/value state that the committed log entries produce.</td></tr></tbody></table>
 <p>By default both paths use RocksDB, as two separate databases. See
 <a class="" href="/docs/storage/#the-rocksdb-backend">Storage</a> for the backend settings.</p>
-<p>The difference between the two paths matters. The Raft WAL is the source of the
-order during a recovery. It knows which operations committed, and in which
-order. The KV persistence is the current durable form of those committed
-operations. CamusDB can replay a committed WAL entry when the KV persistence
-lags at the time of a restart.</p>
+<p>The Raft WAL is the source of ordering during recovery: it knows which
+operations committed, and in which order. KV persistence is the current durable
+form of those committed operations. If KV persistence lags at restart, CamusDB
+can replay committed WAL entries.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-write-path">The write path<a href="#the-write-path" class="hash-link" aria-label="Direct link to The write path" title="Direct link to The write path" translate="no">​</a></h2>
-<p>A write in CamusDB has this shape:</p>
+<p>A write in CamusDB goes through these steps:</p>
 <ol>
-<li class="">The SQL engine decides which row keys, index keys, and metadata keys must
-change.</li>
-<li class="">CamusDB writes those keys through the transaction API of
-<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a>.</li>
+<li class="">The SQL engine decides which row, index, and metadata keys must change.</li>
+<li class="">CamusDB writes those keys through the
+<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> transaction API.</li>
 <li class=""><a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> sends the mutation to the partition
 leader.</li>
-<li class=""><a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a> adds the
-mutation to the WAL of that partition, as a Raft log entry.</li>
-<li class=""><a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> puts the resulting key/value state in a
-queue for the persistent storage, after the entry commits.</li>
+<li class=""><a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a> appends the
+mutation to that partition&#x27;s WAL as a Raft log entry.</li>
+<li class="">After the entry commits, <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> queues the
+resulting key/value state for persistent storage.</li>
 </ol>
 <!-- -->
-<p>The scheduler of the WAL writes knows about the partitions. It does four things:</p>
+<p>The WAL write scheduler is partition-aware. It:</p>
 <ul>
-<li class="">It keeps the order of arrival inside each partition.</li>
-<li class="">It groups compatible writes into a batch.</li>
-<li class="">It lets two different partitions flush at the same time.</li>
-<li class="">It applies back-pressure to a partition with too many WAL operations that
-wait.</li>
+<li class="">Keeps arrival order within each partition.</li>
+<li class="">Groups compatible writes into batches.</li>
+<li class="">Lets different partitions flush at the same time.</li>
+<li class="">Applies back-pressure to a partition with too many pending WAL operations.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-recovery-path">The recovery path<a href="#the-recovery-path" class="hash-link" aria-label="Direct link to The recovery path" title="Direct link to The recovery path" translate="no">​</a></h2>
 <p>At startup, each partition restores from its WAL. CamusDB accepts no normal
-operation for that partition before the restore finishes.</p>
+operations for that partition until the restore finishes.</p>
 <ol>
 <li class=""><a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a> reads the
-persisted log entries of the partition.</li>
-<li class="">It skips an entry that rolled back. It keeps an entry that is only proposed
-in the log, but does not apply it. The partition leader later commits that
-entry or replaces it, following the Raft rules.</li>
-<li class="">A committed entry advances the commit index of the partition, which is the
-position of the last entry known to be committed.</li>
+partition&#x27;s persisted log entries.</li>
+<li class="">It skips rolled-back entries. It keeps entries that are only proposed in the
+log but does not apply them; the partition leader later commits or replaces
+them, following the Raft rules.</li>
+<li class="">Each committed entry advances the partition&#x27;s commit index, the position of
+the last entry known to be committed.</li>
 <li class="">CamusDB delivers each committed data entry to
-<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a>, through the callback for a restored
-log entry.</li>
-<li class=""><a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> deserializes the restored mutation. It
-then puts the resulting key/value write in a queue.</li>
+<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> through the restored log entry
+callback.</li>
+<li class=""><a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> deserializes the restored mutation and
+queues the resulting key/value write.</li>
 <li class="">CamusDB flushes those queued writes before it loads the schema metadata.</li>
 </ol>
 <!-- -->
-<p>The last step matters, because the databases share one storage node. You create
-a database explicitly, and CamusDB gives it a stable opaque database id. The
-prefix of that id separates the schema entries, the row entries, the index
-entries, and the statistics entries inside the shared KV space.</p>
-<p>In standalone mode and in cluster mode, CamusDB starts one shared
-<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> node. That node has a KV path and a WAL
-path, both under the configured <code>data_dir</code>. The partitions recover before
-CamusDB serves normal work. CamusDB then loads the database metadata from the
-recovered KV state.</p>
-<p>The recovery of the catalog is deterministic for that reason. CamusDB reads the
-schema, the system metadata, the row data, and the index data only after the WAL
-replay reaches the KV backend.</p>
+<p>The last step matters because all databases share one storage node. Each
+database you create gets a stable, opaque database id, and that id prefix
+separates its schema, row, index, and statistics entries inside the shared KV
+space.</p>
+<p>In both standalone and cluster mode, CamusDB starts one shared
+<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> node with a KV path and a WAL path, both
+under the configured <code>data_dir</code>. The partitions recover before CamusDB serves
+normal work, and CamusDB then loads database metadata from the recovered KV
+state.</p>
+<p>That makes catalog recovery deterministic: CamusDB reads the schema, system
+metadata, row data, and index data only after WAL replay reaches the KV
+backend.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="behavior-after-a-failure">Behavior after a failure<a href="#behavior-after-a-failure" class="hash-link" aria-label="Direct link to Behavior after a failure" title="Direct link to Behavior after a failure" translate="no">​</a></h2>
-<p>The WAL improves the recovery, because it separates two states. The first state
-is &quot;the consensus accepted this entry&quot;. The second state is &quot;the KV backend
-materialized this entry later&quot;.</p>
-<table><thead><tr><th>Failure</th><th>Result of the recovery</th></tr></thead><tbody><tr><td>A crash before the commit</td><td>CamusDB does not apply the entry at restore. The entry stays in the log until the partition leader commits it or replaces it.</td></tr><tr><td>A crash after the commit, but before the KV flush</td><td>CamusDB replays the committed WAL entry. It puts the entry back in the queue for the KV persistence.</td></tr><tr><td>A restart of a node</td><td>The node restores the committed logs of its partitions. It rebuilds the materialized KV state where that is necessary. It then rejoins the election of a leader, or the replication.</td></tr><tr><td>A failure of a leader</td><td>Another eligible replica can lead the partition. It can do so only from a log state that satisfies the safety rules of Raft.</td></tr><tr><td>A stale or superseded proposal</td><td>CamusDB skips a rolled-back entry during the restore, and it applies no entry that is only proposed.</td></tr></tbody></table>
-<p>For a transaction, CamusDB uses two mechanisms: the transaction protocol of
-<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a>, and the order of the committed log from
-<a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a>.</p>
-<p>A transaction that did not commit never returns as a committed SQL result.
-CamusDB can replay a committed transaction into the KV store, when the process
-stopped before the background writer finished.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="recovery-of-a-transaction-decision">Recovery of a transaction decision<a href="#recovery-of-a-transaction-decision" class="hash-link" aria-label="Direct link to Recovery of a transaction decision" title="Direct link to Recovery of a transaction decision" translate="no">​</a></h2>
-<p>A distributed transaction adds one more concern for a recovery. A commit can
-involve several participant partitions.</p>
-<p>Kahuna handles that case with a transaction
+<p>The WAL improves recovery because it separates two states: &quot;consensus accepted
+this entry&quot; and &quot;the KV backend materialized this entry later&quot;.</p>
+<table><thead><tr><th>Failure</th><th>Recovery result</th></tr></thead><tbody><tr><td>Crash before commit</td><td>CamusDB does not apply the entry at restore. The entry stays in the log until the partition leader commits or replaces it.</td></tr><tr><td>Crash after commit, but before the KV flush</td><td>CamusDB replays the committed WAL entry and queues it again for KV persistence.</td></tr><tr><td>Node restart</td><td>The node restores its partitions&#x27; committed logs, rebuilds the materialized KV state where needed, then rejoins leader election or replication.</td></tr><tr><td>Leader failure</td><td>Another eligible replica can lead the partition, but only from a log state that satisfies Raft&#x27;s safety rules.</td></tr><tr><td>Stale or superseded proposal</td><td>CamusDB skips rolled-back entries during restore, and applies no entry that is only proposed.</td></tr></tbody></table>
+<p>For transactions, CamusDB relies on two mechanisms: the
+<a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> transaction protocol, and the committed
+log order from <a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a>.</p>
+<p>A transaction that did not commit never returns as a committed SQL result. If
+the process stopped before the background writer finished, CamusDB can replay a
+committed transaction into the KV store.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="transaction-decision-recovery">Transaction decision recovery<a href="#transaction-decision-recovery" class="hash-link" aria-label="Direct link to Transaction decision recovery" title="Direct link to Transaction decision recovery" translate="no">​</a></h2>
+<p>Distributed transactions add one more recovery concern: a commit can involve
+several participant partitions.</p>
+<p>Kahuna handles this with a transaction
 <a class="" href="/docs/concepts/#two-phase-commit">coordinator</a>. For a durable decision, it also
-uses an internal decision record. That record anchors to the first persistent
-key that the transaction modified. The partition that holds that key is the
-anchor partition.</p>
-<p>Five properties hold after the anchor decision commits:</p>
+uses an internal decision record anchored to the first persistent key the
+transaction modified. The partition that holds that key is the anchor partition.</p>
+<p>Once the anchor decision commits:</p>
 <ul>
 <li class="">The transaction must finish as committed.</li>
-<li class="">CamusDB can retry the commit of a participant. It does not apply the same
-mutation twice.</li>
-<li class="">A receipt of completion identifies each participant that committed already.</li>
-<li class="">The leader of the anchor partition can continue the recovery, after a change
-of leader or a restart of a node.</li>
-<li class="">The recovery work belongs to one partition. Two independent anchor partitions
-therefore make progress without a block on each other.</li>
+<li class="">CamusDB can retry a participant&#x27;s commit without applying the same mutation
+twice.</li>
+<li class="">A completion receipt identifies each participant that already committed.</li>
+<li class="">The anchor partition&#x27;s leader can continue recovery after a leader change or
+a node restart.</li>
+<li class="">Recovery work belongs to one partition, so independent anchor partitions make
+progress without blocking each other.</li>
 </ul>
-<p>A response to the commit of a participant can be lost. A retry of the same
-commit path can then use the receipt of completion from that participant. It
-does not treat the absent <a class="" href="/docs/concepts/#write-intent">write intent</a> in memory
-as an abort.</p>
-<p>The live coordinator can disappear. A background decision-recovery worker then
-scans the durable decisions that remain open, on the partitions that this node
-leads. It drives each participant that did not acknowledge, until the decision
-completes.</p>
-<p>The process can stop before CamusDB installs the durable anchor decision. The
-active session of the transaction then never returns as a committed result. That
-boundary keeps the recovery conservative. CamusDB recovers a committed decision
-and a committed WAL entry. It does not recover speculative work of an
-application.</p>
+<p>If a participant&#x27;s commit response is lost, a retry of the same commit path can
+use that participant&#x27;s completion receipt. It does not treat the missing
+in-memory <a class="" href="/docs/concepts/#write-intent">write intent</a> as an abort.</p>
+<p>If the live coordinator disappears, a background decision-recovery worker scans
+the open durable decisions on the partitions this node leads, and drives each
+participant that did not acknowledge until the decision completes.</p>
+<p>If the process stops before CamusDB installs the durable anchor decision, the
+transaction&#x27;s active session never returns as a committed result. That boundary
+keeps recovery conservative: CamusDB recovers committed decisions and committed
+WAL entries, not speculative application work.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="checkpoints-and-compaction">Checkpoints and compaction<a href="#checkpoints-and-compaction" class="hash-link" aria-label="Direct link to Checkpoints and compaction" title="Direct link to Checkpoints and compaction" translate="no">​</a></h2>
 <p>The WAL does not grow forever.
-<a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a> tracks the
-committed checkpoint entries. It can compact a log older than the last
-checkpoint.</p>
-<p>The background writer of <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> tracks the
-partitions with durable state that is not clean. It asks the Raft layer to
-create a checkpoint after the flush of the materialized KV state.</p>
-<p>A recovery then reads only the logs that are newer than the last checkpoint. The
-KV backend holds the older committed state already. The newer committed entries
-stay available for a replay.</p>
+<a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a> tracks committed
+checkpoint entries and can compact log entries older than the last checkpoint.</p>
+<p><a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a>&#x27;s background writer tracks partitions with
+dirty durable state. After it flushes the materialized KV state, it asks the
+Raft layer to create a checkpoint.</p>
+<p>Recovery then reads only the log entries newer than the last checkpoint. The KV
+backend already holds the older committed state, and the newer committed entries
+stay available for replay.</p>
 <!-- -->
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-this-matters">Why this matters<a href="#why-this-matters" class="hash-link" aria-label="Direct link to Why this matters" title="Direct link to Why this matters" translate="no">​</a></h2>
-<p>A traditional single-node database often couples three concerns in one primary
-storage process: the durability, the availability, and the service of queries.
-CamusDB separates those concerns:</p>
-<ul>
-<li class="">The Raft partitions give an ordered, replicated history of the commits.</li>
-<li class="">The restore from the WAL rebuilds the committed state after a failure.</li>
-<li class="">The KV persistence stores the current materialized state, for a fast read.</li>
-<li class="">A checkpoint keeps the recovery bounded over time.</li>
-<li class="">Several active CamusDB nodes can accept client traffic. The partition leaders
-meanwhile serialize the writes safely.</li>
-</ul>
-<p>A recovery from the WAL restores a node after a crash. To rebuild a node from a
-captured image, or to return it to a chosen point in time, see
+<p>A traditional single-node database often couples durability, availability, and
+query serving in one primary storage process. CamusDB separates them: the Raft
+partition logs hold the replicated commit history, KV persistence stores the
+current materialized state for fast reads, and several active CamusDB nodes can
+accept client traffic while the partition leaders serialize writes safely.</p>
+<p>WAL recovery restores a node after a crash. To rebuild a node from a captured
+image, or to return it to a chosen point in time, see
 <a class="" href="/docs/backup-and-restore/">Backup And Restore</a>.</p>
-<p>For the details of the storage at a lower level, see <a class="" href="/docs/storage/">Storage</a>
-and
-<a href="https://kahunakv.github.io/docs/storage/overview/" target="_blank" rel="noopener noreferrer" class="">the storage overview of Kahuna</a>.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/wal-recovery.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/storage/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Storage</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/spill-to-disk/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Spill to disk</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#the-two-durable-paths" class="table-of-contents__link toc-highlight">The two durable paths</a></li><li><a href="#the-write-path" class="table-of-contents__link toc-highlight">The write path</a></li><li><a href="#the-recovery-path" class="table-of-contents__link toc-highlight">The recovery path</a></li><li><a href="#behavior-after-a-failure" class="table-of-contents__link toc-highlight">Behavior after a failure</a></li><li><a href="#recovery-of-a-transaction-decision" class="table-of-contents__link toc-highlight">Recovery of a transaction decision</a></li><li><a href="#checkpoints-and-compaction" class="table-of-contents__link toc-highlight">Checkpoints and compaction</a></li><li><a href="#why-this-matters" class="table-of-contents__link toc-highlight">Why this matters</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
+<p>For lower-level storage details, see <a class="" href="/docs/storage/">Storage</a> and
+<a href="https://kahunakv.github.io/docs/storage/overview/" target="_blank" rel="noopener noreferrer" class="">Kahuna&#x27;s storage overview</a>.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/wal-recovery.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/storage/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Storage</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/spill-to-disk/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Spill to disk</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#the-two-durable-paths" class="table-of-contents__link toc-highlight">The two durable paths</a></li><li><a href="#the-write-path" class="table-of-contents__link toc-highlight">The write path</a></li><li><a href="#the-recovery-path" class="table-of-contents__link toc-highlight">The recovery path</a></li><li><a href="#behavior-after-a-failure" class="table-of-contents__link toc-highlight">Behavior after a failure</a></li><li><a href="#transaction-decision-recovery" class="table-of-contents__link toc-highlight">Transaction decision recovery</a></li><li><a href="#checkpoints-and-compaction" class="table-of-contents__link toc-highlight">Checkpoints and compaction</a></li><li><a href="#why-this-matters" class="table-of-contents__link toc-highlight">Why this matters</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
 </body>
 </html>

@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -29,7 +29,7 @@ application must retry.</p>
 <p>Each term gets a short definition, a comparison with single-node PostgreSQL
 where that helps, and a link to the page with the details.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-big-picture">The big picture<a href="#the-big-picture" class="hash-link" aria-label="Direct link to The big picture" title="Direct link to The big picture" translate="no">​</a></h2>
-<p>A cluster of three nodes, with the default settings, looks like this:</p>
+<p>A three-node cluster with default settings looks like this:</p>
 <!-- -->
 <p>CamusDB splits the data into three partitions. Every node holds a copy of every
 partition, so each partition has three replicas. Each partition elects one
@@ -149,8 +149,8 @@ eligible index into ranges that can split and move to other partitions. One
 large or busy table can then use several leaders. The setting applies at
 restart and must match on every node.</li>
 </ul>
-<p>A query returns the same rows either way. Only the placement, the concurrency,
-and the network cost change. The <code>routing</code> column of
+<p>A query returns the same rows either way; only placement, concurrency, and
+network cost change. The <code>routing</code> column of
 <a class="" href="/docs/show-ranges/"><code>SHOW RANGES</code></a> shows <code>hash</code> or <code>key_range</code>. See
 <a class="" href="/docs/key-range-sharding/">Key-range sharding</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="time-and-versions">Time and versions<a href="#time-and-versions" class="hash-link" aria-label="Direct link to Time and versions" title="Direct link to Time and versions" translate="no">​</a></h2>
@@ -230,8 +230,9 @@ coordinator yourself. CamusDB does it inside <code>COMMIT</code>. See
 writes. It also works as an exclusive lock, much like the row lock PostgreSQL
 takes on an updated row. With the default pessimistic locking, a second
 transaction that writes the same key waits for at most <code>lock_wait_deadline_ms</code>,
-then fails with a retryable error (<code>CADB0502</code> or <code>CADB0504</code>). A write intent lives in the memory of the partition
-leader, and it expires, so an abandoned transaction cannot hold a key forever.</p>
+then fails with a retryable error (<code>CADB0502</code> or <code>CADB0504</code>). A write intent
+lives in the partition leader&#x27;s memory, and it expires, so an abandoned
+transaction cannot hold a key forever.</p>
 <p>A prepared intent is the durable form that the prepare phase of
 <a href="#two-phase-commit" class="">2PC</a> writes. It goes through the partition log, so a
 follower, a restarted node, or a new leader rebuilds it. It stays invisible as a

@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -26,17 +26,17 @@ out 200 from 150. PostgreSQL defaults to Read Committed and MySQL to Repeatable
 Read, and at those levels this can happen unless you add explicit locks.
 CamusDB runs transactions as serializable by default, so one withdrawal commits
 and the other gets a conflict that your application retries. You keep the data
-correct without extra locks or version checks in your code.</p>
-<p>Every statement that CamusDB runs is inside a transaction. If you do not open a
-transaction, the server opens one around your statement. The server then commits
-that transaction for you.</p>
-<p>CamusDB gives these guarantees at all times:</p>
+correct without extra locks, version checks, or &quot;check and then write&quot; logic in
+your code.</p>
+<p>Every statement CamusDB runs is inside a transaction. If you do not open one,
+the server opens a transaction around your statement and commits it for you.</p>
+<p>CamusDB always guarantees that:</p>
 <ul>
 <li class="">Writes are atomic.</li>
 <li class="">Commits are durable.</li>
-<li class="">There are no dirty reads. A dirty read is a read of data that another
-transaction has not committed yet.</li>
-<li class="">CamusDB detects write-write conflicts.</li>
+<li class="">There are no dirty reads (reads of data that another transaction has not
+committed yet).</li>
+<li class="">Write-write conflicts are detected.</li>
 <li class="">Execution is serializable by default.</li>
 <li class="">A write across more than one <a class="" href="/docs/concepts/#partition">partition</a> (a slice
 of the data that the cluster replicates as one unit) is atomic, through
@@ -45,183 +45,176 @@ of the data that the cluster replicates as one unit) is atomic, through
 <p>This page describes the guarantees. For the SQL syntax, see
 <a class="" href="/docs/sql-transactions/">Transactions In SQL</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-serializable-protects-you-from">What serializable protects you from<a href="#what-serializable-protects-you-from" class="hash-link" aria-label="Direct link to What serializable protects you from" title="Direct link to What serializable protects you from" translate="no">​</a></h2>
-<p>Many clients change the same data at the same time. Without strong isolation,
-two correct transactions can produce a wrong result together. Here is an
-example. Two requests withdraw 100 from an account that holds 150. Each request
-reads the balance, sees 150, and writes the new balance. Both succeed, and the
-account pays out 200 from 150.</p>
-<p>Serializable isolation stops this class of error. The result is always the same
-as a run of the transactions one after the other. In the example, CamusDB
-commits one withdrawal. It aborts the other with a conflict. Your application
-then retries it, and the retry sees the new balance of 50. See
+<p>When many clients change the same data at the same time, two transactions that
+are each correct on their own can produce a wrong result together, as in the
+withdrawal example above.</p>
+<p>Serializable isolation stops this class of error: the result is always the same
+as running the transactions one after the other. In the example, CamusDB
+commits one withdrawal and aborts the other with a conflict. When your
+application retries it, the retry sees the new balance of 50. See
 <a class="" href="/docs/serializable-retries/">Retries and conflicts</a>.</p>
 <!-- -->
-<p>You therefore do not need extra locks, version checks, or &quot;check and then
-write&quot; logic in the application to keep the data correct. This matters most for
-data where a wrong answer is expensive: money, inventory, reservations, and
-ownership.</p>
+<p>This matters most for data where a wrong answer is expensive: money, inventory,
+reservations, and ownership.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="isolation-levels">Isolation levels<a href="#isolation-levels" class="hash-link" aria-label="Direct link to Isolation levels" title="Direct link to Isolation levels" translate="no">​</a></h2>
-<p>There are two levels. Serializable is the default.</p>
+<p>There are two levels, and Serializable is the default.</p>
 <table><thead><tr><th>Level</th><th>Reads</th><th>Protects against</th></tr></thead><tbody><tr><td><code>SERIALIZABLE</code></td><td>Snapshot, or locking scans in read-write mode</td><td>Read skew, phantoms, write skew, lost updates</td></tr><tr><td><code>READ COMMITTED</code></td><td>Committed <a class="" href="/docs/concepts/#mvcc">MVCC</a> versions, skipping <a class="" href="/docs/concepts/#write-intent">write intents</a></td><td>Dirty reads and write-write conflicts only</td></tr></tbody></table>
-<p>Serializable means this: the result is the same as a run of the committed
+<p>Serializable means the result is the same as running the committed
 transactions one at a time, in some order. Read Committed is an explicit
-opt-out. Use it for a workload that must not pay the cost of Serializable.</p>
+opt-out for workloads that must not pay the cost of Serializable.</p>
 <p>Set the level in the first statement of a transaction:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">BEGIN</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SET</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TRANSACTION</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ISOLATION</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">LEVEL</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">READ</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">COMMITTED</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p>The statement must come before any read and before any write. An earlier
-statement would already have missed the locks and the snapshot setup that the
-level needs. CamusDB therefore rejects a late change of level. It does not
-pretend that the change applied.</p>
+<p>The statement must come before any read or write, because an earlier statement
+would already have missed the locks and snapshot setup that the level needs.
+CamusDB rejects a late change of level rather than pretending it applied.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-read-committed-gives-up">What Read Committed gives up<a href="#what-read-committed-gives-up" class="hash-link" aria-label="Direct link to What Read Committed gives up" title="Direct link to What Read Committed gives up" translate="no">​</a></h3>
 <p>Read Committed keeps these properties:</p>
 <ul>
-<li class="">A read returns committed versions only. It skips an uncommitted write intent.</li>
-<li class="">A write still uses locks, write intents, and atomic commit.</li>
-<li class="">A reader blocks no reader, and it blocks no writer.</li>
+<li class="">Reads return committed versions only, skipping uncommitted write intents.</li>
+<li class="">Writes still use locks, write intents, and atomic commit.</li>
+<li class="">Readers block neither readers nor writers.</li>
 </ul>
-<p>Read Committed gives up these properties:</p>
+<p>It gives up:</p>
 <ul>
 <li class="">One snapshot shared by every sub-read of a query.</li>
-<li class="">Repeatable reads across a transaction of several statements.</li>
-<li class="">Protection against phantoms on a range scan. A phantom is a row that appears
-in a repeated scan because another transaction inserted it.</li>
-<li class="">Protection against write skew. Write skew is a fault in application code that
-reads a value, decides, and then writes.</li>
+<li class="">Repeatable reads across a multi-statement transaction.</li>
+<li class="">Phantom protection on range scans. A phantom is a row that appears in a
+repeated scan because another transaction inserted it.</li>
+<li class="">Write skew protection. Write skew is a fault in application code that reads a
+value, makes a decision, and then writes.</li>
 </ul>
-<p>Under pessimistic Read Committed, a point read can record the row revision it saw
-when the same transaction later writes that key, but this is not a general
+<p>Under pessimistic Read Committed, a point read can record the row revision it
+saw when the same transaction later writes that key, but this is not a general
 repeatable-read guarantee. A range scan does not pin every scanned row. It
 returns each row&#x27;s latest committed version as pages are read, which is the
 non-repeatable behavior this isolation level permits.</p>
-<p>One <code>UPDATE</code> or <code>DELETE</code> statement still protects itself from a lost update. The
-statement first finds candidate rows, then it takes the exclusive row locks,
-reads those rows again, evaluates the <code>WHERE</code> clause again, and computes the
-write from that locked read. In practice, `UPDATE accounts SET balance = balance</p>
-<ul>
-<li class="">1 WHERE id = ...<code>adds to the latest committed balance. A row that a concurrent commit moved out of the predicate is skipped, and a row that was deleted is skipped. A read in one statement followed by a write in a later statement is different; use Serializable, or express the change as one</code>UPDATE`.</li>
-</ul>
+<p>A single <code>UPDATE</code> or <code>DELETE</code> statement still protects itself from lost
+updates. It first finds candidate rows, then takes exclusive row locks, reads
+those rows again, re-evaluates the <code>WHERE</code> clause, and computes the write from
+that locked read. In practice, <code>UPDATE accounts SET balance = balance + 1 WHERE id = ...</code> adds to the latest committed balance. Rows that a concurrent commit
+moved out of the predicate are skipped, and so are deleted rows. A read in one
+statement followed by a write in a later statement is different; for that, use
+Serializable or express the change as one <code>UPDATE</code>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="read-only-and-read-write-modes">Read-only and read-write modes<a href="#read-only-and-read-write-modes" class="hash-link" aria-label="Direct link to Read-only and read-write modes" title="Direct link to Read-only and read-write modes" translate="no">​</a></h2>
-<p>Serializable has two execution modes. Your choice between them matters more than
-any other decision on this page.</p>
-<p>A serializable read-only transaction fixes one snapshot timestamp at <code>BEGIN</code>.
-Every statement reads from that snapshot. A later commit stays invisible, and a
-repeated read is stable. None of this needs a lock. CamusDB can hold the
-snapshot across several requests when the client resumes the same transaction
-id. The mode therefore suits a report of several queries, not only one
-statement.</p>
+<p>Serializable has two execution modes, and choosing between them matters more
+than any other decision on this page.</p>
+<p>A serializable read-only transaction fixes one snapshot timestamp at <code>BEGIN</code>,
+and every statement reads from that snapshot. Later commits stay invisible and
+repeated reads are stable, all without locks. CamusDB can hold the snapshot
+across several requests when the client resumes the same transaction id, so
+this mode suits multi-query reports, not just single statements.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">BEGIN</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SET</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TRANSACTION</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ISOLATION</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">LEVEL</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SERIALIZABLE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">READ</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ONLY</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p>A serializable read-write transaction adds locks on top of MVCC. MVCC is
-multi-version concurrency control, in which a write creates a new version
-instead of an overwrite. A point read can hold a shared point lock. A scan can
-hold a shared range lock. A write takes exclusive protection at key level. No
-other transaction can change a key that this transaction read and still commit.
-The cost is a possible retry for a transaction that conflicts.</p>
-<p>Use read-write mode when correctness depends on a read-then-write invariant. Use
-read-only mode for a report, and for a read that needs consistency but must not
-block a writer.</p>
+<p>A serializable read-write transaction adds locks on top of MVCC
+(multi-version concurrency control, where a write creates a new version instead
+of overwriting). A point read can hold a shared point lock, a scan can hold a
+shared range lock, and a write takes exclusive key-level protection. No other
+transaction can change a key that this transaction read and still commit. The
+cost is that a conflicting transaction may have to retry.</p>
+<p>Use read-write mode when correctness depends on a read-then-write invariant.
+Use read-only mode for reports, and for reads that need consistency but must
+not block writers.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="locking">Locking<a href="#locking" class="hash-link" aria-label="Direct link to Locking" title="Direct link to Locking" translate="no">​</a></h2>
-<p>Two kinds of lock matter to you as a user.</p>
-<p>Every write takes a per-key lock and places a write intent, for each key that it
-modifies. A write intent is a provisional version that becomes final at commit.
-These two mechanisms enforce three things:</p>
+<p>As a user, you deal with write locks and read locks.</p>
+<p>Every write takes a per-key lock and places a write intent (a provisional
+version that becomes final at commit) on each key it modifies. Together these
+give you:</p>
 <ol>
-<li class="">Detection of a write-write conflict on a row.</li>
-<li class="">Detection of a conflict on a unique index.</li>
-<li class="">An atomic update of a row together with its index entries.</li>
+<li class="">Write-write conflict detection on rows.</li>
+<li class="">Conflict detection on unique indexes.</li>
+<li class="">Atomic updates of a row together with its index entries.</li>
 </ol>
-<p>A point read lock and a range read lock protect what a serializable read-write
-transaction reads. A shared point lock covers the exact key that the transaction
-read. A concurrent writer cannot modify that key and still commit. CamusDB
-promotes the lock to write protection if the same transaction later writes the
-key. For a scan, a shared range lock covers the scanned span. Two overlapping
-scans therefore still run at the same time. A conflicting write into the range
-waits, or it retries.</p>
+<p>Point read locks and range read locks protect what a serializable read-write
+transaction reads. A shared point lock covers the exact key the transaction
+read, so a concurrent writer cannot modify that key and still commit. If the
+same transaction later writes the key, CamusDB promotes the lock to write
+protection. For a scan, a shared range lock covers the scanned span. Two
+overlapping scans can still run at the same time, while a conflicting write
+into the range waits or retries.</p>
 <p>When two serializable transactions conflict, CamusDB resolves the conflict by
 age (the wait-die rule). An older requester waits for the younger holder. A
-younger requester that already holds a lock or a staged write aborts at once and
-must retry. CamusDB does not search for wait cycles: because only an older
+younger requester that already holds a lock or a staged write aborts at once
+and must retry. CamusDB does not search for wait cycles: because only an older
 transaction ever waits, a cycle cannot form. A transaction that has not yet
 held a lock or staged a write can safely wait for a short in-flight writer,
 because it is not itself blocking anyone.</p>
-<p>CamusDB escalates the point locks when a transaction holds
-<code>lock_escalation_threshold</code> (default <code>50</code>) shared point locks in one table
-bucket or one index bucket. It replaces them with one shared lock over that
-whole bucket. The bookkeeping stays bounded. The protected range becomes wider.</p>
+<p>When a transaction holds <code>lock_escalation_threshold</code> (default <code>50</code>) shared
+point locks in one table bucket or one index bucket, CamusDB escalates them,
+replacing them with one shared lock over that whole bucket. Bookkeeping stays
+bounded, but the protected range gets wider.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="pessimistic-and-optimistic-locking">Pessimistic and optimistic locking<a href="#pessimistic-and-optimistic-locking" class="hash-link" aria-label="Direct link to Pessimistic and optimistic locking" title="Direct link to Pessimistic and optimistic locking" translate="no">​</a></h3>
-<p>The default strategy is pessimistic. CamusDB takes a lock before any conflicting
-work continues.</p>
-<p>Optimistic locking is an opt-in strategy. It skips the exclusive write lock. It
-validates at commit instead. It aborts the transaction in two cases: another
-transaction wrote a key that this transaction wrote, or a row that this
-transaction read changed. The application then retries from the start.</p>
+<p>The default strategy is pessimistic: CamusDB takes a lock before any
+conflicting work continues.</p>
+<p>Optimistic locking is opt-in. It skips the exclusive write lock and validates
+at commit instead, aborting the transaction if another transaction wrote a key
+that this transaction wrote, or if a row this transaction read has changed. The
+application then retries from the start.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">BEGIN</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SET</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TRANSACTION</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">LOCKING</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">OPTIMISTIC</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p>The locking strategy is a separate axis from the isolation level. The
-combination of the two decides the guarantee:</p>
-<table><thead><tr><th>Combination</th><th>Behavior</th></tr></thead><tbody><tr><td><code>SERIALIZABLE</code> + pessimistic</td><td>Default. CamusDB takes the locks first.</td></tr><tr><td><code>SERIALIZABLE</code> + optimistic</td><td>Hybrid. A write validates at commit, but a read and a scan still take shared locks, so phantoms remain excluded.</td></tr><tr><td><code>READ COMMITTED</code> + optimistic</td><td>No locks at all. CamusDB validates the observed rows only. There is no protection against a phantom.</td></tr></tbody></table>
-<p><code>SET TRANSACTION LOCKING</code> must also run before any data statement. You can
-combine it with <code>SET TRANSACTION ISOLATION LEVEL</code> in either order. An HTTP
-client and a gRPC client select the strategy with the <code>locking</code> request field.
-An operator changes the server-wide default with <code>default_transaction_locking</code>.</p>
+<p>The locking strategy is a separate axis from the isolation level, and the
+combination decides the guarantee:</p>
+<table><thead><tr><th>Combination</th><th>Behavior</th></tr></thead><tbody><tr><td><code>SERIALIZABLE</code> + pessimistic</td><td>Default. CamusDB takes the locks first.</td></tr><tr><td><code>SERIALIZABLE</code> + optimistic</td><td>Hybrid. Writes validate at commit, but reads and scans still take shared locks, so phantoms remain excluded.</td></tr><tr><td><code>READ COMMITTED</code> + optimistic</td><td>No locks at all. CamusDB validates only the observed rows. There is no phantom protection.</td></tr></tbody></table>
+<p><code>SET TRANSACTION LOCKING</code> must also run before any data statement, and you can
+combine it with <code>SET TRANSACTION ISOLATION LEVEL</code> in either order. HTTP and
+gRPC clients select the strategy with the <code>locking</code> request field. Operators
+change the server-wide default with <code>default_transaction_locking</code>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-a-write-commits">How a write commits<a href="#how-a-write-commits" class="hash-link" aria-label="Direct link to How a write commits" title="Direct link to How a write commits" translate="no">​</a></h2>
 <p>Each <code>INSERT</code>, <code>UPDATE</code>, or <code>DELETE</code> places write intents and takes key-level
-locks on the row keys and the index keys that it changes, then commits them
-atomically. When another transaction already writes a conflicting key, one side
-fails or retries. Neither side overwrites the other in silence. For the full
-commit path, including two-phase commit across partitions, see
+locks on the row and index keys it changes, then commits them atomically. If
+another transaction is already writing a conflicting key, one side fails or
+retries; neither silently overwrites the other. For the full commit path,
+including two-phase commit across partitions, see
 <a class="" href="/docs/distributed-transactions/#how-a-commit-works">How a commit works</a>.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="transactions-of-several-statements">Transactions of several statements<a href="#transactions-of-several-statements" class="hash-link" aria-label="Direct link to Transactions of several statements" title="Direct link to Transactions of several statements" translate="no">​</a></h2>
-<p>Use an explicit <code>BEGIN</code> in these three cases:</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="multi-statement-transactions">Multi-statement transactions<a href="#multi-statement-transactions" class="hash-link" aria-label="Direct link to Multi-statement transactions" title="Direct link to Multi-statement transactions" translate="no">​</a></h2>
+<p>Use an explicit <code>BEGIN</code> when:</p>
 <ol>
 <li class="">Several writes must commit together.</li>
 <li class="">A read-write sequence must be all-or-nothing.</li>
 <li class="">Several queries need one stable serializable snapshot.</li>
 </ol>
-<p>An abort is normal here. It is not an exceptional event. CamusDB does not replay
-an aborted multi-statement transaction for you: the client restarts from
-<code>BEGIN</code>. <a class="" href="/docs/serializable-retries/">Retries and conflicts</a> lists the causes,
-the error codes that are safe to retry, and the driver helpers that replay a
-unit of work for you.</p>
-<p>One failure is not a signal to retry. <code>TransactionMutationLimitExceeded</code> means
-that the transaction is too large. A replay of the same batch fails again. See
+<p>Aborts are normal here, not exceptional. CamusDB does not replay an aborted
+multi-statement transaction for you: the client restarts from <code>BEGIN</code>.
+<a class="" href="/docs/serializable-retries/">Retries and conflicts</a> lists the causes, the error
+codes that are safe to retry, and the driver helpers that replay a unit of work
+for you.</p>
+<p>One failure is not a retry signal: <code>TransactionMutationLimitExceeded</code> means the
+transaction is too large, and replaying the same batch fails again. See
 <a class="" href="/docs/transaction-limits/">Transaction Limits</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="timestamps-and-schema-safety">Timestamps and schema safety<a href="#timestamps-and-schema-safety" class="hash-link" aria-label="Direct link to Timestamps and schema safety" title="Direct link to Timestamps and schema safety" translate="no">​</a></h2>
-<p>Every read-write transaction receives a timestamp from
+<p>Every read-write transaction gets a timestamp from
 <a class="" href="/docs/concepts/#kahuna">Kahuna</a>, the transactional storage layer. The timestamp
-comes from a <a class="" href="/docs/concepts/#hlc">hybrid logical clock</a>, or HLC, which combines
-physical time with a logical counter. A client never assigns its own timestamp. The timestamp identifies the
-transaction, orders the committed versions, and coordinates the distributed
-commit. The resulting order is logically consistent. It is not a real-time
-wall-clock guarantee. See
+comes from a <a class="" href="/docs/concepts/#hlc">hybrid logical clock</a> (HLC), which combines
+physical time with a logical counter. Clients never assign their own
+timestamps. The timestamp identifies the transaction, orders committed
+versions, and coordinates the distributed commit. The resulting order is
+logically consistent, but it is not a real-time wall-clock guarantee. See
 <a class="" href="/docs/distributed-transactions/">Distributed Transactions And HLC</a>.</p>
-<p>CamusDB also pins the schema version of each table that a transaction touches.
-CamusDB rejects the transaction if a table changes incompatibly before the
-commit. It does not commit a write that mixes an old layout with a new one.</p>
+<p>CamusDB also pins the schema version of each table a transaction touches. If a
+table changes incompatibly before the commit, CamusDB rejects the transaction
+rather than commit a write that mixes an old layout with a new one.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="single-node-and-cluster">Single node and cluster<a href="#single-node-and-cluster" class="hash-link" aria-label="Direct link to Single node and cluster" title="Direct link to Single node and cluster" translate="no">​</a></h2>
-<p>The model is the same in both cases: MVCC reads, locks and write intents on a
-write, and detection of a conflict instead of silence about it. A cluster adds
-routing to partitions and two-phase commit across them. See
+<p>The model is the same in both: MVCC reads, locks and write intents on writes,
+and conflicts that are detected rather than ignored. A cluster adds routing to
+partitions and two-phase commit across them. See
 <a class="" href="/docs/distributed-transactions/">Distributed transactions</a>.</p>
-<p>Serializable is not a single-node feature. CamusDB exercises the anomaly
-coverage on a single node and on a three-node cluster. That coverage includes a
-read-write transaction across more than one partition.</p>
+<p>Serializable is not a single-node feature. CamusDB runs its anomaly coverage on
+a single node and on a three-node cluster, including read-write transactions
+across more than one partition.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-is-guaranteed-today">What is guaranteed today<a href="#what-is-guaranteed-today" class="hash-link" aria-label="Direct link to What is guaranteed today" title="Direct link to What is guaranteed today" translate="no">​</a></h2>
-<p>Serializable is complete, acceptance-tested, and the default. It covers four
-anomalies: read skew, phantoms, write skew, and lost updates.</p>
+<p>Serializable is complete, acceptance-tested, and the default. It covers read
+skew, phantoms, write skew, and lost updates.</p>
 <p>A transaction that spans more than one partition runs in cluster mode, which is
 still an alpha feature. Its APIs and behavior can change between versions. See
 <a class="" href="/docs/distributed-transactions/">Distributed Transactions</a>.</p>
-<p>The implementation includes these mechanisms:</p>
+<p>The implementation includes:</p>
 <ul>
-<li class="">Wait-die deadlock fairness, so two transactions in contention have a
+<li class="">Wait-die deadlock fairness, so two contending transactions have a
 determinate winner.</li>
-<li class="">Renewal of a range lock by the coordinator, for a long transaction.</li>
+<li class="">Coordinator renewal of range locks for long transactions.</li>
 <li class="">Lock escalation after <code>lock_escalation_threshold</code> (default <code>50</code>) shared
 point locks in one table or index bucket.</li>
-<li class="">Tight predicate-lock bounds for a bounded scan, for <code>UPDATE</code>, and for
-<code>DELETE</code>.</li>
+<li class="">Tight predicate-lock bounds for bounded scans, <code>UPDATE</code>, and <code>DELETE</code>.</li>
 </ul>
-<p>One gap remains. There is no externally consistent commit-wait guarantee. The
-order is logically consistent. It is not tied to real time.</p>
+<p>One gap remains: there is no externally consistent commit-wait guarantee. The
+order is logically consistent, but not tied to real time.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="related-pages">Related pages<a href="#related-pages" class="hash-link" aria-label="Direct link to Related pages" title="Direct link to Related pages" translate="no">​</a></h2>
 <ul>
 <li class=""><a class="" href="/docs/sql-transactions/">Transactions In SQL</a></li>
@@ -231,6 +224,6 @@ order is logically consistent. It is not tied to real time.</p>
 <li class=""><a class="" href="/docs/cluster/">Cluster Mode</a></li>
 <li class=""><a class="" href="/docs/distributed-schema/">Distributed Schema Changes</a></li>
 <li class=""><a class="" href="/docs/error-codes/">Error Codes</a></li>
-</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/serializable-transactions.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/best-practices/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Best practices</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/serializable-retries/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Retries and conflicts</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#what-serializable-protects-you-from" class="table-of-contents__link toc-highlight">What serializable protects you from</a></li><li><a href="#isolation-levels" class="table-of-contents__link toc-highlight">Isolation levels</a><ul><li><a href="#what-read-committed-gives-up" class="table-of-contents__link toc-highlight">What Read Committed gives up</a></li></ul></li><li><a href="#read-only-and-read-write-modes" class="table-of-contents__link toc-highlight">Read-only and read-write modes</a></li><li><a href="#locking" class="table-of-contents__link toc-highlight">Locking</a><ul><li><a href="#pessimistic-and-optimistic-locking" class="table-of-contents__link toc-highlight">Pessimistic and optimistic locking</a></li></ul></li><li><a href="#how-a-write-commits" class="table-of-contents__link toc-highlight">How a write commits</a></li><li><a href="#transactions-of-several-statements" class="table-of-contents__link toc-highlight">Transactions of several statements</a></li><li><a href="#timestamps-and-schema-safety" class="table-of-contents__link toc-highlight">Timestamps and schema safety</a></li><li><a href="#single-node-and-cluster" class="table-of-contents__link toc-highlight">Single node and cluster</a></li><li><a href="#what-is-guaranteed-today" class="table-of-contents__link toc-highlight">What is guaranteed today</a></li><li><a href="#related-pages" class="table-of-contents__link toc-highlight">Related pages</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
+</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/serializable-transactions.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/best-practices/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Best practices</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/serializable-retries/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Retries and conflicts</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#what-serializable-protects-you-from" class="table-of-contents__link toc-highlight">What serializable protects you from</a></li><li><a href="#isolation-levels" class="table-of-contents__link toc-highlight">Isolation levels</a><ul><li><a href="#what-read-committed-gives-up" class="table-of-contents__link toc-highlight">What Read Committed gives up</a></li></ul></li><li><a href="#read-only-and-read-write-modes" class="table-of-contents__link toc-highlight">Read-only and read-write modes</a></li><li><a href="#locking" class="table-of-contents__link toc-highlight">Locking</a><ul><li><a href="#pessimistic-and-optimistic-locking" class="table-of-contents__link toc-highlight">Pessimistic and optimistic locking</a></li></ul></li><li><a href="#how-a-write-commits" class="table-of-contents__link toc-highlight">How a write commits</a></li><li><a href="#multi-statement-transactions" class="table-of-contents__link toc-highlight">Multi-statement transactions</a></li><li><a href="#timestamps-and-schema-safety" class="table-of-contents__link toc-highlight">Timestamps and schema safety</a></li><li><a href="#single-node-and-cluster" class="table-of-contents__link toc-highlight">Single node and cluster</a></li><li><a href="#what-is-guaranteed-today" class="table-of-contents__link toc-highlight">What is guaranteed today</a></li><li><a href="#related-pages" class="table-of-contents__link toc-highlight">Related pages</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
 </body>
 </html>

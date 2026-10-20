@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -23,24 +23,22 @@
 <p>The CamusDB Kubernetes Operator is the easiest way to run a self-managed CamusDB
 cluster.</p>
 <p><a href="https://kubernetes.io/" target="_blank" rel="noopener noreferrer" class="">Kubernetes</a> is a platform that runs containers on a
-group of machines. It restarts a failed container, and it moves work off a
-failed machine. Many teams already use it to run their applications.</p>
+group of machines. It restarts failed containers and moves work off failed
+machines. Many teams already use it to run their applications.</p>
 <p>An operator is a program that runs inside Kubernetes and manages one kind of
-application for you. You describe the cluster that you want in one short YAML
-file. The operator creates the Kubernetes objects for that cluster. It then
-keeps the cluster in that state, and it does the routine work that a person
-otherwise does by hand.</p>
+application for you. You describe the cluster you want in one short YAML file.
+The operator creates the Kubernetes objects for that cluster, keeps the cluster
+in that state, and does the routine work a person would otherwise do by hand.</p>
 <p>The <a href="https://github.com/camusdb/camusdb-k8s-operator" target="_blank" rel="noopener noreferrer" class="">CamusDB Kubernetes Operator</a>
 creates and operates CamusDB clusters through the <code>CamusDBCluster</code> custom
-resource. A custom resource is a new kind of Kubernetes object. The operator
-adds it to your Kubernetes cluster.</p>
+resource. A custom resource is a new kind of Kubernetes object, which the
+operator adds to your Kubernetes cluster.</p>
 <div class="theme-admonition theme-admonition-caution admonition_xJq3 alert alert--warning"><div class="admonitionHeading_Gvgb"><span class="admonitionIcon_Rf37"><svg viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8.893 1.5c-.183-.31-.52-.5-.887-.5s-.703.19-.886.5L.138 13.499a.98.98 0 0 0 0 1.001c.193.31.53.501.886.501h13.964c.367 0 .704-.19.877-.5a1.03 1.03 0 0 0 .01-1.002L8.893 1.5zm.133 11.497H6.987v-2.003h2.039v2.003zm0-3.004H6.987V5.987h2.039v4.006z"></path></svg></span>Alpha</div><div class="admonitionContent_BuS1"><p>The operator and the <code>camusdb.io/v1alpha1</code> API are alpha. Review the
 <a href="#current-limitations" class="">current limitations</a> before using them for production
 data.</p></div></div>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-use-the-operator">Why use the operator<a href="#why-use-the-operator" class="hash-link" aria-label="Direct link to Why use the operator" title="Direct link to Why use the operator" translate="no">​</a></h2>
 <p>A database cluster is harder to run than a stateless application. Kubernetes
-can start and stop containers, but it does not know the rules of a CamusDB
-cluster.</p>
+can start and stop containers, but it does not know CamusDB&#x27;s cluster rules.</p>
 <p>A CamusDB cluster keeps a membership roster. The roster is the list of nodes
 that the cluster agreed on through <a class="" href="/docs/concepts/#raft">Raft</a>, the protocol
 CamusDB nodes use to agree on each change. The cluster must admit a new node
@@ -49,10 +47,10 @@ roster in a controlled way. If you remove two nodes of a three-node cluster at
 the same time, the <a class="" href="/docs/concepts/#partition">partitions</a> (the slices of data
 that each replicate on their own) lose their <a class="" href="/docs/concepts/#majority">majority</a>,
 and the cluster stops all commits.</p>
-<p>Adding or removing a node is therefore more than a change to a replica count in
-Kubernetes. The operator knows the rules of the roster. It compares the state in
-Kubernetes with the committed roster, and it makes one membership change at a
-time. You get these results:</p>
+<p>Adding or removing a node is therefore more than changing a replica count in
+Kubernetes. The operator knows the roster rules: it compares the state in
+Kubernetes with the committed roster and makes one membership change at a time.
+As a result:</p>
 <ul>
 <li class="">One YAML resource creates a complete cluster: the storage, the network
 services, TLS, and the configuration.</li>
@@ -61,8 +59,8 @@ waits until the cluster accepts each change.</li>
 <li class="">An upgrade replaces one node at a time, so the cluster stays available.</li>
 <li class="">Optional autoscaling adds and removes nodes as the traffic changes.</li>
 </ul>
-<p>Use the operator when you already run Kubernetes, and you want to run CamusDB on
-your own infrastructure. You do not need it in these cases:</p>
+<p>Use the operator when you already run Kubernetes and want to run CamusDB on
+your own infrastructure. You do not need it for:</p>
 <ul>
 <li class="">Local development, a tutorial, or a quick test. Run a standalone node, or the
 Docker Compose cluster in <a class="" href="/docs/cluster/#run-a-local-cluster">Cluster mode</a>.</li>
@@ -82,10 +80,9 @@ keeps its data on a persistent volume.</li>
 existing Kubernetes Secret that holds a certificate. TLS is mandatory.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-the-operator-manages">What the operator manages<a href="#what-the-operator-manages" class="hash-link" aria-label="Direct link to What the operator manages" title="Direct link to What the operator manages" translate="no">​</a></h2>
-<p>These terms appear in the list below. A StatefulSet runs a set of pods with
-stable names, so each CamusDB node keeps the same identity after a restart. A
-PVC, or PersistentVolumeClaim, is a request for a disk that survives a pod
-restart.</p>
+<p>In the list below, a StatefulSet runs a set of pods with stable names, so each
+CamusDB node keeps the same identity after a restart. A PVC
+(PersistentVolumeClaim) is a request for a disk that survives a pod restart.</p>
 <p>The operator manages:</p>
 <ul>
 <li class="">A StatefulSet with stable node identities and one or two PVCs per node.</li>
@@ -105,7 +102,7 @@ convergence.</li>
 <p>The chart installs the controller, RBAC, and the <code>CamusDBCluster</code> CRD. It does
 not create a database cluster.</p>
 <p>By default, one operator replica watches every namespace. Important chart
-settings are:</p>
+settings:</p>
 <table><thead><tr><th>Value</th><th>Default</th><th>Description</th></tr></thead><tbody><tr><td><code>replicaCount</code></td><td><code>1</code></td><td>Operator replicas. Leader election keeps one reconciler active when this is greater than one.</td></tr><tr><td><code>watchNamespace</code></td><td>empty</td><td>Watches all namespaces when empty, or only the named namespace otherwise. RBAC remains cluster-scoped.</td></tr><tr><td><code>leaderElection.enabled</code></td><td><code>true</code></td><td>Must remain enabled when several operator replicas run.</td></tr><tr><td><code>metrics.enabled</code></td><td><code>true</code></td><td>Exposes controller-runtime metrics on port 8443 behind Kubernetes authentication and authorization.</td></tr><tr><td><code>metrics.serviceMonitor.enabled</code></td><td><code>false</code></td><td>Creates a ServiceMonitor when the Prometheus Operator CRDs are installed.</td></tr><tr><td><code>rbac.create</code></td><td><code>true</code></td><td>Creates the required ClusterRole and binding.</td></tr></tbody></table>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="create-a-cluster">Create a cluster<a href="#create-a-cluster" class="hash-link" aria-label="Direct link to Create a cluster" title="Direct link to Create a cluster" translate="no">​</a></h2>
 <p>Every cluster requires persistent storage and TLS. This example asks an
@@ -114,10 +111,10 @@ existing cert-manager <code>Issuer</code> named <code>camusdb-ca</code> to issue
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">kubectl create namespace databases</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">kubectl apply -f camusdb-cluster.yaml</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">kubectl -n databases get camusdbcluster camusdb -w</span><br></div></code></pre></div></div>
 <p>Three <a class="" href="/docs/concepts/#learner-and-voter">voters</a> (members that count toward
 the majority) tolerate one unavailable node. The API rejects two replicas,
-because a majority of two voters still requires both nodes. One replica is supported
-for development, but the operator does not convert a one-node cluster into a
-multi-node cluster, or the reverse. Create another <code>CamusDBCluster</code> and migrate
-the data instead.</p>
+because a majority of two voters still requires both nodes. One replica is
+supported for development, but the operator does not convert a one-node cluster
+into a multi-node cluster, or the reverse. Create another <code>CamusDBCluster</code> and
+migrate the data instead.</p>
 <p>The client Service has the same name as the custom resource. Applications in
 the cluster can use these default endpoints:</p>
 <table><thead><tr><th>Protocol</th><th>Endpoint</th></tr></thead><tbody><tr><td>REST</td><td><code>http://camusdb.databases.svc:5095</code></td></tr><tr><td>REST with TLS</td><td><code>https://camusdb.databases.svc:7141</code></td></tr><tr><td>gRPC</td><td><code>camusdb.databases.svc:5096</code></td></tr></tbody></table>
@@ -129,12 +126,13 @@ nodes can discover one another before the first quorum exists.</p>
 <p>TLS is mandatory. Set exactly one of <code>spec.tls.certManager</code> or
 <code>spec.tls.secretRef</code>. The operator uses that certificate for three listeners:
 the internal cluster port (Raft), client gRPC, and HTTPS. Nodes verify the
-certificate of the peer on internal cluster connections. Mutual TLS between nodes, where each node also presents its own
-certificate, is on only when you set <code>spec.auth</code>.</p>
+peer&#x27;s certificate on internal cluster connections. Mutual TLS between nodes,
+where each node also presents its own certificate, is on only when you set
+<code>spec.auth</code>.</p>
 <p>Node-to-node HTTP forwarding (schema changes, cluster settings, and query
-fragments) is plaintext. It goes to the HTTP port of the peer, because the
-operator does not set <code>peer_tls_enabled</code>. Keep pod-to-pod traffic inside a
-trusted network, or restrict it with a NetworkPolicy.</p>
+fragments) is plaintext: it goes to the peer&#x27;s HTTP port because the operator
+does not set <code>peer_tls_enabled</code>. Keep pod-to-pod traffic inside a trusted
+network, or restrict it with a NetworkPolicy.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="cert-manager">cert-manager<a href="#cert-manager" class="hash-link" aria-label="Direct link to cert-manager" title="Direct link to cert-manager" translate="no">​</a></h3>
 <p>The chart does not install cert-manager. The referenced <code>Issuer</code> or
 <code>ClusterIssuer</code> must provide a stable CA and must write <code>ca.crt</code> into the issued
@@ -152,8 +150,8 @@ it:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">spec</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">tls</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">secretRef</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">      </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">name</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> camusdb</span><span class="token punctuation" style="color:#94a3b8">-</span><span class="token plain">tls</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">keystoreKey</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> certificate.pfx</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">caKey</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> ca.crt</span><br></div></code></pre></div></div>
 <p>For a self-signed keystore, <code>ca.crt</code> is the certificate itself. When
 authentication is enabled, nodes also present this keystore as a client
-certificate. It must then permit both server and client authentication. Updating
-the Secret causes the operator to roll the nodes onto the new keystore.</p>
+certificate, so it must permit both server and client authentication. When you
+update the Secret, the operator rolls the nodes onto the new keystore.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="authentication">Authentication<a href="#authentication" class="hash-link" aria-label="Direct link to Authentication" title="Direct link to Authentication" translate="no">​</a></h2>
 <p>Set <code>auth: {}</code> to enable CamusDB authentication and let the operator generate
 the credentials it needs:</p>
@@ -226,11 +224,12 @@ a stalled scale appear complete.</p>
 <!-- -->
 <p>Without <code>spec.replication</code>, every node holds every data partition. Adding nodes
 then adds <a class="" href="/docs/concepts/#replica-and-replication-factor">replicas</a> and voters,
-but does not add write capacity. Use partition
-placement when scaling is intended to distribute work.</p>
+but not write capacity. Use partition placement when you scale to distribute
+work.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="autoscale-with-traffic">Autoscale with traffic<a href="#autoscale-with-traffic" class="hash-link" aria-label="Direct link to Autoscale with traffic" title="Direct link to Autoscale with traffic" translate="no">​</a></h2>
 <p>The built-in autoscaler can use the Raft log-entry rate, pending client
-proposals (writes waiting to enter the replication log), and process CPU. It requires both <code>spec.auth</code> and <code>spec.replication</code>:</p>
+proposals (writes waiting to enter the replication log), and process CPU. It
+requires both <code>spec.auth</code> and <code>spec.replication</code>:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">spec</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">replicas</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">4</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">partitions</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">16</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">auth</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token punctuation" style="color:#94a3b8">{</span><span class="token punctuation" style="color:#94a3b8">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">replication</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">factor</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">3</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">autoscaling</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">minReplicas</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">4</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">maxReplicas</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">9</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">targetLogEntriesPerSecond</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">4000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">targetQueueDepth</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">32</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">targetCPUPercent</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">70</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">scaleUpStabilizationSeconds</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">60</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">scaleDownStabilizationSeconds</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">300</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">tolerancePercent</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">10</span><br></div></code></pre></div></div>
 <p>Create the cluster with more nodes than the replication factor. CamusDB applies
 placement only to partitions created while the cluster has more nodes than the

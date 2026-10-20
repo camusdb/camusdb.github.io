@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -28,8 +28,9 @@ whether its data volume is approaching the write-admission watermark.</p>
 <li class="">REST: <code>GET /v1/admin/stats</code></li>
 <li class="">gRPC: <code>CamusSql.GetNodeStats</code></li>
 </ul>
-<p>The call is node-local. Query every node separately when monitoring a cluster.
-It reads cached samples and does not scan the database on the request path.</p>
+<p>The call is node-local, so query every node separately when you monitor a
+cluster. It reads cached samples and does not scan the database on the request
+path.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="authorization">Authorization<a href="#authorization" class="hash-link" aria-label="Direct link to Authorization" title="Direct link to Authorization" translate="no">​</a></h2>
 <p>With authentication disabled, anyone who can reach the endpoint can call it.
 With authentication enabled, the caller must be a superuser or hold the global
@@ -69,7 +70,7 @@ configured watermark.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="missing-measurements-and-sample-age">Missing measurements and sample age<a href="#missing-measurements-and-sample-age" class="hash-link" aria-label="Direct link to Missing measurements and sample age" title="Direct link to Missing measurements and sample age" translate="no">​</a></h2>
 <p>A measurement that the node cannot read is <code>-1</code>, never <code>0</code>. The <code>errors</code>
 array identifies the field and explains why it was unavailable. One failed
-probe does not fail the complete response.</p>
+probe does not fail the whole response.</p>
 <p>Disk capacity is at most two seconds old. CPU, load, and host memory samples are
 at most five seconds old. Engine size and mount layout are refreshed every 60
 seconds. Working-set and GC values come directly from the runtime.</p>

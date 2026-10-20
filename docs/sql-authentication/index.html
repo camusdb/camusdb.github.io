@@ -12,7 +12,7 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.2b436e07.js" defer="defer"></script>
 <script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
@@ -26,59 +26,59 @@ named user, and each user can read or change only the databases and tables that
 you grant to it.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-enable-authentication">Why enable authentication<a href="#why-enable-authentication" class="hash-link" aria-label="Direct link to Why enable authentication" title="Direct link to Why enable authentication" translate="no">​</a></h2>
 <p>Authentication is off by default, so a local node is easy to start. Without it,
-any client that can reach the network port of a node can read, change, and drop
+any client that can reach a node&#x27;s network port can read, change, and drop
 every database on that node.</p>
-<p>Enable authentication in these cases:</p>
+<p>Enable authentication when:</p>
 <ul>
-<li class="">The node is reachable from a network that you do not fully control, for
-example a shared office network, a cloud network, or the internet.</li>
-<li class="">More than one application or team uses the same server. Each one must see
+<li class="">The node is reachable from a network that you do not fully control, such as
+a shared office network, a cloud network, or the internet.</li>
+<li class="">More than one application or team uses the same server, and each one must see
 only its own data.</li>
 <li class="">You want least privilege. For example, a reporting service gets read access
 only, and only an administrator can run DDL.</li>
 <li class="">A security review or a compliance rule requires named users and passwords.</li>
 </ul>
 <p>You can leave it off for local development and for a test node on a private
-machine. An existing development deployment continues to work until an
-operator enables authentication.</p>
+machine. An existing development deployment keeps working until an operator
+enables authentication.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-changes-when-you-enable-it">What changes when you enable it<a href="#what-changes-when-you-enable-it" class="hash-link" aria-label="Direct link to What changes when you enable it" title="Direct link to What changes when you enable it" translate="no">​</a></h2>
 <p>While authentication is enabled, CamusDB fails closed:</p>
 <ul>
 <li class="">The server refuses to start with an empty user catalog. It starts only when
 you supply bootstrap credentials for an administrator.</li>
-<li class="">A request must include a valid bearer token.</li>
-<li class="">CamusDB checks every statement against the privileges that its tables and its
+<li class="">Every request must include a valid bearer token.</li>
+<li class="">CamusDB checks every statement against the privileges its tables and
 databases require.</li>
 <li class="">CamusDB refuses a request that carries a credential over a plaintext
-connection. There are two exceptions: a request from loopback, and a
-deployment where you disabled the TLS requirement.</li>
+connection, except for requests from loopback and deployments where you
+disabled the TLS requirement.</li>
 </ul>
-<p>CamusDB stores a password only as a salted PBKDF2-HMAC-SHA256 verifier. An
-ordinary client request uses a short-lived opaque bearer token. It does not send
-the password again.</p>
+<p>CamusDB stores a password only as a salted PBKDF2-HMAC-SHA256 verifier.
+Ordinary client requests use a short-lived, opaque bearer token instead of
+sending the password again.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="enable-authentication">Enable authentication<a href="#enable-authentication" class="hash-link" aria-label="Direct link to Enable authentication" title="Direct link to Enable authentication" translate="no">​</a></h2>
 <p>Configure the authentication switch and the secrets through environment
-variables, or through a secret provider. Do not configure them in <code>config.yml</code>.
-Do not put a token key or a bootstrap password in YAML. The TLS topology setting
-is not a secret. <a href="#tls" class="">TLS</a> covers it.</p>
-<table><thead><tr><th>Environment variable</th><th>Required</th><th>Meaning</th></tr></thead><tbody><tr><td><code>CAMUSDB_AUTH_ENABLED</code></td><td>yes</td><td>Set it to <code>true</code> to enable authentication and authorization. Any other value keeps them disabled.</td></tr><tr><td><code>CAMUSDB_AUTH_TOKEN_KEY</code></td><td>yes, while auth is enabled</td><td>The server-side key that applies an HMAC to the access-token secrets at rest. It must be at least 32 bytes. Use a random value such as <code>openssl rand -hex 32</code>. Every node of the cluster must use the same value.</td></tr><tr><td><code>CAMUSDB_BOOTSTRAP_USER</code></td><td>at the first start with auth only</td><td>The name of the first superuser, used when the auth catalog is empty.</td></tr><tr><td><code>CAMUSDB_BOOTSTRAP_PASSWORD</code></td><td>at the first start with auth only</td><td>The initial password of the bootstrap superuser.</td></tr><tr><td><code>CAMUSDB_NODE_SECRET</code></td><td>in a cluster deployment with auth</td><td>The shared secret for the internal routes between nodes, used while auth is enabled. When set, it must be at least 32 bytes. Every node of the cluster must use the same value.</td></tr></tbody></table>
-<p>Here is an example:</p>
+variables or a secret provider, not in <code>config.yml</code>. Do not put a token key or
+a bootstrap password in YAML. The TLS topology setting is not a secret, and
+<a href="#tls" class="">TLS</a> covers it.</p>
+<table><thead><tr><th>Environment variable</th><th>Required</th><th>Meaning</th></tr></thead><tbody><tr><td><code>CAMUSDB_AUTH_ENABLED</code></td><td>yes</td><td>Set it to <code>true</code> to enable authentication and authorization. Any other value keeps them disabled.</td></tr><tr><td><code>CAMUSDB_AUTH_TOKEN_KEY</code></td><td>yes, while auth is enabled</td><td>The server-side key that applies an HMAC to access-token secrets at rest. It must be at least 32 bytes. Use a random value such as <code>openssl rand -hex 32</code>. Every node in the cluster must use the same value.</td></tr><tr><td><code>CAMUSDB_BOOTSTRAP_USER</code></td><td>at the first start with auth only</td><td>The name of the first superuser, used when the auth catalog is empty.</td></tr><tr><td><code>CAMUSDB_BOOTSTRAP_PASSWORD</code></td><td>at the first start with auth only</td><td>The bootstrap superuser&#x27;s initial password.</td></tr><tr><td><code>CAMUSDB_NODE_SECRET</code></td><td>in a cluster deployment with auth</td><td>The shared secret for internal routes between nodes, used while auth is enabled. When set, it must be at least 32 bytes. Every node in the cluster must use the same value.</td></tr></tbody></table>
+<p>For example:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">export CAMUSDB_AUTH_ENABLED=true</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">export CAMUSDB_AUTH_TOKEN_KEY=&quot;$(openssl rand -hex 32)&quot;</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">export CAMUSDB_BOOTSTRAP_USER=admin</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">export CAMUSDB_BOOTSTRAP_PASSWORD=&quot;$(openssl rand -base64 24)&quot;</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">export CAMUSDB_NODE_SECRET=&quot;$(openssl rand -hex 32)&quot;</span><br></div></code></pre></div></div>
-<p>At startup, three rules apply:</p>
+<p>At startup, these rules apply:</p>
 <ol>
-<li class="">CamusDB creates one bootstrap superuser from the supplied values, if the auth
-catalog is empty.</li>
+<li class="">If the auth catalog is empty, CamusDB creates one bootstrap superuser from
+the supplied values.</li>
 <li class="">Startup fails if the auth catalog is empty and the bootstrap values are
 absent.</li>
 <li class="">CamusDB ignores the bootstrap values as soon as one user exists.</li>
 </ol>
 <p>Startup also fails when <code>CAMUSDB_AUTH_TOKEN_KEY</code>, or a configured
-<code>CAMUSDB_NODE_SECRET</code>, is shorter than 32 bytes. An unset node secret remains a
-valid single-node configuration; it leaves peer routes refused instead of
-guarded by a weak shared secret.</p>
-<p>There is no default user, and there is no default password.</p>
+<code>CAMUSDB_NODE_SECRET</code>, is shorter than 32 bytes. An unset node secret is still
+a valid single-node configuration: peer routes are refused instead of guarded
+by a weak shared secret.</p>
+<p>There is no default user and no default password.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="login-and-logout">Login and logout<a href="#login-and-logout" class="hash-link" aria-label="Direct link to Login and logout" title="Direct link to Login and logout" translate="no">​</a></h2>
-<p>Use <code>/login</code> to exchange a user name and a password for a bearer token:</p>
+<p>Use <code>/login</code> to exchange a user name and password for a bearer token:</p>
 <div class="language-http codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-http codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">POST /login</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">Content-Type: application/json</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">{ &quot;user&quot;: &quot;admin&quot;, &quot;password&quot;: &quot;secret&quot; }</span><br></div></code></pre></div></div>
 <p>A successful response looks like this:</p>
 <div class="language-json codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-json codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token punctuation" style="color:#94a3b8">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token property" style="color:#7dd3fc">&quot;status&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;ok&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token property" style="color:#7dd3fc">&quot;token&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;camus_&lt;id&gt;.&lt;secret&gt;&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token property" style="color:#7dd3fc">&quot;expiresAtUnixMs&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">1785270000000</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token property" style="color:#7dd3fc">&quot;expiresInSeconds&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">900</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token punctuation" style="color:#94a3b8">}</span><br></div></code></pre></div></div>
@@ -86,61 +86,60 @@ guarded by a weak shared secret.</p>
 <div class="language-http codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-http codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">POST /execute-sql-query</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">Authorization: Bearer camus_&lt;id&gt;.&lt;secret&gt;</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">Content-Type: application/json</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">{</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  &quot;databaseName&quot;: &quot;app&quot;,</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  &quot;sql&quot;: &quot;SELECT * FROM orders&quot;</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">}</span><br></div></code></pre></div></div>
 <p>Use <code>/logout</code> with the same <code>Authorization</code> header to revoke the current token:</p>
 <div class="language-http codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-http codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">POST /logout</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">Authorization: Bearer camus_&lt;id&gt;.&lt;secret&gt;</span><br></div></code></pre></div></div>
-<p>A token has an absolute lifetime of 15 minutes by default. There is no refresh
-token. A client logs in again after a token expires.</p>
+<p>By default, a token has an absolute lifetime of 15 minutes. There is no refresh
+token, so a client logs in again after its token expires.</p>
 <!-- -->
-<p>The login response reports the deadline of the token in two forms:</p>
+<p>The login response reports the token&#x27;s deadline in two forms:</p>
 <ul>
 <li class=""><code>expiresAtUnixMs</code> is the absolute UTC Unix epoch millisecond at which CamusDB
-stops acceptance of the token.</li>
-<li class=""><code>expiresInSeconds</code> is the same deadline, as a duration that the server
-measured.</li>
+stops accepting the token.</li>
+<li class=""><code>expiresInSeconds</code> is the same deadline, as a duration measured by the
+server.</li>
 </ul>
-<p>Renew from those two fields. Do not assume a fixed lifetime. An operator can
-change <code>access_token_ttl</code> (milliseconds, default <code>900000</code>). A client must renew
-before the reported deadline.</p>
-<p>Three events invalidate an outstanding token: a change of the password, a <code>DROP USER</code>, and a call to <code>/logout</code>.</p>
+<p>Renew based on those fields rather than assuming a fixed lifetime, because an
+operator can change <code>access_token_ttl</code> (milliseconds, default <code>900000</code>). A
+client must renew before the reported deadline.</p>
+<p>A password change, a <code>DROP USER</code>, or a call to <code>/logout</code> invalidates an
+outstanding token.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="grpc-tokens">gRPC tokens<a href="#grpc-tokens" class="hash-link" aria-label="Direct link to gRPC tokens" title="Direct link to gRPC tokens" translate="no">​</a></h2>
-<p>A gRPC client uses the same bearer token, in the request metadata:</p>
+<p>A gRPC client sends the same bearer token in the request metadata:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">authorization: Bearer camus_&lt;id&gt;.&lt;secret&gt;</span><br></div></code></pre></div></div>
-<p>Use the <code>CamusAuth</code> gRPC service to obtain a token and to revoke one:</p>
+<p>Use the <code>CamusAuth</code> gRPC service to obtain and revoke tokens:</p>
 <table><thead><tr><th>RPC</th><th>Purpose</th></tr></thead><tbody><tr><td><code>Login(LoginRequest)</code></td><td>Exchanges <code>user</code> and <code>password</code> for <code>token</code>, <code>expires_at_unix_ms</code>, and <code>expires_in_seconds</code>.</td></tr><tr><td><code>Logout(LogoutRequest)</code></td><td>Revokes the token in the <code>authorization</code> metadata. A second logout has no further effect.</td></tr></tbody></table>
-<p>A gRPC-only deployment therefore does not need the HTTP API. Its clients do not
-need a call to <code>/login</code>.</p>
-<p>An authentication error and an authorization error map to an ordinary gRPC
-status code:</p>
+<p>So a gRPC-only deployment does not need the HTTP API, and its clients never
+need to call <code>/login</code>.</p>
+<p>Authentication and authorization errors map to ordinary gRPC status codes:</p>
 <table><thead><tr><th>Condition</th><th>gRPC status</th></tr></thead><tbody><tr><td>A token is absent, invalid, or expired</td><td><code>UNAUTHENTICATED</code></td></tr><tr><td>An authenticated caller lacks a privilege</td><td><code>PERMISSION_DENIED</code></td></tr><tr><td>The login rate limit or the KDF limit is reached</td><td><code>RESOURCE_EXHAUSTED</code></td></tr></tbody></table>
 <p>See <a class="" href="/docs/grpc-api/">gRPC API</a> for the service reference.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="tls">TLS<a href="#tls" class="hash-link" aria-label="Direct link to TLS" title="Direct link to TLS" translate="no">​</a></h2>
 <p>While auth is enabled, CamusDB by default refuses a request that carries a
-credential over a plaintext connection. A request from loopback is exempt.
-Development on one host therefore works without a certificate.</p>
+credential over a plaintext connection. Requests from loopback are exempt, so
+development on one host works without a certificate.</p>
 <p>Use HTTPS in production, or terminate TLS in front of the HTTP API. Deploy gRPC
 over TLS as well.</p>
-<p>TLS can terminate in front of the node, at an ingress, at a sidecar, or in a
-service mesh. The CamusDB process then sees only the trusted plaintext hop. In
-that topology, disable the transport check. Keep authentication and the grants
+<p>TLS can terminate in front of the node: at an ingress, a sidecar, or a service
+mesh. The CamusDB process then sees only the trusted plaintext hop. In that
+topology, disable the transport check, but keep authentication and grants
 enabled:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">require_tls_when_auth_enabled</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">false</span><br></div></code></pre></div></div>
 <p>You can also use the command-line flag:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">camusdb --require-tls-when-auth-enabled false</span><br></div></code></pre></div></div>
-<p>This setting is not a secret. It therefore belongs in the ordinary
-configuration. Do not turn it off for a node that a client can reach directly.</p>
+<p>This setting is not a secret, so it belongs in the ordinary configuration. Do
+not turn it off for a node that clients can reach directly.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="manage-users">Manage users<a href="#manage-users" class="hash-link" aria-label="Direct link to Manage users" title="Direct link to Manage users" translate="no">​</a></h2>
-<p>The statements for user management are server-level statements. They need no
-database context. They need the superuser attribute.</p>
+<p>User management statements are server-level statements. They need no database
+context, but they require the superuser attribute.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">USER</span><span class="token plain"> myapp </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">IDENTIFIED</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WITH</span><span class="token plain"> sha256_password </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;app-password&#x27;</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">USER</span><span class="token plain"> myapp </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">IDENTIFIED</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;app-password&#x27;</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">USER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">IF</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">NOT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">EXISTS</span><span class="token plain"> myapp </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">IDENTIFIED</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;app-password&#x27;</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">USER</span><span class="token plain"> grant_target</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ALTER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">USER</span><span class="token plain"> admin </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">IDENTIFIED</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;new-password&#x27;</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">REPLACE</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;current-password&#x27;</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ALTER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">USER</span><span class="token plain"> admin </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">IDENTIFIED</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WITH</span><span class="token plain"> sha256_password </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;new-password&#x27;</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">REPLACE</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;current-password&#x27;</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ALTER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">USER</span><span class="token plain"> myapp </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">IDENTIFIED</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;new-password&#x27;</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">DROP</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">USER</span><span class="token plain"> myapp</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">DROP</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">USER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">IF</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">EXISTS</span><span class="token plain"> myapp</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p>CamusDB supports <code>sha256_password</code> only. It uses that plugin by default when you
-omit <code>IDENTIFIED WITH</code>.</p>
-<p><code>CREATE USER grant_target</code> creates a target for a grant, without a password.
-That user cannot log in. Set a password with <code>ALTER USER</code> first.</p>
-<p>Use a bound parameter for a password:</p>
+<p>CamusDB supports only <code>sha256_password</code>, and uses it by default when you omit
+<code>IDENTIFIED WITH</code>.</p>
+<p><code>CREATE USER grant_target</code> creates a grant target without a password. That
+user cannot log in until you set a password with <code>ALTER USER</code>.</p>
+<p>Use a bound parameter for passwords:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">USER</span><span class="token plain"> myapp </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">IDENTIFIED</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> </span><span class="token variable" style="color:#60a5fa">@password</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ALTER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">USER</span><span class="token plain"> admin </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">IDENTIFIED</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> </span><span class="token variable" style="color:#60a5fa">@new_password</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">REPLACE</span><span class="token plain"> </span><span class="token variable" style="color:#60a5fa">@current_password</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p>A parameter keeps a cleartext secret out of the shell history, out of the
-traces, and out of the query logs. A password has a maximum length of 1 KiB.
-Both password literals in an <code>ALTER USER ... REPLACE ...</code> statement are
-redacted from server logs.</p>
-<p>When a user changes their own password, the statement must include <code>REPLACE</code>
+<p>A parameter keeps the cleartext secret out of shell history, traces, and query
+logs. A password can be at most 1 KiB long. Both password literals in an
+<code>ALTER USER ... REPLACE ...</code> statement are redacted from server logs.</p>
+<p>When users change their own password, the statement must include <code>REPLACE</code>
 with the current password. That rule applies to a superuser changing their own
 password too. A superuser can reset another user&#x27;s password without knowing the
 old password. Any password change invalidates that user&#x27;s existing tokens,
@@ -154,74 +153,73 @@ including the token that made the request.</p>
 algorithm. <code>SHOW USERS</code> requires a superuser because it names every account on
 the server.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="grant-privileges">Grant privileges<a href="#grant-privileges" class="hash-link" aria-label="Direct link to Grant privileges" title="Direct link to Grant privileges" translate="no">​</a></h2>
-<p>Use <code>GRANT</code> and <code>REVOKE</code> to manage the privileges on an object:</p>
+<p>Use <code>GRANT</code> and <code>REVOKE</code> to manage privileges on objects:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">GRANT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">INSERT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ON</span><span class="token plain"> app</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token operator" style="color:#94a3b8">*</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TO</span><span class="token plain"> myapp</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">GRANT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ON</span><span class="token plain"> app</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">orders </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TO</span><span class="token plain"> reader</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">GRANT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ALTER</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">INDEX</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ON</span><span class="token plain"> app</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">orders </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TO</span><span class="token plain"> migrator</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">GRANT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ALL</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">PRIVILEGES</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ON</span><span class="token plain"> app</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token operator" style="color:#94a3b8">*</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TO</span><span class="token plain"> poweruser</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">GRANT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">MONITOR</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ON</span><span class="token plain"> </span><span class="token operator" style="color:#94a3b8">*</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token operator" style="color:#94a3b8">*</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TO</span><span class="token plain"> monitoring</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">REVOKE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">INSERT</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ON</span><span class="token plain"> app</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token operator" style="color:#94a3b8">*</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> myapp</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">GRANTS</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FOR</span><span class="token plain"> myapp</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">GRANTS</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FOR</span><span class="token plain"> </span><span class="token operator" style="color:#94a3b8">*</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">GRANTS</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p><code>SHOW GRANTS FOR &lt;user&gt;</code> returns the grants of the named user. <code>SHOW GRANTS</code>
-without <code>FOR</code> returns the grants of the authenticated user.</p>
+<p><code>SHOW GRANTS FOR &lt;user&gt;</code> returns the named user&#x27;s grants. <code>SHOW GRANTS</code> without
+<code>FOR</code> returns the authenticated user&#x27;s grants.</p>
 <p><code>SHOW GRANTS FOR *</code> returns all grants for all accounts, ordered by account name
-and object. An account with no grants produces no row; use <code>SHOW USERS</code> to list
-accounts themselves. The statement requires a superuser.</p>
+and object. An account with no grants produces no row, so use <code>SHOW USERS</code> to
+list the accounts themselves. The statement requires a superuser.</p>
 <p>With authentication enabled, reading another user&#x27;s grants requires a
 superuser. A non-superuser can always inspect their own grants. A refused
 <code>SHOW GRANTS FOR &lt;other&gt;</code> does not reveal whether that user exists.</p>
 <p>CamusDB supports these privileges:</p>
-<table><thead><tr><th>Privilege</th><th>Allows</th></tr></thead><tbody><tr><td><code>SELECT</code></td><td>Read the data of a table. Inspect the metadata of a table, with <code>SHOW COLUMNS</code> and <code>SHOW CREATE TABLE</code>.</td></tr><tr><td><code>INSERT</code></td><td>Insert a row.</td></tr><tr><td><code>UPDATE</code></td><td>Update a row.</td></tr><tr><td><code>DELETE</code></td><td>Delete a row.</td></tr><tr><td><code>CREATE TABLE</code></td><td>Create a table in the target database scope.</td></tr><tr><td><code>DROP</code></td><td>Drop a database or a table in the scope.</td></tr><tr><td><code>ALTER</code></td><td>Alter the metadata of a table or of a database in the scope.</td></tr><tr><td><code>INDEX</code></td><td>Create, alter, or drop an index in the scope.</td></tr><tr><td><code>CREATE</code></td><td>Create a database, or another object with a create scope where that applies.</td></tr><tr><td><code>MONITOR</code></td><td>Read node resource statistics. It is valid on <code>*.*</code> only and grants no access to application data.</td></tr><tr><td><code>ALL PRIVILEGES</code></td><td>The union of the concrete privileges that CamusDB knows today.</td></tr></tbody></table>
+<table><thead><tr><th>Privilege</th><th>Allows</th></tr></thead><tbody><tr><td><code>SELECT</code></td><td>Read a table&#x27;s data, and inspect its metadata with <code>SHOW COLUMNS</code> and <code>SHOW CREATE TABLE</code>.</td></tr><tr><td><code>INSERT</code></td><td>Insert a row.</td></tr><tr><td><code>UPDATE</code></td><td>Update a row.</td></tr><tr><td><code>DELETE</code></td><td>Delete a row.</td></tr><tr><td><code>CREATE TABLE</code></td><td>Create a table in the target database scope.</td></tr><tr><td><code>DROP</code></td><td>Drop a database or a table in the scope.</td></tr><tr><td><code>ALTER</code></td><td>Alter table or database metadata in the scope.</td></tr><tr><td><code>INDEX</code></td><td>Create, alter, or drop an index in the scope.</td></tr><tr><td><code>CREATE</code></td><td>Create a database, or another object with a create scope where that applies.</td></tr><tr><td><code>MONITOR</code></td><td>Read node resource statistics. It is valid on <code>*.*</code> only and grants no access to application data.</td></tr><tr><td><code>ALL PRIVILEGES</code></td><td>The union of the concrete privileges that CamusDB knows today.</td></tr></tbody></table>
 <p>Creating a foreign key also requires <code>SELECT</code> on the referenced parent table.
 A child write can reveal whether a parent key exists, so CamusDB checks that
 privilege when the constraint is created. There is no separate <code>REFERENCES</code>
 privilege.</p>
-<p>A grant has one of three scopes. The list starts with the broadest scope:</p>
+<p>A grant has one of three scopes, from broadest to narrowest:</p>
 <table><thead><tr><th>Scope</th><th>Example</th><th>Meaning</th></tr></thead><tbody><tr><td>Global</td><td><code>*.*</code></td><td>Every database and every table.</td></tr><tr><td>Database</td><td><code>app.*</code></td><td>Every table in one database.</td></tr><tr><td>Table</td><td><code>app.orders</code></td><td>One table.</td></tr></tbody></table>
-<p>Grants add together, and a repeated grant is harmless. A grant of a privilege
+<p>Grants add together, and repeating a grant is harmless: granting a privilege
 that the user already holds does nothing. <code>REVOKE</code> subtracts a privilege from
 the matching scope.</p>
-<p>A grant binds to the immutable identity of a database or of a table. A rename
-therefore keeps the grant. A table that you drop and create again does not
-inherit the grants of the old table.</p>
-<p><code>GRANT</code> never creates a user. It also cannot make a user a superuser. Only the
+<p>A grant binds to the immutable identity of a database or table, so a rename
+keeps the grant. A table that you drop and create again does not inherit the
+old table&#x27;s grants.</p>
+<p><code>GRANT</code> never creates a user, and it cannot make a user a superuser. Only the
 bootstrap sets the superuser attribute.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="apply-authorization-changes">Apply authorization changes<a href="#apply-authorization-changes" class="hash-link" aria-label="Direct link to Apply authorization changes" title="Direct link to Apply authorization changes" translate="no">​</a></h2>
 <p>Most privilege changes need no manual flush:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">FLUSH</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">PRIVILEGES</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FLUSH</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SESSIONS</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
 <p>Both statements require a superuser and return no rows.</p>
-<p>Each node caches authorization decisions for at most the authorization cache TTL,
-which is 1 second by default. A <code>GRANT</code>, <code>REVOKE</code>, <code>DROP USER</code>, or password
-change applies to the next request on the node where it was made. Other nodes
-observe the change when their cached decision expires and they read the catalog
-again. Setting the TTL to <code>0</code> makes cross-node changes immediate at the cost of a
-catalog lookup on every request. Long-lived gRPC batch streams re-resolve
-authorization on the same schedule.</p>
+<p>Each node caches authorization decisions for at most the authorization cache
+TTL, which is 1 second by default. A <code>GRANT</code>, <code>REVOKE</code>, <code>DROP USER</code>, or
+password change applies to the next request on the node where it was made.
+Other nodes observe the change when their cached decision expires and they read
+the catalog again. Setting the TTL to <code>0</code> makes cross-node changes immediate,
+at the cost of a catalog lookup on every request. Long-lived gRPC batch streams
+re-resolve authorization on the same schedule.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="grpc-batch-streams-and-token-expiry">gRPC batch streams and token expiry<a href="#grpc-batch-streams-and-token-expiry" class="hash-link" aria-label="Direct link to gRPC batch streams and token expiry" title="Direct link to gRPC batch streams and token expiry" translate="no">​</a></h3>
 <p>A <code>BatchExecute</code> stream presents its bearer token once, when the stream opens.
 The token lifetime controls how long that token can be presented to open a new
 stream or make a unary call. It does not by itself end an already-open batch
 stream that authenticated while the token was valid.</p>
-<p>After ordinary token expiry, the stream continues to resolve authorization from
-the account it authenticated as, using the same authorization cache TTL described
+<p>After ordinary token expiry, the stream keeps resolving authorization from the
+account it authenticated as, using the same authorization cache TTL described
 above. Grant and revoke changes still reach the next operation within that
 bound.</p>
 <p>Early session revocation still ends the stream. <code>/logout</code>, <code>FLUSH SESSIONS</code>, a
 password change, and <code>DROP USER</code> all invalidate the session. A stream that ends
-this way returns <code>UNAUTHENTICATED</code> with <code>CADB0516</code>; the client should discard
+this way returns <code>UNAUTHENTICATED</code> with <code>CADB0516</code>. The client should discard
 the token, log in again, and open a new stream.</p>
-<p>The server keeps expired session records briefly so an open stream can
-distinguish ordinary expiry from revocation. A new stream still needs a token
-that resolves, so clients should renew before <code>expiresAtUnixMs</code>.</p>
+<p>The server keeps expired session records briefly so an open stream can tell
+ordinary expiry apart from revocation. A new stream still needs a token that
+resolves, so clients should renew before <code>expiresAtUnixMs</code>.</p>
 <p><code>FLUSH PRIVILEGES</code> makes this node drop cached authorization decisions and
 re-read the user and grant catalog. It also bumps a cluster-wide version
 counter for the authorization cache, so other nodes discard decisions derived
-from the older catalog within the same TTL bound. It does not revoke sessions or force clients to log in
-again.</p>
-<p><code>FLUSH SESSIONS</code> deletes all stored sessions. Every client on every node must log
-in again. Use it when you need to invalidate credentials held outside the server,
-not after ordinary grant changes.</p>
+from the older catalog within the same TTL bound. It does not revoke sessions
+or force clients to log in again.</p>
+<p><code>FLUSH SESSIONS</code> deletes all stored sessions, so every client on every node
+must log in again. Use it when you need to invalidate credentials held outside
+the server, not after ordinary grant changes.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="enforcement-rules">Enforcement rules<a href="#enforcement-rules" class="hash-link" aria-label="Direct link to Enforcement rules" title="Direct link to Enforcement rules" translate="no">​</a></h2>
-<p>While auth is enabled, CamusDB checks every statement before it runs the
-statement.</p>
-<p>A read of a table needs <code>SELECT</code> on every table that the statement references.
-That rule covers a join, a derived table, a subquery, a semi-join (a filter that
-keeps a row when a match exists in another table), <code>EXISTS</code>, <code>IN</code>, and
-<code>EXPLAIN</code> for a query that reads a table.</p>
+<p>While auth is enabled, CamusDB checks every statement before running it.</p>
+<p>Reading a table needs <code>SELECT</code> on every table that the statement references.
+That covers joins, derived tables, subqueries, semi-joins (filters that keep a
+row when a match exists in another table), <code>EXISTS</code>, <code>IN</code>, and <code>EXPLAIN</code> for a
+query that reads a table.</p>
 <p>A write needs the matching write privilege:</p>
 <ul>
 <li class=""><code>INSERT</code> for an insert.</li>
@@ -234,68 +232,70 @@ keeps a row when a match exists in another table), <code>EXISTS</code>, <code>IN
 TypeScript connector) does not remove that privilege check. The .NET driver&#x27;s
 <code>ExecuteNonQueryAsync()</code> sets that flag.</p>
 <p><a class="" href="/docs/truncate-table/"><code>TRUNCATE</code></a> needs both <code>DELETE</code> and <code>DROP</code> on the target
-table. It removes every row, which is an effect of a <code>DELETE</code>. It also retires
-the table&#x27;s whole <a class="" href="/docs/concepts/#key-space">key space</a> (the stored keys that
-hold its rows and indexes), which is an effect of a <code>DROP</code>.</p>
-<p>CamusDB checks the two privileges one at a time. They can therefore come from
-two separate grants.</p>
+table. It removes every row, as a <code>DELETE</code> does, and it retires the table&#x27;s
+whole <a class="" href="/docs/concepts/#key-space">key space</a> (the stored keys that hold its rows
+and indexes), as a <code>DROP</code> does.</p>
+<p>CamusDB checks the two privileges separately, so they can come from two
+separate grants.</p>
 <p>DDL needs the relevant DDL privilege, or superuser status. Two areas need a
-superuser: the administration of users and grants, and the DDL for the lifetime
-of a database. The HTTP routes <code>/create-db</code>, <code>/drop-db</code>, and <code>/close-db</code> also
-require a superuser.</p>
+superuser: user and grant administration, and database lifecycle DDL. The HTTP
+routes <code>/create-db</code>, <code>/drop-db</code>, and <code>/close-db</code> also require a superuser.</p>
 <p>The typed gRPC rows API checks the table named by the request. <code>InsertRow</code> needs
 <code>INSERT</code>, <code>Query</code> and <code>QueryById</code> need <code>SELECT</code>, <code>UpdateRows</code> and <code>UpdateById</code>
 need <code>UPDATE</code>, and <code>DeleteRows</code> and <code>DeleteById</code> need <code>DELETE</code>.</p>
 <p>Cluster routes that expose topology or change cluster state require a superuser.
 <code>/v1/cluster/health</code> answers without a credential so an orchestrator can probe
-the node, but only a superuser sees detailed fields: the node&#x27;s role, the
+the node, but only a superuser sees the detailed fields: the node&#x27;s role, the
 <a class="" href="/docs/concepts/#partition">partitions</a> it hosts, and the partitions whose
 replication has stalled. Membership, placement, backfill, snapshot, leave, and
 <a class="" href="/docs/concepts/#replica-and-replication-factor">replication-factor</a>
-routes are superuser-only; leave and replication-factor routes are loopback-only
-when authentication is off.</p>
+routes are superuser-only. Leave and replication-factor routes are
+loopback-only when authentication is off.</p>
 <p>Database names are hidden from users who hold no grant that reaches into that
-database. A statement that runs in such a database fails as <code>CADB0010</code>
+database. A statement that runs in such a database fails with <code>CADB0010</code>
 <code>DatabaseDoesntExist</code>, the same error returned for an unknown name. This applies
 to SQL over HTTP and gRPC, the typed rows API, and batch streams. A global grant,
 a <code>db.*</code> grant, or any grant on one table in the database is enough to make the
 database visible, but the statement still needs its normal table privilege.</p>
-<p>Catalog statements are filtered by the same visibility rule. <code>SHOW DATABASES</code>
-lists only databases the caller can reach. <code>SHOW TABLES</code> and <code>SHOW TABLES FROM db</code> list only tables on which the caller has any privilege. An invisible target
-of <code>SHOW TABLES FROM db</code> is reported as <code>DatabaseDoesntExist</code>. <code>SHOW BRANCHES</code>, <code>SHOW ANCESTORS</code>, and
-<code>SHOW ORPHAN DATABASES</code> omit databases the caller cannot see.</p>
-<p>Some statements open no table. An authenticated user may run them when the
-current database is visible to that user. Examples are <code>SHOW TABLES</code> and a
-<code>SELECT</code> without a <code>FROM</code> clause.</p>
+<p>Catalog statements follow the same visibility rule. <code>SHOW DATABASES</code> lists only
+databases the caller can reach. <code>SHOW TABLES</code> and <code>SHOW TABLES FROM db</code> list
+only tables on which the caller has any privilege. An invisible target of
+<code>SHOW TABLES FROM db</code> is reported as <code>DatabaseDoesntExist</code>. <code>SHOW BRANCHES</code>,
+<code>SHOW ANCESTORS</code>, and <code>SHOW ORPHAN DATABASES</code> omit databases the caller cannot
+see.</p>
+<p>Some statements open no table, such as <code>SHOW TABLES</code> and a <code>SELECT</code> without a
+<code>FROM</code> clause. An authenticated user may run them when the current database is
+visible to that user.</p>
 <p>Database-level inspection, such as <code>SHOW DATABASE</code> and <code>SHOW ORPHAN TABLES</code>,
 needs <code>SELECT</code> at database scope: a <code>db.*</code> or <code>*.*</code> grant, or superuser status.
 A grant on one table makes the database visible, but it does not authorize these
 database-level reads.</p>
-<p>Inspection of one table needs <code>SELECT</code> on that table. Examples are <code>SHOW COLUMNS</code>, <code>SHOW CREATE TABLE</code>, and <a class="" href="/docs/show-statistics/"><code>SHOW STATISTICS</code></a>.
-<code>SHOW STATISTICS</code> reports bounds taken from real column values. CamusDB
-therefore holds it to the same requirement as a read of those columns, and to
-nothing higher.</p>
-<p><code>SHOW ENGINE STATS</code> inspects the operation of one node. It needs a superuser. It
-is not scoped to a grant on a database or on a table.</p>
+<p>Inspecting a single table needs <code>SELECT</code> on that table, for example
+<code>SHOW COLUMNS</code>, <code>SHOW CREATE TABLE</code>, and
+<a class="" href="/docs/show-statistics/"><code>SHOW STATISTICS</code></a>. <code>SHOW STATISTICS</code> reports bounds
+taken from real column values, so CamusDB holds it to the same requirement as
+reading those columns, and nothing higher.</p>
+<p><code>SHOW ENGINE STATS</code> inspects how one node operates. It needs a superuser and is
+not scoped to a database or table grant.</p>
 <p>The REST and gRPC <a class="" href="/docs/node-stats/">node resource stats</a> calls accept either a
 superuser or an account with <code>MONITOR</code>. <code>MONITOR</code> is outside <code>ALL PRIVILEGES</code>
 and is intentionally narrower than superuser access.</p>
-<p>The configuration surface has the same requirement. <code>SHOW VARIABLES</code>, <code>SHOW CLUSTER SETTINGS</code>, and
+<p>The configuration surface has the same requirement. <code>SHOW VARIABLES</code>,
+<code>SHOW CLUSTER SETTINGS</code>, and
 <a class="" href="/docs/runtime-cluster-settings/"><code>SET</code> and <code>RESET CLUSTER SETTING</code></a> all need a
-superuser. The last two also change the behavior of every node. Several of the
-settings that they reach bound memory, concurrency, and background work.</p>
-<p>One behavior is conservative today. An <code>UPDATE</code> or a <code>DELETE</code> with a subquery
-that reads another table needs the write privilege on that second table. Only
-<code>SELECT</code> would be sufficient. The rule is too restrictive. It is not too
+superuser. The last two also change the behavior of every node, and several of
+the settings they reach bound memory, concurrency, and background work.</p>
+<p>One behavior is conservative today. An <code>UPDATE</code> or <code>DELETE</code> with a subquery
+that reads another table needs the write privilege on that second table, even
+though <code>SELECT</code> would be enough. The rule is too restrictive, not too
 permissive.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="runtime-defaults">Runtime defaults<a href="#runtime-defaults" class="hash-link" aria-label="Direct link to Runtime defaults" title="Direct link to Runtime defaults" translate="no">​</a></h2>
-<p>These defaults are security settings at process level:</p>
-<table><thead><tr><th>Setting</th><th>Key</th><th>Default</th><th>Meaning</th></tr></thead><tbody><tr><td>Access token lifetime</td><td><code>access_token_ttl</code></td><td>900000 ms (15 minutes)</td><td>The absolute lifetime of a bearer token.</td></tr><tr><td>Authorization cache TTL</td><td><code>authentication_cache_ttl</code></td><td>1000 ms (1 second)</td><td>The maximum staleness of a cached token or privilege decision on another node. A change made on this node applies to the next request. <code>0</code> forces a catalog lookup on every request.</td></tr><tr><td>Expired session retention</td><td><code>expired_session_retention_ms</code></td><td>300000 ms (5 minutes)</td><td>How long an expired session record is kept so a live gRPC batch stream can distinguish ordinary token expiry from revocation.</td></tr><tr><td>Password hash iterations</td><td><code>password_hash_iterations</code></td><td>600,000</td><td>The PBKDF2-HMAC-SHA256 work factor, stored with each credential.</td></tr><tr><td>Login KDF concurrency</td><td><code>login_kdf_max_concurrency</code></td><td>8</td><td>The maximum number of concurrent password verifications on one node.</td></tr><tr><td>Login attempts per minute</td><td><code>login_max_attempts_per_minute</code></td><td>20</td><td>The login rate limit for one account from one source address.</td></tr><tr><td>Login attempts per source per minute</td><td><code>login_max_attempts_per_source_per_minute</code></td><td>200</td><td>The login rate limit across all accounts from one source address.</td></tr><tr><td>Login rate limiter entries</td><td><code>login_rate_limit_max_entries</code></td><td>100,000</td><td>The maximum number of keys that each login rate-limit counter tracks.</td></tr><tr><td>Session reaper interval</td><td><code>session_reaper_interval_ms</code></td><td>300000 ms (5 minutes)</td><td>How often expired dashboard and bearer-token sessions are deleted. <code>0</code> or less turns the sweep off.</td></tr><tr><td>Principal cache max entries</td><td><code>authentication_cache_max_entries</code></td><td>10,000</td><td>The bound of the cache of authenticated principals, on one node.</td></tr><tr><td>TLS requirement</td><td><code>require_tls_when_auth_enabled</code></td><td><code>true</code></td><td>Refuse a plaintext request that carries a credential, except from loopback. The command-line form is <code>--require-tls-when-auth-enabled true|false</code>.</td></tr></tbody></table>
+<p>These defaults are process-level security settings:</p>
+<table><thead><tr><th>Setting</th><th>Key</th><th>Default</th><th>Meaning</th></tr></thead><tbody><tr><td>Access token lifetime</td><td><code>access_token_ttl</code></td><td>900000 ms (15 minutes)</td><td>The absolute lifetime of a bearer token.</td></tr><tr><td>Authorization cache TTL</td><td><code>authentication_cache_ttl</code></td><td>1000 ms (1 second)</td><td>The maximum staleness of a cached token or privilege decision on another node. A change made on this node applies to the next request. <code>0</code> forces a catalog lookup on every request.</td></tr><tr><td>Expired session retention</td><td><code>expired_session_retention_ms</code></td><td>300000 ms (5 minutes)</td><td>How long an expired session record is kept so a live gRPC batch stream can tell ordinary token expiry apart from revocation.</td></tr><tr><td>Password hash iterations</td><td><code>password_hash_iterations</code></td><td>600,000</td><td>The PBKDF2-HMAC-SHA256 work factor, stored with each credential.</td></tr><tr><td>Login KDF concurrency</td><td><code>login_kdf_max_concurrency</code></td><td>8</td><td>The maximum number of concurrent password verifications on one node.</td></tr><tr><td>Login attempts per minute</td><td><code>login_max_attempts_per_minute</code></td><td>20</td><td>The login rate limit for one account from one source address.</td></tr><tr><td>Login attempts per source per minute</td><td><code>login_max_attempts_per_source_per_minute</code></td><td>200</td><td>The login rate limit across all accounts from one source address.</td></tr><tr><td>Login rate limiter entries</td><td><code>login_rate_limit_max_entries</code></td><td>100,000</td><td>The maximum number of keys that each login rate-limit counter tracks.</td></tr><tr><td>Session reaper interval</td><td><code>session_reaper_interval_ms</code></td><td>300000 ms (5 minutes)</td><td>How often expired dashboard and bearer-token sessions are deleted. <code>0</code> or less turns the sweep off.</td></tr><tr><td>Principal cache max entries</td><td><code>authentication_cache_max_entries</code></td><td>10,000</td><td>The maximum size of the authenticated principal cache on one node.</td></tr><tr><td>TLS requirement</td><td><code>require_tls_when_auth_enabled</code></td><td><code>true</code></td><td>Refuse a plaintext request that carries a credential, except from loopback. The command-line form is <code>--require-tls-when-auth-enabled true|false</code>.</td></tr></tbody></table>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="errors">Errors<a href="#errors" class="hash-link" aria-label="Direct link to Errors" title="Direct link to Errors" translate="no">​</a></h2>
-<p>An authentication error does not reveal which part was wrong. It does not tell
-the caller whether the user, the password, or the token was wrong. That behavior
-is intentional.</p>
-<table><thead><tr><th>Code</th><th>Meaning</th></tr></thead><tbody><tr><td><code>CADB0512 UserAlreadyExists</code></td><td><code>CREATE USER</code> targets an existing user, and the statement has no <code>IF NOT EXISTS</code>.</td></tr><tr><td><code>CADB0513 UserDoesNotExist</code></td><td><code>ALTER USER</code>, <code>DROP USER</code>, <code>GRANT</code>, or <code>REVOKE</code> targets an unknown user.</td></tr><tr><td><code>CADB0514 UnsupportedAuthPlugin</code></td><td><code>IDENTIFIED WITH</code> names an auth plugin that CamusDB does not support.</td></tr><tr><td><code>CADB0515 InvalidPrivilege</code></td><td><code>GRANT</code> or <code>REVOKE</code> uses an unknown or invalid privilege.</td></tr><tr><td><code>CADB0516 AuthenticationFailed</code></td><td>The credentials are absent, invalid, expired, or revoked. The user name or the password is also wrong in some cases.</td></tr><tr><td><code>CADB0517 InsufficientPrivilege</code></td><td>The authenticated caller lacks the privilege that the statement needs.</td></tr><tr><td><code>CADB0518 TooManyAuthAttempts</code></td><td>The caller passed the login rate limit, or the limit on concurrent password verifications.</td></tr><tr><td><code>CADB0519 InsecureTransport</code></td><td>A request with a credential arrived over plaintext while TLS is required.</td></tr></tbody></table>
-<p>See <a class="" href="/docs/error-codes/">Error Codes</a> for the map to HTTP status codes.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/sql-authentication.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/runtime-cluster-settings/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Runtime cluster settings</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/backup-and-restore/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Backup and restore</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#why-enable-authentication" class="table-of-contents__link toc-highlight">Why enable authentication</a></li><li><a href="#what-changes-when-you-enable-it" class="table-of-contents__link toc-highlight">What changes when you enable it</a></li><li><a href="#enable-authentication" class="table-of-contents__link toc-highlight">Enable authentication</a></li><li><a href="#login-and-logout" class="table-of-contents__link toc-highlight">Login and logout</a></li><li><a href="#grpc-tokens" class="table-of-contents__link toc-highlight">gRPC tokens</a></li><li><a href="#tls" class="table-of-contents__link toc-highlight">TLS</a></li><li><a href="#manage-users" class="table-of-contents__link toc-highlight">Manage users</a><ul><li><a href="#list-accounts" class="table-of-contents__link toc-highlight">List accounts</a></li></ul></li><li><a href="#grant-privileges" class="table-of-contents__link toc-highlight">Grant privileges</a></li><li><a href="#apply-authorization-changes" class="table-of-contents__link toc-highlight">Apply authorization changes</a><ul><li><a href="#grpc-batch-streams-and-token-expiry" class="table-of-contents__link toc-highlight">gRPC batch streams and token expiry</a></li></ul></li><li><a href="#enforcement-rules" class="table-of-contents__link toc-highlight">Enforcement rules</a></li><li><a href="#runtime-defaults" class="table-of-contents__link toc-highlight">Runtime defaults</a></li><li><a href="#errors" class="table-of-contents__link toc-highlight">Errors</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
+<p>Authentication errors intentionally do not tell the caller which part was
+wrong: the user, the password, or the token.</p>
+<table><thead><tr><th>Code</th><th>Meaning</th></tr></thead><tbody><tr><td><code>CADB0512 UserAlreadyExists</code></td><td><code>CREATE USER</code> targets an existing user, and the statement has no <code>IF NOT EXISTS</code>.</td></tr><tr><td><code>CADB0513 UserDoesNotExist</code></td><td><code>ALTER USER</code>, <code>DROP USER</code>, <code>GRANT</code>, or <code>REVOKE</code> targets an unknown user.</td></tr><tr><td><code>CADB0514 UnsupportedAuthPlugin</code></td><td><code>IDENTIFIED WITH</code> names an auth plugin that CamusDB does not support.</td></tr><tr><td><code>CADB0515 InvalidPrivilege</code></td><td><code>GRANT</code> or <code>REVOKE</code> uses an unknown or invalid privilege.</td></tr><tr><td><code>CADB0516 AuthenticationFailed</code></td><td>The credentials are absent, invalid, expired, or revoked, or the user name or password is wrong.</td></tr><tr><td><code>CADB0517 InsufficientPrivilege</code></td><td>The authenticated caller lacks the privilege that the statement needs.</td></tr><tr><td><code>CADB0518 TooManyAuthAttempts</code></td><td>The caller passed the login rate limit, or the limit on concurrent password verifications.</td></tr><tr><td><code>CADB0519 InsecureTransport</code></td><td>A request with a credential arrived over plaintext while TLS is required.</td></tr></tbody></table>
+<p>See <a class="" href="/docs/error-codes/">Error Codes</a> for the HTTP status code mapping.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/sql-authentication.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/runtime-cluster-settings/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Runtime cluster settings</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/backup-and-restore/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Backup and restore</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#why-enable-authentication" class="table-of-contents__link toc-highlight">Why enable authentication</a></li><li><a href="#what-changes-when-you-enable-it" class="table-of-contents__link toc-highlight">What changes when you enable it</a></li><li><a href="#enable-authentication" class="table-of-contents__link toc-highlight">Enable authentication</a></li><li><a href="#login-and-logout" class="table-of-contents__link toc-highlight">Login and logout</a></li><li><a href="#grpc-tokens" class="table-of-contents__link toc-highlight">gRPC tokens</a></li><li><a href="#tls" class="table-of-contents__link toc-highlight">TLS</a></li><li><a href="#manage-users" class="table-of-contents__link toc-highlight">Manage users</a><ul><li><a href="#list-accounts" class="table-of-contents__link toc-highlight">List accounts</a></li></ul></li><li><a href="#grant-privileges" class="table-of-contents__link toc-highlight">Grant privileges</a></li><li><a href="#apply-authorization-changes" class="table-of-contents__link toc-highlight">Apply authorization changes</a><ul><li><a href="#grpc-batch-streams-and-token-expiry" class="table-of-contents__link toc-highlight">gRPC batch streams and token expiry</a></li></ul></li><li><a href="#enforcement-rules" class="table-of-contents__link toc-highlight">Enforcement rules</a></li><li><a href="#runtime-defaults" class="table-of-contents__link toc-highlight">Runtime defaults</a></li><li><a href="#errors" class="table-of-contents__link toc-highlight">Errors</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
 </body>
 </html>
