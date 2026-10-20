@@ -12,8 +12,8 @@
 
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
-<script src="/assets/js/runtime~main.fa0c1a52.js" defer="defer"></script>
-<script src="/assets/js/main.1cf8581f.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.a5df2aa1.js" defer="defer"></script>
+<script src="/assets/js/main.02d0f0c2.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -104,7 +104,7 @@ second. The three 17-table queries took 4 to 5 seconds each and now run in
 under 15 milliseconds.</p>
 <p>The <a class="" href="/docs/plan-quality-testing/#comparison-with-sqlite-and-postgresql">plan quality page</a>
 in the docs compares the three engines on the same rows with warm runs.
-CamusDB takes 3.5 seconds, SQLite 7.2 seconds and PostgreSQL 0.74 seconds.
+CamusDB takes 1.5 seconds, SQLite 7.2 seconds and PostgreSQL 0.74 seconds.
 CamusDB runs as an embedded node on a transactional key-value store, so this
 is a reference and not a race. Before this work, 25 of these queries did not
 finish at all.</p>
