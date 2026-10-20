@@ -4,40 +4,41 @@ sidebar_position: 5
 
 # Architecture
 
-CamusDB is a NewSQL distributed database. It accepts a SQL statement. It plans
-that statement against a relational schema. It maps the rows and the indexes
-into key/value entries. It stores those entries in a distributed transactional
-storage layer.
-
-You do not need this page to use CamusDB. The page gives an operator, an
-application developer, and a contributor one shared vocabulary for the work
+This page shows what happens between the SQL you send and the disk. Read it when
+you want to reason about latency, failures, or capacity, or before you
+contribute to CamusDB. You do not need it to use CamusDB. It gives operators,
+application developers, and contributors one shared vocabulary for the work
 under the surface.
+
+In PostgreSQL or MySQL, one server parses your SQL and owns every row on its
+disk. CamusDB splits that work in two, and SQL is the contract between the
+halves. The SQL layer plans each statement against a relational schema and maps
+the rows and indexes into key/value entries. A distributed transactional storage
+layer stores those entries and handles four mechanisms: the
+[partitions](/docs/concepts#partition), the [consensus](/docs/concepts#raft),
+the [WAL](/docs/concepts#wal) replay, and the persistence. No layer above the
+KV mapping knows which node owns a key. No layer below the KV mapping knows what
+a table is. That split is why the same SQL runs on one node or on a cluster.
 
 CamusDB is in production use. Cluster mode is nevertheless an alpha feature. The
 APIs and the storage formats can change between versions.
-
-One idea organizes the design: a clean split. SQL is the contract with the
-application. Four mechanisms happen below that contract: the partitions, the
-consensus, the WAL replay, and the persistence. No layer above the KV mapping
-knows which node owns a key. No layer below the KV mapping knows what a table
-is.
-
-![CamusDB architecture diagram](/img/architecture.png)
 
 ## Overview
 
 A CamusDB process runs as a standalone node, or as one node of a cluster.
 
 In standalone mode, the process hosts one local embedded
-[Kahuna](https://kahunakv.github.io/) storage node. That is the simplest setup
+[Kahuna](/docs/concepts#kahuna) storage node. That is the simplest setup
 for a tutorial, for local development, and for a single-node test.
+[Storage components](#storage-components) explains what Kahuna and the other
+storage components do.
 
 In cluster mode, several CamusDB processes join through a static configuration
 of peers. Each process can expose the database API.
 
-The storage layer divides the keys across Raft partitions. It elects a leader
-for each partition. It replicates a write through
-[Kommander](https://kahunakv.github.io/kommander.github.io/). A process can
+The storage layer divides the keys across [Raft](/docs/concepts#raft)
+partitions. It elects a [leader](/docs/concepts#leader) for each partition. It
+replicates a write through [Kommander](/docs/concepts#kommander). A process can
 receive a request for data that another partition leader owns. The storage layer
 then routes the work to the node that can coordinate it.
 
@@ -58,6 +59,23 @@ At a high level, every SQL request follows this path:
 7. CamusDB materializes a committed entry into persistent KV storage. It can
    also replay that entry from the WAL during a recovery.
 
+```mermaid
+flowchart LR
+    C[Client] -->|"HTTP, gRPC,<br/>driver or tool"| SQL
+    subgraph SQL["SQL layer: knows tables"]
+        direction TB
+        N[Any CamusDB node] --> P[Parse and validate]
+        P --> E["Query or write<br/>executor"]
+    end
+    SQL --> M["KV mapping<br/>rows become keys"]
+    M --> KV
+    subgraph KV["Storage layer: knows keys"]
+        direction TB
+        K["Kahuna<br/>transactional KV"] -->|cluster mode| R["Kommander<br/>Raft replication"]
+        R --> S[("Disk<br/>KV state and WAL")]
+    end
+```
+
 ## Layers
 
 The architecture of CamusDB has layers. Each layer exposes a smaller contract to
@@ -69,7 +87,7 @@ the layer above it.
 | Parser and validator | Normalize a statement, validate its syntax, and reject an invalid command input. |
 | Catalog | Track the databases, the tables, the columns, the indexes, the constraints, and the schema versions. |
 | Query and write execution | Plan a read. Apply the filters, the joins, the groups, and the subqueries. Perform an update, a delete, and an insert. Maintain the indexes. |
-| Transaction coordination | Open, commit, and roll a transaction back. Coordinate a write across partitions with two-phase commit. |
+| Transaction coordination | Open, commit, and roll a transaction back. Coordinate a write across partitions with [two-phase commit](/docs/concepts#two-phase-commit). |
 | KV mapping | Encode a row, an index, the metadata, a lock, and the transaction state as deterministic key/value entries. |
 | Distributed KV storage | Use [Kahuna](https://kahunakv.github.io/) for transactional key/value operations. |
 | Consensus and WAL | Use [Kommander](https://kahunakv.github.io/kommander.github.io/) to order the replicated partition log entries, and to recover the committed state. |
@@ -142,10 +160,40 @@ partition ownership, the replication, and the recovery.
 See [Storage](/docs/storage) for the key layout and for the details of the value
 encoding.
 
+## Storage components
+
+CamusDB does not build its own low-level store. It turns rows, indexes, schema
+metadata, locks, and transaction state into key/value entries, and hands them to
+three embedded components:
+
+| Component | Role |
+| --- | --- |
+| [Kahuna](https://kahunakv.github.io/) | The transactional key/value layer, embedded in every node. It provides the transactions, the locks, [MVCC](/docs/concepts#mvcc) reads, and ordered range scans, and it tracks which partition owns each key. |
+| [Kommander](https://kahunakv.github.io/kommander.github.io/) | The Raft library. It elects a leader for each partition, replicates the partition log, and gives the order that a recovery replays. |
+| [RocksDB](https://rocksdb.org/) | The embedded on-disk key/value engine. By default it stores both Kahuna's materialized key/value state and Kommander's Raft log, as two separate databases. |
+
+RocksDB keeps keys sorted, which CamusDB uses for ordered table and index scans.
+Its log-structured design handles heavy write loads, and it recovers its own
+files after a crash. RocksDB is a native C++ engine, created at Meta, so the
+SQL, transaction, and coordination logic stays in C# while the disk work runs
+close to the hardware.
+
+RocksDB is local storage, not the distributed database. It makes the state of
+one node durable. Kahuna and Kommander add the rest: replication, commit by a
+[majority](/docs/concepts#majority), partition leadership, transaction
+coordination, and WAL replay. Together they keep commits consistent across the
+cluster.
+
+Kahuna can also use SQLite, for a deployment that prefers SQLite files to
+RocksDB directories, and an in-memory backend for development and tests only.
+See [Storage](/docs/storage#the-rocksdb-backend) for the backend settings, and
+[the storage overview of Kahuna](https://kahunakv.github.io/docs/storage/overview/)
+for the lower-level details.
+
 ## Transactions
 
-CamusDB runs SQL work inside a transaction. It uses Kahuna for MVCC, for the
-locks, and for the coordination of a commit.
+CamusDB runs SQL work inside a transaction. It uses Kahuna for multi-version
+reads, for the locks, and for the coordination of a commit.
 
 CamusDB can wrap a single-operation request in a transaction automatically. A
 client can also use an explicit transaction handle for work of several
@@ -167,8 +215,15 @@ elects a leader. That leader orders the writes of its partition.
 [Kommander](https://kahunakv.github.io/kommander.github.io/) then replicates
 them.
 
-The write-ahead log records a committed partition log entry. Only then is the
-entry durable.
+<ReplicaRing
+  center="Partition P (Raft group)"
+  client={{label: 'CamusDB node', icon: 'server'}}
+  nodes={['Node 1', 'Node 2', 'Node 3']}
+  title="A CamusDB node sends a write to Node 1, the leader of the Raft group for partition P. The leader orders the write and replicates it to the followers Node 2 and Node 3."
+/>
+
+The leader writes each entry to its write-ahead log when it proposes the entry.
+The entry commits once a majority of the partition's replicas has persisted it.
 
 At a restart, CamusDB replays the committed log entries into
 [Kahuna](https://kahunakv.github.io/). The materialized KV store therefore
@@ -192,18 +247,9 @@ See [Cluster Mode](/docs/cluster) for the startup commands. See
 
 ## Terms
 
-| Term | Meaning |
-| --- | --- |
-| Node | One CamusDB process that runs. In cluster mode, each node can expose the database API, and each node can take part in the replication. |
-| Cluster | A group of nodes that you configured to reach each other, and that share one distributed storage layer. |
-| Partition | A shard of the key space that the distributed KV layer owns. It has its own leadership for the consensus, and its own order of the log. |
-| Partition leader | The node that coordinates the writes of a partition at present. A client does not need to know which node that is, because the storage layer routes the work to the owner. |
-| Consensus | The process of agreement that makes the replicas of a partition commit the same ordered log entries. CamusDB uses [Kommander](https://kahunakv.github.io/kommander.github.io/) for Raft. |
-| Replication | The copy of the committed partition log entries across the nodes. The committed state therefore survives a node failure and a restart. |
-| Write-ahead log | The durable ordered log of the partition entries. It is the source of the order during a recovery. CamusDB can replay a committed entry after a restart, if it did not materialize that entry into the KV storage yet. |
-| Transaction | A set of reads and writes that CamusDB commits or rolls back as one unit. A transaction across several partitions starts a two-phase commit. |
-| Catalog | The metadata that describes the databases, the tables, the columns, the indexes, the constraints, and the schema versions. |
-| KV mapping | The encoding layer. It turns a row, an index, the schema metadata, a lock, and a transaction record into deterministic key/value entries. |
+[Concepts](/docs/concepts) defines the distributed terms this page uses, such as
+node, cluster, partition, leader, Raft, replication, and the write-ahead log.
+The [Layers](#layers) table above describes the catalog and the KV mapping.
 
 ## What is next
 

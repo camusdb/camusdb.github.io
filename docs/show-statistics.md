@@ -4,6 +4,22 @@ sidebar_position: 3.22
 
 # SHOW STATISTICS
 
+The query planner uses statistics about each table to select a plan: how many
+rows the table has, and how the values in each column spread. When those
+statistics are missing or old, the planner can select a slow plan, for example a
+full scan instead of an index.
+
+Use `SHOW STATISTICS` in these cases:
+
+- [`EXPLAIN`](/docs/explain) shows an estimate of rows that is far from the
+  real count.
+- A query became slow after a large load, a large delete, or a fast growth of a
+  table.
+- You want to confirm that [automatic analyze](/docs/automatic-analyze)
+  refreshed a table.
+
+## What it reports
+
 `SHOW STATISTICS FOR <table>` prints the statistics of a table, as the optimizer
 holds them. It reports six things:
 
@@ -33,7 +49,8 @@ how far the data moved since that run.
 
 The statistics of a table are separate from the
 [statistics of the engine](/docs/engine-stats). `SHOW ENGINE STATS` reports the
-runtime metrics of Kahuna and of Kommander, for the process. This statement
+runtime metrics of the embedded storage and consensus libraries, for the
+process. This statement
 reports the belief of the planner about one relation.
 
 ## The columns of the result
@@ -126,10 +143,10 @@ SHOW STATISTICS FOR robots;
 ```
 
 ```text
-robots  table   NULL      20    NULL  NULL  NULL  NULL  2026-08-15T09:14:22Z  0
-robots  column  year      NULL  20    2000  2019  8     2026-08-15T09:14:22Z  0
-robots  index   ~pk       20    NULL  NULL  NULL  NULL  2026-08-15T09:14:22Z  0
-robots  index   year_idx  20    NULL  NULL  NULL  NULL  2026-08-15T09:14:22Z  0
+robots  table   NULL      20    NULL  NULL  NULL  NULL  2026-08-15T09:14:22.418Z  0
+robots  column  year      NULL  20    2000  2019  8     2026-08-15T09:14:22.418Z  0
+robots  index   ~pk       20    NULL  NULL  NULL  NULL  2026-08-15T09:14:22.418Z  0
+robots  index   year_idx  20    NULL  NULL  NULL  NULL  2026-08-15T09:14:22.418Z  0
 ```
 
 ## Two kinds of statistic
@@ -144,7 +161,15 @@ nothing to keep, and they need no statement of maintenance.
 `ANALYZE` builds the rest, either the manual form or the
 [automatic](/docs/automatic-analyze) one. Those values are the histograms, the
 counts of the distinct values of each column, and the same counts for a prefix
-of a composite key.
+of a composite key. `ANALYZE` also records the minimum and the maximum of the
+columns without an index that it collects, up to `stats_analyze_max_columns`
+columns of a table; those bounds stay as they are until the next `ANALYZE`.
+Each histogram can also keep up to `stats_top_values` common values with their
+observed counts, and `ANALYZE` records the fraction of each column that is
+`NULL`. The planner uses those internal values for skewed equalities, join
+cardinality, and the number of index probes. `SHOW STATISTICS` currently shows
+that the histogram exists and how many buckets it has; it does not expand its
+common-value list or its NULL fraction into separate result columns.
 
 The second group makes an estimate of a range, and an estimate of an equality,
 accurate. Their absence is what a `NULL` in `histogram_buckets` or in
@@ -155,9 +180,11 @@ accurate. Their absence is what a `NULL` in `histogram_buckets` or in
 [EXPLAIN](/docs/explain) can report an `estimated_rows` that you doubt. This
 statement then shows the source of that number.
 
-- CamusDB prices `col = v` at `1 / distinct_count`. A `distinct_count` of `NULL`
-  means that the estimate fell back to a fixed constant. An index can then look
-  far less attractive than it is.
+- CamusDB prices `col = v` from the observed frequency when `v` is one of the
+  common values kept with the histogram. Other values share the remaining rows
+  over the remaining `distinct_count`. A `distinct_count` of `NULL` means that
+  the estimate fell back to a fixed constant. An index can then look far less
+  attractive than it is.
 - CamusDB prices a predicate of a range from the histogram. A
   `histogram_buckets` of `NULL` means the same fallback.
 - CamusDB prices `WHERE a = ? AND b = ?` over a composite index from the `key`
@@ -201,8 +228,8 @@ precision of a millisecond. One example is `2026-08-15T09:33:13.289Z`.
 
 That column answers one question: how old are the statistics? A reader judges
 the answer against the time of a clock. The value therefore renders as a reading
-of a clock. It does not render as the raw value of the hybrid logical clock that
-the engine stores.
+of a clock. It does not render as the raw value of the
+[hybrid logical clock](/docs/concepts#hlc) that the engine stores.
 
 A bound of a string is ordinal. It matches the order of the bytes that the
 indexes use. A value such as `"árbol"` therefore sorts above `"zebra"`. It does

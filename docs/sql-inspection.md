@@ -134,9 +134,13 @@ SHOW RANGES FROM INDEX robots@robots_year_idx;
 SHOW RANGE FROM TABLE robots FOR ROW ("507f1f77bcf86cd799439011");
 ```
 
-`SHOW RANGES` reports how this node currently routes a table or index key
-space. It shows whether the space is hash-routed or key-range-routed, which
-partition serves each span, and whether this node believes the leader is local.
+`SHOW RANGES` reports how this node currently routes the
+[key space](/docs/concepts#key-space) of a table or index (the storage keys that
+hold its rows or entries). It shows whether the space is
+[hash-routed or key-range-routed](/docs/concepts#hash-and-key-range-routing),
+which [partition](/docs/concepts#partition) serves each
+[span](/docs/concepts#ranges-and-spans) (a contiguous range of keys), and whether
+this node believes the partition's [leader](/docs/concepts#leader) is local.
 
 See [SHOW RANGES](/docs/show-ranges).
 
@@ -180,7 +184,7 @@ by the current user.
 | Statement | It reports | Page |
 | --- | --- | --- |
 | `SHOW VARIABLES` | The effective configuration. Each value carries its default, its source layer, its mutability, and its scope. | [SHOW VARIABLES](/docs/show-variables) |
-| `SHOW ENGINE STATS` | The metrics of Kahuna and of Kommander: the workload, Raft, the WAL, and the storage. | [Engine Stats](/docs/engine-stats) |
+| `SHOW ENGINE STATS` | The metrics of the storage and replication layers ([Kahuna](/docs/concepts#kahuna) and [Kommander](/docs/concepts#kommander)): the workload, [Raft](/docs/concepts#raft) replication, the [write-ahead log](/docs/concepts#wal), and the storage. | [Engine Stats](/docs/engine-stats) |
 | `SHOW SLOW QUERIES` | The recent statements that crossed the slow-query threshold on this node. | [Slow Query Log](/docs/slow-query-log) |
 | `SHOW QUERIES`, `SHOW CONNECTIONS` | The statements and client connections active right now, with `CANCEL QUERY` for running reads. | [Query Activity](/docs/query-activity) |
 | `SHOW CLUSTER SETTINGS` | The settings that the cluster overrides across the fleet. | [Runtime Cluster Settings](/docs/runtime-cluster-settings) |
@@ -199,4 +203,4 @@ None of these statements needs a selected database.
 
 `SHOW VARIABLES` and `SHOW ENGINE STATS` are local to one node. Run them against
 each node when you compare a cluster. `SHOW CLUSTER SETTINGS` reports the
-replicated overlay. It reads the same on every node.
+cluster-wide overrides, which every node shares. It reads the same on every node.

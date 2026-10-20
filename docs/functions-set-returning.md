@@ -89,8 +89,10 @@ planner an exact row estimate. Parameters and function-call arguments use the
 default relation estimate.
 
 The function runs on the node executing the statement. It is not sent to peers
-as a distributed scan fragment. When it becomes the build side of a broadcast
-join, CamusDB ships the generated rows.
+as a distributed scan fragment (a piece of the plan that another node runs).
+When it becomes the build side of a broadcast hash join (the smaller input,
+which CamusDB loads into a hash table and sends to the other nodes), CamusDB
+ships the generated rows.
 
 ## Current limits
 

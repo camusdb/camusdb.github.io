@@ -5,9 +5,14 @@ sidebar_position: 6
 # Storage
 
 CamusDB stores relational data on a distributed key/value layer.
-[Kahuna](https://kahunakv.github.io/) provides that layer. CamusDB maps six
+[Kahuna](/docs/concepts#kahuna), the transactional key/value layer embedded in
+each node, provides it. CamusDB maps six
 kinds of object to persistent key/value entries: a table, a row, an index, the
 schema metadata, a lock, and the transaction state.
+
+You do not need this page to use CamusDB. Read it when you want to know how a
+table becomes key/value entries. That knowledge helps you understand the cost of
+an index, the size of a row, and the ranges in [`SHOW RANGES`](/docs/show-ranges).
 
 The design keeps SQL as the model that a user sees. It uses a storage layout
 that the distributed KV layer can route, replicate, lock, and commit.
@@ -19,72 +24,27 @@ STORAGE`.
 
 ## The storage stack
 
-The storage path of CamusDB has three layers:
-
-| Layer | Responsibility |
-| --- | --- |
-| SQL engine | Plans a statement, validates the schema, applies the constraints, and decides which rows and which indexes the statement touches. |
-| CamusDB KV mapping | Encodes a table row, an index entry, and the schema metadata as deterministic key/value entries. |
-| [Kahuna](https://kahunakv.github.io/) | Persists the keys, coordinates the locks and the transactions, and uses partition ownership backed by Raft in cluster mode. |
-
-[Kahuna](https://kahunakv.github.io/) supports embedded storage backends. Two
-examples are [RocksDB](https://rocksdb.org/) and SQLite.
-
-CamusDB uses [RocksDB](https://rocksdb.org/) as its default persistent backend
-in standalone mode.
-[Kommander](https://kahunakv.github.io/kommander.github.io/) uses a WAL adapter
-backed by RocksDB for the Raft logs, also by default.
-
-SQLite remains an optional embedded backend. Use it when a deployment prefers
-SQLite files to RocksDB directories. The in-memory backend serves development
-and tests only.
-
-CamusDB therefore does not build a low-level store again. It maps a SQL row, an
-index, the schema metadata, a lock, and the transaction state into deterministic
-key/value entries. It then delegates the local persistence to proven embedded
-storage engines. Three components divide that work:
-
-- RocksDB gives the ordered durable key/value store.
-- [Kahuna](https://kahunakv.github.io/) adds the transactions, the locks, the
-  range scans, and the distributed KV behavior.
-- [Kommander](https://kahunakv.github.io/kommander.github.io/) adds the
-  replication of the Raft log, the election of a leader, and the order for a
-  recovery.
-
-For the details of a backend at the lower level, see
-[the storage overview of Kahuna](https://kahunakv.github.io/docs/storage/overview/).
-For the recovery path, see [WAL And Recovery](/docs/wal-recovery).
+The SQL engine decides which rows and indexes a statement touches. The CamusDB
+KV mapping encodes them as key/value entries.
+Kahuna stores those entries with transactions and locks,
+[Kommander](/docs/concepts#kommander) replicates them through the
+[Raft](/docs/concepts#raft) log in cluster mode, and
+[RocksDB](/docs/concepts#rocksdb) writes both to disk. See
+[Architecture: storage components](/docs/architecture#storage-components) for
+what each component does. For the recovery path, see
+[WAL And Recovery](/docs/wal-recovery).
 
 ## The RocksDB backend
 
-[RocksDB](https://rocksdb.org/) is an embedded ordered key/value database. Its
-design is a log-structured merge-tree. A write passes through a memory table,
-and then through durable log files and SSTable files. A background compaction
-keeps the sorted files on disk usable over time.
+RocksDB is the default backend, in standalone and in cluster mode, both for the
+key/value state and for the Raft log. SQLite is an optional embedded backend for
+both. The in-memory backend serves development and tests only.
 
-RocksDB is a native storage engine in C++, and Meta created it. Three parts of
-CamusDB can therefore stay in C#: the SQL logic, the transaction logic, and the
-distributed coordination. The local storage engine meanwhile runs close to the
-hardware.
-
-CamusDB uses five properties of RocksDB. It does not expose RocksDB as the model
-that a user sees:
-
-- Durable local persistence for the materialized KV state.
-- An ordered iteration of the keys. CamusDB uses it for a scan of a row bucket,
-  and for an index scan.
-- Efficient behavior under heavy writes, from the design of the LSM-tree.
-- Mature recovery from a crash, for the local storage engine.
-- A storage engine that you can replace with SQLite, when that trade suits a
-  deployment better.
-
-RocksDB is local storage. It is not the distributed database by itself.
-[Kahuna](https://kahunakv.github.io/) and
-[Kommander](https://kahunakv.github.io/kommander.github.io/) provide five other
-mechanisms: the replication in a cluster, the commit by a quorum, the leadership
-of a partition, the coordination of a transaction, and the WAL replay. RocksDB
-makes the persisted state of one node reliable. The distributed layer makes the
-commits consistent across the cluster.
+RocksDB is an embedded ordered key/value database built as a log-structured
+merge-tree (LSM-tree). A write goes to a durable log file and to an in-memory
+buffer called a memtable. RocksDB later flushes the memtable to sorted files on
+disk, called SST files. A
+background compaction merges those files over time so reads stay efficient.
 
 These are the relevant storage settings:
 
@@ -124,7 +84,7 @@ memory. Two structures dominate the memory of RocksDB:
 
 - The block cache, which holds the data blocks that RocksDB read from the SST
   files.
-- The memtables, which buffer the recent writes in memory before a flush.
+- The memtables.
 
 The RocksDB baselines of CamusDB enable shared memory by default. Kahuna creates
 one shared block cache, and one shared manager of the write buffers. It passes
@@ -141,6 +101,18 @@ The total budget bounds the shared block cache. CamusDB charges the memtable
 sub-budget inside that same budget. One target of memory at process level
 therefore governs the reads and the writes of both RocksDB databases. Two
 independent budgets do not govern them.
+
+```mermaid
+flowchart LR
+    subgraph B["One shared memory budget, 320 MB default"]
+        direction TB
+        C[Shared block cache]
+        C ~~~ M
+        M["Shared write buffer manager<br/>memtables, 128 MB default"]
+    end
+    B --- K[("Kahuna KV and locks<br/>RocksDB")]
+    B --- W[("Kommander Raft WAL<br/>RocksDB")]
+```
 
 Note these operational points:
 
@@ -160,46 +132,21 @@ heavy bursts of writes. RocksDB can flush more often if the memtable sub-budget
 is too small for the workload. The deployment saves less memory if that
 sub-budget is too large.
 
-One reason keeps the two RocksDB databases separate while they share the memory
-resources: isolation. The WAL stays its own local database, and the KV backend
-stays its own local database. Only the expensive accounting of the cache and of
-the memtables is shared, and only while both use RocksDB.
+## Databases in the shared key space
 
-## Create and open a database
+See [Databases](/docs/databases) for creating, renaming, dropping, and
+recovering a database. At the storage level, every database in a process shares
+one Kahuna node. Creating a database creates no separate storage engine, RocksDB
+instance, WAL, or directory: its database id isolates it inside the shared
+[key space](/docs/concepts#key-space).
 
-You must create a database explicitly before you use it. `CREATE DATABASE`
-allocates a stable short database id in base62. It stores the map from the name
-to that id in the registry of CamusDB. `CREATE DATABASE IF NOT EXISTS` returns
-the existing database when the name is registered already.
-
-Standalone mode and cluster mode both use one
-[Kahuna](https://kahunakv.github.io/) node for each process. The creation of a
-database creates no separate storage engine, no separate RocksDB instance, no
-separate WAL, and no directory for that database. The database id instead
-isolates each database inside the shared KV space.
-
-To open a database is a metadata operation:
-
-1. CamusDB resolves the requested name through the registry.
-2. It loads the schema metadata of the database from the shared KV store.
-3. It registers the callbacks for the schema replication. A later DDL change
-   therefore applies after the Raft commit.
-4. It opens each table lazily, when a statement first touches that table.
-
-The recovery at startup happens at the level of the shared storage node.
-[Kommander](https://kahunakv.github.io/kommander.github.io/) restores the
-committed WAL entries. [Kahuna](https://kahunakv.github.io/) then makes the
-materialized KV state available. CamusDB then opens the database metadata from
-that recovered state.
-
-A rename of a database updates the entry in the registry only. CamusDB keeps the
-database id. The existing table ids, row keys, index keys, statistics keys, and
-schema metadata therefore stay in the same key spaces.
-
-A drop of a database does three things. It removes the name from the registry.
-It drains the operations in flight on the descriptor. It then purges the key
-spaces of that database id from the shared KV store. The history of the Raft
-schema log only accepts new entries. A drop does not rewrite that history.
+Opening a database is a metadata operation. CamusDB resolves the name through
+the registry, loads the schema metadata from the shared KV store, registers the
+callbacks that apply later DDL changes after their Raft commit, and opens each
+table lazily, when a statement first touches it. At startup this happens only
+after the [WAL recovery](/docs/wal-recovery#the-recovery-path) finishes. A drop
+of a database does not rewrite the Raft schema log, which only accepts new
+entries.
 
 ## Key layout
 
@@ -232,12 +179,31 @@ coexist safely, because CamusDB treats the id as an opaque segment of the key.
 | Row | `{databaseId}:{tableId}\|r/{rowId}` | The serialized bytes of the row. |
 | Unique index entry | `{databaseId}:{tableId}\|i:{indexId}/{encodedKey}` | The row id, as UTF-8 text. |
 | Non-unique index entry | `{databaseId}:{tableId}\|i:{indexId}/{encodedKey}{rowId}` | The row id, as UTF-8 text. |
+| Large value | `{databaseId}:{tableId}\|v/{rowId}{ordinal}` | The bytes of one variable-length cell that the row stores out of line. `{ordinal}` is four hex digits. |
+
+A transaction can also use a routing key, `{databaseId}:{tableId}|tx/{transactionId}`,
+to place its coordinator on the [partition](/docs/concepts#partition) that holds
+the table. CamusDB never stores that key, and a transaction does not always use
+one.
 
 The position of the slash and the `|` separator is intentional. The row keys
 share the bucket `{databaseId}:{tableId}|r`. The index keys share the bucket
-`{databaseId}:{tableId}|i:{indexId}`. The part before the first `|` is the
-placement group. Under hash routing, a table's rows and its indexes share that
+`{databaseId}:{tableId}|i:{indexId}`. The large values share the bucket
+`{databaseId}:{tableId}|v`. The part before the first `|` is the placement
+group. Under [hash routing](/docs/concepts#hash-and-key-range-routing), the
+default, a table's rows, large values, and indexes share that
 group and therefore stay on the same partition.
+
+```mermaid
+flowchart LR
+    subgraph G["Placement group {databaseId}:{tableId}"]
+        R["Row key<br/>…|r/{rowId}"] --> RV[Row bytes]
+        U["Unique index key<br/>…|i:{indexId}/{encodedKey}"] --> UV[rowId]
+        N["Non-unique index key<br/>…|i:{indexId}/{encodedKey}{rowId}"] --> NV[rowId]
+    end
+    UV -.->|locates| R
+    NV -.->|locates| R
+```
 
 This key shape is part of the storage revision. Move data across storage
 revisions with a [logical dump and reimport](/docs/logical-dump-and-reimport).
@@ -340,10 +306,11 @@ server owns:
 5. Commit the transaction handle through the transaction API of
    [Kahuna](https://kahunakv.github.io/). You can also roll the handle back.
 
-A write across partitions uses two-phase commit. CamusDB uses Serializable
-transactions by default. It adds committed MVCC reads, the detection of a
-conflict, and a record of the write intents for the coordination of an atomic
-commit.
+A write across partitions uses [two-phase commit](/docs/concepts#two-phase-commit).
+CamusDB uses Serializable transactions by default. It adds reads of committed
+row versions ([MVCC](/docs/concepts#mvcc)), conflict detection, and
+[write intents](/docs/concepts#write-intent), the provisional values that a
+transaction stages until its atomic commit.
 
 ## Scans
 
@@ -366,16 +333,14 @@ aggregation after that.
 
 ## Standalone mode and cluster mode
 
-Standalone mode creates one embedded [Kahuna](https://kahunakv.github.io/) node
-for the CamusDB process. Every database shares that local node. The prefix of
-the database id separates them. This is the simplest setup for a tutorial and
-for local development.
+Standalone mode creates one embedded Kahuna node for the CamusDB process, shared
+by every database. This is the simplest setup for a tutorial and for local
+development.
 
-Cluster mode creates one shared storage node for the process. It connects that
-node to real communication between the nodes, and to static discovery. CamusDB
-divides the data across the Raft partitions. Each partition elects its own
-leader, through
-[Kommander](https://kahunakv.github.io/kommander.github.io/).
+Cluster mode also creates one shared storage node for the process. It connects
+that node to the other nodes, through static discovery. CamusDB divides the data
+across the Raft partitions. Each partition elects its own
+[leader](/docs/concepts#leader), through Kommander.
 
 See [Cluster Mode](/docs/cluster) for the startup commands and the
 configuration.

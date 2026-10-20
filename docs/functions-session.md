@@ -7,6 +7,11 @@ sidebar_position: 4.15
 A session function reports the session of a statement. It reports nothing about
 a row. It takes no argument.
 
+Use a session function when a statement must know who runs it, or where. Three
+examples are a filter that returns only the rows of the current user, a value in
+an `INSERT` that records who wrote a row, and a check in a script that it runs
+in the correct database.
+
 ## The functions
 
 | Function | Returns | Description |

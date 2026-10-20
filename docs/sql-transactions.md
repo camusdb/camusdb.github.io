@@ -20,10 +20,11 @@ one operation around that statement. It then commits the transaction.
 This page gives the SQL syntax. For the guarantees behind that syntax, see
 [Transactions And Isolation](/docs/serializable-transactions).
 
-One statement cannot run inside an explicit transaction.
-[`TRUNCATE`](/docs/truncate-table) commits a replicated schema entry, and a
-later `ROLLBACK` cannot undo that entry. CamusDB therefore refuses it there,
-with `CADB0538` `StatementNotAllowedInTransaction`.
+Three statements cannot run inside an explicit transaction:
+[`TRUNCATE`](/docs/truncate-table), `ALTER TABLE ... REWRITE STORAGE`, and
+`ALTER SEQUENCE ... RESTART`. Each one commits work that a later `ROLLBACK`
+cannot undo. CamusDB therefore refuses them there, with `CADB0538`
+`StatementNotAllowedInTransaction`.
 
 ## Isolation
 
@@ -74,16 +75,18 @@ statements must come before any read and before any write.
 The isolation level still governs optimistic locking. With `READ COMMITTED`, an
 optimistic transaction takes no lock at all. It validates only the rows that it
 observed. With `SERIALIZABLE`, a read and a scan still take shared predicate
-locks. The transaction therefore keeps its protection against a phantom, while
-it validates its write set and its read set at the commit.
+locks. The transaction therefore keeps its protection against a phantom (a row
+that another transaction inserts into a range you already read), while it
+validates its write set and its read set at the commit.
 
 ## Priority
 
-The priority of a transaction controls the order of the admission. It applies
-when a node is saturated, and when the concurrency gate of
-[Kahuna](https://kahunakv.github.io/) is enabled. It does not change the
-isolation, the locks, the order of the commits, or the resources of the
-execution after a transaction starts.
+The priority of a transaction controls the order of the admission, that is,
+which waiting transaction a busy node lets start first. It applies when a node
+is saturated, and when the concurrency gate (admission gate) of
+[Kahuna](/docs/concepts#kahuna), the storage layer, is enabled. It does not
+change the isolation, the locks, the order of the commits, or the resources of
+the execution after a transaction starts.
 
 ```camussql
 BEGIN;
@@ -95,7 +98,8 @@ COMMIT;
 The accepted values are `BACKGROUND`, `LOW`, `NORMAL`, `HIGH`, and `CRITICAL`.
 
 `SET TRANSACTION PRIORITY` must run before any data statement. It must also run
-before the coordinator session starts. You can combine it with `SET TRANSACTION
+before the transaction's coordinator session (the session in the storage layer
+that tracks the transaction) starts. You can combine it with `SET TRANSACTION
 ISOLATION LEVEL` and with `SET TRANSACTION LOCKING`, during the setup of the
 transaction.
 

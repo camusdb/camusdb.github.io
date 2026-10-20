@@ -27,7 +27,8 @@ with other writers. The `order_no` is the human-facing number.
 
 `gen_id()` and `gen_uuid_v7()` produce values in time order. With
 [key-range sharding](/docs/key-range-sharding), every insert then goes to the
-last range of the primary index. Use `gen_uuid_v4()` for a table with a high
+last [range](/docs/concepts#ranges-and-spans) (a contiguous slice of keys) of
+the primary index. Use `gen_uuid_v4()` for a table with a high
 rate of inserts in that case. See
 [Best practices](/docs/best-practices#primary-keys).
 
@@ -98,8 +99,10 @@ CREATE SEQUENCE invoice_no
 A sequence name shares a namespace with tables and views. You cannot have a
 table and a sequence with the same name in one database.
 
-`CYCLE` is not supported. A sequence value is guaranteed unique for the lifetime
-of the sequence; wrapping back to the minimum would reissue values.
+`CYCLE` is not supported, because wrapping back to the minimum would reissue
+values. A sequence issues each value once, unless `setval`,
+`ALTER SEQUENCE ... RESTART`, or `TRUNCATE ... RESTART IDENTITY` moves the
+counter back.
 
 ## Use Values
 
@@ -293,20 +296,23 @@ a larger cache, it shows the top of the reserved block.
 
 ## Distributed Behavior
 
-Sequences are durable and replicated, but they are still counters. Keep these
-properties in mind:
+Sequences are durable and
+[replicated](/docs/concepts#replica-and-replication-factor) (copied to other
+nodes), but they are still counters. Keep these properties in mind:
 
-- A sequence guarantees unique values for the life of the sequence.
-- Sequence values are not a perfect insert order. During leadership changes, a
-  later insert can receive a lower value than an earlier insert.
+- A sequence issues unique values, unless `setval` or a `RESTART` moves the
+  counter back.
+- Sequence values are not a perfect insert order. During leadership changes
+  (when another node becomes the [leader](/docs/concepts#leader) that issues
+  values), a later insert can receive a lower value than an earlier insert.
 - Values are not rolled back. A failed or rolled-back transaction can leave a
   gap.
 - `CACHE` improves throughput by reserving a block of values at a time. Unused
   values from a block can be skipped after restart, eviction, or leadership
   movement.
-- `setval`, `ALTER SEQUENCE ... RESTART`, and
-  `TRUNCATE ... RESTART IDENTITY` can wait for the storage lease, around five
-  seconds, so stale cached blocks cannot keep issuing values.
+- `setval`, `ALTER SEQUENCE ... RESTART`, and `TRUNCATE ... RESTART IDENTITY`
+  can wait for the storage [lease](/docs/concepts#lease), a time-limited claim
+  of about five seconds, so stale cached blocks cannot keep issuing values.
 
 These are normal sequence semantics, similar to PostgreSQL. They are the reason
 sequences are good for external numbers but not ideal as the physical key that
@@ -349,7 +355,7 @@ Sequence statements reuse existing database privileges:
 | `CADB0546` | `currval` or `lastval` was called before this transaction drew a value. |
 | `CADB0547` | A sequence call was written where CamusDB cannot know how many values it would draw. |
 | `CADB0548` | The sequence is owned by an identity column, or another object depends on it. |
-| `CADB0535` | The sequence partition had no confirmed leader for the retry window. Retry the statement. |
+| `CADB0535` | The [partition](/docs/concepts#partition) that stores the sequence had no confirmed leader for the retry window. Retry the statement. |
 
 ## See Also
 

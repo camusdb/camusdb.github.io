@@ -5,10 +5,17 @@ sidebar_position: 2.35
 # TRUNCATE TABLE
 
 `TRUNCATE` empties a base table. It does not read a row, and it does not delete
-a row one at a time. It replaces the physical key space that holds the rows and
-the index entries of the table.
+a row one at a time. It replaces the physical [key
+space](/docs/concepts#key-space) (the range of storage keys) that holds the rows
+and the index entries of the table.
 
 The work is therefore independent of the number of rows.
+
+Use `TRUNCATE` instead of `DELETE FROM orders` to empty a large table. A
+`DELETE` must remove each row and each index entry. On a large table it is
+slow, and in one transaction it exceeds the
+[limit on mutations](/docs/transaction-limits). Typical uses are a staging table
+between two loads, a test table between two runs, and a table of temporary data.
 
 ```camussql
 TRUNCATE TABLE orders;
@@ -57,16 +64,18 @@ free-standing sequence that a column merely defaults from, because that sequence
 may be shared by other tables.
 
 `CASCADE` is not supported. A table that another table's foreign key references
-cannot be truncated; drop or truncate the child first, or drop the constraint.
+cannot be truncated, even when the child table is empty. Drop the child table or
+the foreign key first. A foreign key from a table to itself does not block
+`TRUNCATE`.
 
 CamusDB refuses `TRUNCATE` on these targets:
 
 | Target | Error | What you use instead |
 | --- | --- | --- |
-| A table that another table's foreign key references | `CADB0530` `DependentObjectsExist` | Truncate or drop the child first, or drop its constraint. |
+| A table that another table's foreign key references | `CADB0530` `DependentObjectsExist` | Drop the child table, or drop its foreign key. |
 | A materialized view | `CADB0525` `ViewNotUpdatable` | `REFRESH MATERIALIZED VIEW ... WITH NO DATA` |
 | A plain view | `CADB0525` `ViewNotUpdatable` | Truncate the table below the view |
-| A table that does not exist | `CADB0002` `TableDoesntExist` | Nothing applies |
+| A table that does not exist | `CADB0011` `TableDoesntExist` | Nothing applies |
 
 ## Performance
 
@@ -78,10 +87,10 @@ and touches no index entry.
 That property is not the same as a constant time on the clock. The statement
 still waits for three things:
 
-1. The exclusive fence over the whole key space of the rows of the table. That
-   fence waits for a writer that conflicts.
-2. The commit of the replicated schema entry, and the acknowledgement from every
-   node.
+1. The exclusive lock over the whole key space of the rows of the table. That
+   lock waits for a writer that conflicts.
+2. The commit of the schema change, which CamusDB copies to every node, and the
+   acknowledgement from every node.
 3. The checkpoint of the metadata. Its cost grows with the indexes of the table,
    and with the layouts of the stored columns.
 
@@ -132,10 +141,10 @@ TRUNCATE TABLE orders;   -- CADB0538
 ROLLBACK;
 ```
 
-The reason is honesty, and not caution. `TRUNCATE` commits a replicated schema
-entry. A `ROLLBACK` of your own transaction cannot undo that entry. An accepted
-statement would therefore promise a rollback that the engine cannot deliver.
-Commit first, or roll back first. Then run the truncate.
+The reason is honesty, and not caution. `TRUNCATE` commits a schema change that
+every node applies. A `ROLLBACK` of your own transaction cannot undo that entry.
+An accepted statement would therefore promise a rollback that the engine cannot
+deliver. Commit first, or roll back first. Then run the truncate.
 
 The truncate happens across the cluster as soon as the schema entry commits. A
 failure after that point does not change the outcome. CamusDB logs the failure,
@@ -178,7 +187,9 @@ Three cases follow:
   its own snapshot. A statement that binds after the acknowledgement of the
   truncate sees the new contents, which are empty.
 
-Two concurrent truncates on one table serialize through the schema leader. Each
+Two concurrent truncates on one table serialize through the schema
+[leader](/docs/concepts#leader), the node that applies schema changes for the
+cluster. Each
 truncate that succeeds creates its own retired generation. One truncate can lose
 the race, and it then reports `CADB0534` `ConcurrentSchemaChange`. That code is
 retryable, because CamusDB applied nothing.
@@ -278,12 +289,9 @@ contents, and CamusDB never touches the rows of the ancestor.
 
 A plain view stores no row. It therefore reads the emptied table at once.
 
-A materialized view keeps the rows of its last refresh. That view is stale after
-a truncate.
-
-This behavior matches the treatment of `INSERT`, `UPDATE`, and `DELETE`. No
-mutation of a base table invalidates a dependent materialized view. Run a
-refresh when you want the view to agree:
+A materialized view keeps the rows of its last refresh, so it is stale after a
+truncate, just as it is after an `INSERT`, `UPDATE`, or `DELETE` on its base
+table. Run a refresh when you want the view to agree:
 
 ```camussql
 TRUNCATE TABLE orders;
@@ -310,11 +318,12 @@ Run `ANALYZE` after you fill the table again. See
 A run of the row-level TTL becomes inert at once when a truncate lands. TTL is
 the time to live of a row.
 
-Every run records the generation of the storage of its plan. The scheduler
-checks that generation again, and each span of a worker checks it again. No
+Every run records the contents generation of its plan. The scheduler checks that
+generation again, and each worker checks it again before each
+[span](/docs/concepts#ranges-and-spans) (slice of the table) it processes. No
 worker can therefore delete from the retired generation, which is recoverable.
-No worker can delete from the new generation either, because the plan of its
-span never described that generation.
+No worker can delete from the new generation either, because its plan never
+described that generation.
 
 CamusDB cleans the records of the stale run in the background. See
 [Row-Level TTL](/docs/row-level-ttl).
@@ -323,9 +332,10 @@ CamusDB cleans the records of the stale run in the background. See
 
 | Code | Name | When it is generated |
 | --- | --- | --- |
-| `CADB0002` | `TableDoesntExist` | The named table does not exist. |
+| `CADB0011` | `TableDoesntExist` | The named table does not exist. |
 | `CADB0517` | `InsufficientPrivilege` | The caller lacks `DELETE` or `DROP` on the table. |
 | `CADB0525` | `ViewNotUpdatable` | The target is a view, or a materialized view. |
+| `CADB0530` | `DependentObjectsExist` | Another table's foreign key references the table. |
 | `CADB0534` | `ConcurrentSchemaChange` | Another change of the contents won the race. Retryable. |
 | `CADB0537` | `SnapshotPrecedesContentsGeneration` | A time travel read named a point before the start of the current contents. |
 | `CADB0538` | `StatementNotAllowedInTransaction` | A caller issued `TRUNCATE` inside an explicit transaction. |
@@ -338,7 +348,7 @@ CamusDB cleans the records of the stale run in the background. See
 CamusDB does not support these four things today:
 
 - `TRUNCATE a, b, c`, which names several tables in one statement.
-- `CASCADE`; truncate the child table first, or drop the foreign key.
+- `CASCADE`; drop the child table or the foreign key first.
 - An automatic refresh of a dependent materialized view. CamusDB does not
   invalidate that view either.
 - A read of a snapshot before the current contents generation.

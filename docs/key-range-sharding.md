@@ -4,13 +4,66 @@ sidebar_position: 8.35
 
 # Key-range sharding
 
-CamusDB routes table and index key spaces by hash by default. With hash routing,
-a table's rows and each secondary index live under one key prefix that maps to
-one Raft partition.
+Key-range sharding lets one large or busy table spread across several
+[partitions](/docs/concepts#partition) of a [cluster](/docs/cluster). Without
+it, each table lives on one partition, so one partition
+[leader](/docs/concepts#leader) coordinates every write to that table.
+
+## Why use key-range sharding
+
+CamusDB routes table and index [key spaces](/docs/concepts#key-space) (the
+storage keys that hold a table's rows or one index's entries) by hash by
+default. With [hash routing](/docs/concepts#hash-and-key-range-routing), a
+table's rows and each secondary index live under one key prefix that maps to
+one partition. Different tables can live on different partitions, but one table
+never spreads across them.
+
+That default is simple, and it suits most tables. It has a limit for a table
+that is very large or very busy:
+
+- Every write to the table goes through the same partition leader. When that
+  leader is saturated, more nodes in the cluster do not help that table.
+- All rows of the table are on the same partition. A large scan of the table
+  reads all of its data from that one partition.
 
 Key-range sharding routes those spaces by key order. A space starts as one
-range, then can split into child ranges served by different partitions. Writes
-to different ranges can then be coordinated by different leaders.
+[range](/docs/concepts#ranges-and-spans), a contiguous slice of keys. It can
+then split into child ranges, and different partitions serve the
+child ranges. Writes to different ranges can then be coordinated by different
+leaders. CamusDB can split a range automatically when it grows too large or
+receives too much load. See [Automatic splits](#automatic-splits).
+
+```mermaid
+flowchart TB
+    subgraph HR["Hash routing"]
+        direction LR
+        HT[Table key space] --> HP[Partition 1]
+    end
+    HR ~~~ KR
+    subgraph KR["Key-range routing"]
+        direction LR
+        KT[Table key space] -->|split| R1[Child range 1]
+        KT -->|split| R2[Child range 2]
+        R1 --> P1["Partition 1<br/>leader A"]
+        R2 --> P2["Partition 2<br/>leader B"]
+    end
+```
+
+Turn it on when one of these conditions applies:
+
+- One table, or one index, receives more writes than one partition leader can
+  coordinate.
+- One table is too large to keep on one partition.
+- A scan over a large table must run on several nodes. Use it together with
+  [distributed queries](/docs/distributed-queries).
+
+You do not need it for a standalone node, for a small data set, or for a
+workload that spreads its writes across many tables. A query returns the same
+rows with either routing mode. Only the placement, the concurrency, and the
+network cost change. Read [Best practices](/docs/best-practices) before you
+design keys for a key-range table.
+
+## Turn it on
 
 Enable it in `config.yml`:
 
@@ -136,20 +189,10 @@ restart from `BEGIN`.
 
 ## Remote query fragments
 
-When a scan spans ranges owned by other partitions, the coordinator sends remote
-fragments to peer nodes over the internal `/internal/query-fragment` route. The
-route is authenticated with the shared node secret when authentication is enabled.
-
-Peers can stream fragment rows in two formats:
-
-- NDJSON, one JSON object per line, with row bytes encoded as base64.
-- Binary fragment frames, with row bytes carried directly.
-
-The coordinator asks for the binary format when it supports it. An older peer can
-ignore that request and answer with NDJSON, and an older coordinator never asks
-for binary frames. That makes rolling upgrades safe. Both formats stream rows as
-they survive the peer-side filter; the binary format only removes base64 overhead
-on row-heavy scans.
+With [distributed queries](/docs/distributed-queries) on, a scan over ranges
+that other nodes lead runs as remote fragments on those nodes. See
+[The traffic between two nodes](/docs/distributed-queries#the-traffic-between-two-nodes)
+for the transport, its authentication, and its wire formats.
 
 ## Related
 

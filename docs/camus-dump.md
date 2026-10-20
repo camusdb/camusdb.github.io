@@ -9,41 +9,25 @@ database. It reads the schema metadata, sequences, indexes, users when
 requested, and the rows. It then writes SQL. You can replay that SQL later,
 through `camus-cli`, or through another client of SQL for CamusDB.
 
-Use the utility for one of three purposes: a backup in SQL that you can inspect,
-an export of one table, or a consistent logical snapshot of a database. It
-writes exact literals for CamusDB values, including `NUMERIC`, `BYTES`,
+The output writes exact literals for CamusDB values, including `NUMERIC`, `BYTES`,
 full-precision floats, and sub-millisecond `DATETIME` values.
 
 The dump is consistent across the tables, by default. It fixes one instant at
 its start. It then reads every table as of that instant. Read
 [Point in time](#point-in-time) before you turn that behavior off.
 
-## Not for large databases
+## When to use it
 
-`camus-dump` is the wrong tool for a database of tens of gigabytes, and of
-hundreds of gigabytes. Use [Backup And Restore](/docs/backup-and-restore) at that
-scale.
+Use `camus-dump` when you want readable SQL: a logical backup you can inspect, a
+table export, a dump for review or source control, or a copy you replay through
+ordinary CamusSQL on another system. The data set must be small enough to replay
+in a reasonable time.
 
-Every row travels through the layer of the SQL. It comes back out as text. Both
-ends therefore grow with the count of the rows. They do not grow with the bytes
-on the disk.
-
-The dump runs slower than the disk that it reads. The file of the SQL is usually
-larger than the data of its source.
-
-The restore is the harder half. A replay of a dump parses every statement,
-checks every constraint again, and builds every index from the start. That work
-takes hours, and it can take days. A physical restore is a copy of some files,
-plus a replay of the WAL.
-
-A dump can need a long night for its creation. It can then need much longer for
-its restore. That shape is exactly wrong for a path of a recovery.
-
-Use `camus-dump` for two purposes. The output must be readable SQL that you can
-carry to another system. The data set must also be small enough for a quick
-replay.
-
-Use a physical backup when your purpose is the return of the data.
+For disaster recovery, or for a database of tens of gigabytes or more, use
+[Backup and restore](/docs/backup-and-restore) instead. Its physical backup
+covers a whole node, restores to a chosen point in time, and avoids replaying
+every row. [Why it works this way](/docs/backup-and-restore#why-it-works-this-way)
+explains why a dump does not scale for recovery.
 
 ## Install
 
@@ -158,7 +142,8 @@ camus-dump -e https://camus.internal:5096 -d factory -u app --ask-password
 Use a token obtained elsewhere:
 
 ```bash
-camus-dump -e https://camus.internal:5096 -d factory --access-token "camus_..."
+CAMUSDB_ACCESS_TOKEN="camus_..." \
+camus-dump -e https://camus.internal:5096 -d factory
 ```
 
 | Option | Description |
@@ -166,7 +151,7 @@ camus-dump -e https://camus.internal:5096 -d factory --access-token "camus_..."
 | `-u`, `--user` | User to authenticate as. |
 | `-p`, `--password` | User password. Prefer `CAMUSDB_PASSWORD` or `--ask-password` so the password does not appear in the process list. |
 | `-W`, `--ask-password` | Prompt for the password on the terminal. |
-| `--access-token` | Bearer token obtained elsewhere, used instead of logging in. |
+| `--access-token` | Bearer token obtained elsewhere, used instead of logging in. Prefer the `CAMUSDB_ACCESS_TOKEN` environment variable so the token does not appear in the process list. |
 | `--token-lifetime` | Seconds to reuse a minted token when the server reports no expiry. Defaults to `600`. |
 
 The utility exchanges the password one time, for a bearer token with a short
@@ -191,10 +176,10 @@ plaintext hop.
 | --- | --- |
 | `-t`, `--table` | Dump only these tables. Accepts comma-separated names or repeated options. |
 | `-x`, `--exclude-table` | Skip these tables. Accepts comma-separated names or repeated options. |
-| `-w`, `--where` | Dump only rows matching this condition. |
+| `-w`, `--where` | Dump only rows matching this condition. It applies to every dumped table. The text is raw SQL that the dump appends after `WHERE` unchanged, so never build it from untrusted input. |
 | `--as-of` | Read every table as of this point in time. |
 | `--no-as-of` | Read the latest committed data instead. |
-| `--all-users` | Also export every account and grant. Requires a superuser and a server with `SHOW USERS` and `SHOW GRANTS FOR *`. |
+| `--all-users` | Also export every account and grant, including server-level `MONITOR` grants. Requires a superuser and a server with `SHOW USERS` and `SHOW GRANTS FOR *`. |
 | `--users` | Also export these accounts and their grants. Use this for older servers or for a subset of accounts. |
 | `--no-create-table` | Do not emit `CREATE TABLE`. |
 | `--no-data` | Do not emit `INSERT`. |
@@ -340,7 +325,9 @@ limit or the transport message-size limit on wide tables.
 `--defer-indexes` loads the table data before building secondary indexes. It can
 help for a table with one secondary index, but it is not automatically faster
 for a table with several indexes because each deferred index build scans the
-table. Keep the target out of service until deferred indexes are built.
+table. Keep the target out of service until deferred indexes are built. If the
+source server is too old to support `SHOW CREATE TABLE ... WITHOUT INDEXES`,
+`--defer-indexes` warns and cannot defer inline indexes.
 
 When writing to a file or an output directory, the utility shows progress bars
 on standard error. Standard output stays reserved for the SQL dump. Use
@@ -399,6 +386,10 @@ The dump can include these parts. Your selected options decide:
 - `SELECT setval(...)` statements for sequence positions
 - secondary `CREATE INDEX IF NOT EXISTS` statements
 - `GRANT` statements for exported accounts
+
+The dump does not include views or materialized views. Record them with
+`SHOW CREATE VIEW` and `SHOW CREATE MATERIALIZED VIEW`, and recreate them after
+the load. See [Logical dump and reimport](/docs/logical-dump-and-reimport).
 
 Typical shape:
 
@@ -544,26 +535,6 @@ gunzip -c factory.sql.gz | camus-cli factory -f -
 A complete dump ends each database section with a `-- Dump completed` comment,
 unless `--no-header` was used. Check for that footer when a dump was streamed to
 object storage or through another pipeline that can keep a partial upload.
-
-## When to use it
-
-Use `camus-dump` for these purposes:
-
-- a logical SQL backup
-- a table-level export
-- a readable dump for review or source control
-- a consistent snapshot across tables
-- a restore path through ordinary CamusSQL
-
-Every purpose above assumes a database small enough for a replay in a reasonable
-time.
-
-Use [Backup And Restore](/docs/backup-and-restore) instead in two cases: your
-goal is a disaster recovery, and the database holds tens of gigabytes or more.
-
-Such a backup is physical, and it covers a whole node. It restores to a chosen
-point in time. It also returns far faster than a replay of a dump, statement by
-statement. See [Not for large databases](#not-for-large-databases).
 
 For an interactive replay, and for a restore by hand, use
 [camus-cli](/docs/camus-cli).

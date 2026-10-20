@@ -8,26 +8,46 @@ CamusDB bounds a read-write transaction. One transaction therefore cannot
 accumulate an unbounded amount of write state, of lock state, or of work in the
 commit payload.
 
-Two limits are visible to a user:
+The limits protect every client of the database. A transaction that stays open
+for hours, or that changes millions of rows, holds locks that block other
+transactions, and its commit can take a long time. If a job reaches a limit,
+split the work into smaller transactions.
+
+Three limits are visible to a user:
 
 | Limit | Default | Applies to | Failure code |
 | --- | --- | --- | --- |
 | Serializable read-write lifetime | 1 hour | Serializable read-write transactions | `CADB0505 TransactionLifetimeExceeded` |
 | Mutation count per transaction | 20,000 mutations | User `INSERT`, `UPDATE`, and `DELETE` transactions | `CADB0506 TransactionMutationLimitExceeded` |
+| Idle time between statements | 5 minutes | Explicit transactions | `CADB0400`, "Unknown transaction", on the next statement |
 
 A read-only transaction creates no mutation. The limit on the mutation count
 therefore does not apply to it.
 
 CamusDB can also place a node-local ceiling on the number of concurrent
-coordinator sessions, with `kahuna.max_concurrent_sessions`. That gate is
+coordinator sessions, with `kahuna.max_concurrent_sessions`. A coordinator
+session is the server-side record that tracks one transaction until it ends. That gate is
 disabled by default. Read [Transaction Priority](/docs/transaction-priority)
 before you enable it. The gate orders queued starts by priority. It does not
 replace short transactions, and it does not replace a correct batch size.
 
+## Idle timeout
+
+An explicit transaction (`BEGIN` ... `COMMIT`) that sends no statement for
+`transaction_idle_timeout_ms` (default `300000`, 5 minutes) is treated as
+abandoned. A background reaper rolls it back and releases its locks. The next
+statement on that transaction fails. An autocommit statement is not affected.
+
+A value of `0` or below turns the reaper off. An abandoned serializable
+read-write transaction is then still bounded by its lifetime limit.
+
+Today a node reads `transaction_idle_timeout_ms` once at startup. A change takes
+effect after the node restarts.
+
 ## Limit on the mutation count
 
-Every read-write transaction has a hard cap on the number of KV mutations that
-it can accumulate before the commit. CamusDB rejects a statement or an explicit
+Every read-write transaction has a hard cap on the number of key/value (KV)
+mutations that it can accumulate before the commit. CamusDB rejects a statement or an explicit
 transaction that would exceed the cap. The rejection happens before the writes
 reach storage.
 
@@ -65,7 +85,9 @@ and four large-value keys. The default budget of 20,000 admits 3,333 rows in one
 statement instead of 10,000. See [Large Values](/docs/storage-layout).
 
 The counter only increases inside the transaction. Two updates of the same row
-count twice, because CamusDB must still hold and commit both write intents.
+count twice, because CamusDB must still hold and commit both
+[write intents](/docs/concepts#write-intent), the provisional writes that
+become final at commit.
 
 ## Example
 
@@ -103,7 +125,8 @@ Run the statement again for each range. Advance the range each time, or use page
 boundaries that your application manages. Continue until the job is complete.
 
 To empty a whole table, use [`TRUNCATE`](/docs/truncate-table) instead of a
-`DELETE`. That statement replaces the key space of the table. It counts no
+`DELETE`. That statement replaces the [key space](/docs/concepts#key-space) of
+the table, the range of storage keys that holds its rows. It counts no
 mutation, so it cannot exceed this limit.
 
 ## Limit on the lifetime

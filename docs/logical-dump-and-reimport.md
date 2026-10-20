@@ -4,9 +4,13 @@ sidebar_position: 8.15
 
 # Logical dump and reimport
 
-Use a logical dump and reimport when data must cross CamusDB storage revisions,
-or when you want to copy a server into a fresh environment through SQL instead
-of through a physical backup.
+Some CamusDB upgrades change the on-disk storage format, and the new server does
+not convert the old data. To keep your data across that upgrade, export it as
+SQL from the old version and import it into the new one. This is similar to
+moving between PostgreSQL major versions with `pg_dump` and `psql`.
+
+You can also use a logical dump to copy a server into a fresh environment
+through SQL instead of through a physical backup.
 
 ## Why this is needed
 
@@ -21,10 +25,15 @@ untouched. Move data across revisions with [`camus-dump`](/docs/camus-dump) and
 
 ## What a dump carries
 
-`camus-dump` writes SQL for databases, tables, indexes, and rows. The table DDL
-comes from `SHOW CREATE TABLE`, so it carries defaults, check constraints,
-foreign keys, comments, covering-index included columns, and row-level TTL
-settings.
+`camus-dump` writes SQL for databases, tables, indexes, sequences, and rows. The
+table DDL comes from `SHOW CREATE TABLE`, so it carries defaults, check
+constraints, foreign keys, comments, covering-index included columns, and
+row-level TTL settings. Each sequence keeps its options, its comment, and its
+position, which the dump restores with `setval` after the rows.
+
+With `--all-users`, the dump also exports every account and every grant. Use
+`--users name1,name2` instead against a server that has no `SHOW USERS`. The
+accounts are created without a password, and superuser status is not exported.
 
 Foreign keys affect load order. A `CREATE TABLE` with a foreign key needs its
 parent table to exist, and a child `INSERT` needs its parent row to be loaded.
@@ -45,21 +54,29 @@ Record and recreate these objects separately:
 | --- | --- | --- |
 | Views | `SHOW VIEWS` and `SHOW CREATE VIEW name` | Run the printed `CREATE VIEW`. |
 | Materialized views | `SHOW MATERIALIZED VIEWS` and `SHOW CREATE MATERIALIZED VIEW name` | Run the printed statement, then refresh it. |
-| Users | `SHOW USERS`, as a superuser. Passwords are not exported. | Run `CREATE USER`. |
-| Grants | `SHOW GRANTS FOR *`, as a superuser | Run the matching `GRANT` statements. |
+| Passwords and superuser status | Nothing to record | Set a password for each account with `ALTER USER`. Superuser status comes only from the bootstrap user. |
 | Cluster settings | `SHOW VARIABLES`, keeping non-default values | Run `SET CLUSTER SETTING`. |
 | Table statistics | Nothing to record | Run `ANALYZE` after the load. |
 | Physical backups | Nothing to record | Take a fresh full backup after the load. |
+
+```mermaid
+flowchart TD
+    A["Previous version<br/>old revision directory"] -->|"camus-dump"| F[SQL dump files]
+    A -.->|record| R["Views, materialized views,<br/>cluster settings"]
+    F -->|"camus-cli -f"| B["New version<br/>new revision directory"]
+    R -.->|run the statements| B
+    B --> V["Verify, then take<br/>a fresh full backup"]
+```
 
 A branch is dumped as the full database view that the branch can read. The
 reimported copy is an independent database, not a copy-on-write branch of the
 original parent.
 
 A storage revision move starts the new server with a fresh user catalog. Accounts,
-grants, and sessions live in the same storage revision as the rows, so record
-accounts and grants before the move with `SHOW USERS` and `SHOW GRANTS FOR *`.
-Passwords cannot be exported; plan to set a new password for each account after
-the reimport.
+grants, and sessions live in the same storage revision as the rows, so export
+accounts and grants with `camus-dump --all-users` (or `--users`). Passwords
+cannot be exported; plan to set a new password for each account after the
+reimport.
 
 ## Dump
 
@@ -67,12 +84,14 @@ Run the dump before upgrading, or run the previous CamusDB version against the
 old revision directory:
 
 ```bash
-camus-dump -e http://db1.internal:5096 --all-databases -b 100 \
+camus-dump -e http://db1.internal:5096 --all-databases --all-users -b 100 \
   --output-directory /backup/camusdb-old/
 ```
 
-`--all-databases` asks the server for every database. `-b` controls rows per
-`INSERT`. Start with `-b 100`; it avoids one round trip per row without making
+`--all-databases` asks the server for every database. `--all-users` writes
+`users.sql` (the `CREATE USER` statements) and `grants.sql` (the `GRANT`
+statements) next to the database files. It needs a superuser. `-b` controls
+rows per `INSERT`. Start with `-b 100`; it avoids one round trip per row without making
 statements too large for wide tables.
 
 With authentication enabled, pass credentials through the environment or an
@@ -80,7 +99,7 @@ interactive prompt, not through shell history:
 
 ```bash
 CAMUSDB_PASSWORD=secret camus-dump -e https://db1.internal:5096 \
-  --all-databases -u admin -b 100 \
+  --all-databases --all-users -u admin -b 100 \
   --output-directory /backup/camusdb-old/
 ```
 
@@ -107,10 +126,11 @@ camus-cli -c "Endpoint=http://db1.internal:5095;Database=test" \
 
 Load supporting objects in this order:
 
-1. Users.
-2. Databases, tables, indexes, foreign keys, and rows from the dump.
+1. Users, from `users.sql`.
+2. Databases, tables, indexes, foreign keys, sequences, and rows, from each
+   database file.
 3. Views and materialized views.
-4. Grants.
+4. Grants, from `grants.sql`.
 5. Cluster settings.
 6. `ANALYZE` for each table.
 
@@ -137,27 +157,14 @@ Only then remove old revision directories from every node.
 
 ## Batch size and deferred indexes
 
-One row per `INSERT` is the slowest restore shape because each row pays its own
-round trip and parse. A batch size around 100 rows usually recovers most of the
-benefit while keeping statements modest.
-
-Two hard limits still bound the batch:
+[Shaping the output](/docs/camus-dump#shaping-the-output) explains how `--batch`
+and `--defer-indexes` affect a restore. Two hard limits bound the batch size:
 
 - The transaction mutation limit. A row costs at least two mutations, plus one
   for each secondary index entry and one for each out-of-line large value.
 - The transport message size. gRPC messages are much smaller than HTTP request
   bodies, so wide rows can hit the gRPC limit before they hit the mutation
   limit.
-
-`--defer-indexes` writes each table's secondary `CREATE INDEX` statements after
-the row data. It can help when a table has one secondary index. It is not a
-free win for tables with several indexes, because the index build scans the
-table once per index. Keep the target out of service until every deferred index
-has been built and validated.
-
-If the source server is too old to support `SHOW CREATE TABLE ... WITHOUT
-INDEXES`, `camus-dump --defer-indexes` warns and cannot truly defer inline
-indexes.
 
 ## Large values
 

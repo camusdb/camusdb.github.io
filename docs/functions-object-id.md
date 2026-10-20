@@ -37,7 +37,7 @@ FROM robots
 LIMIT 1;
 ```
 
-`gen_id()` returns a string of an object id, with 24 characters.
+`gen_id()` returns an `OID` value. Its text form has 24 lowercase hexadecimal characters.
 
 `DEFAULT (gen_id())` on an `OID` column runs one time for each inserted row. An
 omitted id and a `DEFAULT` value therefore both receive their own ObjectId.

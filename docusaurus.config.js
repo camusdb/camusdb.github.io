@@ -4,12 +4,12 @@
 // There are various equivalent ways to declare your Docusaurus config.
 // See: https://docusaurus.io/docs/api/docusaurus-config
 
-import {themes as prismThemes} from 'prism-react-renderer';
+import camusTheme from './src/prism/camusTheme.js';
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'CamusDB',
-  tagline: 'Open-source NewSQL distributed database',
+  tagline: 'Open-source SQL distributed database',
   favicon: 'img/favicon.ico',
 
   // Set the production url of your site here
@@ -32,6 +32,10 @@ const config = {
     },
   },
   themes: ['@docusaurus/theme-mermaid'],
+
+  stylesheets: [
+    'https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap',
+  ],
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -121,113 +125,72 @@ const config = {
         style: 'dark',
         links: [
           {
-            title: 'Docs',
+            title: 'Get started',
             items: [
-              {
-                label: 'Getting Started',
-                to: '/docs/intro',
-              },
-              {
-                label: 'Why CamusDB?',
-                to: '/docs/why-camusdb',
-              },
-              {
-                label: 'Databases',
-                to: '/docs/databases',
-              },
-              {
-                label: 'camus-cli',
-                to: '/docs/camus-cli',
-              },
-              {
-                label: 'SQL',
-                to: '/docs/sql',
-              },
-              {
-                label: 'SELECT',
-                to: '/docs/sql-queries',
-              },
-              {
-                label: 'Joins And Subqueries',
-                to: '/docs/joins-and-subqueries',
-              },
-              {
-                label: 'Functions',
-                to: '/docs/functions',
-              },
-              {
-                label: 'Transactions And Isolation',
-                to: '/docs/serializable-transactions',
-              },
-              {
-                label: 'Cluster Mode',
-                to: '/docs/cluster',
-              },
-              {
-                label: 'HTTP API',
-                to: '/docs/http-api',
-              },
-              {
-                label: 'gRPC API',
-                to: '/docs/grpc-api',
-              },
-              {
-                label: '.NET Driver',
-                to: '/docs/dotnet-driver',
-              },
-              {
-                label: 'Dapper',
-                to: '/docs/dapper',
-              },
-              {
-                label: 'EF Core Provider',
-                to: '/docs/ef-core',
-              },
-              {
-                label: 'camus-dump',
-                to: '/docs/camus-dump',
-              },
-              {
-                label: 'Cluster',
-                to: '/docs/cluster',
-              },
-              {
-                label: 'Configuration',
-                to: '/docs/configuration',
-              },
-              {
-                label: 'Storage',
-                to: '/docs/storage',
-              },
-              {
-                label: 'WAL & Recovery',
-                to: '/docs/wal-recovery',
-              },
-              {
-                label: 'Architecture',
-                to: '/docs/architecture',
-              },
+              {label: 'Install CamusDB', to: '/docs/intro'},
+              {label: 'Why CamusDB?', to: '/docs/why-camusdb'},
+              {label: 'Try it in the browser', to: '/playground'},
+              {label: 'Kubernetes Operator', to: '/docs/kubernetes-operator'},
+              {label: 'Architecture', to: '/docs/architecture'},
             ],
           },
           {
-            title: 'More',
+            title: 'Features',
             items: [
-              {
-                label: 'Source',
-                href: 'https://github.com/camusdb/camusdb',
-              },
-              {
-                label: 'Docs Repo',
-                href: 'https://github.com/camusdb/camusdb.github.io',
-              },
+              {label: 'Serializable transactions', to: '/docs/serializable-transactions'},
+              {label: 'Cluster mode', to: '/docs/cluster'},
+              {label: 'Query planning', to: '/docs/query-planning'},
+              {label: 'Database branching', to: '/docs/database-branching'},
+              {label: 'Time-travel reads', to: '/docs/time-travel-reads'},
+              {label: 'Vector search', to: '/docs/vector-search'},
+            ],
+          },
+          {
+            title: 'Connect',
+            items: [
+              {label: '.NET driver', to: '/docs/dotnet-driver'},
+              {label: 'EF Core provider', to: '/docs/ef-core'},
+              {label: 'TypeScript connector', to: '/docs/typescript-connector'},
+              {label: 'HTTP API', to: '/docs/http-api'},
+              {label: 'MCP server', to: '/docs/mcp-server'},
+            ],
+          },
+          {
+            title: 'Project',
+            items: [
+              {label: 'GitHub', href: 'https://github.com/camusdb/camusdb'},
+              {label: 'Caraxes Jepsen tests', to: '/docs/caraxes'},
+              {label: 'Blog', to: '/blog'},
             ],
           },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} CamusDB.`,
+        copyright: `Copyright © 2021-${new Date().getFullYear()} CamusDB.`,
+      },
+      // Colors per color mode live in src/theme/Mermaid/index.js.
+      mermaid: {
+        theme: {light: 'base', dark: 'base'},
+        options: {
+          // Flat boxes without the drop shadows of the 'neo' look.
+          look: 'classic',
+          // Keep short node labels on one line.
+          // The extra margin keeps a subgraph title clear of its first node.
+          flowchart: {padding: 16, wrappingWidth: 220, subGraphTitleMargin: {top: 6, bottom: 10}},
+          // Narrow, wrapped sequence diagrams keep their text legible when
+          // scaled to the content column.
+          sequence: {
+            wrap: true,
+            width: 130,
+            actorMargin: 40,
+            mirrorActors: false,
+            actorFontSize: 15,
+            messageFontSize: 15,
+            noteFontSize: 14,
+          },
+        },
       },
       prism: {
-        theme: prismThemes.github,
-        darkTheme: prismThemes.dracula,
+        theme: camusTheme,
+        darkTheme: camusTheme,
         additionalLanguages: ['csharp', 'json'],
       },
     }),

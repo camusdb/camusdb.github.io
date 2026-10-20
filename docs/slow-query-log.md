@@ -36,6 +36,12 @@ slow_query_log_max_sql_length: 4096
 `SHOW VARIABLES LIKE 'slow_query%'` shows the effective values on the node you
 are inspecting.
 
+Turning the log on needs a restart if the node started with it off. A node that
+started with it on can change `slow_query_log_enabled`,
+`slow_query_log_threshold_ms`, and `slow_query_log_max_sql_length` with
+`SET CLUSTER SETTING`, effective at the next statement.
+`slow_query_log_max_entries` always needs a restart.
+
 ## What it records
 
 Each entry includes the facts that usually explain why a statement was slow:
@@ -59,7 +65,7 @@ Rows come back newest first.
 | `user` | `STRING` | Authenticated user, or `NULL` when auth is disabled. |
 | `kind` | `STRING` | Statement kind, such as `select`, `insert`, or `create_table`. |
 | `rows_returned` | `INT64` | Rows returned, or rows affected for a mutation. |
-| `rows_read` | `INT64` | Rows fetched from storage before filtering, across every side of the plan. A nested-loop join counts each reread of its right side. A distributed scan or broadcast join counts rows when they are delivered to the coordinator; rows a peer scanned but did not ship stay local to that peer. |
+| `rows_read` | `INT64` | Rows fetched from storage before filtering, across every side of the plan. A nested-loop join counts each reread of its right side. A [distributed](/docs/distributed-queries) scan or broadcast join counts rows when they reach the coordinator, the node that received the statement; rows another node scanned but did not ship stay local to that node. |
 | `full_scan` | `BOOL` | Whether any part of the statement read a whole relation, including the right side of a hash join or nested-loop join. |
 | `spilled` | `BOOL` | Whether a blocking operator spilled to disk. |
 | `outcome` | `STRING` | `completed`, `abandoned`, or `failed`. |
@@ -76,7 +82,7 @@ SHOW SLOW QUERIES LIKE '%orders%';
 | seq | duration_ms | kind | rows_returned | rows_read | full_scan | spilled | outcome | sql |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 412 | 4180.2 | select | 12 | 2400000 | true | false | completed | SELECT * FROM orders WHERE region = 'emea' |
-| 407 | 2210.7 | select | 500 | 500 | false | true | completed | SELECT * FROM orders ORDER BY total DESC |
+| 407 | 2210.7 | select | 500 | 500 | true | true | completed | SELECT * FROM orders ORDER BY total DESC |
 
 The first query read many rows to return a few, so it probably needs an index on
 `region`. The second query read only what it returned but spilled, so the issue

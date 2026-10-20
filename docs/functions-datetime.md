@@ -4,8 +4,15 @@ sidebar_position: 4.3
 
 # Date/time functions
 
-A date function and a time function return a typed value. That value is a
-`DATE`, a `DATETIME`, or an `INT64`.
+Date and time functions let you answer time questions in SQL: orders placed
+this month, sessions grouped by hour, days until a subscription expires, or a
+timestamp formatted for a report. Clock functions such as `now()` follow
+PostgreSQL rules, and CamusDB also accepts the PostgreSQL and MySQL formatting
+functions (`to_char`, `date_format`) and the MySQL shortcuts (`year`,
+`dayname`), so queries you port need fewer changes.
+
+Each function returns a typed value: a `DATE`, a `DATETIME`, or an `INT64`.
+`to_char`, `date_format`, `dayname`, and `monthname` return a `STRING`.
 
 These functions accept a `DATE` column and a `DATETIME` column directly. They
 also accept two forms of a string:
@@ -18,19 +25,33 @@ CamusDB rejects a local timestamp string without an offset. `2024-06-15T10:30:00
 and `2024-06-15 10:30:00` are therefore invalid. The time zone of each one is
 ambiguous.
 
-The supported units are `year`, `month`, `day`, `hour`, `minute`, `second`, and
-`millisecond`. CamusDB also accepts a plural name, such as `days` and `months`.
+The supported units are `year`, `month`, `day`, `hour`, `minute`, `second`,
+`millisecond`, `microsecond` (or `us`), `week`, `quarter`, `decade`, `century`,
+and `millennium`. CamusDB also accepts a plural name, such as `days`, `months`,
+and `millennia`.
+
+Five more units name a position, so they work only in `date_part` and `EXTRACT`:
+`dow` (0 = Sunday), `isodow` (1 = Monday to 7 = Sunday), `doy` (day of the year),
+`isoyear`, and `epoch` (whole Unix seconds).
+
+As a part, `week` is the ISO-8601 week. `millisecond` and `microsecond` are the
+fraction of the current second only (0-999 and 0-999999).
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `current_timestamp()` | `DATETIME` | The current instant in UTC. |
+| `current_timestamp()` | `DATETIME` | The start of the current transaction, in UTC. |
 | `now()` | `DATETIME` | An alias of `current_timestamp()`. |
-| `current_date()` | `DATE` | The current date in UTC. |
+| `transaction_timestamp()` | `DATETIME` | An alias of `current_timestamp()`. |
+| `current_date()` | `DATE` | The UTC date at the start of the current transaction. |
+| `statement_timestamp()` | `DATETIME` | The start of the current statement, in UTC. |
+| `clock_timestamp()` | `DATETIME` | The current instant in UTC, read again at each call. |
+| `sysdate()` | `DATETIME` | An alias of `clock_timestamp()`. |
 | `date_add(value, amount, unit)` | `DATETIME` | It adds an `INT64` amount of the given unit. It promotes a `DATE` input to a `DATETIME`. |
 | `date_diff(start, end, unit)` | `INT64` | The difference from `start` to `end`, in whole units. |
 | `date_part(unit, value)` | `INT64` | It extracts a UTC component of `value`. |
+| `EXTRACT(unit FROM value)` | `INT64` | The SQL-standard form of `date_part(unit, value)`. The unit is a bare word or a string. |
 | `date_trunc(unit, value)` | `DATETIME` | It truncates `value` to the start of the requested unit, in UTC. |
-| `unix_timestamp()` | `INT64` | The current Unix timestamp in UTC, in whole seconds. |
+| `unix_timestamp()` | `INT64` | The start of the current transaction, in whole Unix seconds. |
 | `unix_timestamp(value)` | `INT64` | It converts a `DATE`, a `DATETIME`, or a string of a date or a time to Unix timestamp seconds. |
 | `unix_timestamp_ms()` | `INT64` | Milliseconds since the Unix epoch at the start of the transaction. |
 | `unix_timestamp_ms(value)` | `INT64` | Converts a temporal value to Unix epoch milliseconds, rounded down. |
@@ -47,6 +68,47 @@ The supported units are `year`, `month`, `day`, `hour`, `minute`, `second`, and
 
 Pattern formatting and parsing are covered in
 [Pattern formatting and parsing](#pattern-formatting-and-parsing).
+
+## Which clock?
+
+The clock functions follow PostgreSQL:
+
+- `now()`, `current_timestamp()`, `transaction_timestamp()`, `current_date()`,
+  `unix_timestamp()`, and `unix_timestamp_ms()` return the start of the
+  transaction. Every row and every statement in one transaction sees the same
+  value.
+- `statement_timestamp()` returns the start of the statement. The next statement
+  gets a new value.
+- `clock_timestamp()` and `sysdate()` read the clock at each call, so two rows of
+  one statement can get different values.
+
+Use `now()` for a consistent time across a transaction. Use `clock_timestamp()`
+to measure elapsed time inside one.
+
+## MySQL shortcuts
+
+Each shortcut takes one temporal value and returns one UTC part of it.
+
+| Function | Returns | Description |
+| --- | --- | --- |
+| `year(x)`, `month(x)`, `day(x)`, `hour(x)`, `minute(x)`, `second(x)` | `INT64` | The same part as `date_part`. |
+| `dayofmonth(x)` | `INT64` | An alias of `day(x)`. |
+| `quarter(x)` | `INT64` | 1 to 4. |
+| `dayofyear(x)` | `INT64` | 1 to 366. |
+| `dayofweek(x)` | `INT64` | 1 = Sunday to 7 = Saturday. |
+| `weekday(x)` | `INT64` | 0 = Monday to 6 = Sunday. |
+| `dayname(x)` | `STRING` | The English day name, such as `Sunday`. |
+| `monthname(x)` | `STRING` | The English month name, such as `June`. |
+| `week(x[, mode])` | `INT64` | Mode 0, the default: weeks start on Sunday, and the days before the first Sunday are week 0 (0 to 53). Mode 3: the ISO-8601 week (1 to 53). Any other mode is an error. |
+
+`dayofweek(x)` counts from 1, but `date_part('dow', x)` counts from 0. CamusDB
+has no `DATE(x)` function, because `DATE` is a type keyword. Use
+`CAST(x AS DATE)`.
+
+```camussql
+SELECT EXTRACT(year FROM '2024-06-16'), dayofweek('2024-06-16'), week('2024-01-07');
+-- 2024, 1, 1
+```
 
 ## A typed result
 
@@ -125,12 +187,12 @@ day below 1 is an error.
 
 ## The rules for a null and for an overflow
 
-Six functions return `NULL` when one argument is `NULL`: `date_add`,
-`date_diff`, `date_part`, `date_trunc`, `unix_timestamp(value)`, and
-`from_unixtime(seconds)`.
+These functions return `NULL` when one argument is `NULL`: `date_add`,
+`date_diff`, `date_part` (and `EXTRACT`), `date_trunc`, `unix_timestamp(value)`,
+`from_unixtime(seconds)`, and the MySQL shortcuts.
 
-`unix_timestamp()` takes no argument. It returns the current Unix timestamp in
-UTC, in seconds.
+`unix_timestamp()` takes no argument. It returns the start of the current
+transaction as a Unix timestamp, in seconds.
 
 Five conditions make the query fail:
 
@@ -256,7 +318,7 @@ letter can start a keyword. For example, write
 | `%W` | day name, `Sunday`-`Saturday` | |
 | `%a` | day name, 3 letters, `Sun`-`Sat` | |
 | `%j` | day of the year, `001`-`366` | |
-| `%u` | week, `00`-`53`; weeks start on Monday, the same as `WEEK(x, 1)` | Days before week 1 are week 0 |
+| `%u` | week, `00`-`53`; weeks start on Monday, the MySQL `WEEK(x, 1)` rule | Days before week 1 are week 0 |
 | `%v` | ISO-8601 week, `01`-`53`, the same as `WEEK(x, 3)` | |
 | `%%` | `%` | |
 

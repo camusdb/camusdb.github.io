@@ -19,8 +19,9 @@ const sidebars = {
       label: 'Start here',
       collapsed: false,
       items: [
-        'intro',        
         'why-camusdb',
+        'intro',
+        'concepts',
         {
           type: 'link',
           label: 'Playground',
@@ -147,6 +148,11 @@ const sidebars = {
         },
         {
           type: 'doc',
+          id: 'csharp-extensions',
+          label: 'C# extensions',
+        },
+        {
+          type: 'doc',
           id: 'sql-transactions',
           label: 'Transactions in SQL',
         },
@@ -170,6 +176,11 @@ const sidebars = {
               type: 'doc',
               id: 'query-result-cache',
               label: 'Result cache',
+            },
+            {
+              type: 'doc',
+              id: 'query-result-cache-internals',
+              label: 'Result cache internals',
             },
             {
               type: 'doc',
@@ -297,7 +308,7 @@ const sidebars = {
     {
       type: 'category',
       label: 'Internals',
-      collapsed: false,
+      collapsed: true,
       items: [
         'architecture',
         'connection-model',

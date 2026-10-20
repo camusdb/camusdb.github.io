@@ -4,7 +4,17 @@ sidebar_position: 2.35
 
 # Copying query results
 
-Two statements let a query supply the rows. A client does not supply them.
+Sometimes the rows you want to write already exist in the database. You may
+want to archive closed orders, backfill a new table, build a summary table, or
+recover rows from before a bad `UPDATE`. Two statements do this in one step,
+without sending every row to the client and back:
+
+- `INSERT INTO ... SELECT` copies query results into an existing table.
+- `CREATE TABLE ... AS SELECT` (CTAS) creates a new table from query results.
+
+Both use the familiar PostgreSQL and MySQL forms. In CamusDB, the source can
+also read the past with [time travel](#time-travel-recover-historical-data),
+which turns a copy into a recovery tool.
 
 ```camussql
 -- Copy rows between tables
@@ -76,9 +86,9 @@ A larger copy fails with `CADB0506`. Divide the copy with a `WHERE` clause or a
 
 While the copy runs, CamusDB locks the rows that it reads against a concurrent
 writer. That lock lasts to the end of the transaction. The scan of the source
-decides what CamusDB writes. It therefore holds exclusive range locks over the
-range that it scanned. A large copy blocks a write to that range until it
-commits. A source with time travel is exempt. See below.
+decides what CamusDB writes. It therefore holds exclusive locks over the whole
+range of keys that it scanned. A large copy blocks a write to that range until
+it commits. A source with time travel is exempt. See below.
 
 ## CREATE TABLE ... AS SELECT
 
@@ -122,8 +132,9 @@ refuses three shapes, and it explains each one:
 ### The schema and the data do not commit together
 
 The creation of the table commits on its own. In cluster mode, CamusDB
-replicates that commit through Raft. The commit happens before any row arrives.
-The two steps are therefore not one atomic unit:
+replicates that commit to the other nodes through [Raft](/docs/concepts#raft),
+the protocol the nodes use to agree on each change. The commit happens before
+any row arrives. The two steps are therefore not one atomic unit:
 
 - The rows load in your transaction. They become durable when you commit. The
   table is durable already.
@@ -154,8 +165,9 @@ parameter. It applies to the whole source query. An aggregate over that source
 therefore reports the historical value.
 
 A source with time travel is cheaper and safer than a live source. History
-cannot change. The scan therefore takes no range lock, and it blocks no
-concurrent writer. It also can never observe the writes of its own statement.
+cannot change. The scan therefore does not lock the range it reads, and it
+blocks no concurrent writer. It also can never observe the writes of its own
+statement.
 
 A plain historical `SELECT` does not work inside an explicit transaction. This
 form does. Only the source reads at the snapshot. The writes stay in your
@@ -163,12 +175,13 @@ transaction.
 
 ### What time travel can recover, and what it cannot
 
-Time travel reads the rows that exist now, as they were then. Five consequences
+Time travel reads the table as it was at the snapshot. Five consequences
 matter before you depend on it during an incident:
 
 - A modified row recovers well. You undo a wrong `UPDATE` with a copy of the
   values from before that update.
-- A deleted row also recovers. A `DELETE` writes its tombstone as a revision of
+- A deleted row also recovers. A `DELETE` writes its tombstone (a deletion
+  marker) as a [revision](/docs/concepts#mvcc), a stored version of the row, of
   its own. The history record of the last live value therefore survives. A
   snapshot from before the delete reads the row back. The retention of the
   revisions bounds that read, like every other historical read. See below.
@@ -178,8 +191,8 @@ matter before you depend on it during an incident:
   different internal id. Its old rows are therefore not part of the history of
   the new table.
 - The retention bounds how far back you can go. Time travel reaches only the
-  revisions that Kahuna still keeps. An older snapshot reads as empty. It does
-  not fail. CamusDB logs a warning for a recovery that returns no row. The
+  revisions that the storage still keeps. An older snapshot reads as empty. It
+  does not fail. CamusDB logs a warning for a recovery that returns no row. The
   warning says that it may have reclaimed the history already.
 
 While a copy runs, the engine pins the floor of the revisions at the requested

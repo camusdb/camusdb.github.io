@@ -4,9 +4,16 @@ sidebar_position: 4
 
 # Functions
 
-A scalar function works at any position that accepts a value. That includes a
-projection, a filter, a key of a `GROUP BY`, a default, and a check constraint.
-A function also nests inside another function:
+Built-in functions let you clean, convert, and compute values inside the query,
+so that work does not have to move into your application. You can trim and
+normalize text, round numbers, bucket timestamps, extract JSON fields, generate
+UUIDs, and compare vectors in the same statement that reads or writes the rows.
+Many functions use a name you already know from PostgreSQL or MySQL, such as
+`now()`, `date_trunc`, and `date_format`.
+
+A scalar function works anywhere a value is accepted: in the select list, in a
+`WHERE` filter, as a `GROUP BY` key, in a column default, and in a check
+constraint. Functions also nest:
 
 ```camussql
 SELECT upper(trim(name)) AS display_name
@@ -15,6 +22,10 @@ WHERE abs(year - 2000) <= 5;
 ```
 
 The name of a function is not case-sensitive.
+
+To add application-specific scalar functions written in C#, see
+[C# extensions](/docs/csharp-extensions). The same extension system also
+supports transactional row triggers and stored procedures.
 
 ## Categories
 
@@ -57,15 +68,22 @@ A null propagates. Most functions return `NULL` when one argument is `NULL`.
 [Null Functions](/docs/functions-null) covers the exceptions, such as `coalesce`
 and `nullif`. Each page of a category marks any other exception.
 
-Some functions are volatile. Eight of them can return a different value at every
-evaluation: `gen_id()`, `gen_uuid_v4()`, `gen_uuid_v7()`, `current_timestamp()`,
-`now()`, `current_date()`, `unix_timestamp()`, and `random()`. That property
-makes them useful as the default of a column. It also makes them unsafe in a
-predicate that must stay stable across a scan.
+Some functions are volatile. Their result can change from one call, statement,
+or transaction to the next:
 
-The [session functions](/docs/functions-session) are volatile for another
-reason. They vary by caller, not by row. They therefore bypass the result cache.
-You cannot use one as a default.
+- **Per call:** `gen_id()`, `gen_uuid_v4()`, `gen_uuid_v7()`, `random()`,
+  `gen_random_bytes(n)`, `clock_timestamp()`, and `sysdate()`.
+- **Per statement:** `statement_timestamp()`.
+- **Per transaction:** `now()`, `current_timestamp()`, `transaction_timestamp()`,
+  `current_date()`, `unix_timestamp()`, and `unix_timestamp_ms()`.
+- **Sequence functions:** `nextval`, `currval`, `lastval`, and `setval`.
+
+Volatile functions such as `gen_id()` and `now()` work as the default of a
+column. A per-call function is unsafe in a predicate that must stay stable across
+a scan.
+
+The [session functions](/docs/functions-session) vary by caller, not by row. See
+that page for how they interact with the result cache, `DEFAULT`, and `CHECK`.
 
 CamusDB evaluates the arguments before the call. It validates the number of the
 arguments and their types at the execution. It does not validate them at the

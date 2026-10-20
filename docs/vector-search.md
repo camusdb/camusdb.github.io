@@ -4,9 +4,17 @@ sidebar_position: 2.44
 
 # Vector search
 
-A vector is a list of float32 numbers. A machine learning model produces one for
-each document, image, or sentence. The model puts related items close together,
-so distance between two vectors is a measure of similarity.
+Vector search finds rows by meaning instead of exact matches. Use it for
+semantic search ("find articles about refunds" also matches "money back"),
+recommendations ("products similar to this one"), and retrieval for LLM
+applications, where you fetch the most relevant passages to put in a prompt.
+Because the vectors live in ordinary CamusDB tables, a search can filter on
+regular columns, such as a tenant id, in the same query.
+
+A vector (also called an embedding) is a list of float32 numbers. A machine
+learning model produces one for each document, image, or sentence. The model
+puts related items close together, so the distance between two vectors measures
+how similar the items are.
 
 CamusDB stores a vector in a `BYTES` column. It ranks vectors with distance
 functions. A nearest neighbor query is an ordinary `SELECT` with an `ORDER BY`
@@ -98,10 +106,11 @@ An embedding is a `BYTES` value, so the large-value rules in
 3,072 bytes, which is above the default out-of-line threshold of 2,048 bytes.
 Under the default strategy, `EXTENDED`, each embedding moves out of its row.
 
-That is good for large values most queries skip. It is bad for exact KNN scans,
-because the ranking expression reads the embedding for every candidate row. The
-scan then pays an extra batched fetch for every batch it ranks. Float32 vectors
-also do not usually compress enough for LZ4 to help.
+That is good for large values most queries skip. It is bad for exact KNN scans
+(k-nearest-neighbor: find the k rows closest to a query vector), because the
+ranking expression reads the embedding for every candidate row. The scan then
+pays an extra batched fetch for every batch it ranks. Float32 vectors also do
+not usually compress enough for LZ4 to help.
 
 Choose the strategy from the query that reads the column:
 
@@ -181,16 +190,8 @@ ORDER BY distance
 LIMIT 10;
 ```
 
-An alias in `ORDER BY` outranks a base column of the same name. An expression in
-`ORDER BY` can also read a column that the `SELECT` list does not project.
-
-Two `ORDER BY` shapes are refused with `CADB0400 InvalidInput`:
-
-- An aggregate function in `ORDER BY` without a `GROUP BY` clause.
-- A computed expression in `ORDER BY` together with a `GROUP BY` clause. A
-  grouped query sorts after the projection, so a base column that the expression
-  names no longer exists at that point. Project the value first, then sort by the
-  alias.
+See [Sort the rows](/docs/sql-queries#sort-the-rows-and-divide-them-into-pages)
+for how `ORDER BY` resolves an alias and which shapes it refuses.
 
 ## Send the query vector as a parameter
 
@@ -248,6 +249,15 @@ The two names distinguish two different operators. A `sort` node holds the whole
 input, and it can spill to disk. A `topk` node holds at most `k` rows, and it
 never spills. This is what lets an exact nearest neighbor query over a large
 table finish at all.
+
+```mermaid
+flowchart LR
+    S["Scan the rows<br/>that WHERE admits"] --> D[Distance for<br/>each row]
+    D -->|with LIMIT| K["topk<br/>holds offset + limit rows"]
+    D -->|no LIMIT| O["sort<br/>holds every row, can spill"]
+    K --> R[Nearest rows]
+    O --> R
+```
 
 `EXPLAIN (ANALYZE)` reports the work of each node. The scan node reports every
 row that it examined. The `topk` node reports only the rows that it retained.
@@ -319,12 +329,14 @@ See [Transactions and isolation](/docs/serializable-transactions) and
 
 ## Cluster behavior
 
-Every node ranks the whole table, not only the spans that it leads. The answer
+Every node ranks the whole table, not only the
+[spans](/docs/concepts#ranges-and-spans) (key ranges) whose
+[leader](/docs/concepts#leader) it is. The answer
 is the same on every node.
 
-The coordinator performs the rank. A query can therefore ship every qualifying
-row across the network to the node that runs it. There is no distributed top-k
-operator that bounds this traffic. See
+The coordinator (the node that received the query) performs the rank. A query
+can therefore ship every qualifying row across the network to the node that runs
+it. There is no distributed top-k operator that bounds this traffic. See
 [Distributed queries](/docs/distributed-queries).
 
 ## Cost

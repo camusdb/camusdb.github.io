@@ -9,7 +9,7 @@ export default function useCluster(active) {
   const [startup, setStartup] = useState('loading');
   const [download, setDownload] = useState(null);
   const [message, setMessage] = useState(
-    'Starting four real CamusDB engines in this tab…',
+    'Starting four real CamusDB servers in this tab…',
   );
   const [error, setError] = useState('');
   const [events, setEvents] = useState([]);
@@ -74,7 +74,7 @@ export default function useCluster(active) {
       await work();
       if (mounted.current)
         setMessage(
-          'Engine state refreshed. CamusDB handles elections and placement.',
+          'Server state refreshed. CamusDB handles elections and placement.',
         );
     } catch (err) {
       if (mounted.current) {
@@ -135,7 +135,7 @@ export default function useCluster(active) {
   function resize(direction) {
     return action(
       direction > 0
-        ? 'Joining a new engine as a learner; waiting for voter promotion…'
+        ? 'Joining a new server as a learner; waiting for voter promotion…'
         : 'Draining the highest ordinal and committing its removal…',
       async () => {
         if (direction > 0) {
@@ -153,7 +153,7 @@ export default function useCluster(active) {
           );
           log(
             direction > 0
-              ? 'New engine joined and promoted to voter'
+              ? 'New server joined and promoted to voter'
               : 'Node drained and removed from the committed roster',
           );
           stabilization.current = {direction: 0, ticks: 0};
@@ -175,7 +175,7 @@ export default function useCluster(active) {
         ),
       );
       log(
-        `camusdb-${id} ${restarting ? 'restarted empty; engine catches up from peers' : 'stopped; surviving engines handle failover'}`,
+        `camusdb-${id} ${restarting ? 'restarted empty; server catches up from peers' : 'stopped; surviving servers handle failover'}`,
       );
     });
   }
@@ -193,7 +193,7 @@ export default function useCluster(active) {
   }
   async function stop() {
     if (lock.current) return false;
-    await action('Stopping the data center engines…', async () => {
+    await action('Stopping the data center servers…', async () => {
       if (api.current) await api.current.StopClusterAsync();
       previous.current = null;
       setCluster(null);

@@ -13,6 +13,31 @@ convention for row-level TTL. Some parameters accept a narrower value than that
 convention allows. Some parameters are not supported. See
 [Limits of the parameters](#limits-of-the-parameters).
 
+## Why use row-level TTL
+
+TTL means time to live: the time that a row stays in the table before it is
+removed. Many tables hold data that is useful only for a limited time:
+
+- Login sessions, access tokens, and password reset codes.
+- Temporary carts, reservations, and locks held by an application.
+- Event logs, audit rows, and telemetry that a retention rule lets you keep for
+  a fixed period only.
+- Cached copies of data from another system.
+
+Without TTL, you must write and schedule your own cleanup job. That job must
+delete the rows in small batches, so that it does not hold a large transaction
+or slow down the application. It must also continue after a failure or a
+restart. Row-level TTL does that work inside the database. You name the expiry
+column one time, and CamusDB keeps the table small.
+
+You do not need TTL for data that you keep forever, or for rows that the
+application already deletes as part of its normal work.
+
+Expired rows are not removed at the exact instant of their expiry. A query can
+still see an expired row until the sweep reaches it. Read
+[The one thing to know](#the-one-thing-to-know-an-expired-row-stays-visible)
+before you depend on TTL for correctness.
+
 ## Turn it on
 
 The node-level switch is `ttl_enabled` in `config.yml`. It is on by default. One
@@ -70,7 +95,8 @@ It also accepts `'@midnight'` as another spelling of `'@daily'`.
 
 The parameter sets a cadence. It does not set a wall-clock schedule. `@daily`
 means about once a day. It does not mean at midnight. CamusDB orders the sweeps
-by the hybrid logical clock of the cluster. It never orders them by wall time.
+by the cluster's [hybrid logical clock](/docs/concepts#hlc) (HLC), which orders
+events consistently across nodes. It never orders them by wall time.
 
 You can also give the settings inline, on `CREATE TABLE ... WITH (...)`. `SHOW
 CREATE TABLE` renders that form. Its output therefore creates the same table
@@ -95,10 +121,10 @@ value.
 | `ttl_default_delete_batch_size` | `100` | `ttl_delete_batch_size` |
 | `ttl_default_select_rate_limit` | `0` | `ttl_select_rate_limit` |
 | `ttl_default_delete_rate_limit` | `100` | `ttl_delete_rate_limit` |
-| `ttl_spans_per_table` | `64` | The number of spans that one run divides the table into |
+| `ttl_spans_per_table` | `64` | The number of [spans](/docs/concepts#ranges-and-spans) (slices of the table's keys) that one run divides the table into |
 | `ttl_max_concurrent_spans_per_node` | `1` | The number of spans that one node works on at a time |
 | `ttl_load_pause_threshold` | `16` | The number of foreground transactions in flight that pauses the sweep |
-| `ttl_span_lease_ms` | `30000` | The lease of a claim on a span |
+| `ttl_span_lease_ms` | `30000` | The [lease](/docs/concepts#lease) (a claim that expires unless renewed) on a span |
 | `ttl_span_lease_renew_interval_ms` | `10000` | How often an owner renews its claim |
 
 ## The one thing to know: an expired row stays visible
@@ -142,7 +168,8 @@ therefore spends five mutations for each row. `ttl_delete_batch_size` must stay
 well below the transaction limit of 20,000 mutations. A short delete transaction
 also stops a foreground writer from a wait behind the locks of the sweep.
 
-Priority orders the admission, not the execution. A sweep transaction runs at
+Priority orders the admission (the moment a transaction is let in to run), not
+the execution. A sweep transaction runs at
 `Background` priority. That priority decides who waits at the door, while a
 ceiling on concurrency is configured. After admission, a background delete takes
 ordinary exclusive locks. It blocks a foreground writer exactly like any other
@@ -164,8 +191,10 @@ division is not balanced. A row id contains a timestamp in seconds. 64 spans are
 therefore each about two years wide. Almost every row of an active table lands in
 one of them.
 
-Correctness does not depend on that distribution. CamusDB sweeps every row
-exactly once in either case. Throughput does depend on it. A higher
+Correctness does not depend on that distribution. A sweep never skips a row. It
+can examine a row more than once, for example when a worker resumes a span from
+its last checkpoint, but it deletes each row at most once. Throughput does
+depend on the distribution. A higher
 `ttl_spans_per_table` therefore does not currently spread a table with many
 appends across the workers.
 
@@ -286,7 +315,8 @@ Every worker of the run tests its rows against that one horizon. Two nodes
 therefore can never disagree about a row on the boundary that they share.
 
 Workers run on every node. This is the first background job of CamusDB whose
-work spreads across the cluster. Other jobs run entirely on the leader.
+work spreads across the cluster. Other background jobs run entirely on one
+elected node.
 
 A worker claims a span. CamusDB does not assign a span to a worker. The worker
 takes a lease on the key of the span. Because of the lease, a worker that dies
@@ -301,6 +331,18 @@ CamusDB processes each span in four steps:
 3. It deletes them in small transactions.
 4. It writes a checkpoint after the deletes commit.
 
+```mermaid
+flowchart TD
+    P["Planner<br/>one elected node per database"] -->|cadence elapsed| M["Run manifest<br/>table, HLC horizon, span count"]
+    M --> SP[Spans of the table]
+    W[Worker on any node] -->|claims a span with a lease| SP
+    SP --> A[Scan a bounded batch]
+    A --> B[Keep the rows expired<br/>at the horizon]
+    B --> C["Recheck under a lock, then delete<br/>row and index entries in small transactions"]
+    C --> D[Write the span checkpoint]
+    D -->|next batch| A
+```
+
 CamusDB stores the checkpoint separately from the claim, and the checkpoint does
 not expire with the claim. A worker that takes over the span of a dead worker
 therefore continues from the point where the other worker stopped. It does not
@@ -309,7 +351,8 @@ scan from the start again.
 A delete goes through the normal delete path. A row and all of its index entries
 therefore go in one transaction.
 
-That is the reason why TTL does not use the per-key expiry of the KV layer.
+That is the reason why TTL does not use the per-key expiry of the
+[Kahuna](/docs/concepts#kahuna) storage layer.
 Expiry of the row key alone would strand every secondary index entry
 permanently. An index-only scan would then return a row that no longer exists.
 
@@ -317,12 +360,6 @@ CamusDB discards a run whose table id no longer matches the live schema. It does
 not drive that run. A run left behind by a `DROP` therefore can never delete a
 row out of a new table that reuses the name.
 
-A manifest also records the contents generation of its plan. A
-[`TRUNCATE`](/docs/truncate-table) moves the table to a new generation, and the
-run becomes inert at once. The planner tests the generation again, and each span
-of a worker tests it again.
-
-No worker can therefore delete from the retired generation, which a recovery can
-still get back. No worker can delete from the new generation either, because the
-plan of its span never described that generation. CamusDB cleans the records of
-the stale run in the background.
+A [`TRUNCATE`](/docs/truncate-table) makes a TTL run that is in progress stop
+at once, so it never deletes rows from the old or the new contents. See
+[TRUNCATE TABLE](/docs/truncate-table#row-level-ttl).

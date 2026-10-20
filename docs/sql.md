@@ -4,10 +4,25 @@ sidebar_position: 2
 
 # SQL overview
 
-CamusDB speaks a compact dialect of SQL. The dialect covers the life of a
-database, a schema change, a write, a read, an index, and a transaction. Most of
-it looks familiar if you know SQL. This page covers the parts that belong to
-CamusDB alone.
+You talk to CamusDB in SQL, so the skills, queries, and tools you already use
+with a relational database carry over. CamusDB accepts common
+[PostgreSQL expression forms](/docs/sql-expression-syntax), such as `::` casts,
+so SQL that an ORM or a PostgreSQL tool generates usually needs few changes.
+Where CamusDB differs, these pages say so.
+
+The dialect covers what you expect from a relational database, plus a few
+additions:
+
+- Schemas with `CHECK` constraints, foreign keys, sequences, identity columns,
+  views, and materialized views.
+- Queries with inner, outer, and cross joins, subqueries, derived tables,
+  aggregates, and `CASE` expressions.
+- Writes with `INSERT ... SELECT` and `RETURNING`.
+- Serializable transactions, time-travel reads, vector search, row-level TTL,
+  roles and grants, and a large library of scalar functions.
+
+This page covers the parts that belong to CamusDB alone and maps each statement
+to its page.
 
 ```camussql
 CREATE DATABASE IF NOT EXISTS app;
@@ -32,8 +47,8 @@ ORDER BY year DESC;
 ## Identifiers and case
 
 A keyword is not case-sensitive. CamusDB stores the name of a database, a table,
-a column, and an index in the case of its creation. A later match on that name
-ignores the case:
+a column, and an index in the case you use when you create or rename it. A later
+match on that name ignores the case:
 
 ```camussql
 CREATE TABLE Robots (
@@ -45,11 +60,13 @@ INSERT INTO robots (id, robotname) VALUES (GEN_ID(), "R2-D2");
 SELECT ROBOTNAME FROM ROBOTS;
 ```
 
-The result still shows the original names `Robots`, `Id`, and `RobotName`. The
-three spellings `robots`, `ROBOTS`, and `Robots` all address the same table.
+The result still shows the original names `Robots`, `Id`, and `RobotName`, and
+so do `SHOW TABLES`, `SHOW COLUMNS`, and `SHOW CREATE TABLE`. The three spellings
+`robots`, `ROBOTS`, and `Robots` all address the same table.
 
 A name is also unique without regard to its case. `Robots` and `robots`
-therefore cannot exist as two tables in one database.
+therefore cannot exist as two tables in one database, and one table cannot hold
+both `RobotName` and `robotname` as columns.
 
 ### Backticks
 
@@ -146,6 +163,7 @@ subtract a negative number.
 | A historical snapshot | [Time-Travel Reads](/docs/time-travel-reads) |
 | A `SELECT` with no table source | [SELECT Without FROM](/docs/sql-fromless-select) |
 | A scalar function | [Functions](/docs/functions) |
+| Custom C# functions, row triggers, and procedures | [C# Extensions](/docs/csharp-extensions) |
 | A vector, and a nearest neighbor search | [Vector Search](/docs/vector-search) |
 | The expiry of a row | [Row-Level TTL](/docs/row-level-ttl) |
 

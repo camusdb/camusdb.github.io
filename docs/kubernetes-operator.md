@@ -4,21 +4,86 @@ sidebar_position: 6.1
 
 # Kubernetes Operator
 
+The CamusDB Kubernetes Operator is the easiest way to run a self-managed CamusDB
+cluster.
+
+[Kubernetes](https://kubernetes.io/) is a platform that runs containers on a
+group of machines. It restarts a failed container, and it moves work off a
+failed machine. Many teams already use it to run their applications.
+
+An operator is a program that runs inside Kubernetes and manages one kind of
+application for you. You describe the cluster that you want in one short YAML
+file. The operator creates the Kubernetes objects for that cluster. It then
+keeps the cluster in that state, and it does the routine work that a person
+otherwise does by hand.
+
 The [CamusDB Kubernetes Operator](https://github.com/camusdb/camusdb-k8s-operator)
 creates and operates CamusDB clusters through the `CamusDBCluster` custom
-resource.
+resource. A custom resource is a new kind of Kubernetes object. The operator
+adds it to your Kubernetes cluster.
 
 :::caution Alpha
 
-The operator and the `camusdb.io/v1alpha1` API are alpha. Review the current
-limitations before using them for production data.
+The operator and the `camusdb.io/v1alpha1` API are alpha. Review the
+[current limitations](#current-limitations) before using them for production
+data.
 
 :::
 
-A CamusDB cluster has a consensus-committed membership roster. Adding or
-removing a node is therefore more than changing the replica count of a
-StatefulSet. The operator compares Kubernetes state with the committed roster
-and performs one membership change at a time.
+## Why use the operator
+
+A database cluster is harder to run than a stateless application. Kubernetes
+can start and stop containers, but it does not know the rules of a CamusDB
+cluster.
+
+A CamusDB cluster keeps a membership roster. The roster is the list of nodes
+that the cluster agreed on through [Raft](/docs/concepts#raft), the protocol
+CamusDB nodes use to agree on each change. The cluster must admit a new node
+into the roster before that node serves data. A node that leaves must exit the
+roster in a controlled way. If you remove two nodes of a three-node cluster at
+the same time, the [partitions](/docs/concepts#partition) (the slices of data
+that each replicate on their own) lose their [majority](/docs/concepts#majority),
+and the cluster stops all commits.
+
+Adding or removing a node is therefore more than a change to a replica count in
+Kubernetes. The operator knows the rules of the roster. It compares the state in
+Kubernetes with the committed roster, and it makes one membership change at a
+time. You get these results:
+
+- One YAML resource creates a complete cluster: the storage, the network
+  services, TLS, and the configuration.
+- A change to the node count adds or removes one node at a time. The operator
+  waits until the cluster accepts each change.
+- An upgrade replaces one node at a time, so the cluster stays available.
+- Optional autoscaling adds and removes nodes as the traffic changes.
+
+Use the operator when you already run Kubernetes, and you want to run CamusDB on
+your own infrastructure. You do not need it in these cases:
+
+- Local development, a tutorial, or a quick test. Run a standalone node, or the
+  Docker Compose cluster in [Cluster mode](/docs/cluster#run-a-local-cluster).
+- Servers or virtual machines without Kubernetes. Run each cluster node
+  directly, as [Cluster mode](/docs/cluster#run-a-cluster-node-manually)
+  describes.
+
+## Before you start
+
+You need:
+
+- A Kubernetes cluster, and `kubectl` access to it.
+- [Helm](https://helm.sh/), the package manager for Kubernetes. The operator
+  installs from a Helm chart.
+- A storage class that can provision persistent volumes. Every CamusDB node
+  keeps its data on a persistent volume.
+- A TLS certificate source. Use [cert-manager](https://cert-manager.io/), or an
+  existing Kubernetes Secret that holds a certificate. TLS is mandatory.
+
+## What the operator manages
+
+These terms appear in the list below. A StatefulSet runs a set of pods with
+stable names, so each CamusDB node keeps the same identity after a restart. A
+PVC, or PersistentVolumeClaim, is a request for a disk that survives a pod
+restart.
 
 The operator manages:
 
@@ -98,8 +163,9 @@ kubectl apply -f camusdb-cluster.yaml
 kubectl -n databases get camusdbcluster camusdb -w
 ```
 
-Three voters tolerate one unavailable node. The API rejects two replicas,
-because a two-voter quorum still requires both nodes. One replica is supported
+Three [voters](/docs/concepts#learner-and-voter) (members that count toward
+the majority) tolerate one unavailable node. The API rejects two replicas,
+because a majority of two voters still requires both nodes. One replica is supported
 for development, but the operator does not convert a one-node cluster into a
 multi-node cluster, or the reverse. Create another `CamusDBCluster` and migrate
 the data instead.
@@ -117,10 +183,29 @@ The client Service routes only to ready pods. The `<name>-peer` headless Service
 publishes all pod addresses, including addresses that are not ready, so founding
 nodes can discover one another before the first quorum exists.
 
+```mermaid
+flowchart TD
+    CR["CamusDBCluster resource"] --> OP[Operator]
+    OP --> PS["Peer Service: camusdb-peer<br/>headless"]
+    OP --> SS["StatefulSet<br/>camusdb-0, camusdb-1, camusdb-2<br/>each pod with its PVC"]
+    OP --> CS["Client Service: camusdb<br/>ClusterIP"]
+    App[Application] --> CS
+    PS -->|all pod addresses| SS
+    CS -->|ready pods only| SS
+```
+
 ## TLS
 
-TLS is mandatory. Nodes contact peers over HTTPS and verify the certificate of
-the peer. Set exactly one of `spec.tls.certManager` or `spec.tls.secretRef`.
+TLS is mandatory. Set exactly one of `spec.tls.certManager` or
+`spec.tls.secretRef`. The operator uses that certificate for three listeners:
+the internal cluster port (Raft), client gRPC, and HTTPS. Nodes verify the
+certificate of the peer on internal cluster connections. Mutual TLS between nodes, where each node also presents its own
+certificate, is on only when you set `spec.auth`.
+
+Node-to-node HTTP forwarding (schema changes, cluster settings, and query
+fragments) is plaintext. It goes to the HTTP port of the peer, because the
+operator does not set `peer_tls_enabled`. Keep pod-to-pod traffic inside a
+trusted network, or restrict it with a NetworkPolicy.
 
 ### cert-manager
 
@@ -191,7 +276,8 @@ catalog is empty. If you later change its password with `ALTER USER`, update the
 Secret too. Otherwise the operator cannot read protected metrics or manage
 membership.
 
-Authentication enables mutual TLS for Raft and Kahuna traffic and requires
+Authentication enables mutual TLS for internal cluster traffic (Raft and
+[Kahuna](/docs/concepts#kahuna), the storage layer) and requires
 CamusDB 0.15.2 or later. It also lets the operator ask a departing node to leave
 cleanly. Without authentication, the operator cannot call the non-loopback
 leave API: it removes the pod and waits about 90 seconds for the failure detector
@@ -199,8 +285,10 @@ to evict the member. Autoscaling requires authentication.
 
 ## Storage
 
-The data PVC is mounted at `/storage`. CamusDB keeps the key/value store, WAL,
-and temporary spill files below `/storage/data`.
+The data PVC is mounted at `/storage`. CamusDB keeps the key/value store, the
+[write-ahead log (WAL)](/docs/concepts#wal), and temporary spill files below
+`/storage/data`. The example below keeps both in
+[RocksDB](/docs/concepts#rocksdb), the on-disk storage engine.
 
 ```yaml
 spec:
@@ -301,19 +389,33 @@ kubectl -n databases patch camusdbcluster camusdb --type=merge \
 ```
 
 The operator adds or removes one node at a time and waits for the committed
-roster to converge before taking another step. New nodes join as learners and
-become voters after they catch up. On scale-down, the highest ordinal leaves
+roster to converge before taking another step. New nodes join as
+[learners](/docs/concepts#learner-and-voter), which copy data but do not vote,
+and become voters after they catch up. On scale-down, the highest ordinal leaves
 first. Do not edit the managed StatefulSet or force-delete a live member to make
 a stalled scale appear complete.
 
+```mermaid
+flowchart TD
+    S["spec.replicas changes"] --> C["Compare Kubernetes state<br/>with the committed roster"]
+    C -->|more nodes wanted| A["Add one node<br/>as a learner"]
+    A --> V["The learner catches up<br/>and becomes a voter"]
+    C -->|fewer nodes wanted| L["The highest ordinal<br/>leaves the roster"]
+    V --> W["Wait for the roster<br/>to converge"]
+    L --> W
+    W --> C
+    C -->|roster matches| D[RosterConverged]
+```
+
 Without `spec.replication`, every node holds every data partition. Adding nodes
-then adds replicas and voters, but does not add write capacity. Use partition
+then adds [replicas](/docs/concepts#replica-and-replication-factor) and voters,
+but does not add write capacity. Use partition
 placement when scaling is intended to distribute work.
 
 ## Autoscale with traffic
 
-The built-in autoscaler can use Raft log-entry rate, pending client proposals,
-and process CPU. It requires both `spec.auth` and `spec.replication`:
+The built-in autoscaler can use the Raft log-entry rate, pending client
+proposals (writes waiting to enter the replication log), and process CPU. It requires both `spec.auth` and `spec.replication`:
 
 ```yaml
 spec:

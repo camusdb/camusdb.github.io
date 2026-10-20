@@ -41,18 +41,19 @@ curl -s \
   https://db1.example.com:7141/v1/admin/stats
 ```
 
-With the .NET gRPC client:
+With the .NET driver, over REST or gRPC:
 
 ```csharp
-NodeStatsReply stats = await connection.GetNodeStatsAsync();
-DiskVolumeStats data = stats.Disks[0];
+CamusNodeStats stats = await connection.GetNodeStatsAsync();
+CamusDiskVolumeStats? data = stats.DataVolume;
 
-if (data.BelowWatermark)
+if (data is { BelowWatermark: true })
     Console.WriteLine("This node is refusing new writes");
 ```
 
-`GetNodeStatsAsync()` queries the connection's current endpoint. Use
-`GetNodeStatsAsync(address)` when you need a specific endpoint from a pool.
+`GetNodeStatsAsync()` queries the next endpoint in the connection's rotation.
+Use `GetNodeStatsAsync(endpoint)` to ask a specific node. The endpoint must be
+one of the entries in the connection string's `Endpoint`.
 
 ## Returned data
 
@@ -63,8 +64,8 @@ snake-case protobuf fields.
 
 | Field | Meaning |
 | --- | --- |
-| `nodeId` | Raft node id. It can be empty early during startup. |
-| `endpoint` | Raft endpoint of this node. |
+| `nodeId` | The node's id within the cluster. It can be empty early during startup. |
+| `endpoint` | The node's internal cluster address. |
 | `version` | Server version and build commit. |
 | `clusterMode` | Whether the node runs in cluster mode. |
 | `uptimeSeconds` | Whole seconds since process startup. |
@@ -73,7 +74,8 @@ snake-case protobuf fields.
 ### Disk volumes
 
 The first disk entry has role `data`. A second entry with role `wal` appears
-when the WAL directory is mounted on another volume.
+when the [write-ahead log](/docs/concepts#wal) (WAL) directory is mounted on
+another volume.
 
 | Field | Meaning |
 | --- | --- |

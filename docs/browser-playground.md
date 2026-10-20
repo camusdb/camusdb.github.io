@@ -4,9 +4,14 @@ sidebar_position: 1.15
 
 # Browser playground
 
-Run the real CamusDB engine in your browser: the same parser, planner, executor,
-and embedded storage path, compiled to WebAssembly. No SQL or data is sent to a
-server.
+Try CamusDB without installing anything. The playground runs the real CamusDB
+engine in your browser: the same parser, planner, executor, and embedded storage
+path, compiled to WebAssembly. No SQL or data is sent to a server.
+
+You get more than a SQL console. The playground starts a small cluster, so you
+can stop a node and watch the surviving replicas elect new leaders, or add a
+node and watch CamusDB move replicas to it, then run your queries again and see
+that the data is still there.
 
 Open the [Playground](/playground) for one shared workspace: an interactive
 3D server scene beside a SQL console. Selecting a server changes the query
@@ -16,13 +21,17 @@ coordinator and the node inspector without switching sessions. The
 ## Data center
 
 The data center starts four real CamusDB engines automatically when you open it,
-with eight data partitions and replication factor three. Starting racks remain
-visible while WebAssembly loads and the engines elect leaders. Metadata membership, data replica placement, hosted partitions,
-and leader claims come from the engines. Click a rack to inspect that node.
+with eight data [partitions](/docs/concepts#partition) and
+[replication factor](/docs/concepts#replica-and-replication-factor) three, so
+each partition has three copies. Starting racks remain visible while WebAssembly
+loads and the engines elect [leaders](/docs/concepts#leader). Metadata
+membership, data replica placement, hosted partitions, and leader claims come
+from the engines. Click a rack to inspect that node.
 
-**+** starts a fresh engine using the running cluster as seeds. Kommander admits it
-as a learner and catches it up before promoting it to a voter; CamusDB's placement
-rebalancer moves replicas. **−** asks the highest ordinal to leave gracefully,
+**+** starts a fresh engine using the running cluster as seeds. The cluster
+first adds it as a [learner](/docs/concepts#learner-and-voter), a member that
+receives the log but does not vote, catches it up, and then promotes it to a
+voter. CamusDB's placement rebalancer then moves replicas to it. **−** asks the highest ordinal to leave gracefully,
 waits for replica draining and committed removal, and only then disposes the
 engine. The browser host supports four to nine nodes in this mode. These operations
 do not reset the other engines or recreate the database.
@@ -34,9 +43,10 @@ node may need time to converge its schema before serving a query. After removal,
 leader hints can also take time to refresh; retry a query made during convergence.
 
 **Simulate node failure** stops an actual engine. **Restart node** brings back an
-empty engine to catch up from surviving peers. A connected metadata majority must
-remain running. Membership changes hold until all existing engines are voters and
-running. Three replicas tolerate one unavailable replica per data partition;
+empty engine to catch up from surviving peers. You cannot stop a node if that
+would leave fewer than a [majority](/docs/concepts#majority) (more than half)
+of the nodes running, because the cluster would then stop committing.
+Membership changes hold until all existing engines are voters and running. Three replicas tolerate one unavailable replica per data partition;
 adding nodes does not increase that partition's fault tolerance.
 
 **Follow simulated demand** optionally chooses a recommended size from synthetic
@@ -46,8 +56,9 @@ for one real membership change. The input is not actual engine throughput or a
 Kubernetes autoscaler. Catch-up and draining run at engine speed, with no scripted
 completion time.
 
-Links and LEDs illustrate topology, not measured packets. A single reported
-leader is a local leadership claim, not proof of quorum or replication freshness.
+Links and LEDs illustrate topology, not measured packets. When a node reports
+itself as leader, that is its own local claim. It does not prove that a majority
+currently agrees, or that the replicas are up to date.
 The scene refreshes once per second while no engine operation is in progress.
 Data is in memory and resets on reload or **Reset data center**.
 

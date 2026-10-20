@@ -79,6 +79,12 @@ test('startup stays informative and SQL highlighting follows editing and scrolli
   await expect(status).toContainText('Preparing your cluster');
   await expect(page.getByRole('button', {name: 'Starting cluster…', exact: true})).toBeDisabled();
   await expect(page.getByRole('list', {name: 'Startup progress'})).toContainText('Load engine');
+  const ghosts = page.locator('button[data-preparing="true"]');
+  await expect(ghosts).toHaveCount(4);
+  for (const ghost of await ghosts.all()) {
+    await expect(ghost).toBeDisabled();
+    await expect(ghost).toContainText('PREPARING');
+  }
   await editor.fill("-- Ready while loading\nSELECT 'hello', 42 FROM books;");
   const highlighted = editor.locator('..').locator('pre');
   await expect(highlighted.locator('span').filter({hasText: /^SELECT$/})).toHaveCSS('color', 'rgb(20, 89, 219)');
@@ -91,10 +97,16 @@ test('startup stays informative and SQL highlighting follows editing and scrolli
   release();
   await expect(status).toContainText('Cluster ready', {timeout: 60000});
   await expect(page.getByRole('list', {name: 'Startup progress'})).toHaveCount(0);
+  await expect(ghosts).toHaveCount(0);
+  await expect(page.getByRole('button', {name: 'Inspect camusdb-0', exact: true})).toBeEnabled();
   await expect(page.getByRole('button', {name: 'Run query', exact: true})).toBeEnabled();
   await page.getByRole('button', {name: 'Filter and sort', exact: true}).click();
   await expect(highlighted).toContainText('SELECT title, author, year');
   await page.screenshot({path: '/tmp/camus-highlight-ready.png', fullPage: true});
+  await expect(status).toHaveCount(0, {timeout: 10000});
+  await page.getByRole('button', {name: 'Run query', exact: true}).click();
+  await expect(page.getByRole('button', {name: 'Run query', exact: true})).toBeEnabled();
+  await expect(status).toHaveCount(0);
 });
 
 test('partition blades track leadership and failed servers show fire until recovery', async ({page}) => {
@@ -109,6 +121,22 @@ test('partition blades track leadership and failed servers show fire until recov
   await page.getByRole('button', {name: 'Simulate node failure', exact: true}).click();
   const fire = page.getByRole('img', {name: 'camusdb-0 is down', exact: true});
   await expect(fire).toBeVisible();
+  const flame = fire.locator('i').first();
+  const initialTransform = await flame.evaluate((el) => getComputedStyle(el).transform);
+  await expect.poll(() => flame.evaluate((el) => getComputedStyle(el).transform)).not.toBe(initialTransform);
+  await page.emulateMedia({reducedMotion: 'reduce'});
+  const reducedTransform = await flame.evaluate((el) => getComputedStyle(el).transform);
+  await expect.poll(() => flame.evaluate((el) => getComputedStyle(el).transform)).not.toBe(reducedTransform);
+  const traffic = page.getByLabel('Interactive 3D server racks').locator('svg path[class]').first();
+  const initialOffset = await traffic.evaluate((el) => getComputedStyle(el).strokeDashoffset);
+  await expect.poll(() => traffic.evaluate((el) => getComputedStyle(el).strokeDashoffset)).not.toBe(initialOffset);
+  await page.getByRole('button', {name: 'Pause animation', exact: true}).click();
+  await expect(flame).toHaveCSS('animation-play-state', 'paused');
+  await expect(traffic).toHaveCSS('animation-play-state', 'paused');
+  await page.getByRole('button', {name: 'Resume animation', exact: true}).click();
+  await expect(flame).toHaveCSS('animation-play-state', 'running');
+  await expect(traffic).toHaveCSS('animation-play-state', 'running');
+  await page.emulateMedia({reducedMotion: 'no-preference'});
   await expect(server.locator('[data-role="offline"]')).toHaveCount(8);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.getByLabel('Interactive 3D server racks').screenshot({path: '/tmp/camusdb-fire.png'});

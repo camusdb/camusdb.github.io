@@ -4,19 +4,28 @@ sidebar_position: 3.6
 
 # Automatic analyze
 
-CamusDB keeps the statistics of the optimizer fresh without your help. Tables
-change over time. A background job detects when the histograms and the counts of
-distinct values of a table become stale. It then runs `ANALYZE` on that table
-again.
+CamusDB keeps the statistics of the optimizer fresh without your help.
 
-The job needs no `ANALYZE TABLE` statement from a user. It does not cause a spike
-in memory, in CPU, or in disk use. It does not interfere with a query or a write
-in the foreground.
+The statistics tell the [query planner](/docs/query-planning) how many rows a
+table has, and how the values in each column spread: the row count, the minimum
+and maximum of each column, the histograms, and the number of distinct values,
+or NDV. The planner uses them to select between an index and a full scan, and
+to order a join. Normal writes keep the row count and the index counts current,
+but the histograms and the NDV drift as rows change. Old statistics can then
+make a fast query slow, for example by picking the wrong index or join order.
 
-This page describes how the job works, and how you tune it. For the statistics
-themselves, and for the way the planner uses them, see
-[Query Planning](/docs/query-planning). A manual `ANALYZE TABLE` behaves as
-before. It remains the authoritative way to force a refresh.
+A background job detects when the histograms and the NDV of a table become
+stale. It then runs `ANALYZE` on that table again, so you do not need to
+schedule `ANALYZE` yourself.
+
+The job's cost is bounded and throttled: it reads at most 50,000 rows per second by default, analyzes one
+table at a time, and pauses when the node is under load. Its reads take no
+locks, so it never blocks or aborts a query or a write.
+
+This page describes how the job works, and how you tune it. For the way the
+planner uses the statistics, see [Query Planning](/docs/query-planning). To
+force a refresh, run `ANALYZE TABLE` by hand; see
+[Relation to a manual ANALYZE TABLE](#relation-to-a-manual-analyze-table).
 
 Use [`SHOW STATISTICS FOR <table>`](/docs/show-statistics) to see the current
 statistics of a table. The output includes the degree of staleness, and whether
@@ -24,20 +33,6 @@ this job refreshed the table yet.
 
 The feature is on by default, as `auto_analyze_enabled = true`. Set it to
 `false` in `config.yml` to return to a manual `ANALYZE` only.
-
-## Why it exists
-
-The cost-based optimizer uses per-table statistics to estimate selectivity and
-to select a plan. Those statistics are the row count, the minimum and maximum of
-each column, the histograms, and the number of distinct values, or NDV.
-`ANALYZE` builds them.
-
-Between two runs of `ANALYZE`, DML keeps the row count and the index counts
-current. The histograms and the NDV nevertheless drift. After enough inserts,
-updates, and deletes, they no longer describe the data. The planner then makes a
-poor choice, such as the wrong index or the wrong join order.
-
-Automatic analyze closes that gap. It refreshes a stale table in the background.
 
 ## How CamusDB detects staleness
 
@@ -49,12 +44,12 @@ statistics of the table.
 A table is stale under this rule:
 
 ```
-mutations_since_analyze >= fraction_stale_rows * row_count + min_stale_rows
+mutations_since_analyze >= auto_analyze_fraction_stale_rows * row_count + auto_analyze_min_stale_rows
 ```
 
-- `fraction_stale_rows` is the proportional trigger. The default is `0.20`,
-  which is one fifth of the table.
-- `min_stale_rows` is an absolute floor. The default is `500`. The floor stops
+- `auto_analyze_fraction_stale_rows` is the proportional trigger. The default
+  is `0.20`, which is one fifth of the table.
+- `auto_analyze_min_stale_rows` is an absolute floor. The default is `500`. The floor stops
   constant re-analysis of a small table, and of a table with light churn.
 - A table with tracked data that CamusDB never analyzed is stale immediately.
 - An empty table with no mutation is never stale.
@@ -69,9 +64,10 @@ adds three hard guarantees. They stop the job from disruption of a busy node.
 
 ### 1. Bounded, constant peak memory
 
-A manual `ANALYZE` counts exactly. It holds every distinct value in memory. That
-behavior is acceptable for a user command. Its memory nevertheless grows with the
-size of the table.
+A manual `ANALYZE` reads at most `stats_analyze_sample_rows` rows (default
+`100,000`; `0` reads every row). It takes the first rows in storage order and
+counts exactly within that sample, holding every distinct value in memory. Its
+memory therefore grows with the sample size.
 
 The background path samples instead. It uses sketches of a fixed size. The peak
 memory is therefore a function of the sample size. It is not a function of the
@@ -79,7 +75,16 @@ table size.
 
 - CamusDB builds a histogram from a bounded reservoir sample, with Algorithm R
   of Vitter. The sample holds at most `auto_analyze_histogram_sample_rows`
-  values per column. The default is `10,000`.
+  values per column. The default is `10,000`. CamusDB also keeps up to
+  `stats_top_values` of the most common sampled values with their sample counts.
+  The planner uses those frequencies for skewed equalities and joins.
+- Both forms of `ANALYZE` collect the columns in the same order: the leading
+  column of each index first, then the other columns of the table in the order
+  of their declaration, up to `stats_analyze_max_columns` columns in all. The
+  default is `32`. The indexed columns are never cut by that cap. A column of
+  the type `BOOL`, `BYTES` or an array gets no statistics, because no filter
+  estimate reads them. The peak memory of a background scan is therefore one
+  reservoir and one sketch for each analyzed column.
 - CamusDB estimates the NDV with a small HyperLogLog sketch. The sketch needs
   about 2 KB per column at the default precision. It does not hold an exact set
   of the distinct values.
@@ -93,7 +98,7 @@ produces reproducible statistics.
 
 CamusDB paces the scan to `auto_analyze_max_rows_per_second`. The default is
 `50,000`. It waits between two batches. The scan therefore never saturates a
-core, and it never saturates the KV read path.
+core, and it never saturates the storage read path.
 
 The scan also checks the ownership and the load again at each batch boundary.
 `auto_analyze_ownership_check_rows` sets the size of a batch, and its default is
@@ -102,21 +107,23 @@ The scan also checks the ownership and the load again at each batch boundary.
 ### 3. Lock-free reads, no interference, no priority inversion
 
 The background scan opens its own serializable read-only snapshot transaction.
-That transaction takes one new HLC timestamp. It takes no range lock, and it
+That transaction takes one new timestamp from the
+[hybrid logical clock](/docs/concepts#hlc), the clock that CamusDB uses to
+order transactions across nodes. It takes no range lock, and it
 folds no read set.
 
 The scan takes no lock. It therefore cannot block a foreground query or a
 foreground writer. It also cannot be blocked by one. It can never make a writer
 abort.
 
-This is a separate code path from a manual `ANALYZE`. The manual path runs on
-the transaction of the caller. Inside an explicit read-write transaction, that
-path folds the scanned rows into the read set of the transaction. The
-transaction could then abort.
+A manual `ANALYZE` also scans under its own read-only snapshot, not the
+caller's transaction, so it cannot make the caller abort. If the caller's
+transaction has uncommitted writes, `ANALYZE` fails at once with `CADB0522`.
+Commit or roll back first.
 
 ### Atomic publication that is safe against a delta
 
-At the end of the scan, CamusDB publishes the new statistics in one KV
+At the end of the scan, CamusDB publishes the new statistics in one
 transaction. It never publishes a partial mix of old and new fields.
 
 The publication also preserves the DML that committed during the scan. CamusDB
@@ -130,7 +137,8 @@ That step corrects the drift from a delete. It rebuilds the histograms and the
 NDV completely.
 
 Three events can stop the scan: a shutdown, a surge in load, and a loss of
-leadership. The publish can also fail. In every one of those cases, CamusDB
+leadership, described in
+[Scheduling and cluster behavior](#scheduling-and-cluster-behavior). The publish can also fail. In every one of those cases, CamusDB
 persists nothing, and it does not reset the staleness counter. The table stays
 marked as stale, and CamusDB retries later. The whole operation is idempotent,
 and a second run is safe.
@@ -152,7 +160,8 @@ application_logs` still runs.
 The setting defaults to enabled, so CamusDB analyzes an unset table normally. It
 travels with the schema of the table, and it does not affect the encoding of a
 row. It survives a restart. In a cluster over HTTP, you must issue the statement
-on the schema leader.
+on the schema [leader](/docs/concepts#leader), the node that coordinates schema
+changes.
 
 ## Scheduling and cluster behavior
 
@@ -162,8 +171,10 @@ the interval, and its default is `60,000`.
 
 Each sweep behaves as follows:
 
-1. It runs on one node of the cluster. Only the node that leads the
-   database-registry partition performs the sweep. N nodes therefore do not
+1. It runs on one node of the cluster. Only the
+   leader of the database-registry
+   [partition](/docs/concepts#partition), the node that coordinates writes to
+   the list of databases, performs the sweep. N nodes therefore do not
    analyze the same table. A failover gives the work to the new leader.
 2. It discovers the candidates from authoritative metadata. The owner
    enumerates every database in the registry. For each table it reads the
@@ -184,6 +195,21 @@ Each sweep behaves as follows:
    together therefore spreads across several sweeps. No table at the end of the
    list starves.
 
+```mermaid
+flowchart TD
+    T["Sweep, every<br/>auto_analyze_check_interval_ms"] --> L{Registry leader?}
+    L -->|no| W[Wait for the next sweep]
+    L -->|"yes, leads the<br/>database-registry partition"| S{Stale table?}
+    S -->|no| W
+    S -->|yes| B{Load too high?}
+    B -->|"yes, foreground load<br/>above the pause threshold"| W
+    B -->|no| R["Throttled lock-free<br/>snapshot scan"]
+    R --> F{Publish fence?}
+    F -->|"passes, ownership<br/>confirmed"| P["Publish atomically<br/>reset the counter"]
+    F -->|fails| A["Persist nothing<br/>table stays stale for a retry"]
+    R -->|"shutdown, load surge,<br/>or lost leadership"| A
+```
+
 ### The fence for exactly-once publication
 
 The discovery, the sweep, and the scan each check the leadership again. The
@@ -194,7 +220,7 @@ exclusive lock that the whole cluster sees. The lock is on
 `{dbId}/meta/analyze:{tableId}`. The analyzer then confirms the ownership again,
 under that lock.
 
-Two nodes cannot hold the lock together. A former leader that lost its lease
+Two nodes cannot hold the lock together. A former leader that lost leadership
 during the scan fails the ownership check under the lock, and it aborts. Exactly
 one node ever publishes, even across a failover. The scan itself stays
 lock-free. Only the short publish has a fence.
@@ -218,27 +244,19 @@ conservative by design.
 | `auto_analyze_max_concurrent` | `1` | The maximum number of background analyses at one time, on one node. |
 | `auto_analyze_max_rows_per_second` | `50000` | The throttle on the scan rate, which caps CPU and I/O. A value of `0` or below disables the throttle. |
 | `auto_analyze_histogram_sample_rows` | `10000` | The size of the reservoir for each column, which bounds the memory. |
+| `stats_top_values` | `100` | The most common values kept with each histogram. `0` disables the list. When a column has no more distinct values than the limit, all of them are kept. |
+| `stats_analyze_max_columns` | `32` | The most columns of one table that `ANALYZE` collects statistics for, the indexed leading columns first. It applies to the manual form too. `0` collects the indexed leading columns only. |
 | `auto_analyze_hll_precision` | `11` | The number of index bits of the HyperLogLog sketch. The register count is `2^p`. The sketch needs about 2 KB per column, with about 2.3% error. |
 | `auto_analyze_load_pause_threshold` | `16` | The amount of foreground work in flight above which the sweep backs off. A value of `0` or below disables the check. |
 | `auto_analyze_ownership_check_rows` | `1000` | The number of rows between two checks of the ownership and the load during a scan. |
 
-## Summary of the resource safety
-
-- The reservoir sample and the HyperLogLog sketches bound the memory. The bound
-  does not depend on the size of the table.
-- The throttle in rows per second, and the limit of one analysis at a time,
-  bound the CPU and the disk use on one node.
-- CamusDB never blocks and never aborts foreground work, because the snapshot
-  reads take no lock. The load probe also backs the job off during a surge.
-- A crash, a failover, a cancel, and a failed publish all leave the statistics
-  internally consistent. The table stays marked as stale, for a later retry.
-  There is no partial generation, and no generation that CamusDB applies twice.
-
 ## Relation to a manual ANALYZE TABLE
 
-A manual `ANALYZE TABLE` behaves as before. It counts exactly, with no sample.
-It runs on the transaction of the caller. It publishes atomically, and it resets
-the staleness counter, exactly as the background path does.
+A manual `ANALYZE TABLE` behaves as before. It reads at most
+`stats_analyze_sample_rows` rows and counts exactly within them. It runs under
+its own read-only snapshot and fails with `CADB0522` if your transaction has
+uncommitted writes. It publishes atomically, and it resets the staleness
+counter, exactly as the background path does.
 
 You can always run it by hand, and it takes precedence at that moment. Automatic
 analyze only keeps the statistics fresh between two manual runs.

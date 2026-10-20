@@ -4,25 +4,31 @@ sidebar_position: 1.6
 
 # Database branching
 
-A branch of a database is an isolated clone of an existing database, at a point
-in time:
+You want to test a schema migration, reproduce a production bug, or try a risky
+data fix on realistic data, without any chance of touching production. A
+database branch gives you that: an isolated clone of an existing database at a
+point in time. You work in the branch, then keep it or drop it. Nothing you do
+there reaches the source database.
+
+In PostgreSQL, the closest tool is `CREATE DATABASE ... TEMPLATE`, which copies
+every file of the template. A CamusDB branch copies no rows when you create it:
 
 ```camussql
-CREATE DATABASE feature_checkout BRANCH FROM prod;
+CREATE DATABASE bug_repro BRANCH FROM prod;
+USE bug_repro;
+
+-- This write stays in bug_repro. prod is unchanged.
+UPDATE orders SET status = 'refunded' WHERE status = 'paid';
 ```
 
 The branch starts with the same schema and the same view of the data as the
-source database, at the point of the fork. It copies no row of the source at its
-creation.
+source database, at the point of the fork.
 
 CamusDB uses a branch with a copy at the first write, over the existing layer of
 the storage. An inherited read comes from the snapshot of the source. A write
 and a change of the schema go into the private overlay of the branch.
 
-A branch is therefore useful when you want realistic data, and no risk to the
-base database. Five uses are common:
-
-![CamusDB database branching diagram](/img/database_branching.png)
+Five uses are common:
 
 - Create one database for each feature, for development and for CI.
 - Test a migration of a schema against data that is like the data of production.
@@ -31,6 +37,8 @@ base database. Five uses are common:
 - Run a destructive experiment. Then discard the branch.
 - Give an isolated clone of a database to each developer, and to each run of a
   test.
+
+![CamusDB database branching diagram](/img/database_branching.png)
 
 CamusDB is in production use. A branch is nevertheless an alpha feature. The
 APIs and the storage formats can change between versions.
@@ -82,6 +90,15 @@ The nearest data wins:
 - A delete in the branch hides the inherited row of the source.
 - A read falls through to the snapshot of the source, for a row that the branch
   never touched.
+
+```mermaid
+flowchart TD
+    R[Read a row in the branch] --> O{Branch overlay}
+    O -->|changed in the branch| W[Return the branch version]
+    O -->|deleted in the branch| H[The inherited row is hidden]
+    O -->|never touched| S["Source snapshot<br/>at the fork timestamp"]
+    S -.->|the source is itself a branch| A[Deeper ancestors]
+```
 
 ```camussql
 USE prod;
@@ -209,8 +226,9 @@ DROP DATABASE feature_checkout;
 DROP DATABASE prod;
 ```
 
-The drop of a branch releases the hold of the retention. That hold kept the
-snapshot of the source readable.
+The drop of a branch releases its retention hold: the pin that kept the
+source's older row versions ([MVCC](/docs/concepts#mvcc)) from being reclaimed,
+so the branch could still read the source as of the fork.
 
 A drop of a branch is immediate. `CREATE DATABASE ... RELINK TO` cannot recover
 it. A recoverable drop covers a root database, and a table of a root database.
@@ -238,7 +256,7 @@ database.
 | `id` | The stable internal id of the descendant database. |
 | `depth` | The distance from the source database. |
 | `parent` | The name of the immediate parent database. |
-| `fork_timestamp` | The timestamp of the hybrid logical clock at the fork of the descendant from its parent. |
+| `fork_timestamp` | The cluster timestamp ([HLC](/docs/concepts#hlc)) at the fork of the descendant from its parent. |
 
 `SHOW ANCESTORS FROM <database>` returns the chain of the ancestors of the named
 database. It starts with the immediate parent. It then walks back toward the
@@ -299,7 +317,8 @@ node that owns the work of the registry at that moment.
 
 A rename of a branch preserves the hold. A drop of the branch releases it.
 
-`branch_snapshot_hold_lease_ms` controls the window of the lease. See
+`branch_snapshot_hold_lease_ms` controls how long the hold lasts between
+renewals (its [lease](/docs/concepts#lease)). See
 [Configuration](/docs/configuration). The default is 300,000 milliseconds, which
 is 5 minutes.
 
@@ -315,8 +334,9 @@ of a branch. The fence can fail to acquire, and its state can be indeterminate.
 The drop then fails closed, with a retryable error. CamusDB does not purge a
 parent while another node may publish a branch.
 
-Watch the metrics of the floor of the snapshot in Kahuna, when your workload
-uses many branches:
+When your workload uses many branches, watch the snapshot floor metrics of
+[Kahuna](/docs/concepts#kahuna), the storage layer. The snapshot floor is the
+oldest point in history that a hold still pins:
 
 | Metric | Meaning |
 | --- | --- |

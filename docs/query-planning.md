@@ -68,12 +68,13 @@ CamusDB can plan these shapes today:
   with a comma.
 - A hash join for an equi-join. That includes an equi-join without a usable
   index on the right side. A left outer join can use a hash join when the right
-  side is the build side.
+  side is the build side, the input loaded into the in-memory hash table.
 - A merge join, when CamusDB can read both sides in the order of the join key.
 - An indexed nested-loop join, when an index covers the join key of the right
   side.
-- A rewrite to a semi-join or an anti-join, for an eligible indexed `IN` or `NOT
-  IN` subquery.
+- A rewrite to a semi-join (keep each outer row that has a match) or an
+  anti-join (keep each outer row that has no match), for an eligible indexed
+  `IN` or `NOT IN` subquery.
 - An indexed seek, for an eligible correlated `EXISTS` subquery.
 - A derived table, a scalar subquery, an `IN`, a `NOT IN`, and an `EXISTS`.
 - An explicit force of an index, with `@{FORCE_INDEX=...}`.
@@ -89,9 +90,9 @@ Two broad passes of a search are on by default:
 
 - `cost_based_access_path_enabled` enumerates the viable access paths of each
   table, over an index and over the table. It then selects the cheapest one.
-- `cost_based_join_order_enabled` enumerates the left-deep orders of a join,
-  with a dynamic program in the style of System R. It then selects the cheapest
-  connected plan.
+- `cost_based_join_order_enabled` enumerates the orders of a join. It then
+  selects the cheapest connected plan. See
+  [The order of a join by cost](#the-order-of-a-join-by-cost).
 
 Both flags default to `true`. With the statistics available, one SQL statement
 can change its choice in four ways. It can select a different index, a full
@@ -102,8 +103,8 @@ CamusDB keeps the matching heuristic choice when you turn either flag off.
 
 ## How CamusDB selects a scan
 
-CamusDB tries to turn a predicate into an ordered access of the KV layer, at
-every opportunity.
+CamusDB tries to turn a predicate into an ordered read of the key/value
+storage layer, at every opportunity.
 
 ### An equality on a unique index
 
@@ -204,6 +205,16 @@ FROM robots
 WHERE year >= 2020 AND name ~* "^r";
 ```
 
+A residual predicate still contributes to the cost estimate. After `ANALYZE`,
+CamusDB estimates `LIKE`, `ILIKE`, and their negated forms from the histogram of
+the column. A fixed prefix such as `name LIKE "Rob%"` is priced as a range. A
+pattern with a wildcard at the beginning is estimated from the sampled
+histogram bounds. An `OR` chain of patterns on the same column is considered
+together, rather than charging the same fixed fraction for every pattern.
+
+Regular-expression predicates remain residual predicates, but they use the
+fallback selectivity rather than the histogram pattern estimate.
+
 ### A covering index
 
 An index with an `INCLUDE (...)` can answer a query without a fetch of the
@@ -261,7 +272,7 @@ that nullable SQL values do not support.
 ## The statistics, and the cost-based optimizer
 
 CamusDB keeps light advisory statistics from a live write. It keeps richer
-statistics from an `ANALYZE`. The planner can use them to estimate five things:
+statistics from an `ANALYZE`. The planner can use these values:
 
 - The row count of a table.
 - The count of the entries of each index.
@@ -269,38 +280,37 @@ statistics from an `ANALYZE`. The planner can use them to estimate five things:
 - The histogram of a column.
 - The count of the distinct values, for a column and for a prefix of a composite
   index.
+- The most common values and their observed frequencies.
+- The fraction of each analyzed column that is `NULL`.
 
 You can read all of them from a SQL prompt, with
 [`SHOW STATISTICS FOR <table>`](/docs/show-statistics). That statement also
 reports the time of the last analyze of the table, and the amount of the change
 since then.
 
-Run `ANALYZE` after a load of the data, and after a material change of it. Use
-it when you want better estimates of the selectivity and of the cardinality of a
-join:
+Run `ANALYZE` after a bulk load or a major change in the distribution of the
+data, when you need fresh estimates of selectivity and join cardinality
+immediately:
 
 ```camussql
 ANALYZE TABLE robots;
 ```
 
-CamusDB also has a path for an automatic analyze in the engine. It can refresh a
-stale statistic of a table in the background. It counts the mutations of the
+CamusDB also runs an automatic analyze by default. It refreshes a stale
+statistic of a table in the background. It counts the mutations of the
 rows since the last analyze. It can rebuild the statistics after enough rows
 change. See [Automatic Analyze](/docs/automatic-analyze) for the threshold of
 the staleness, for the limits on the resources, and for the settings.
 
 The cost model uses these estimates to fill `estimated_rows` and
-`estimated_cost` in an `EXPLAIN`. It also feeds five decisions:
+`estimated_cost` in an `EXPLAIN`. It also feeds these decisions:
 
 - The choice between a scan of a range and a full scan of a table.
 - The choice between a plan of probes for an indexed `IN (...)` and a wider
   scan.
 - The selection of the algorithm of a join, among an indexed nested loop, a hash
   join, and a merge join.
-- The selection of an access path by cost, while
-  `cost_based_access_path_enabled` is on.
-- The enumeration of the order of a join by cost, while
-  `cost_based_join_order_enabled` is on.
+- The access-path and join-order searches, while their flags are on.
 
 The optimizer degrades safely. An absent statistic and a stale statistic do not
 make a query incorrect. CamusDB falls back to a default. It also falls back to
@@ -327,9 +337,10 @@ the statistics show a smaller amount of data in total.
 ### The order of a join by cost
 
 For an eligible inner join, CamusDB searches connected **left-deep** orders:
-join two sources, add a third to their result, then add a fourth. This matters
-because an intermediate result becomes the input of the next join. Reducing
-it early can save more work than reducing the final result late.
+join two sources, add a third to their result, then add a fourth. Each step
+joins the result so far with one more table, never with another join. This
+matters because an intermediate result becomes the input of the next join.
+Reducing it early can save more work than reducing the final result late.
 
 With `cost_based_join_order_enabled: true` and loaded row-count estimates for
 all base tables, the search considers up to **12 sources**. It uses table
@@ -337,24 +348,8 @@ sizes, filter selectivity, distinct-value counts, and join algorithm costs.
 Histograms and distinct counts from `ANALYZE` improve these estimates, but a
 loaded row count is enough to enter this join-order search.
 
-For a non-unique single-column join key with histograms on both sides, CamusDB
-also accounts for skew. A plain distinct-value estimate assumes every key is
-equally common. That can badly underestimate a join when both tables contain
-many rows for the same popular values, such as customers and stores concentrated
-in the same cities. CamusDB identifies heavy values in the histograms, combines
-their observed frequencies, and models the remaining values uniformly. With no
-heavy values, the estimate reduces to the ordinary distinct-value formula.
-
-`ANALYZE` builds histograms for indexed columns. Run it on both tables when a
-skewed join estimate is important. Histograms cannot describe every
-cross-column correlation, so compare the estimate with `actual_rows` from
-`EXPLAIN (ANALYZE)` when tuning a difficult join.
-
-The planner reads conditions joined by `AND` individually. Such a condition
-is called a **conjunct**. Eligible cross-table conditions from `WHERE` can
-connect tables just like conditions from `ON`.
-
-Consider three tables with these relationships:
+The search only joins tables that a condition connects. Conditions from `WHERE`
+connect tables just like conditions from `ON`. Consider three tables:
 
 ```camussql
 SELECT c.name, p.title
@@ -373,36 +368,29 @@ flowchart LR
     O ---|product_id| P[products]
 ```
 
-The graph describes which tables connect; it does not prescribe which table
-must come first. The optimizer picks an order from the usable connections.
-A condition is attached to the join where all its referenced tables first
-become available. Consequently, an `ON` condition can run earlier than its
-position in the SQL text, and a `WHERE` condition can become part of a join.
+The planner attaches each condition to the earliest join where all its tables
+are available. An `ON` condition can therefore run earlier than its position in
+the SQL text, and a `WHERE` condition can become part of a join. When the
+cost-based search is off or unavailable, CamusDB still repairs an avoidable
+cross product like this one, without statistics. If the query actually asks for
+an unconnected Cartesian product, the planner keeps it.
 
-The search costs the intermediate result at each step, not only the final
-result. That matters for hash joins and other plans where several orders can
-read the same base tables but produce very different intermediate row counts.
-CamusDB also keeps one row estimate for each set of joined tables. Equivalent
-join keys, such as `a.id = b.a_id` and `b.a_id = c.a_id`, are modeled as one
-column-equivalence class instead of as unrelated filters. This keeps the order
-search stable when the same relationship is written more than one way.
+Two refinements improve join estimates:
 
-When cost-based enumeration is disabled or unavailable, the heuristic still
-tries to repair an **avoidable** cross product using the same graph. This
-repair requires no statistics. If the query actually asks for an unconnected
-Cartesian product, the planner preserves it. Wider joins use the heuristic;
-the graph-based repair itself supports at most 64 sources.
+- **Skewed keys.** `ANALYZE` keeps the most common values of a column and their
+  frequencies (`stats_top_values`, default `100`). CamusDB then does not assume
+  that every join key is equally common. Run `ANALYZE` on both tables when a
+  skewed join matters.
+- **Filtered dimension tables.** For a small table with a single-column unique
+  key and a constant equality or `IN (...)` filter, CamusDB can read the
+  matching keys while it plans and price the join with those actual keys
+  (`stats_plan_time_lookup_max_rows`, default `2000`; `0` disables it).
 
-Outer joins keep their declared order after syntax normalization. Moving a
-condition across an outer join can change which unmatched rows receive `NULL`
-values. Volatile expressions also restrict movement: a condition involving
-`random()` must not be moved in a way that changes how often it runs.
-
-The search does not enumerate bushy trees, where both inputs are themselves
-joins. It also does not compare alternative output orderings or cost merge
-joins during enumeration; physical planning can choose a merge join afterward.
-See [join enumeration internals](/docs/query-planner-internals#join-order-search)
-for the algorithm and its fallbacks.
+See the planner internals for
+[join-order search](/docs/query-planner-internals#join-order-search),
+[predicate movement](/docs/query-planner-internals#the-join-predicate-graph),
+[skewed join keys](/docs/query-planner-internals#skewed-join-keys), and
+[plan-time lookups](/docs/query-planner-internals#plan-time-lookup).
 
 ## The order of the rows, and the omission of a sort
 
@@ -475,12 +463,15 @@ SET CLUSTER SETTING max_query_parallelism = 4;
 The consumer takes the chunks in the order of their dispatch. A query therefore
 returns the same rows, in the same order, as it returns with the default of `1`.
 
-The setting belongs to one node. It takes effect at the next query. It buys
+`SET CLUSTER SETTING` applies the value on every node, and it overrides
+`config.yml`. It takes effect at the next query. Nodes can run different values
+only through `config.yml`, while no cluster override exists. The setting buys
 throughput of the decode on a wide row. It costs one buffer for each worker, and
 more concurrent reads of the storage.
 
 In a cluster, an eligible full scan can go further. It can run one fragment for
-each partition, on the node that owns the rows. It then applies the filters and
+each [partition](/docs/concepts#partition), a slice of the table's data, on the
+node that owns those rows. It then applies the filters and
 the aggregates before anything crosses the network. That behavior is off by
 default. See [Distributed Queries](/docs/distributed-queries).
 
@@ -513,35 +504,35 @@ JOIN posts p ON p.user_id = u.id;
 
 The right side can have an index on the join key. CamusDB can then use an
 indexed nested-loop join. It does not scan the whole right side for each left
-row.
+row. An index that suits the join therefore matters: here, an index on
+`posts(user_id)` is far more useful than an unrelated index on `posts(title)`.
 
 For a larger join of an equality, the planner may select a hash join or a merge
 join instead. It does that when the estimates show a cheaper shape.
-
-An index that suits a join therefore matters. Here is a join:
-
-```camussql
-SELECT u.email, p.title
-FROM app_users u
-JOIN posts p ON p.user_id = u.id;
-```
-
-An index on `posts(user_id)` is far more useful than an unrelated index on
-`posts(title)`.
 
 When more than one equality in an `ON` clause could drive an indexed nested
 loop, CamusDB prefers a unique index over a non-unique index regardless of the
 order of those equalities in the SQL. A unique probe can return at most one row;
 a popular value in a non-unique index can return thousands.
 
+An indexed nested-loop join collects a page of left rows and probes the distinct
+keys of that page in batches. This applies to unique and non-unique indexes.
+Repeated keys share the probe and are retained in a bounded memo for later left
+rows. A non-unique key whose matches exceed one probe page is streamed
+separately, page by page. Batching reduces calls to the storage layer without
+changing left-row order or outer-join padding.
+
 A hash join materializes one side into a hash table in memory. For an inner
-join, the planner usually builds the side that the estimate calls smaller and
-streams the other side as the probes. For a left outer join, the preserved side
+join, the planner usually builds the side that the estimate calls smaller. It
+then streams the other side, the probe side, and looks up each row in the hash
+table. For a left outer join, the preserved side
 must stay as the probe side, so the hash build side is always the right table.
 
 In a cluster with [distributed queries](/docs/distributed-queries) enabled, an
-inner hash join can broadcast a small build side to the leaders of the probe
-table's ranges. That keeps the larger probe scan near the data while preserving
+inner hash join can broadcast a small build side to the
+[leaders](/docs/concepts#leader) of the probe table's
+[ranges](/docs/concepts#ranges-and-spans), the nodes that currently serve
+those key ranges. That keeps the larger probe scan near the data while preserving
 the same result as a local probe. A left outer join does not use that broadcast
 shape, because a remote probe can return matches but cannot emit padded rows for
 unmatched preserved rows.
@@ -560,10 +551,6 @@ Outer joins also affect predicate placement. A filter on the preserved side can
 push down to that input. A filter on the null-extended side stays above the join,
 because pushing it below the join would filter before padding and change the
 meaning of the query.
-
-CamusDB does not reorder a join tree that contains an outer join. The written
-order is part of the semantics. Cost-based join-order enumeration applies to
-eligible inner joins.
 
 ## The rewrite of an IN and of a NOT IN subquery
 
@@ -674,30 +661,25 @@ index makes the query slower.
 ## Reusing a plan
 
 The optional plan cache saves optimization decisions for repeated query shapes.
-It is off by default. These are the relevant configuration defaults:
+It is off by default:
 
 ```yaml
-cost_based_access_path_enabled: true
-cost_based_join_order_enabled: true
 plan_cache_enabled: false
 plan_cache_max_entries: 512
 ```
 
 A query shape describes the structure of the SQL without its literal values.
 For example, two lookups with different `customer_id` values can share a scan
-decision. The cache rebuilds bounds and predicates from the current query;
-it does not reuse the first query's values or result rows.
-
-For joins, it remembers both the source order and how predicates were attached.
-Schema changes, index changes, and publication of new analyzed statistics
-invalidate affected entries. If a cached decision cannot be rebuilt, the
-planner performs a fresh search.
+decision. The cache rebuilds bounds and predicates from the current query; it
+does not reuse the first query's values or result rows. Schema changes, index
+changes, and newly published `ANALYZE` statistics invalidate affected entries.
 
 The tradeoff is planning time versus sensitivity to individual values. One
 customer may have ten orders and another may have a million. Reusing a decision
 can be correct for both while being less efficient for one. See
-[plan cache internals](/docs/query-planner-internals#plan-cache) for replay and
-invalidation details, and [Configuration](/docs/configuration) for settings.
+[plan cache internals](/docs/query-planner-internals#plan-cache) for what is
+cached and how it is replayed, and [Configuration](/docs/configuration) for
+settings.
 
 ## A hint for the result cache
 
@@ -742,14 +724,9 @@ Do these things for a consistently better plan:
   direction of `ASC` and `DESC` as well, when a sorted read matters.
 - Add an `INCLUDE` column for a hot lookup that returns a small set of columns
   outside the key.
-- Run `ANALYZE TABLE <name>` after a bulk load, and after a major change of the
-  distribution of the data. Do that when you need a fresh statistic
-  immediately. Automatic analyze refreshes a stale statistic in the background,
-  by default.
-- Leave `cost_based_access_path_enabled` on. CamusDB then compares every viable
-  index by its estimated cost.
-- Leave `cost_based_join_order_enabled` on. CamusDB then searches the left-deep
-  orders of an inner join by their estimated cost.
+- Keep statistics fresh, as described in
+  [The statistics, and the cost-based optimizer](#the-statistics-and-the-cost-based-optimizer).
+- Leave both cost-based flags at their default of `true`.
 - Add a `{cache=...}` only to a repeated read of one table, with many reads, and
   with a result small enough for the memory.
 - Add an index on the correlated inner columns of an `EXISTS` predicate.
@@ -765,10 +742,16 @@ The planner improves over time. Important limits nevertheless remain:
   statistics can lead to a poor choice even with both cost-based passes enabled.
 - `EXPLAIN (LOGICAL)` currently labels the same physical tree. It renders no
   separate view of a logical plan.
-- The use of a descending order from an index is limited.
-- Join-order enumeration considers connected left-deep inner-join plans with at
-  most 12 sources. It does not search bushy plans or compare the future value
-  of an ordering supplied by a more expensive intermediate plan.
+- An index provides the `ORDER BY` order only when the keys match its columns
+  left to right, each in the direction the index declares. A column fixed by
+  an equality filter can be skipped. There is no backward scan, so
+  `ORDER BY a DESC` cannot use an ascending index on `a`. A `DESC` index column
+  is allowed only for fixed-width types, not for `STRING`, `BYTES`, or arrays.
+- Join-order search covers only the connected left-deep orders described in
+  [The order of a join by cost](#the-order-of-a-join-by-cost). It does not
+  search bushy plans, where both inputs of a join are themselves joins. It does
+  not compare the later value of a row order that a more expensive
+  intermediate plan supplies. A query with more sources than the search limit uses the heuristic order.
 - A query that contains an outer join keeps its declared join order. CamusDB
   does not reorder an outer-join tree by cost.
 - `FULL [OUTER] JOIN`, `NATURAL JOIN`, and `JOIN ... USING (...)` are not
@@ -787,9 +770,8 @@ fallback changes the execution strategy while preserving the query's semantics.
 
 1. Use plain `EXPLAIN` to identify the scan, join order, and any explicit sort.
    Treat example plans as illustrations: statistics and indexes affect the choice.
-2. Inspect `SHOW STATISTICS FOR orders` for each important source. Run
-   `ANALYZE TABLE orders` after a bulk load or a major distribution change when
-   you need fresh estimates immediately.
+2. Inspect `SHOW STATISTICS FOR orders` for each important source, and run
+   `ANALYZE TABLE orders` if the statistics are missing or stale.
 3. Check the access requirements. Does the index start with the filtered
    columns? Does its direction match `ORDER BY`? Does it cover every required
    column, including those used only in filters?

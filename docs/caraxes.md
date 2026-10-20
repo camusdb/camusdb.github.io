@@ -24,12 +24,14 @@ Caraxes has been used to catch, fix, and prevent user-facing failures in these a
   balance changed after a run.
 - Scan visibility defects that post-run reconciliation could not see, because
   `COUNT(*)` was short only while writes were in flight.
-- Crash, re-election, rejoin, and leader-transfer bugs around `kill`, `pause`,
-  `partition`, `stop`, and zone-loss scenarios.
+- Crash, re-election, rejoin, and [leader](/docs/concepts#leader)-transfer bugs
+  around `kill`, `pause`, `partition` (a network split), `stop`, and zone-loss
+  scenarios.
 - Full-disk and slow-device behavior, including write admission when a node is
   out of space and recovery when a durable write path stalls.
 - Placement, range-split, and leader-balancer regressions that only show up
-  when every partition or every failure zone carries work.
+  when every data [partition](/docs/concepts#partition) or every failure zone
+  carries work.
 - Measurement false positives caused by host disk regime changes, host load,
   client saturation, moving placement, or comparing runs from different builds
   or durability settings.
@@ -101,12 +103,12 @@ diagnostics: true
 | `name` | (required) | Lowercase `[a-z0-9-]` identifier. Names containers, volumes, the compose project, and the derived image tag. |
 | `nodes` | `3` | Node count. |
 | `partitions` | `3` | Initial cluster partitions. |
-| `replication_factor` | `3` | Per-partition replica-set size. `0` keeps full replication, where every node hosts every partition. |
+| `replication_factor` | `3` | Number of [replicas](/docs/concepts#replica-and-replication-factor) (copies) of each partition. `0` keeps full replication, where every node hosts every partition. |
 | `placement_rebalancer` | `true` | Repair under-replication, trim over-replication, and smooth skew on join or leave. |
 | `leader_balancer` | `true` | Spread partition leadership using load reports. |
 | `zones` | `[]` | One failure-zone label per node, parallel to the node list. Empty means zone-unaware placement. |
 | `locking` | `optimistic` | Maps to CamusDB `default_transaction_locking`. |
-| `isolation` | `read_committed` | Maps to CamusDB `default_isolation_level`. |
+| `isolation` | `read_committed` | Maps to CamusDB `default_isolation_level`. Caraxes sets it on every node, so its default replaces the server default, which is `serializable`. |
 | `read_validation` | (engine default) | Optional `default_read_validation`, usually swept when testing pessimistic transaction behavior. |
 | `key_range_sharding` | `false` | Maps to CamusDB `key_range_sharding`. |
 | `distributed_query_execution` | `false` | Maps to CamusDB `distributed_query_execution`. See [Distributed Queries](/docs/distributed-queries). |
@@ -116,8 +118,11 @@ diagnostics: true
 | `first_ip` | `2` | Last octet of node 1. Node `i` gets `first_ip + i - 1`. |
 | `base_rest_port` | `15095` | Host port of node 1's REST API. |
 | `base_grpc_port` | `16095` | Host port of node 1's gRPC API. |
-| `base_raft_port` | `7070` | Raft port of node 1. Node `i` advertises `base_raft_port + 2 * (i - 1)`. Not published to the host. |
+| `base_raft_port` | `7070` | Internal cluster port ([Raft](/docs/concepts#raft)) of node 1. Node `i` advertises `base_raft_port + 2 * (i - 1)`. Not published to the host. |
 | `spare_certs` | `5` | Extra certificate SAN entries, so a node added later is covered without regenerating certificates. |
+| `tls` | `true` | Serve TLS on the client gRPC port. `false` writes `grpc_tls_enabled: false` and gives the workload `http://` endpoints. The Raft port keeps its certificate either way, so a cleartext run measures only the client-side TLS cost. |
+| `clock_skew` | `false` | Preload the clock skew shim on every node. The `clock-skew` fault needs it; a scenario that schedules that fault without it is rejected. |
+| `backups` | `false` | Give each node a backup directory: `kahuna.backup_dir`, `kahuna.restore_root`, and `kahuna.backup_cluster_id` (the cluster name). The `backup` fault, the `backup_verify` stage, and an `add-node` seeded from a backup need it. Set the PITR window and retention through `kahuna`. |
 | `data_tmpfs_mb` | `0` | When above zero, each node's `/data` is a size-capped tmpfs instead of a named volume. Required by `fill-disk`. |
 | `memory_limit_mb` | `0` | Optional container memory limit for each node, useful for OOM and memory-posture soaks. |
 | `gc_heap_hard_limit_mb` | `0` | Optional managed-heap hard limit. Use with `memory_limit_mb`, especially when `data_tmpfs_mb` charges data pages to the same cgroup. |
@@ -135,7 +140,8 @@ settings fail immediately with exit code 2.
 ## Running a scenario
 
 A scenario is one file with a `cluster:` block and a `workload:` block. It can
-also include a `nemesis:` fault schedule, `checks:`, and run-level controls.
+also include a `nemesis:` fault schedule (the faults to inject during the run;
+the name comes from Jepsen), `checks:`, and run-level controls.
 
 ```bash
 dotnet run --project Caraxes -- run --scenario scenarios/smoke-optimistic.yml
@@ -144,8 +150,8 @@ dotnet run --project Caraxes -- run --scenario scenarios/smoke-optimistic.yml
 Use `--tag <name>` when you repeat one scenario and want to keep every run side
 by side under `runs/scenarios/<scenario>-<tag>`. Use `--correctness-only` on CI
 or other variable-speed machines when recovery timing and throughput recovery
-should be reported but not used as pass/fail criteria. Reconciliation, Elle,
-node health, divergent-apply checks, and total-outage checks still grade the
+should be reported but not used as pass/fail criteria. Reconciliation, Elle
+(an isolation checker, described [below](#elle-block)), node health, divergent-apply checks, and total-outage checks still grade the
 run.
 
 The verb `run` performs the whole cycle:
@@ -164,6 +170,28 @@ matrix file. Your CI can gate on it directly.
 The workload runs in a one-shot container attached to the cluster's Docker
 network. It reaches every node over TLS using the in-cluster DNS names, without
 changing trust on the host.
+
+```mermaid
+sequenceDiagram
+    participant CX as Caraxes
+    participant W as Workload container
+    participant N as Nodes camus1 ... camusN
+    Note over CX,W: Validate the scenario, publish CamusDB.Workload
+    CX->>N: Bring the cluster up, wait until every node is ready
+    CX->>W: init
+    W->>N: Seed the dataset over TLS
+    Note over W,N: Wait settle_seconds for partition leadership
+    par Measured run
+        CX->>W: Drive the measured run
+        W->>N: SQL over TLS
+    and Nemesis schedule
+        CX->>N: Inject faults
+    end
+    W-->>CX: Workload artifacts
+    N-->>CX: Metrics, cluster facts, logs, crash dumps
+    Note over CX,W: Correlate faults, write the PASS or FAIL verdict
+    CX->>N: Tear the cluster down unless teardown is false
+```
 
 ```yml
 name: smoke-optimistic
@@ -239,7 +267,8 @@ means seconds.
 operations, which makes it useful for smoke tests, throughput ceilings, and
 general fault recovery without intentionally creating write/write contention.
 
-`bank` uses transfers between two rows across the whole key space. Every
+`bank` uses transfers between any two rows of the table, so a transfer can span
+partitions. Every
 transfer must preserve `SUM(balance)` and commit atomically. Caraxes checks that
 sum after the run and never waives it. Conflicts under fault can be expected; a
 changed balance is a correctness failure.
@@ -322,6 +351,8 @@ nemesis:
 | `fill-disk` | Write a filler file into `/data` until the mount returns ENOSPC. | Deleting the filler. |
 | `slow-disk` | Cap a node's block I/O with cgroup v2 `io.max`, modeling a slow or paused durable device. | Removing the throttle. |
 | `remove-node` | Drain the node through `POST /v1/cluster/leave`, then stop the container. | Never. This is a one-way scale-down. |
+| `backup` | Take a full, incremental, or coordinated backup while load continues, so its latency and availability cost are measured. | No healing is required. |
+| `add-node` | Boot a replacement through `--join-existing`, optionally seeded from a verified backup chain. | The new node catches up and is promoted to a [voter](/docs/concepts#learner-and-voter). |
 
 Set `heal: false` on an event to hold it open for the rest of the run. A
 `kill` without healing becomes a crash without repair. A partition without
@@ -371,6 +402,27 @@ The slow-disk implementation avoids creating or removing containers while the
 throttle is active. Container removal can force overlay writeback through the
 throttled device and stall Docker itself, which would make the test measure the
 host rather than CamusDB.
+
+### Backup recovery and node replacement
+
+With `cluster.backups: true`, Caraxes can take backups during a workload and
+then verify the chain by restoring it and comparing a live ledger fingerprint
+with the restored cluster. The fingerprint includes values that advance with
+writes, so the check detects a restore that preserved row count or total balance
+but lost a committed tail.
+
+An `add-node` event exercises the operator path for replacing a permanently lost
+member. By default, Caraxes takes a closing incremental backup, restores the
+chain into the replacement, and starts it with `--pitr-bootstrap-from`. The node
+replays the backup before Raft starts and then receives only the newer delta
+from the cluster. Set `seed_from_backup: false` to test an empty replacement
+that must receive a complete snapshot instead.
+
+The event succeeds only after the replacement is ready and promoted to a voter.
+Post-run verification also checks that it appears in membership, hosts the
+expected partitions, and reads the same ledger as the surviving nodes. This
+tests backup usability, point-in-time bootstrap, membership changes, catch-up,
+and continued correctness under concurrent traffic as one recovery workflow.
 
 ## Verdict
 
@@ -426,8 +478,9 @@ writes the correlation to `analysis.md` and `scenario.json`.
 Two checks run for every scenario, not only for nemesis scenarios. The node
 health monitor samples `/ping` during the measured window and distinguishes a
 node process that died from a container that still says `Up`. The divergent
-apply check scans captured node logs for Kahuna's same-revision divergent apply
-message and writes matches to `divergent-applies.txt`.
+apply check scans captured node logs for the message that
+[Kahuna](/docs/concepts#kahuna), the storage layer, logs when two nodes apply
+different data at the same revision, and writes matches to `divergent-applies.txt`.
 
 ## Measurement evidence
 
@@ -566,6 +619,7 @@ scenarios. Representative files:
 | `smoke-optimistic.yml`, `smoke-pessimistic.yml` | Fault-free end-to-end baselines. |
 | `kill-follower.yml`, `partition-and-slow.yml`, `zone-failure.yml`, `soak-random.yml` | Process, network, zone, and random-chaos recovery. |
 | `disk-full.yml`, `bank-slow-disk-pause-nvme.yml` | Full-disk admission/recovery and slow durable-device behavior. |
+| `bank-backup-preflight.yml`, `bank-backup-replace-node-preflight.yml`, `bank-backup-replace-node-*` | Backup-chain restore and replacement nodes seeded from point-in-time recovery. |
 | `bank-kill.yml`, `bank-optimistic-*`, `bank-pessimistic-*`, `bank-soak-*` | Bank invariant under kills, lock modes, and long soaks. |
 | `fanout-failover.yml`, `fanout-gate.yml`, `split-preflight.yml`, `split-optimistic-45m.yml`, `bank-optimistic-split-45m.yml` | Many-table placement, failover, and range-split behavior. |
 | `capacity-baseline.yml`, `bank-cap-*`, `onepart-*`, `tables-scale-*` | Capacity ceilings and partition/table scaling. |
@@ -585,3 +639,9 @@ scenarios. Representative files:
   kill under load exercises.
 - [A dragon to attack our own database](/blog/a-dragon-to-attack-our-own-database/):
   the story behind Caraxes and the reliability work it supports.
+- [Caraxes nightly append tests](https://github.com/camusdb/camusdb-caraxes/actions/workflows/nightly-append.yml):
+  scheduled CamusDB end-to-end history checking.
+- [Kahuna Jepsen](https://github.com/kahunakv/kahuna-jepsen): Jepsen tests for
+  the distributed key/value and locking layer under CamusDB.
+- [Kommander Jepsen](https://github.com/kahunakv/kommander-jepsen): Jepsen tests
+  for the Raft consensus library used by Kahuna.

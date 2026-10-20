@@ -87,9 +87,18 @@ CamusDB reads a timestamp string without an explicit time zone as UTC.
 
 ## The guarantees of the consistency
 
-A read with time travel sees the highest committed revision of each key at the
-resolved timestamp, or before it. A write that committed after that timestamp is
-invisible to the historical query. It is visible to a normal `SELECT`.
+CamusDB keeps several committed versions of each row, called
+[revisions](/docs/concepts#mvcc). A read with time travel sees the highest
+committed revision of each key at the resolved timestamp, or before it. A write
+that committed after that timestamp is invisible to the historical query. It is
+visible to a normal `SELECT`.
+
+```mermaid
+flowchart LR
+    V1["Version 1<br/>committed at t1"] --> V2["Version 2<br/>committed at t2"] --> V3["Version 3<br/>committed at t3"]
+    H["AS OF SYSTEM TIME<br/>between t2 and t3"] -.->|sees| V2
+    N[Normal SELECT] -.->|sees| V3
+```
 
 The snapshot is fixed for the whole statement:
 
@@ -157,41 +166,35 @@ A read with `AS OF SYSTEM TIME` on its own is read-only by design:
 - The clause accepts a past instant only. CamusDB rejects a future time. It also
   rejects a time at or before the Unix epoch.
 
-The retained history of the storage bounds a historical read. The requested
-timestamp can be older than the retained revisions. There is no separate error
-for a snapshot that is too old. The query can simply return an empty result,
-because no retained revision is visible at that timestamp.
+The retained history of the storage bounds a historical read. Two settings
+control how much history CamusDB keeps:
+
+- `kahuna.persistent_revision_retention_age_seconds` sets how long an old
+  revision survives. When you set neither retention key, it defaults to
+  `kahuna.pitr_window_seconds` (3,600 seconds by default). `0` turns off
+  pruning by age.
+- `kahuna.persistent_revision_retention_count` caps the revisions kept for each
+  key. The default, `0`, turns off pruning by count.
+
+The requested timestamp can be older than the retained revisions. There is no
+separate error for a snapshot that is too old. The query can return an
+empty result, because no retained revision is visible at that timestamp.
 
 ## A truncated table
 
-CamusDB refuses a historical read of a truncated table, for any snapshot before
-the start of the current contents. It returns `CADB0537`
-`SnapshotPrecedesContentsGeneration`.
-
-[`TRUNCATE`](/docs/truncate-table) replaces the key space that holds the rows of
-the table. The live schema can locate the current key space only. A snapshot
-before the cut therefore has no place to read the old rows from.
-
-An empty result would be the alternative. That result is the same as a correct
-empty answer for a moment when the table was full, so CamusDB reports an error
-instead.
-
-Three rules follow:
-
-- A snapshot exactly at the cut is valid. It observes the new contents, which
-  are empty.
-- CamusDB knows the latest cut only. After several truncates, it therefore
-  refuses every snapshot before that cut.
-- A table without a truncate is not affected.
-
-Recover the old rows with `RELINK`, and then read the recovered table. See
-[TRUNCATE TABLE](/docs/truncate-table#time-travel).
+A historical read of a table that was truncated after the requested snapshot
+fails with `CADB0537` `SnapshotPrecedesContentsGeneration`, instead of returning
+a misleading empty result. Recover the old rows with `RELINK` and read the
+recovered table. See [TRUNCATE TABLE](/docs/truncate-table#time-travel) for the
+exact rules.
 
 ## The model of the storage
 
-CamusDB stores a committed version through the key/value layer of
-[Kahuna](https://kahunakv.github.io/), which holds several versions. Each
-committed version carries a timestamp of the Hybrid Logical Clock.
+CamusDB stores a committed version through
+[Kahuna](/docs/concepts#kahuna), its built-in key/value storage layer, which
+holds several versions of each key. Each committed version carries a timestamp
+from the [hybrid logical clock](/docs/concepts#hlc) (HLC), the cluster-wide
+clock that orders commits.
 
 A normal read uses the latest available timestamp. `AS OF SYSTEM TIME` supplies
 a past timestamp for the read. The statement then runs on a read-only snapshot,

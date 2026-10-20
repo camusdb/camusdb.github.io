@@ -22,7 +22,7 @@ FROM robots;
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `to_string(value)` | `STRING` | It converts a `STRING`, an `OID`, a `UUID`, an `INT64`, a `FLOAT64`, a `NUMERIC`, or a `BOOL` to text. A UUID becomes canonical text: lowercase, and with hyphens. A boolean becomes `true` or `false`. |
+| `to_string(value)` | `STRING` | It converts a `STRING`, an `OID`, a `UUID`, an `INT64`, a `FLOAT64`, a `FLOAT32`, a `NUMERIC`, a `BOOL`, a `DATE`, a `DATETIME`, or `BYTES` to text. A UUID becomes canonical text: lowercase, and with hyphens. A boolean becomes `true` or `false`. A `DATETIME` becomes ISO-8601 text in UTC, and `BYTES` becomes `\x` followed by lowercase hex. |
 | `to_int64(value)` | `INT64` | It converts an `INT64`, a `FLOAT64`, a `NUMERIC`, a `BOOL`, or the text of an integer. It truncates a float toward zero. A `NUMERIC` value rounds half away from zero. A boolean becomes `1` or `0`. |
 | `to_float64(value)` | `FLOAT64` | It converts a `FLOAT64`, an `INT64`, a `NUMERIC`, a `BOOL`, or numeric text. A boolean becomes `1.0` or `0.0`. |
 | `to_float32(value)` | `FLOAT32` | It converts a numeric value, or numeric text, to single precision. |

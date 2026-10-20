@@ -4,15 +4,15 @@ sidebar_position: 7.25
 
 # Web Console
 
-The CamusDB Web Console is a browser workspace for using and operating
-CamusDB.
+The CamusDB Web Console lets you browse, query, and administer a CamusDB node or
+cluster from a browser, so you do not need a SQL client on each machine. You run
+the console once, with Docker or from source, and open it in any browser.
 
 ![CamusDB Web Console](/img/webconsole.png)
 
-Use it when you want a graphical workspace. It lets you browse schemas, run
-SQL, inspect results, edit small result sets, export tables, view node
-configuration and engine metrics, read `EXPLAIN` plans as visual flows, and
-administer backups from a browser.
+In the console you can browse schemas, run SQL, inspect results, edit small
+result sets, export tables, view node configuration and engine metrics, read
+`EXPLAIN` plans as visual flows, and administer backups.
 
 ## Requirements
 
@@ -63,7 +63,7 @@ container, set the same keys as environment variables with two underscores.
 | `Database` | `CamusDB__Database` | The name of the database of the session. |
 | `Protocol` | `CamusDB__Protocol` | It is `rest` by default. It also accepts `grpc`. |
 | `TimeoutSeconds` | `CamusDB__TimeoutSeconds` | The timeout of a request. |
-| `MaxRows` | `CamusDB__MaxRows` | The maximum number of rows that the console materializes into the grid of the results. |
+| `MaxRows` | `CamusDB__MaxRows` | Rows per page for pageable queries, and the cap for other results and exports. |
 | `User` | `CamusDB__User` | The user of the authentication. An empty value means no authentication. |
 | `Password` | `CamusDB__Password` | The password of the `User`. |
 | `AccessToken` | `CamusDB__AccessToken` | A bearer token from another source. The console uses it instead of a login. |
@@ -108,7 +108,8 @@ Backup administration uses CamusDB's REST backup API. If the console connects
 to CamusDB through gRPC, set `BackupEndpoint` to the HTTP/REST endpoint. If the
 main `Endpoint` is a comma-separated pool of nodes, set `BackupEndpoint` to the
 specific node that should receive backup commands. A coordinated backup must
-reach the backup coordinator.
+reach the backup coordinator, the node that currently
+[leads](/docs/concepts#leader) the cluster's backup metadata.
 
 ## Security controls
 
@@ -174,8 +175,7 @@ Note this behavior of a session:
 - A credential from the Configure control belongs to one browser session.
 - The console does not put the password of a session into the connection string.
 - The console remembers the name of the user in `localStorage`. It uses that
-  name to fill the dialog.
-- The console does not store the password in `localStorage`.
+  name to fill the dialog. It never stores passwords or access tokens there.
 - The identity chip of the app bar holds a control to sign out. That control
   revokes a token that the console created. It then drops the connection.
 - The console forgets a token that you supplied, at the sign-out. It does not
@@ -232,14 +232,11 @@ anything is sent. Set `CamusDB__AllowInsecureCredentials=true` only when that
 plaintext hop is protected by another mechanism, such as a private network, VPN,
 SSH tunnel, or a trusted TLS terminator.
 
-### The errors of the authentication
+### Authentication errors
 
-| Code | Meaning |
-| --- | --- |
-| `CADB0516` | The authentication failed. The credentials are absent, invalid, expired, or rejected. |
-| `CADB0517` | The caller is authenticated. It lacks a privilege that the statement needs. |
-| `CADB0518` | There are too many attempts of a login, for that account. |
-| `CADB0519` | A client sent a credential over plaintext, where CamusDB requires TLS. |
+Authentication failures use the codes `CADB0516` to `CADB0519`. See
+[Error codes](/docs/error-codes#common-user-facing-errors) for what each one
+means.
 
 ## Vendor Launch
 
@@ -347,8 +344,9 @@ silently skipped.
 
 The Web Console provides these features:
 
-- A dark layout of a console. It holds an app bar, a sidebar of the schema, an
-  editor of SQL, a grid of the results, and a footer of the connection.
+- A console layout with dark and light themes. It holds an app bar, a sidebar of
+  the schema, an editor of SQL, a grid of the results, and a footer of the
+  connection.
 - A dialog of the configuration. It covers the endpoint, the database, the
   protocol, the backup endpoint, the timeout, the cap of the rows, and the
   credentials.
@@ -356,30 +354,32 @@ The Web Console provides these features:
   COLUMNS FROM`, `SHOW INDEXES FROM`, `SHOW CREATE TABLE`, `SHOW SEQUENCES`,
   schema comments, foreign-key metadata, sequences, and the metadata of a branch.
 - The Monaco editor of SQL.
-- A highlight of the SQL of CamusDB, with a completion of a keyword and of a
-  function.
-- A button to run a query. Ctrl and Enter, or Cmd and Enter, also runs one.
-- A run of only the selected SQL text. When text is selected, the run button
-  changes to `Run selection`.
+- CamusDB SQL highlighting and completion for keywords, functions, tables, and
+  columns in the current schema.
+- `Run statement` runs the statement at the cursor with Ctrl/Cmd+Enter, or only
+  the selected SQL when there is a selection.
+- `Run script` runs each statement in order with Alt+X, stops at the first
+  failure, and gives each statement its own result tab.
 - A workspace of queries, with several tabs.
 - A run of a query that you can cancel.
 - The times of the execution, and a bar of the status.
-- A grid of the results that knows the types, including exact `NUMERIC` text. It
-  warns you at the cap of the rows.
+- Searchable query history with database, duration, row count, and errors.
+- A paged, sortable, and filterable result grid that knows the types, including
+  exact `NUMERIC` text.
 - A flow view for `EXPLAIN` and `EXPLAIN (ANALYZE)` results, beside the raw
   result table.
-- The actions of a context on a table, such as an edit of the data, a view of
-  the data, an export of the table, adding a column, adding an index, adding or
-  dropping a foreign key, and deleting the table.
+- Context actions to rename databases, tables, columns, indexes, and sequences,
+  and to edit data, export tables, change schema, or delete objects.
 - The actions of an edit and of a delete of a row, when a result set belongs to
   the context of a table.
-- An export of a table to CSV, and to JSON. `MaxRows` caps both.
+- CSV and JSON export for tables or the rows currently loaded in any result.
 - Administration pages for node-local engine metrics, effective variables, and
   backup controls.
 - The preferences of the interface that the console remembers, in the
   `localStorage` of the browser. Examples include open SQL tabs, editor text,
   the active database, the user name, the schema drawer width, and the
-  editor/results split.
+  editor/results split and query history. The theme choice is remembered in a
+  browser cookie so the correct theme is painted before the app connects.
 
 Two clicks on a table of the tree of the schema insert this text:
 
@@ -388,12 +388,13 @@ SELECT * FROM table_name
 LIMIT 100
 ```
 
-Right-click a database to create a table or drop the database. The create-table
+Right-click a database to create, rename, or drop it. The create-table
 dialog can define columns, primary keys, single-column foreign keys, and
 defaults such as `nextval('sequence')` or `NUMERIC '9.99'`.
 
-Right-click a table to view or edit data, add a column, add an index, add a
-foreign key, export the table, or drop the table. The add-column dialog runs
+Right-click a table to view or edit data, rename it, add a column, add an index,
+add a foreign key, export the table, or drop the table. Columns and indexes can
+also be renamed from their context menus. The add-column dialog runs
 `ALTER TABLE ... ADD COLUMN`; a `NOT NULL` column needs a constant default
 because existing rows get that value. The add-foreign-key dialog can create
 multi-column foreign keys and lets the server validate existing rows.
@@ -403,7 +404,7 @@ table, and `ON DELETE` / `ON UPDATE` actions. Right-click a foreign key to drop
 the constraint.
 
 Sequences appear after tables. Double-click a sequence to insert
-`SHOW CREATE SEQUENCE ...`; right-click one to show its definition or drop it.
+`SHOW CREATE SEQUENCE ...`; right-click one to show, rename, or drop it.
 Dangerous actions require confirmation.
 
 ## The behavior of a query
@@ -418,15 +419,26 @@ The console routes SQL by statement shape:
 - Database lifecycle actions in the schema browser run through the same
   database-level operations exposed by CamusDB.
 
-The result grid materializes `MaxRows` rows at most. Keep that value reasonable
-for a large table.
+For a `SELECT` without its own `LIMIT` or `OFFSET`, `MaxRows` is the page size.
+Use `Fetch more` to append the next page. Add an `ORDER BY` when page order must
+be stable. Other row-returning statements are capped at `MaxRows` and report
+when the result was truncated.
 
-When part of the editor text is selected, the console executes only the
-selection. When nothing is selected, it executes the current tab.
+When part of the editor text is selected, `Run statement` executes only the
+selection. Otherwise it finds the statement at the cursor. `Run script` splits
+the selection or tab at semicolons outside strings, quoted names, and comments.
+
+The history control records the last 200 statements in `localStorage` and can
+search or reopen them in a new tab. Password literals in `CREATE USER` and
+`ALTER USER` are masked before storage.
 
 The result grid styles values by type. It distinguishes `NULL`, numbers,
 booleans, timestamps, blobs, UUIDs, exact `NUMERIC` values, and ordinary
 strings, and it warns when the result was truncated by `MaxRows`.
+
+Click a column heading to sort loaded rows, and use `Filter loaded rows` for a
+client-side filter. In an `Edit/View Data` tab, sorting and the `WHERE` box are
+sent to the server and reflected in the tab's SQL.
 
 ## Query plan flow
 
@@ -487,8 +499,8 @@ The Administration page exposes node-local operational views:
 | Variables | Runs `SHOW VARIABLES` and displays effective configuration values for the node that answered. |
 | Backups | Takes full, incremental, and coordinated backups; lists the backup catalog; validates a chain; previews or runs retention garbage collection. |
 
-These views are node-local. They do not forward to a leader. To compare a
-cluster, point the console at each node.
+These views are node-local: they show only the node that answered, and do not
+forward to another node. To compare a cluster, point the console at each node.
 
 When authentication is enabled, Administration requires a superuser. Engine
 metrics describe node-level workload, variables describe the node's security
@@ -501,8 +513,10 @@ coordinated backups, and offline restore.
 ## Export
 
 An export of a table runs a `SELECT * FROM <table>`. The `MaxRows` of the
-current session caps that statement. The console then downloads one of two
-formats:
+current session caps that statement. The result toolbar can also export the
+rows currently loaded by any query, after the grid's sort and filter. For a
+paged result, use `Fetch more` before export when more rows are needed. The
+console downloads one of two formats:
 
 - CSV.
 - JSON.
@@ -526,8 +540,6 @@ For a full logical backup, and for a dump of SQL that you can restore, use
   CamusDB remain the durable boundary of a permission.
 - The console sends security headers that prevent framing, reduce MIME sniffing,
   and avoid leaking referrer details.
-- Passwords and access tokens entered in the browser are not stored in
-  `localStorage`.
 
 ## Related pages
 

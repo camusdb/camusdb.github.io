@@ -5,14 +5,28 @@ sidebar_position: 7.15
 # Dapper
 
 CamusDB ships `CamusDB.Dapper`, a small adapter for using
-[Dapper](https://github.com/DapperLib/Dapper) with the .NET driver.
+[Dapper](https://github.com/DapperLib/Dapper) with the .NET driver. Dapper is a
+popular .NET library that runs a SQL query and maps each result row to a C#
+object. You keep full control of the SQL, and you do not read each column by
+hand.
+
+To compare the three .NET packages (driver, Dapper, EF Core) and their target
+frameworks, see [Which .NET package to use](/docs/dotnet-driver#which-net-package-to-use).
+
+Use `CamusDB.Dapper` in these cases:
+
+- You want direct SQL with lightweight object mapping.
+- You use SQL features of CamusDB, but you do not want a full ORM model.
+- You already know the `QueryAsync` and `ExecuteAsync` APIs of Dapper.
+- You need parameters of the native `OID`, `UUID`, `ARRAY(T)`, and vector
+  types.
+
+## How the adapter works
 
 The package builds on `CamusDB.Client`. A `CamusConnection` is a regular
 ADO.NET connection, so Dapper can run SQL through it directly. The adapter adds
 CamusDB-specific parameter helpers and type handlers for the values Dapper
 cannot infer on its own.
-
-It targets `net8.0`, `net9.0`, and `net10.0`.
 
 ## Install
 
@@ -273,17 +287,3 @@ catch
 For serializable conflicts in a multi-statement transaction, retry the whole
 transaction from `BEGIN`. See
 [Retries And Conflicts](/docs/serializable-retries).
-
-## When to use it
-
-Use `CamusDB.Dapper` when you want:
-
-- direct SQL and lightweight object mapping
-- CamusDB-specific SQL features without a full ORM model
-- Dapper's familiar `QueryAsync` and `ExecuteAsync` APIs
-- native `OID`, `UUID`, `ARRAY(T)`, and vector parameter helpers
-
-Use [EF Core Provider](/docs/ef-core) when you want DbContext, change tracking,
-migrations, LINQ translation, and EF Core conventions. Use
-[.NET Driver](/docs/dotnet-driver) directly when you want the full ADO.NET
-surface without Dapper.

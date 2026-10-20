@@ -63,17 +63,9 @@ Both examples return zero rows.
 ## A subquery in a projection
 
 CamusDB evaluates a subquery inside the projection of a `SELECT` without a
-`FROM` clause first. It then replaces the subquery with its scalar result:
-
-```camussql
-SELECT EXISTS (
-  SELECT 1
-  FROM accounts
-  WHERE email = @email
-);
-```
-
-`NOT EXISTS` also works:
+`FROM` clause first. It then replaces the subquery with its scalar result. The
+`EXISTS` example at the top of this page works that way, and `NOT EXISTS` also
+works:
 
 ```camussql
 SELECT NOT EXISTS (

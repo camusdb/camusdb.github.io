@@ -4,9 +4,32 @@ sidebar_position: 3.55
 
 # Authentication and authorization
 
-CamusDB can enforce SQL authentication and per-object authorization for clients.
-Authentication is off by default. An existing development deployment therefore continues to work until an operator enables
-authentication.
+Authentication checks who a client is. Authorization checks what that client can
+do. With both enabled, each application, service, and person connects as a
+named user, and each user can read or change only the databases and tables that
+you grant to it.
+
+## Why enable authentication
+
+Authentication is off by default, so a local node is easy to start. Without it,
+any client that can reach the network port of a node can read, change, and drop
+every database on that node.
+
+Enable authentication in these cases:
+
+- The node is reachable from a network that you do not fully control, for
+  example a shared office network, a cloud network, or the internet.
+- More than one application or team uses the same server. Each one must see
+  only its own data.
+- You want least privilege. For example, a reporting service gets read access
+  only, and only an administrator can run DDL.
+- A security review or a compliance rule requires named users and passwords.
+
+You can leave it off for local development and for a test node on a private
+machine. An existing development deployment continues to work until an
+operator enables authentication.
+
+## What changes when you enable it
 
 While authentication is enabled, CamusDB fails closed:
 
@@ -108,6 +131,23 @@ Authorization: Bearer camus_<id>.<secret>
 A token has an absolute lifetime of 15 minutes by default. There is no refresh
 token. A client logs in again after a token expires.
 
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant N as CamusDB node
+    C->>N: POST /login with user and password
+    Note over N: Check the password against the stored PBKDF2 verifier
+    N-->>C: token, expiresAtUnixMs, expiresInSeconds
+    C->>N: POST /execute-sql-query with Authorization Bearer token
+    Note over N: Check the privileges of the statement
+    N-->>C: Rows
+    Note over C,N: The token expires. There is no refresh token.
+    C->>N: POST /login again
+    N-->>C: New token
+    C->>N: POST /logout with the token
+    N-->>C: Token revoked
+```
+
 The login response reports the deadline of the token in two forms:
 
 - `expiresAtUnixMs` is the absolute UTC Unix epoch millisecond at which CamusDB
@@ -116,7 +156,8 @@ The login response reports the deadline of the token in two forms:
   measured.
 
 Renew from those two fields. Do not assume a fixed lifetime. An operator can
-change `AccessTokenTtl`. A client must renew before the reported deadline.
+change `access_token_ttl` (milliseconds, default `900000`). A client must renew
+before the reported deadline.
 
 Three events invalidate an outstanding token: a change of the password, a `DROP
 USER`, and a call to `/logout`.
@@ -354,9 +395,9 @@ distinguish ordinary expiry from revocation. A new stream still needs a token
 that resolves, so clients should renew before `expiresAtUnixMs`.
 
 `FLUSH PRIVILEGES` makes this node drop cached authorization decisions and
-re-read the user and grant catalog. It also advances a replicated coherence
-generation, so other nodes discard decisions derived from the older catalog
-within the same TTL bound. It does not revoke sessions or force clients to log in
+re-read the user and grant catalog. It also bumps a cluster-wide version
+counter for the authorization cache, so other nodes discard decisions derived
+from the older catalog within the same TTL bound. It does not revoke sessions or force clients to log in
 again.
 
 `FLUSH SESSIONS` deletes all stored sessions. Every client on every node must log
@@ -369,8 +410,9 @@ While auth is enabled, CamusDB checks every statement before it runs the
 statement.
 
 A read of a table needs `SELECT` on every table that the statement references.
-That rule covers a join, a derived table, a subquery, a semi-join, `EXISTS`,
-`IN`, and `EXPLAIN` for a query that reads a table.
+That rule covers a join, a derived table, a subquery, a semi-join (a filter that
+keeps a row when a match exists in another table), `EXISTS`, `IN`, and
+`EXPLAIN` for a query that reads a table.
 
 A write needs the matching write privilege:
 
@@ -379,12 +421,15 @@ A write needs the matching write privilege:
 - `DELETE` for a delete.
 
 A write with `RETURNING` also needs `SELECT` on the target table, because the
-`RETURNING` list reads stored row values. The count-only request flag does not
-remove that privilege check.
+`RETURNING` list reads stored row values. The count-only request flag
+(`discard_returning_rows` in gRPC, `discardReturningRows` over HTTP and in the
+TypeScript connector) does not remove that privilege check. The .NET driver's
+`ExecuteNonQueryAsync()` sets that flag.
 
 [`TRUNCATE`](/docs/truncate-table) needs both `DELETE` and `DROP` on the target
-table. It removes every row, which is an effect of a `DELETE`. It also retires a
-whole key space, which is an effect of a `DROP`.
+table. It removes every row, which is an effect of a `DELETE`. It also retires
+the table's whole [key space](/docs/concepts#key-space) (the stored keys that
+hold its rows and indexes), which is an effect of a `DROP`.
 
 CamusDB checks the two privileges one at a time. They can therefore come from
 two separate grants.
@@ -400,8 +445,10 @@ need `UPDATE`, and `DeleteRows` and `DeleteById` need `DELETE`.
 
 Cluster routes that expose topology or change cluster state require a superuser.
 `/v1/cluster/health` answers without a credential so an orchestrator can probe
-the node, but only a superuser sees detailed role, partition, and stalled-range
-fields. Membership, placement, backfill, snapshot, leave, and replication-factor
+the node, but only a superuser sees detailed fields: the node's role, the
+[partitions](/docs/concepts#partition) it hosts, and the partitions whose
+replication has stalled. Membership, placement, backfill, snapshot, leave, and
+[replication-factor](/docs/concepts#replica-and-replication-factor)
 routes are superuser-only; leave and replication-factor routes are loopback-only
 when authentication is off.
 
@@ -455,18 +502,19 @@ permissive.
 
 These defaults are security settings at process level:
 
-| Setting | Default | Meaning |
-| --- | --- | --- |
-| Access token lifetime | 15 minutes | The absolute lifetime of a bearer token. |
-| Authorization cache TTL | 1 second | The maximum staleness of a cached token or privilege decision on another node. A change made on this node applies to the next request. |
-| Expired session retention | 5 minutes | How long an expired session record is kept so a live gRPC batch stream can distinguish ordinary token expiry from revocation. |
-| Password hash iterations | 600,000 | The PBKDF2-HMAC-SHA256 work factor, stored with each credential. |
-| Login KDF concurrency | 8 | The maximum number of concurrent password verifications on one node. |
-| Login attempts per minute | 20 | The login rate limit, per account. |
-| Login attempts per source per minute | 200 | The login rate limit across all accounts from one source address. |
-| Session reaper interval | 5 minutes | How often expired dashboard and bearer-token sessions are deleted. |
-| Principal cache max entries | 10,000 | The bound of the cache of authenticated principals, on one node. |
-| TLS requirement | enabled | Refuse a plaintext request that carries a credential, except from loopback. Configure it as `require_tls_when_auth_enabled`, or as `--require-tls-when-auth-enabled true\|false`. |
+| Setting | Key | Default | Meaning |
+| --- | --- | --- | --- |
+| Access token lifetime | `access_token_ttl` | 900000 ms (15 minutes) | The absolute lifetime of a bearer token. |
+| Authorization cache TTL | `authentication_cache_ttl` | 1000 ms (1 second) | The maximum staleness of a cached token or privilege decision on another node. A change made on this node applies to the next request. `0` forces a catalog lookup on every request. |
+| Expired session retention | `expired_session_retention_ms` | 300000 ms (5 minutes) | How long an expired session record is kept so a live gRPC batch stream can distinguish ordinary token expiry from revocation. |
+| Password hash iterations | `password_hash_iterations` | 600,000 | The PBKDF2-HMAC-SHA256 work factor, stored with each credential. |
+| Login KDF concurrency | `login_kdf_max_concurrency` | 8 | The maximum number of concurrent password verifications on one node. |
+| Login attempts per minute | `login_max_attempts_per_minute` | 20 | The login rate limit for one account from one source address. |
+| Login attempts per source per minute | `login_max_attempts_per_source_per_minute` | 200 | The login rate limit across all accounts from one source address. |
+| Login rate limiter entries | `login_rate_limit_max_entries` | 100,000 | The maximum number of keys that each login rate-limit counter tracks. |
+| Session reaper interval | `session_reaper_interval_ms` | 300000 ms (5 minutes) | How often expired dashboard and bearer-token sessions are deleted. `0` or less turns the sweep off. |
+| Principal cache max entries | `authentication_cache_max_entries` | 10,000 | The bound of the cache of authenticated principals, on one node. |
+| TLS requirement | `require_tls_when_auth_enabled` | `true` | Refuse a plaintext request that carries a credential, except from loopback. The command-line form is `--require-tls-when-auth-enabled true\|false`. |
 
 ## Errors
 

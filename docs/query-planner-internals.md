@@ -5,7 +5,8 @@ sidebar_position: 6.5
 # Query planner internals
 
 This page describes two steps. CamusDB turns SQL text into a physical plan. It
-then executes that plan against the KV layer.
+then executes that plan against the KV layer, the ordered key/value store that
+holds every row and index entry.
 
 Start with [Query Planning](/docs/query-planning) for SQL examples and tuning,
 and [EXPLAIN](/docs/explain) for reading a plan. This page follows the same
@@ -15,7 +16,8 @@ costing, cache replay, and execution.
 ## The mental model
 
 The planner of CamusDB sits between the SQL layer and the ordered transactional
-KV store. [Kahuna](https://kahunakv.github.io/) provides that store.
+KV store. [Kahuna](/docs/concepts#kahuna), the key/value layer embedded in
+every CamusDB node, provides that store.
 
 The planner turns a declarative SQL query into a concrete plan of execution. It
 answers five questions:
@@ -53,6 +55,18 @@ Every `SELECT` follows this pipeline at a high level:
 4. It produces a tree for the physical plan.
 5. It executes the plan. It uses either the executor for one table, or the path
    for a join.
+
+```mermaid
+flowchart TD
+    S[SQL text] --> P["Parse<br/>NodeAst"]
+    P --> L["Logical model<br/>SelectQuery"]
+    L --> B["Bind to the catalog<br/>BoundSelectQuery"]
+    B --> Q["Physical plan<br/>QueryPlan"]
+    Q -->|one source| E1[QueryExecutor]
+    Q -->|join or derived table| E2[QueryJoinExecutor]
+    E1 --> R["Rows<br/>QueryResultRow"]
+    E2 --> R
+```
 
 These are the important data structures:
 
@@ -224,7 +238,7 @@ patterns are typical:
 
 | Shape of the query | Chain of operators |
 | --- | --- |
-| A plain select | `Scan -> [Filter] -> [Sort] -> [Limit] -> [Aggregate] -> [Having] -> [Project]` |
+| A plain select | `Scan -> [Filter] -> [Sort] -> [Aggregate] -> [Having] -> [Project] -> [Limit]` |
 | A grouped query | `Scan -> [Filter] -> Aggregate -> [Having] -> [Sort] -> [Project] -> [Limit]` |
 | A distinct query | `Scan -> [Filter] -> [Aggregate] -> [Having] -> [Project] -> Distinct -> [Sort] -> [Limit]` |
 
@@ -285,6 +299,10 @@ Before choosing an order, the planner must understand which conditions connect
 which sources. `JoinPredicatePushdown` separates single-source `WHERE` filters
 from conditions that must run after combining sources. `JoinGraph` then builds
 a graph from the remaining eligible conditions and the `ON` clauses.
+
+The planner reads conditions joined by `AND` one at a time. Each such condition
+is a **conjunct**. Eligible cross-table conditions from `WHERE` can connect
+tables just like conditions from `ON`.
 
 A graph leaf is a table or derived table identified by its bound alias. Each
 leaf occupies one bit in a mask. A conjunct stores the mask of the sources it
@@ -532,6 +550,18 @@ hits that could not be rebuilt; `Hits` alone is not evidence that enumeration
 was skipped. Join replay validates the graph, the alias permutation, connectivity,
 and the availability of estimates needed by the recorded mode.
 
+```mermaid
+flowchart TD
+    Q[Bound query] --> K["Key: database +<br/>QueryShapeId"]
+    K --> C{Cached decision?}
+    C -->|no| F[Full planning search]
+    C -->|yes| R["Replay: rebuild bounds and<br/>predicates from current values"]
+    R -->|rebuild fails| F
+    R -->|ok| P[Physical plan]
+    F --> P
+    I["Schema, index, or<br/>analyze generation change"] -.->|invalidates| C
+```
+
 Literal-independent reuse trades planning time for sensitivity to skew. A
 cached index choice or join order can remain valid while being less efficient
 for another value. New analyzed statistics invalidate the entry, but different
@@ -597,13 +627,16 @@ These are the other stages:
   of that table are the columns of the equi-join. The executor then streams the
   other side, and it probes the table. The build side can exceed
   `HashJoinMaxBuildRows` while spill is enabled. `GraceHashJoinAsync` then
-  divides both inputs into spill files. It joins one partition at a time. While
+  divides both inputs into spill files by key hash. It joins one pair of spill
+  files at a time. While
   spill is disabled, the execution of that query falls back to the behavior of a
   nested loop.
 - A merge join advances the ordered left input and the ordered right input
-  together. The two sides can be ordered by the join key already, and the
-  executor then streams them. Otherwise the executor can materialize the
-  unordered side, and sort it first.
+  together. `MergeJoinNode` records `LeftIsOrdered` and `RightIsOrdered`. When
+  both are true, the executor streams both sides and buffers only the current
+  run of equal keys on the right side. Otherwise it materializes the unordered
+  side and sorts it first. The planner always sets `LeftIsOrdered`, because the
+  left input either has index order already or carries a `SortNode`.
 
 The merged result then passes through the shared pipeline after the scan.
 
@@ -636,6 +669,24 @@ because the right side is named in the join detail rather than rendered as a
 separate row. The detail can also add runtime facts such as `ran=grace-hash`,
 `ran=nested-loop-fallback`, `ran=broadcast`, and the join-order estimate used by
 the search.
+
+### Rendering distributed plan properties
+
+`PlanRenderer.Render(plan, includeDistributedProperties: true)` adds
+distributed-plan metadata to the line of each node:
+
+```text
+table-scan(table=robots) order=[year ASC] decomposable=true dist=partitioned(id)
+```
+
+| Suffix            | Meaning |
+|-------------------|---------|
+| `order=[...]`     | The order that this node guarantees on its output, such as an index scan that satisfies an `ORDER BY`. The suffix is absent when the order is undefined. |
+| `decomposable=true/false` | Whether CamusDB can split the node's work into a local computation for each [partition](/docs/concepts#partition) plus a merge on the coordinator. It is always `false` for a sort node and a limit node. An `aggregate` is `true` only for `COUNT`, `SUM`, `MIN`, and `MAX`. `AVG` is `false`. |
+| `dist=...`        | How the node's output rows are distributed across the cluster. The value is `gathered` on one node, for a point lookup, and while [key-range sharding](/docs/concepts#hash-and-key-range-routing) is off. It is `partitioned(col1,col2)` for a scan sharded by the range of those key columns. It can also be `replicated`. Only scan leaves carry this suffix. |
+
+Internal tools and tests use this mode. The SQL statement `EXPLAIN` does not
+expose it.
 
 ## Statistics and cost
 
@@ -678,13 +729,6 @@ five decisions:
 - The enumeration of the join orders by cost, while
   `cost_based_join_order_enabled` is on.
 
-For a single-column equi-join that is unique on neither side, the estimator uses
-both histograms when they are available. `JoinKeyDistribution` separates values
-that occupy a complete equi-depth bucket from a uniform residual, then sums the
-matching frequencies. This avoids the uniform-distribution underestimate when
-both sides are concentrated on the same popular values. Without heavy values,
-or without both histograms, estimation falls back to the distinct-value model.
-
 The cost is a weighted sum of five quantities:
 
 1. The point lookups in the KV layer.
@@ -697,23 +741,59 @@ The `NetworkFactor` comes from three inputs: the estimate of the remote rows,
 the width of a row, and the configured count of the partitions in the cluster.
 It is zero for a plan on one node, and for a plan without shards.
 
-## The optimizations of today
+### Skewed join keys {#skewed-join-keys}
 
-The planner already includes several concrete passes:
+A plain distinct-value estimate assumes every key is equally common. That can
+badly underestimate a join when both tables hold many rows for the same popular
+values, such as customers and stores concentrated in the same cities.
 
-- A pushdown of the projection, with `RequiredColumns`.
-- An elision of the sort, through `OutputOrdering`.
-- A pushdown of the limit into a scan.
-- An absorption of a filter into the bounds of a scan.
-- A pushdown of a predicate of a join.
-- A heuristic change of the join order.
-- A veto by cost, for an index range scan with a low selectivity.
-- A selection of the join algorithm with the help of the cost, for an eligible
-  equi-join.
-- An enumeration of the access paths by cost, through
-  `cost_based_access_path_enabled`.
-- An enumeration of the join orders by cost, through
-  `cost_based_join_order_enabled`.
+For a single-column equi-join that is unique on neither side, the estimator uses
+both histograms when they are available. `JoinKeyDistribution` takes the heavy
+values from the most common values that `ANALYZE` keeps with each histogram.
+For a histogram built before that list existed, it falls back to the values
+that fill a complete equi-depth bucket. It treats the other rows as a uniform
+residual, then sums the matching frequencies. Without heavy values, or without
+both histograms, estimation falls back to the distinct-value model.
+
+`stats_top_values` limits the most-common-value list and defaults to `100`; `0`
+disables the list. When a column has no more distinct values than the limit,
+its value distribution is exact.
+
+The estimate also excludes the measured fraction of `NULL` join keys. A `NULL`
+key matches nothing and causes no index probe. Statistics built before this
+fraction was recorded conservatively assume that every row has a key.
+
+`ANALYZE` always covers the leading column of every index. It then covers other
+eligible columns in declaration order, up to `stats_analyze_max_columns`. For a
+skewed join, both tables need fresh statistics. Histograms cannot describe
+every cross-column correlation, so compare the estimate with `actual_rows` from
+`EXPLAIN (ANALYZE)` when tuning a difficult join.
+
+### Plan-time lookup of a small dimension table {#plan-time-lookup}
+
+Statistics can say how common each key is in a fact table, but they cannot
+identify the key that a filter on another table selects. A filter such as
+`types.name = 'release dates'` can select one dimension row whose key is
+unusually common in the fact table.
+
+`PlanTimeLeafLookup` reads that key instead of guessing. Before the join search
+runs, it scans a qualifying dimension table through the query's own
+transaction and snapshot, evaluating the leaf filter as the leaf scan would.
+The search then prices a probe through each kept key at that key's own share of
+the fact column, read from the column histogram, instead of at the average key.
+Plain `EXPLAIN` performs the same lookup, so it shows the plan the query would
+run. The rows read count toward the statement's rows read.
+
+A leaf qualifies when all of these hold:
+
+- Its table has a single-column unique key.
+- Its row-count estimate is at most `stats_plan_time_lookup_max_rows`
+  (default `2000`; `0` disables the lookup).
+- Its filter has an equality or an `IN (...)` list on constants.
+
+The lookup yields nothing for a leaf, and the search keeps its statistics,
+when the scan meets more than twice the row cap (a stale row count hid a larger
+table) or the filter keeps more than 64 rows.
 
 ## Cost model boundaries
 
@@ -747,7 +827,8 @@ estimated work, and whether computation can split into local work plus a merge.
 They do not imply that every operator executes remotely.
 
 With distributed execution enabled, eligible primary-row scans can become
-fragments on span leaders, with coordinator gathering and supported filter or
+fragments that run on the [leader](/docs/concepts#leader) of each key
+[span](/docs/concepts#ranges-and-spans), with coordinator gathering and supported filter or
 partial-aggregate pushdown. Eligible inner hash joins can broadcast a bounded
 build side for remote probing. Outer joins do not use that broadcast path.
 See [Distributed Queries](/docs/distributed-queries) for exact eligibility,

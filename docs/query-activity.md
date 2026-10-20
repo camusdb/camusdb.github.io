@@ -36,7 +36,7 @@ Important columns:
 | Column | Meaning |
 | --- | --- |
 | `query_id` | The id accepted by `CANCEL QUERY`. It is unique across the cluster. |
-| `node` | The Raft endpoint of the node running the statement. |
+| `node` | The internal cluster address of the node running the statement. |
 | `connection_id` | The connection that carried the statement, when there is one. |
 | `client_address` | The client's IP address. |
 | `transport` | `http`, `grpc`, `grpc-stream`, or `embedded`. |
@@ -61,8 +61,8 @@ client consumes rows.
 
 `SHOW CONNECTIONS` returns one row for each client-facing TCP or QUIC connection
 accepted by the node. It tracks HTTP, HTTPS, and the gRPC client port. QUIC
-connections exist only when `http3_enabled` is on. It does not track
-the Raft listener.
+connections exist only when `http3_enabled` is on. It does not track the
+internal port that nodes use to talk to each other.
 
 Important columns:
 
@@ -162,8 +162,9 @@ activity list when they finish. `SHOW CONNECTIONS` still works.
 
 - Typed row APIs, such as `/query`, `/insert`, `/update`, `/delete`, and the
   gRPC `CamusRows` service, are not listed because they do not send SQL text.
-- Worker-side span scans for distributed queries are not listed on the worker
-  node. The coordinator statement is listed.
+- The scans that a [distributed query](/docs/distributed-queries) runs on other
+  nodes are not listed on those nodes. The statement on the coordinating node
+  is listed.
 - An explicit transaction that is idle between statements does not appear in
   `SHOW QUERIES`; its connection appears in `SHOW CONNECTIONS`.
 - There is no `KILL CONNECTION` statement yet.

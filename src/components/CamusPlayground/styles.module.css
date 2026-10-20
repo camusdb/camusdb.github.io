@@ -183,6 +183,109 @@
   opacity: 0.52;
 }
 
+.exampleBar button.activeExample {
+  color: var(--ifm-color-primary);
+  border-color: var(--ifm-color-primary);
+  background: color-mix(in srgb, var(--ifm-color-primary) 8%, var(--playground-bg));
+}
+
+.stepGuide {
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid var(--playground-border);
+}
+
+.stepGuide p {
+  margin: 0;
+}
+
+.stepHeader {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.45rem;
+}
+
+.stepCount {
+  color: var(--ifm-color-primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.stepDescription {
+  color: var(--ifm-font-color-base);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.stepCount span {
+  color: var(--playground-muted);
+}
+
+.stepHint {
+  margin-top: 0.45rem !important;
+  color: var(--playground-muted);
+  font-size: 0.78rem;
+}
+
+.stepHint.stepDone {
+  color: var(--ifm-color-success-darker);
+  font-weight: 600;
+}
+
+[data-theme='dark'] .stepHint.stepDone {
+  color: var(--ifm-color-success-light);
+}
+
+.stepDescription code {
+  padding: 0.05rem 0.3rem;
+  font-size: 0.8rem;
+}
+
+.stepNav {
+  display: flex;
+  flex: none;
+  gap: 0.4rem;
+}
+
+.stepNav button {
+  min-height: 2rem;
+  padding: 0.35rem 0.7rem;
+  color: var(--ifm-font-color-base);
+  border: 1px solid var(--playground-border-strong);
+  border-radius: 8px;
+  background: var(--playground-bg);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.stepNav button:hover:not(:disabled) {
+  color: var(--ifm-color-primary);
+  border-color: var(--ifm-color-primary);
+}
+
+.stepNav .nextButton:not(:disabled) {
+  color: #ffffff;
+  border-color: var(--ifm-color-primary);
+  background: var(--ifm-color-primary);
+}
+
+.stepNav .nextButton:hover:not(:disabled) {
+  color: #ffffff;
+  border-color: var(--ifm-color-primary-light);
+  background: var(--ifm-color-primary-light);
+}
+
+.stepNav button:disabled {
+  cursor: default;
+  opacity: 0.52;
+}
+
 .visuallyHidden {
   position: absolute;
   width: 1px;

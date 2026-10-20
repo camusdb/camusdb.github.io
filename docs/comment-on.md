@@ -4,20 +4,23 @@ sidebar_position: 2.15
 
 # Schema comments
 
-CamusDB supports a comment on a database, on a table, on a column, on a
-secondary index, and on a sequence. A comment is metadata only. It affects no
-result of a query, no plan, no encoding of a row, no index, no constraint, and
-no behavior of a transaction.
+Column names rarely explain themselves. Is `status` free text or one of three
+values? Who owns `legacy_orders`, and can it be dropped? Schema comments keep
+the answer next to the object itself, so the next developer who reads the schema
+does not have to search a wiki or ask around.
 
-Use a comment to document four things next to the schema object itself: the
-owner, the expected values, the operational intent, and the meaning for an
-application.
+Comments also help AI agents. An agent that connects through the
+[CamusDB MCP server](/docs/mcp-server) can read them with `SHOW CREATE TABLE`
+and `SHOW DATABASE`. Clear comments tell the agent what each database, table,
+column, and index is for before it writes a query or proposes a change.
 
-A comment is useful when a client reaches CamusDB through the
-[CamusDB MCP server](/docs/mcp-server). An AI agent can inspect the metadata of
-a schema through MCP. A clear comment on a database, a table, a column, and an
-index helps that agent. It then understands the purpose of each object, before
-it writes a query or proposes a change.
+Good comments record who owns an object, which values it expects, how it is
+operated, and what it means to the application. You can comment on databases,
+tables, columns, secondary indexes, and sequences, with the PostgreSQL
+`COMMENT ON ... IS` form.
+
+A comment is metadata only. It never changes query results, query plans, row
+encoding, indexes, constraints, or transaction behavior.
 
 ## COMMENT ON
 
@@ -168,12 +171,9 @@ COMMENT ON TABLE users IS E'first line\nsecond line';
 COMMENT ON TABLE users IS 'C:\Users\data';
 ```
 
-Four forms of an escape string fail with `InvalidInput`: a truncated `\x`
-escape, a truncated `\u` escape, a `\U` escape outside the valid range, and a
-surrogate escape without its pair.
-
-See [String Literals](/docs/data-types#string-literals) for the full rules of a
-literal.
+A malformed escape fails with `InvalidInput`. See
+[String literals](/docs/data-types#string-literals) for the escape rules and
+the list of escapes that fail.
 
 ## Notes
 

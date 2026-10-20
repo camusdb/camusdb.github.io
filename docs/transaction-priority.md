@@ -9,8 +9,11 @@ saturated, the work that matters to you then starts before the work that does
 not.
 
 The feature is off by default. It does nothing until you configure a ceiling on
-concurrency. CamusDB records the priority from the first release, and you can
-observe it. CamusDB defers no transaction until an operator sets
+concurrent coordinator sessions. A coordinator session is the server-side record
+that tracks one transaction until it ends. That ceiling is the admission gate:
+when the node is at the ceiling, a new transaction waits in a queue before it
+starts. CamusDB records the priority from the first release, and you can observe
+it. CamusDB defers no transaction until an operator sets
 `kahuna.max_concurrent_sessions`. Read [Turn the gate on](#turn-the-gate-on)
 before you set it.
 
@@ -28,7 +31,8 @@ people:
   priority decides one instant, and nothing after that instant.
 - It does not affect a lock conflict. A `Background` transaction that holds an
   exclusive lock blocks a `Critical` transaction as hard as a `Normal` one does.
-  Priority does not touch isolation, two-phase commit, or the commit semantics.
+  Priority does not touch isolation,
+  [two-phase commit](/docs/concepts#two-phase-commit), or the commit semantics.
 - It applies per node. Each node orders only the work that it receives. There is
   no fairness across the cluster.
 
@@ -93,12 +97,21 @@ The server default is `default_transaction_priority` in `config.yml`:
 default_transaction_priority: normal   # background | low | normal | high | critical
 ```
 
+You can also change it while the cluster runs. The new value applies on every
+node, to transactions that begin after the change:
+
+```camussql
+SET CLUSTER SETTING default_transaction_priority = low;
+```
+
 The order of precedence is `SET TRANSACTION PRIORITY`, then the per-request
 field, then `default_transaction_priority`, then `Normal`.
 
 ## Turn the gate on
 
-Take care with this part. All the settings are under `kahuna:` in `config.yml`:
+Take care with this part. All the settings are under `kahuna:` in `config.yml`.
+They are read at startup, so a change needs a restart of the node.
+`SET CLUSTER SETTING` rejects every `kahuna.*` key.
 
 ```yml
 kahuna:
@@ -119,9 +132,9 @@ queues. It adds latency for no benefit. Set the value at or above the
 concurrency that you observe when the node is healthy. The purpose of the
 setting is to shed and to order surplus load.
 
-The Kahuna admission guide describes this setting for a client that holds one
-session per user session. It bounds connections in that case. That advice does
-not apply to CamusDB.
+A client of [Kahuna](/docs/concepts#kahuna), the transactional storage layer
+that CamusDB embeds, that holds one session per user session can use this
+setting to bound connections. That use does not apply to CamusDB.
 
 ### A reserve is almost always necessary
 
@@ -155,6 +168,15 @@ A transaction that CamusDB cannot admit waits in a queue for the admission wait
 budget. It then fails with the retryable code `CADB0504`. CamusDB started
 nothing, so a retry is always safe. The node sheds load in this state, so your
 retry must use a backoff.
+
+```mermaid
+flowchart TD
+    T["Transaction opens a<br/>coordinator session"] --> G{Slot free?}
+    G -->|"yes, under the ceiling<br/>for its priority"| A[Admitted]
+    G -->|no| Q["Wait in the queue<br/>aging raises the priority"]
+    Q -->|"a slot frees, the highest<br/>priority starts next"| A
+    Q -->|"the admission wait<br/>budget runs out"| E["CADB0504<br/>retry with backoff"]
+```
 
 ```yml
 transaction_admission_wait_ms: 0          # 0 = leave the node's own budget in force
@@ -191,8 +213,9 @@ that reacts to load. Both work while the gate is off:
   when the foreground transactions in flight exceed a threshold. CamusDB checks
   the threshold again during the scan, not only at the start.
 
-The auto-analyze scan itself passes through no admission gate. It runs on a
-snapshot with zero identity, and it holds no coordinator session. No ceiling
+The auto-analyze scan itself passes through no admission gate. It reads
+committed data without opening a transaction, and it holds no coordinator
+session. No ceiling
 applies to it. Only its short write that publishes the statistics passes through
 the gate.
 

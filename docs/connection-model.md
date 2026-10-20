@@ -9,9 +9,14 @@ over HTTP/2. Neither API gives a connection its own process or its own thread.
 A connection is only a socket. The server does work for a request, not for a
 connection.
 
+This model matters when many clients connect at the same time. Thousands of
+application instances, serverless functions, or small services can connect to
+CamusDB without an external connection pooler, because an idle connection costs
+only one open socket.
+
 This page compares that model with the model of PostgreSQL and the model of
-MySQL. It also states the costs of the CamusDB model, while it has its advantages, 
-it comes with costs and isn't entirely free.
+MySQL. It also states the costs of the CamusDB model, because the model has
+costs as well as advantages.
 
 ![CamusDB connection pool diagram](/img/connection-pool.png)
 
@@ -21,7 +26,7 @@ it comes with costs and isn't entirely free.
 |---|---|---|---|
 | The unit of work on the server | One operating-system process for each connection | One thread for each connection, by default | One asynchronous request on a shared pool of threads |
 | The cost of an idle connection | A full process, with its own memory | A full thread, with its stack and its buffers | One open socket |
-| Where the state of a transaction lives | Inside the process of the connection | Inside the session of the thread | In a table on the node, under a handle that the client holds |
+| Where the state of a transaction lives | Inside the process of the connection | Inside the session of the thread | In memory on the node, under a handle that the client holds |
 | The usual answer to many clients | An external pooler, for example PgBouncer | A larger `max_connections`, or a thread pool plugin | Nothing extra: many requests share few connections |
 | Concurrent statements on one connection | One at a time | One at a time | Many, through HTTP/2 multiplexing |
 
@@ -119,6 +124,22 @@ transaction with REST, or with the unary gRPC call `StartTransaction`. It can
 then commit that transaction on another socket. A failed socket does not end
 the transaction. The client opens a new socket and continues with the same
 handle.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant N1 as Node 1
+    participant N2 as Node 2
+    C->>N1: START on socket A
+    N1-->>C: Transaction handle
+    Note over C,N1: Socket A fails. The transaction stays open on Node 1.
+    C->>N1: Statement with the handle on socket B
+    N1-->>C: Result
+    C->>N2: Statement with the same handle
+    N2-->>C: Rejected, Node 2 does not know the handle
+    C->>N1: COMMIT with the handle
+    N1-->>C: Committed
+```
 
 One exception applies. A transaction that a `START` opens inside a
 `BatchExecute` stream belongs to that stream. If the stream ends without a

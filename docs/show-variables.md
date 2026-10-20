@@ -4,8 +4,22 @@ sidebar_position: 2.65
 
 # SHOW VARIABLES
 
-Inspect the configuration that a running CamusDB node uses. You do it from a SQL
-prompt.
+`SHOW VARIABLES` shows the configuration that a running CamusDB node actually
+uses. You run it from a SQL prompt.
+
+The configuration of a node comes from several layers: built-in defaults,
+`config.yml`, environment variables, command-line flags, and
+[runtime cluster settings](/docs/runtime-cluster-settings). The text of
+`config.yml` therefore does not always tell you what the node runs. This
+statement does. Use it in these cases:
+
+- Confirm that a change took effect, after an edit of `config.yml`, a restart,
+  or a `SET CLUSTER SETTING`.
+- Find which layer set a value, when a value is not what you expect.
+- Compare two nodes, when one node behaves differently from the others.
+- Collect the configuration of a node for a bug report.
+
+For the meaning of each key, see [Configuration](/docs/configuration).
 
 ```camussql
 SHOW VARIABLES;
@@ -39,7 +53,7 @@ therefore what the node runs.
 
 | Column     | Meaning |
 |------------|---------|
-| `variable` | The key in `snake_case`, as you write it in `config.yml`. A key of the nested `kahuna:` section appears in dotted form, such as `kahuna.wal_sync_writes`. |
+| `variable` | The key in `snake_case`, as you write it in `config.yml`. A key of the nested `kahuna:` section, which configures the embedded [Kahuna](/docs/concepts#kahuna) storage layer, appears in dotted form, such as `kahuna.wal_sync_writes`. |
 | `value`    | The effective value. It is SQL `NULL` when the setting is genuinely unset, which differs from an empty string. |
 | `type`     | `bool`, `int`, `long`, `double`, `string`, `enum`, `duration_ms`, or `list`. |
 | `default`  | The value that the setting would hold without an override. A value that differs from `default` is a value that somebody configured. |
@@ -83,7 +97,7 @@ material. CamusDB therefore shows them in full. `https_certificate`,
 operator who debugs a wrong deployment needs them.
 
 CamusDB does not list the deployment keys and the topology keys yet. Those keys
-are `mode`, `node_name`, the Raft ports, the HTTP ports, `peers`, `http_peers`,
+are `mode`, `node_name`, the internal cluster ports, the HTTP ports, `peers`, `http_peers`,
 the certificate paths, and the whole `diagnostics:` section. They live on a
 different configuration object from the settings of the engine. To find the port
 of a node, read the configuration file, or read the banner at startup.
@@ -96,7 +110,7 @@ configuration file accepts. CamusDB does list the settings that produce it.
 ## The statement is node-local
 
 `SHOW VARIABLES` describes the node that served the statement. It never forwards
-to the leader.
+to the [leader](/docs/concepts#leader).
 
 Two nodes of a cluster can differ for a valid reason. Examples are a different
 `data_dir`, a different port, and a stale `config.yml` on one machine. An answer

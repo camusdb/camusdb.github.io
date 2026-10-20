@@ -4,9 +4,10 @@ sidebar_position: 4.55
 
 # Null functions
 
-A null function selects a fallback value when an expression evaluates to `NULL`.
-These functions are useful for three purposes: a default value in a display, a
-default for an aggregate, and a nullable column inside a derived expression.
+A null function selects a fallback value when an expression evaluates to `NULL`,
+or it turns a value into `NULL`. These functions are useful for four purposes: a
+default value in a display, a default for an aggregate, a nullable column inside
+a derived expression, and a guard against a division by zero.
 
 Most scalar functions return `NULL` when one argument is `NULL`. These functions
 do not.
@@ -18,14 +19,29 @@ do not.
 | `coalesce(value, ...)` | The type of the first compatible argument that is not null | It returns the first argument that is not `NULL`. It accepts one argument or more. It returns `NULL` when every argument is `NULL`. |
 | `ifnull(value, fallback)` | The type of the first compatible argument that is not null | A short form of `coalesce(value, fallback)`, with two arguments. |
 | `nvl(value, fallback)` | The type of the first compatible argument that is not null | An alias of `ifnull(value, fallback)`. |
+| `nullif(value, other)` | The type of `value` | It returns `NULL` when `value = other` is true. Otherwise it returns `value`. |
 
 `IFNULL` is the supported name of the function with two arguments, in the
 current source of CamusDB. Use `IFNULL(value, fallback)` for this rule: if this
 value is null, use that fallback.
 
+## NULLIF
+
+`nullif(value, other)` is the inverse of `ifnull`. It is the same as
+`CASE WHEN value = other THEN NULL ELSE value END`, but CamusDB evaluates
+`value` one time only.
+
+- The comparison follows the rules of the `=` operator. For example,
+  `nullif(2, 2.0)` and `nullif(NUMERIC '2', 2)` return `NULL`.
+- When `value` is `NULL`, the result is `NULL`.
+- When `other` is `NULL`, the comparison is unknown, not true. The result is
+  then `value`.
+- The type of the result is the type of `value`. CamusDB does not widen it.
+- The function takes exactly two arguments.
+
 ## The rules of the type
 
-CamusDB infers the type of the result from the types of the arguments that are
+The rules in this section apply to `coalesce`, `ifnull`, and `nvl`. CamusDB infers the type of the result from the types of the arguments that are
 not null:
 
 - The type of the result is `NULL` when every argument is `NULL`.
@@ -70,6 +86,21 @@ Give a default to an aggregate. Without that default, an empty input returns a
 SELECT COALESCE(SUM(amount), 0) AS total
 FROM sales
 WHERE category = "missing";
+```
+
+Prevent a division by zero. A row where `cnt` is `0` returns `NULL` and does not
+fail the query:
+
+```camussql
+SELECT id, total / NULLIF(cnt, 0) AS ratio
+FROM counts;
+```
+
+Turn an empty string into `NULL`, and then give a fallback:
+
+```camussql
+SELECT COALESCE(NULLIF(tag, ""), "untagged") AS tag
+FROM items;
 ```
 
 Handle a null inside a `HAVING` clause:

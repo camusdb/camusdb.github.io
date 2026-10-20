@@ -4,8 +4,16 @@ sidebar_position: 3.3
 
 # Distributed queries
 
-In a cluster, CamusDB spreads the rows of a table across the partitions. Each
-partition has a leader, and that leader already holds its data.
+A large scan or aggregate in a cluster is slow if one node pulls every row
+across the network and does all the work alone. Distributed query execution
+sends each part of an eligible scan to the node that already holds those rows.
+Filters and aggregates run there, the parts run at the same time, and only the
+results travel back. Query results are identical with the feature on or off. It
+changes only where the work runs.
+
+In a cluster, CamusDB spreads the rows of a table across the
+[partitions](/docs/concepts#partition). Each partition has a
+[leader](/docs/concepts#leader), and that leader already holds its data.
 
 Distributed execution lets a scan run at the position of the rows. The node that
 received the statement does not pull every page to itself.
@@ -18,12 +26,13 @@ distributed_query_execution: true
 The feature is off by default. While it is off, the plan and the execution are
 exactly the plan and the execution of one node today.
 
-While it is on, CamusDB divides an eligible scan into one fragment for each span
-of the placement. A fragment whose data lives elsewhere runs on the node that
+While it is on, CamusDB divides an eligible scan into one fragment for each
+[span](/docs/concepts#ranges-and-spans) of the placement, where a span is one
+contiguous slice of the table's keys and the placement says which partition
+serves each span. A fragment whose data lives elsewhere runs on the node that
 owns that data. The coordinator then joins the results together.
 
-The results are identical in both cases. This is a feature of the performance.
-Every part of it falls back to a local execution. No part of it fails.
+This is a feature of the performance. Every part of it falls back to a local execution. No part of it fails.
 
 ## Why you use it
 
@@ -52,7 +61,7 @@ Every part of it falls back to a local execution. No part of it fails.
 | `key_range_sharding` | `false` | cluster | Necessary. The distribution divides a table by the range of the key. The table must therefore use the routing by key range. |
 | `distributed_query_execution` | `false` | cluster | It enables the fragments of the planner, and the transport of a fragment to a peer. |
 | `max_query_parallelism` | `1` | node | The number of concurrent workers that decode rows, for each full scan. It applies with the distribution and without it. It also applies on a standalone node. |
-| `broadcast_join_max_build_rows` | `10000` | node | The largest build side of a hash join that CamusDB may broadcast to a remote span of the probe. A `0` disables a broadcast join. |
+| `broadcast_join_max_build_rows` | `10000` | node | The largest hash-join build side, in rows, that CamusDB may send to the remote spans of the other table. See [A broadcast hash join](#a-broadcast-hash-join). A `0` disables a broadcast join. |
 
 `distributed_query_execution` is a setting of the class `restart`, and of the
 scope `cluster`. Every node must agree on it. A statement that one node plans
@@ -60,7 +69,9 @@ assumes a model of the execution, and CamusDB will ask the peers of that node to
 honor the model. Set the value in `config.yml`. Then restart the node.
 
 The other two settings are of the class `runtime`, and of the scope `node`. You
-can therefore change them while a node runs, and two nodes may differ:
+can change them while a node runs. `SET CLUSTER SETTING` applies the new value
+on every node and overrides each node's `config.yml`. Two nodes differ only
+through their own `config.yml` files, while no cluster override exists:
 
 ```camussql
 SET CLUSTER SETTING max_query_parallelism = 4;
@@ -72,8 +83,8 @@ propagation of a live change. See [`SHOW VARIABLES`](/docs/show-variables) for
 the value that one node runs.
 
 A cluster deployment must fill `http_peers`, together with `peers`. A fragment
-travels over HTTP. CamusDB resolves the Raft endpoint of a peer to its HTTP
-address, through those two parallel lists.
+travels over HTTP. CamusDB maps the internal cluster address of a peer to its
+HTTP address, through those two parallel lists.
 
 Without those lists, CamusDB assumes that every node uses the same HTTP port as
 this node. That assumption is true of the topology of Docker Compose. It is
@@ -89,8 +100,10 @@ holds:
   an index, a scan of a range of an index, or a scan of a forced index.
 - The node is in cluster mode, with the sharding by key range on.
 - The current placement of the table reports more than one span.
-- The transaction is not optimistic. CamusDB must build the read set of such a
-  transaction from one stream of the session.
+- The transaction does not validate its reads at commit. Two kinds do: an
+  optimistic transaction, and a pessimistic one whose read validation is
+  `track_and_validate` (see `default_read_validation`). CamusDB must build the read set
+  of such a transaction from one stream of the session.
 - The statement is not the read half of an `UPDATE` or a `DELETE`. That half
   takes exclusive locks on a predicate.
 
@@ -136,6 +149,18 @@ A span that CamusDB does not ship scans locally, through the ordinary routed
 path of a read. It scans inside the same gather, at the same time as the remote
 spans.
 
+```mermaid
+flowchart TD
+    C[Client] --> G["Coordinator<br/>gather"]
+    G --> S1["Span 1<br/>local scan"]
+    G -->|"POST /internal/query-fragment"| S2["Span 2 leader<br/>scan and filter"]
+    G -->|"POST /internal/query-fragment"| S3["Span 3 leader<br/>scan and filter"]
+    S1 -->|every scanned row| M["Coordinator joins<br/>the results in span order"]
+    S2 -->|survivors only| M
+    S3 -->|survivors only| M
+    M --> O["Operators above the gather<br/>ORDER BY, LIMIT"]
+```
+
 With a `LIMIT` present, the gather caps each span at `limit + offset` surviving
 rows. The order of the spans matches the global order of the rows. The final cut
 can therefore never need more than that number from one span. A remote fragment
@@ -150,6 +175,18 @@ CamusDB loses no row, and it delivers no row twice.
 CamusDB also invalidates the cached placement of the table. The next query
 therefore resolves that placement again. It counts the event in
 `distributed.fragment_fallbacks`.
+
+```mermaid
+sequenceDiagram
+    participant Co as Coordinator
+    participant P as Peer (span leader)
+    Co->>P: Remote fragment for the span
+    P-->>Co: Surviving rows, streamed
+    Note over P: The peer fails in the middle
+    Co->>Co: Continue the span locally after the last row received
+    Co->>Co: Invalidate the cached placement of the table
+    Note over Co: No row lost, no row delivered twice
+```
 
 A coordinator that cancels, and a coordinator that dies, takes its fragments
 with it. A remote execution is bound to the life of the request that started it.
@@ -187,8 +224,10 @@ gathered rows:
 
 ## A broadcast hash join
 
-One side of a hash join can be small. A shipment of that side is then cheaper
-than a shipment of the other side.
+A hash join first loads one input, the build side, into an in-memory hash
+table. It then streams the other input, the probe side, and looks up each row in
+that table. When the build side is small, sending it to the data is cheaper than
+moving the probe side to the coordinator.
 
 After the build phase finishes, CamusDB sends a build side below
 `broadcast_join_max_build_rows` to the leaders of the spans of the probe table.
@@ -196,6 +235,21 @@ Each peer scans its span. It applies the filter of the probe side, and the `ON`
 predicate, against the build rows that it received. It returns only the rows of
 the probe that matched, together with the build rows that they matched. The
 coordinator then assembles the output from its own copy of the build side.
+
+```mermaid
+sequenceDiagram
+    participant Co as Coordinator
+    participant P1 as Leader of probe span 1
+    participant P2 as Leader of probe span 2
+    Note over Co: The build phase finishes. The build side is small enough to broadcast.
+    Co->>P1: Build rows
+    Co->>P2: Build rows
+    P1->>P1: Scan the span, apply the probe filter and ON predicate
+    P2->>P2: Scan the span, apply the probe filter and ON predicate
+    P1-->>Co: Matched probe rows with their build rows
+    P2-->>Co: Matched probe rows with their build rows
+    Co->>Co: Assemble the output from its own copy of the build side
+```
 
 CamusDB makes the decision at the time of the execution, after the hash table of
 the build exists. The decision therefore uses the true count of the rows of the
@@ -315,8 +369,16 @@ It does not mean that the node is idle.
 ## The traffic between two nodes
 
 A fragment travels over an internal HTTP route,
-`POST /internal/query-fragment`. That route streams the surviving rows back as
-NDJSON.
+`POST /internal/query-fragment`. The peer streams the surviving rows back as
+they pass its filter, in one of two formats:
+
+- NDJSON, one JSON object per line, with the row bytes encoded as base64.
+- Binary fragment frames, with the row bytes carried directly.
+
+The coordinator asks for the binary format when it supports it. An older peer
+can ignore that request and answer with NDJSON, and an older coordinator never
+asks for binary frames, so a rolling upgrade is safe. The binary format only
+removes the base64 overhead on scans that return many rows.
 
 The secret of the node authenticates the route. A token of a client never
 authenticates it. The route therefore needs `CAMUSDB_NODE_SECRET`, with the same

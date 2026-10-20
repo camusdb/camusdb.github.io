@@ -4,19 +4,43 @@ sidebar_position: 3.65
 
 # Performance diagnostics
 
+Performance diagnostics show where a CamusDB node spends its time. They connect
+a slow result in your application to the stage of the server that caused it.
+
 CamusDB can expose opt-in diagnostics for a standalone node. While the
 diagnostics are enabled, the server exports Prometheus metrics. It can also
 export sampled OpenTelemetry traces.
 
-You can therefore connect a workload result to a stage on the server. Those
-stages are the handling of a request, the SQL execution, a scan, the commit of a
-transaction, and the WAL activity.
+- [Prometheus](https://prometheus.io/) is a monitoring system. It reads
+  numeric metrics from an HTTP endpoint at a fixed interval, stores them, and
+  draws them on charts and alerts. Grafana is a common dashboard tool on top of
+  it.
+- [OpenTelemetry](https://opentelemetry.io/) is a standard for traces. A trace
+  records the steps of one request and the time of each step. A collector
+  receives the traces, and a tracing tool shows them as a timeline.
+
+## Why use performance diagnostics
+
+Use the diagnostics when a workload is slower than you expect, and you do not
+know which part is slow. You can connect a workload result to a stage on the
+server. Those stages are the handling of a request, the SQL execution, a scan,
+the commit of a transaction, and the activity of the
+[write-ahead log](/docs/concepts#wal) (WAL).
+
+The diagnostics also give you a history. Prometheus keeps the metrics over
+time, so you can compare a slow hour with a normal hour, or one build with the
+next.
+
+You do not need them for a first look at one slow query. Use
+[`EXPLAIN (ANALYZE)`](/docs/explain), the
+[slow query log](/docs/slow-query-log), or
+[query activity](/docs/query-activity) for that.
 
 For a quick inspection from SQL, use
 [`SHOW ENGINE STATS`](/docs/engine-stats). It reports the metrics of the
-embedded [Kahuna](https://kahunakv.github.io/) engine and the embedded
-[Kommander](https://kahunakv.github.io/kommander.github.io/) engine. It is
-independent from the exporter path on this page.
+embedded storage engine, [Kahuna](/docs/concepts#kahuna), and the embedded
+consensus library, [Kommander](/docs/concepts#kommander). It has its own
+switch, `engine_metrics_enabled`, and works without the exporter on this page.
 
 Diagnostics are off by default. With `diagnostics.enabled: false`, CamusDB
 registers no exporter, no endpoint, and no background collector. The current
@@ -82,14 +106,15 @@ a message, or a user value as a metric tag.
 The diagnostics exporter also subscribes to the meters of the embedded
 dependencies and of the runtime:
 
-- [Kahuna](https://kahunakv.github.io/) metrics. They include the KV write
-  batches, the write entries, the counters of durable transactions, and the
-  gauges of the transaction admission.
-- [Kommander](https://kahunakv.github.io/kommander.github.io/) metrics. They
-  include the Raft WAL batches, the WAL operations, the batch size, the duration
-  of the executor, and the depth of the client queue.
+- Kahuna metrics. They include the key/value write batches, the write
+  entries, the counters of durable transactions, and the gauges of the
+  transaction admission.
+- Kommander metrics. They include the batches written to the
+  [Raft](/docs/concepts#raft) log, the WAL operations, the batch size, the
+  duration of the executor, and the depth of the client queue.
 - Row-level TTL counters. They include the expired rows, the skips after a
-  re-check, the completed spans, and the planned runs.
+  re-check, the completed key [spans](/docs/concepts#ranges-and-spans), and
+  the planned runs.
 - .NET runtime metrics. They include the garbage collector, the heap, the
   allocations, the thread pool, and the process.
 
@@ -102,7 +127,7 @@ These signals help when one of five things limits a run:
 - The concurrency of the requests.
 
 Range splitting also publishes counters through the Kahuna meter. When
-key-range sharding is enabled, inspect them with:
+[key-range sharding](/docs/key-range-sharding) is enabled, inspect them with:
 
 ```camussql
 SHOW ENGINE STATS LIKE 'kahuna.range%';
@@ -115,32 +140,12 @@ The most useful rows are `kahuna.range.splits`,
 [`SHOW RANGES`](/docs/show-ranges): `SHOW RANGES` shows the current placement,
 while these counters explain what the splitter attempted.
 
-## SQL engine stats
-
-`SHOW ENGINE STATS` exposes a live snapshot of the metrics of the embedded
-engines, for one node:
-
-```camussql
-SHOW ENGINE STATS;
-SHOW ENGINE STATS LIKE 'raft.wal%';
-SHOW ENGINE STATS LIKE 'kahuna.kv.write%';
-```
-
-Use the statement when you need operational visibility from SQL immediately. You
-need no scrape endpoint, and no trace collector.
-
-`engine_metrics_enabled` controls the statement. `diagnostics.enabled` does not
-control it.
-
-See [Engine Stats](/docs/engine-stats) for the permissions, the result columns,
-and some metric examples.
-
 ## Traces
 
 CamusDB can emit sampled traces from the `CamusDB.Server` activity source, while
 `diagnostics.otlp_endpoint` holds a value. A typical trace of a request contains
-spans for the parse, the execution, the storage reads, and the commit of the
-transaction.
+trace spans, one timed step each, for the parse, the execution, the storage
+reads, and the commit of the transaction.
 
 `diagnostics.trace_sample_ratio` samples the traces. The metadata of an error
 uses stable attributes for the outcome and for the error code. CamusDB adds no

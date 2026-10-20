@@ -5,10 +5,35 @@ sidebar_position: 3.8
 # SQL routing advice
 
 CamusDB can attach advisory routing metadata to successful SQL responses. A
-multi-endpoint client can learn which cluster node leads the data behind a
-repeated statement and send later executions directly there. This removes a
+multi-endpoint client can learn which cluster node
+[leads](/docs/concepts#leader) the data behind a repeated statement and send later executions directly there. This removes a
 forwarding hop. It does not change the result, isolation, authorization, commit
 handling, or retry rules.
+
+In a cluster, a node that receives a statement for data that another node
+leads forwards the statement to that node. That forwarding adds one network hop
+to each request. Routing advice lets a client skip the hop, so a repeated
+statement has a lower latency.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant N1 as Node 1
+    participant N2 as Node 2 (leads the table)
+    C->>N1: Statement, asks for routing metadata
+    N1->>N2: Forward (extra hop)
+    N2-->>N1: Result
+    N1-->>C: Result and prefer advice with preferredNodeId
+    Note over C,N1: Map preferredNodeId to Node 2 through its own map
+    C->>N2: Same statement
+    N2-->>C: Result, no forward
+    Note over C,N2: Reuse the route only within the advised maximum age
+```
+
+The [.NET driver](/docs/dotnet-driver#learned-routing) and the
+[TypeScript connector](/docs/typescript-connector) use routing advice for their
+learned routing mode. You need the rest of this page only when you write your
+own client, or when you want to know why a request did not receive advice.
 
 Routing advice is opt-in per request. A client that does not ask for it receives
 the historical response shape.
@@ -29,7 +54,8 @@ For gRPC, set `SqlRequest.routing_accept_version = 1`. For REST, set
 ## Eligible statements
 
 CamusDB advertises a preferred node only when the statement has a single,
-ordinary hash-routed table as its data footprint. Simple `SELECT`, `INSERT`,
+ordinary [hash-routed](/docs/concepts#hash-and-key-range-routing) table as its
+data footprint. Simple `SELECT`, `INSERT`,
 `UPDATE`, and `DELETE` statements over one table are the main case. Empty point
 lookups and zero-row writes can still be eligible because the route is a
 property of the table, not of returned rows.

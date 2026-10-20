@@ -6,10 +6,28 @@ sidebar_position: 2.16
 
 A foreign key keeps a value in a child table tied to an existing key in a
 parent table. CamusDB enforces foreign keys on `INSERT`, `INSERT ... SELECT`,
-`UPDATE`, and `DELETE`, including statements that run inside explicit
-transactions and statements.
+`UPDATE`, and `DELETE`, both in single statements and inside explicit
+transactions.
 
-This feature is useful for referential integrity checks:
+## Why use foreign keys
+
+A foreign key stops an orphan row: a row that points at a parent that does not
+exist. Without one, a bug in the application, a failed script, or a manual
+`DELETE` can leave an order with no customer, or a comment on a post that is
+gone. The database accepts these rows, and the error appears later, in a report
+or in a page that fails to load.
+
+With a foreign key, CamusDB checks each write. It refuses a child row whose
+parent does not exist. It also refuses the delete of a parent that still has
+children. The rule holds for every client, not only for the code that remembers
+to check it.
+
+The check has a cost. A write to the child table reads the parent table, and a
+delete in the parent table reads the child table. CamusDB keeps that cost small
+with an index on the child table. See
+[Indexes on the child table](#indexes-on-the-child-table).
+
+CamusDB supports these forms:
 
 - column-level and table-level `REFERENCES`
 - composite keys
@@ -104,13 +122,15 @@ FOREIGN KEY (city) REFERENCES cities (name);
 public. If a row has no parent, the statement fails with `CADB0304`, reports
 the first missing key, and leaves no partial constraint behind.
 
-In a cluster, CamusDB first publishes the constraint in a write-only state.
-From that point on, new `INSERT`, `UPDATE`, and `DELETE` statements enforce it.
+In a cluster, CamusDB first publishes the constraint in a write-only state: new
+`INSERT`, `UPDATE`, and `DELETE` statements enforce it, but it is not yet part of
+the visible schema.
 After every live node acknowledges that state, CamusDB scans the existing child
 rows and validates them against the parent. When validation succeeds, the
 constraint becomes public and appears in `SHOW CREATE TABLE`.
 
-If the leader changes after the write-only state is published, the constraint
+If the [leader](/docs/concepts#leader) (the node that coordinates schema
+changes) changes after the write-only state is published, the constraint
 can remain enforced but not yet public while the new leader finishes the
 validation. A branch creation is refused during that window.
 
@@ -226,9 +246,9 @@ CONSTRAINT `weather_city_fkey` FOREIGN KEY (`city`) REFERENCES `cities` (`name`)
 The `SHOW CREATE TABLE ... WITHOUT INDEXES` form keeps foreign keys. The output
 can be run again as SQL.
 
-`SHOW INDEXES` lists an owned backing index whose name starts with `~fk_`.
-That index is intentionally omitted from `SHOW CREATE TABLE`: the foreign key
-definition is the source of truth.
+An owned backing index (name starting with `~fk_`) appears in `SHOW INDEXES`
+but not in `SHOW CREATE TABLE`. See
+[Indexes on the child table](#indexes-on-the-child-table).
 
 ## Transactions and concurrency
 
@@ -341,13 +361,9 @@ also accepts foreign keys:
 }
 ```
 
-In HTTP, a foreign-key violation returns 409. A bad definition returns 400.
 An unsupported action such as `cascade`, `set null`, or `set default` returns
-`CADB0533`.
-
-In gRPC, violations use `FailedPrecondition`, invalid definitions use
-`InvalidArgument`, and the CamusDB code is carried in the `camus-error-code`
-trailer.
+`CADB0533`. See [Error codes](#error-codes) for the HTTP status and gRPC status
+of each failure.
 
 ## Cost and diagnostics
 
@@ -358,7 +374,6 @@ Foreign-key enforcement is designed around point operations:
   reads the parent keys in a batch;
 - a parent delete or parent-key update probes the child index for each removed
   key;
-- an update that does not change a constrained column does no foreign-key work;
 - `ADD CONSTRAINT` validates distinct child keys in batches.
 
 With server diagnostics enabled, `SHOW ENGINE STATS` includes

@@ -8,6 +8,12 @@ CamusDB reports a structured code of an error in three places: a
 `CamusDBException`, the response of an error of the HTTP API, and the metadata
 of an error of gRPC.
 
+Use the code, not the text of the message, in application logic. The code
+identifies the condition. The message is for people. For example, replay a
+transaction from `BEGIN` on `CADB0502` or `CADB0504`. Show a validation error to
+the user on a `CADB03xx` constraint failure. Use this page to look up a code
+that you see in a log or in a response.
+
 Here is an example of a failed response of HTTP:
 
 ```json
@@ -31,6 +37,7 @@ gRPC carries the code inside the message `BatchError`.
 - `CADB051x`: authentication, authorization, users, and grants
 - `CADB06xx`: startup or configuration validation errors
 - `CADB07xx`: backup and point-in-time-recovery operations
+- `CADB08xx`: C# extension loading, functions, triggers, and procedures
 
 Some codes are ordinary errors that a user sees. Another code mostly reports one
 of three conditions: a corruption, an unexpected internal state, or an
@@ -72,10 +79,10 @@ inconsistency of the layer of the storage.
 | `CADB0415` | `InvalidForeignKeyDefinition` | A foreign key references an invalid target: wrong column count or type, no matching primary key or unique index, a view, a materialized view, or another database. |
 | `CADB0416` | `ForeignKeyCycle` | A foreign key would create a cycle across two or more tables. A self-reference is allowed. |
 | `CADB0417` | `NumericValueOutOfRange` | A `NUMERIC` value or arithmetic result is outside the supported range of `-99999999999999999999999999999.999999999` to `99999999999999999999999999999.999999999`. |
-| `CADB0501` | `TransactionAlreadyCompleted` | The caller tries to commit or roll back a transaction that is already committed, already rolled back, or otherwise no longer active. It is also used when Kahuna returns a permanent non-retryable commit failure and the transaction is already dead. |
+| `CADB0501` | `TransactionAlreadyCompleted` | The caller tries to commit or roll back a transaction that is already committed, already rolled back, or otherwise no longer active. It is also used when [Kahuna](/docs/concepts#kahuna), the transactional storage layer, returns a permanent non-retryable commit failure and the transaction is already dead. |
 | `CADB0502` | `TransactionConflict` | The transaction cannot acquire the needed lock or hits a conflicting concurrent write. Conflict messages include bounded diagnostic context such as the table/database, a small sample of contended keys, and the waiting transaction mode when available. |
 | `CADB0503` | `SchemaCatchingUp` | The node is more than one schema version behind the committed schema head for that database, so it temporarily rejects reads and DML until schema apply catches up. Retry on another node or retry later. |
-| `CADB0504` | `TransactionMustRetry` | A transient condition exhausted internal retries, usually during transaction start, admission, routing, leader transition, inter-node transport, lock-wait deadline, a storage write conflict before the affected write was applied, or a read range that could not currently be served. Retry the whole transaction from `BEGIN`. |
+| `CADB0504` | `TransactionMustRetry` | A transient condition exhausted internal retries, usually during transaction start, admission, routing, [leader](/docs/concepts#leader) change, inter-node transport, lock-wait deadline, a storage write conflict before the affected write was applied, or a read range that could not currently be served. Retry the whole transaction from `BEGIN`. |
 | `CADB0505` | `TransactionLifetimeExceeded` | A serializable read-write transaction stayed open longer than the configured maximum lifetime, currently one hour by default. CamusDB aborts it explicitly instead of letting a runaway transaction continue forever. Roll it back and retry from `BEGIN`. |
 | `CADB0506` | `TransactionMutationLimitExceeded` | A read-write transaction would exceed the maximum mutation count, currently 20,000 row/index mutations by default. Split the work into smaller transactions; retrying the same transaction will fail again. |
 | `CADB0507` | `SpillStorageUnavailable` | A query operator needed spill-to-disk temporary storage, but CamusDB could not create the spill directory or open a spill file. Free disk space, fix permissions under `data_dir`, or run the query on a node with writable spill storage. |
@@ -88,12 +95,12 @@ inconsistency of the layer of the storage.
 | `CADB0514` | `UnsupportedAuthPlugin` | `IDENTIFIED WITH <plugin>` names an unsupported authentication plugin. Only `sha256_password` is accepted. |
 | `CADB0515` | `InvalidPrivilege` | `GRANT` or `REVOKE` names an unknown privilege or a privilege that is invalid for the target scope. |
 | `CADB0516` | `AuthenticationFailed` | Authentication failed because credentials are missing, invalid, expired, revoked, or rejected. Login failures intentionally use the same error shape for unknown users and wrong passwords. |
-| `CADB0517` | `InsufficientPrivilege` | The caller is authenticated but lacks the privilege required by the statement. |
+| `CADB0517` | `InsufficientPrivilege` | The caller is authenticated but lacks the privilege required by the statement, on any table it touches, including tables read by joins and subqueries. |
 | `CADB0518` | `TooManyAuthAttempts` | Login rate limit or password-verification concurrency protection rejected the attempt. |
-| `CADB0519` | `InsecureTransport` | A credential-bearing request arrived over plaintext while authentication is enabled and TLS is required. |
+| `CADB0519` | `InsecureTransport` | A credential-bearing request arrived over plaintext while authentication is enabled and TLS is required. Use `https://`, or configure the server to trust a TLS-terminating proxy. |
 | `CADB0520` | `UnknownPreparedStatement` | A prepared statement handle is not registered on this node, stream, or principal. It may have expired, been closed, belonged to another gRPC stream, been prepared on another node, or disappeared during restart. Prepare again and replay once. |
 | `CADB0521` | `PreparedStatementLimitExceeded` | A prepared-statement registration would exceed a configured count cap, retained-byte budget, or maximum statement size. Close unused handles, reduce distinct SQL shapes, shorten the SQL, or tune the prepared-statement limits. |
-| `CADB0522` | `AnalyzeRequiresNoPendingWrites` | `ANALYZE` was issued inside a transaction that has already written rows it has not committed. `ANALYZE` scans under its own read-only snapshot so the statistics it publishes describe committed data only, and that snapshot cannot read past the caller's own unresolved write intents. Commit or roll back first, then run `ANALYZE`. |
+| `CADB0522` | `AnalyzeRequiresNoPendingWrites` | `ANALYZE` was issued inside a transaction that has already written rows it has not committed. `ANALYZE` scans under its own read-only snapshot so the statistics it publishes describe committed data only, and that snapshot cannot read past the caller's own uncommitted writes ([write intents](/docs/concepts#write-intent)). Commit or roll back first, then run `ANALYZE`. |
 | `CADB0523` | `ViewDoesntExist` | A statement references a view or materialized view that does not exist. Also returned by `SHOW STATISTICS FOR` on a plain view, which stores no rows and therefore has no statistics of its own; ask for the statistics of the tables its definition reads. |
 | `CADB0524` | `ViewAlreadyExists` | The name is already taken by a view or a materialized view. A name taken by an ordinary table raises `CADB0013` instead, so the error names the kind of object actually in the way. |
 | `CADB0525` | `ViewNotUpdatable` | DML was issued against a view that is not auto-updatable, or against a materialized view. All views are currently read-only. The message names the specific rule that was violated. |
@@ -106,20 +113,20 @@ inconsistency of the layer of the storage.
 | `CADB0532` | `RefreshAlreadyInProgress` | A `REFRESH` of this materialized view is already running, on this node or another. Refused rather than queued: two concurrent refreshes would both succeed and the later swap would silently discard the earlier one's work. |
 | `CADB0533` | `FeatureNotSupported` | A statement CamusDB parses but has not implemented, such as `REFRESH MATERIALIZED VIEW ... CONCURRENTLY`. Distinct from a syntax error: the statement is well-formed, and the message names the missing capability and the form that works today. |
 | `CADB0534` | `ConcurrentSchemaChange` | An operation that derives a new definition from one it read found that definition changed underneath it, and refused to publish over the change. Nothing was applied; run it again against the current definition. |
-| `CADB0535` | `SequenceUnavailable` | A monotonic counter, such as a database id, a table id, or the registry generation stamp, could not be reached: its Raft partition reported no confirmed leader for the whole `sequence_retry_budget_ms` window, because a node is still joining or an election is in flight. Nothing was allocated and nothing was written, so it is classified as a retryable condition rather than a corruption error. Maps to HTTP 503; run the statement again. |
+| `CADB0535` | `SequenceUnavailable` | A monotonic counter, such as a database id, a table id, or the registry generation stamp, could not be reached: the [partition](/docs/concepts#partition) that stores it reported no confirmed [Raft](/docs/concepts#raft) leader for the whole `sequence_retry_budget_ms` window, because a node is still joining or an election is in flight. Nothing was allocated and nothing was written, so it is classified as a retryable condition rather than a corruption error. Maps to HTTP 503; run the statement again. |
 | `CADB0536` | `InsufficientDiskSpace` | A write was refused before mutation because free space on the data directory volume is below `min_free_disk_bytes`. Reads, DDL, and internal system work remain available so an operator can recover space. Free disk on that node or lower the threshold, then retry. Maps to HTTP 507. |
-| `CADB0537` | `SnapshotPrecedesContentsGeneration` | An `AS OF SYSTEM TIME` read named a point before the start of the current contents of the table. A [`TRUNCATE`](/docs/truncate-table) replaced the key space that holds the rows, so the live schema can no longer locate the old rows. An empty result would be the same as a correct empty answer, which is the failure that this code prevents. Read at the cut or after it, or recover the retired contents with `CREATE TABLE ... RELINK TO`. |
-| `CADB0538` | `StatementNotAllowedInTransaction` | A statement that owns its own internal transaction ran inside an explicit transaction of the caller. [`TRUNCATE`](/docs/truncate-table) is the one statement of that class today. It commits a replicated schema entry, and a later `ROLLBACK` cannot undo that entry. Commit first, or roll back first. Then run the statement. |
+| `CADB0537` | `SnapshotPrecedesContentsGeneration` | An `AS OF SYSTEM TIME` read named a point before the start of the current contents of the table. A [`TRUNCATE`](/docs/truncate-table) replaced the [key space](/docs/concepts#key-space) that holds the rows, so the live schema can no longer locate the old rows. An empty result would be the same as a correct empty answer, which is the failure that this code prevents. Read at the cut or after it, or recover the retired contents with `CREATE TABLE ... RELINK TO`. |
+| `CADB0538` | `StatementNotAllowedInTransaction` | A statement that commits work of its own ran inside an explicit transaction of the caller. Three statements are refused: [`TRUNCATE`](/docs/truncate-table), `ALTER TABLE ... REWRITE STORAGE`, and `ALTER SEQUENCE ... RESTART`. A later `ROLLBACK` cannot undo what they commit. Commit first, or roll back first. Then run the statement. |
 | `CADB0539` | `BranchSnapshotProtectionLost` | A branch database lost the snapshot protection that pins inherited ancestor history at its fork point. CamusDB fails closed instead of returning a possibly incomplete result. Recreate the branch from the parent. Maps to HTTP 410. |
 | `CADB0542` | `SequenceAlreadyExists` | `CREATE SEQUENCE` targets a name already held by a sequence, table, or view. Pick another name or use `IF NOT EXISTS` when appropriate. |
-| `CADB0543` | `SequenceDoesNotExist` | A sequence statement or sequence function names a sequence that does not exist. |
+| `CADB0543` | `SequenceDoesntExist` | A sequence statement or sequence function names a sequence that does not exist. |
 | `CADB0544` | `SequenceExhausted` | The sequence has no value left to issue because the next value would pass its `MAXVALUE`. |
 | `CADB0545` | `InvalidSequenceDefinition` | A sequence definition cannot hold: non-positive increment, `CACHE` below 1, `MAXVALUE` below `MINVALUE`, or `START` outside the range. |
-| `CADB0546` | `SequenceValueNotDefined` | `currval` or `lastval` was called before this transaction drew a value from the sequence. |
+| `CADB0546` | `SequenceValueNotYetDefined` | `currval` or `lastval` was called before this transaction drew a value from the sequence. |
 | `CADB0547` | `SequenceCallNotAllowedHere` | A sequence call was written in a context where CamusDB cannot know how many values it would draw before the statement runs. |
-| `CADB0548` | `SequenceDependencyExists` | A sequence is owned by an identity column, or a column default depends on it. Drop or change the dependent object first. |
+| `CADB0548` | `SequenceInUse` | A sequence is owned by an identity column, or a column default depends on it. Drop or change the dependent object first. |
 | `CADB0549` | `SpillLimitExceeded` | A spill write would exceed `spill_max_total_bytes` for live spill files on this node. The statement fails, its spill files are deleted, and no partial write is kept. Free spill space by letting other queries finish, raise the limit, or disable the total-byte limit with a value of `0` or below. |
-| `CADB0550` | `ReturningResultTooLarge` | The rows of a write statement with `RETURNING` do not fit in one gRPC non-query reply or non-query batch reply. The statement is rolled back before commit. Use a streaming query endpoint, or set the count-only flag. |
+| `CADB0550` | `ReturningResultTooLarge` | The rows of a write statement with `RETURNING` do not fit in one gRPC non-query reply or non-query batch reply. The statement is rolled back before commit. Use a streaming query endpoint, or set `discard_returning_rows` (gRPC) or `discardReturningRows` (HTTP, TypeScript) to receive only the row count. The .NET `ExecuteNonQueryAsync()` sets it. |
 | `CADB0551` | `QueryNotFound` | `CANCEL QUERY` did not find a visible running query with that id. The query may have ended, the id may be wrong, or the query may belong to another user. |
 | `CADB0552` | `QueryNotCancellable` | `CANCEL QUERY` named a statement that cannot be stopped now, usually because it is a write, a schema change, or a statement that has not finished parsing. |
 | `CADB0553` | `QueryOwnerUnreachable` | The node that may own the query id did not answer before the cancel timeout. The query may still be running; retry the cancel if needed. |
@@ -139,7 +146,7 @@ reference.
 | `CADB0701` | `BackupChainInvalid` | A backup chain does not start at a full backup, has a gap or broken parent link, or contains a cycle. |
 | `CADB0702` | `BackupNeedsFullBackup` | An incremental backup's parent fell below the retention floor, so no contiguous increment is possible. |
 | `CADB0703` | `RestorePointOutOfWindow` | The requested restore point lies outside the chain's recoverable coverage. |
-| `CADB0704` | `RestoreFailed` | A restore failed while copying the base image or replaying WAL. |
+| `CADB0704` | `RestoreFailed` | A restore failed while copying the base image or replaying the [write-ahead log (WAL)](/docs/concepts#wal). |
 | `CADB0705` | `BackupParentMissing` | The parent backup named by an incremental request does not exist. |
 | `CADB0706` | `BackupCorruptArtifact` | An artifact is missing, truncated, extra, duplicated, or fails its recorded digest. |
 | `CADB0707` | `RestoreTargetConflict` | The restore destination already exists or overlaps the live data root, the backup root, or another job's target. |
@@ -152,6 +159,42 @@ reference.
 | `CADB070E` | `BackupNotCoordinator` | A coordinated backup was requested on a node that does not lead the backup meta partition. |
 | `CADB070F` | `BackupInsecureRoot` | The backup or restore root is a symlink, or is group- or world-writable. |
 | `CADB0710` | `PitrBootstrapFailed` | A joining node could not seed itself from a restored backup chain. The restored data root may be missing, its WAL may not be empty, the chain or MAC may be invalid, or the seeded point may be outside the leader's retained log window. |
+
+## C# extension errors
+
+These codes cover extension assembly loading and code invoked through custom
+functions, triggers, and procedures. See [C# Extensions](/docs/csharp-extensions)
+for deployment and transaction behavior.
+
+| Code | Name | When it is generated |
+| --- | --- | --- |
+| `CADB0800` | `ExtensionPathInvalid` | An extension path is relative, empty, or listed more than once. |
+| `CADB0801` | `ExtensionFileNotFound` | A configured extension file does not exist. |
+| `CADB0802` | `ExtensionNotAnAssembly` | The configured file is not a loadable .NET assembly. |
+| `CADB0803` | `ExtensionContractMismatch` | The extension was built against a newer contract than the server supports. |
+| `CADB0804` | `ExtensionDuplicateAssembly` | Two configured files have the same assembly identity. |
+| `CADB0805` | `ExtensionDuplicateMember` | A function or procedure name collides with a built-in or another extension. |
+| `CADB0806` | `ExtensionVerificationFailed` | A safe extension uses an API or assembly that its trust policy does not allow. |
+| `CADB0807` | `ExtensionAssemblyRefused` | A safe extension attempted to load a disallowed assembly at runtime. |
+| `CADB0808` | `ExtensionInvalidSignature` | A function, trigger, or procedure has a shape CamusDB cannot bind. |
+| `CADB0809` | `ExtensionFunctionFailed` | A custom scalar function threw an exception. |
+| `CADB0810` | `ExtensionValueOutOfRange` | A CamusDB `NUMERIC` does not fit a .NET `decimal`, or a returned value exceeds the CamusDB range. |
+| `CADB0811` | `TriggerTypeNotFound` | `CREATE TRIGGER` names a CLR type that no loaded extension provides. |
+| `CADB0812` | `TriggerTypeAmbiguous` | More than one loaded extension provides the named trigger type. |
+| `CADB0813` | `TriggerTypeInvalid` | The named type does not implement the trigger contract. |
+| `CADB0814` | `TriggerAlreadyExists` | The table already has a trigger with that name. |
+| `CADB0815` | `TriggerNotFound` | `DROP TRIGGER` names a trigger the table does not have. |
+| `CADB0816` | `TriggerTargetInvalid` | A trigger targets a view, materialized view, or another unsupported object. |
+| `CADB0817` | `TriggerBindingMismatch` | The current node is missing the trigger assembly or has a different build. |
+| `CADB0818` | `TriggerFailed` | Trigger code threw and the statement was rolled back. |
+| `CADB0819` | `ExtensionNestingTooDeep` | Nested triggers and procedures exceeded 16 levels. |
+| `CADB0820` | `ExtensionStatementRefused` | Extension SQL attempted DDL, transaction control, or another unsupported statement. |
+| `CADB0821` | `ProcedureNotFound` | `CALL` names no loaded procedure. |
+| `CADB0822` | `ProcedureFailed` | Procedure code threw and all changes made by the call were rolled back. |
+| `CADB0823` | `ExtensionCaughtSqlError` | Extension code caught a nested SQL failure, but the transaction is rollback-only. |
+| `CADB0824` | `TransactionRollbackOnly` | A commit was attempted after nested extension SQL failed. |
+| `CADB0825` | `TriggerMutationConflict` | A `BEFORE` trigger changed a row the outer statement had already read and was still writing. |
+| `CADB0826` | `TriggerQueueTooLarge` | Rows retained for `AFTER` triggers exceeded `spill_threshold_bytes`. |
 
 ## Corruption and internal-state errors
 
@@ -275,3 +318,4 @@ investigation rarely helps:
 - [Time-Travel Reads](/docs/time-travel-reads)
 - [Schema Comments](/docs/comment-on)
 - [Authentication And Authorization](/docs/sql-authentication)
+- [C# Extensions](/docs/csharp-extensions)

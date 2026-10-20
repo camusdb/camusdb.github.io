@@ -25,7 +25,8 @@ cluster setting is the better tool, for five reasons:
   limit for the TTL job, and the default isolation level. The new value now takes
   effect at the next statement boundary, while the node still serves traffic.
 - One change gives one value everywhere. CamusDB commits the change through
-  Raft. Every node therefore reaches the same value in the same order. There is
+  [Raft](/docs/concepts#raft), the consensus protocol that replicates it to
+  every node. Every node therefore reaches the same value in the same order. There is
   no partial rollout to repair, and no node that keeps an old value because
   somebody forgot a file.
 - The change survives the restart that it replaces. CamusDB persists the
@@ -49,21 +50,23 @@ Mutability answers one question: can the setting change without a restart?
 | Value | Meaning |
 | --- | --- |
 | `runtime` | A new value takes effect at the next boundary of the reader. That boundary is the next statement, the next start of a transaction, or the next pass of a background loop. Only these settings can change while the node runs. |
-| `restart` | The value is fixed inside something that CamusDB builds once for each process. Examples are the data directory, the node identity, the Raft ports and peers, and the whole `kahuna.*` section. To change one, edit the configuration and restart the node. |
+| `restart` | The value is fixed inside something that CamusDB builds once for each process. Examples are the data directory, the node identity, the internal cluster ports and peers, and the whole `kahuna.*` section, which configures the embedded [Kahuna](/docs/concepts#kahuna) storage layer. To change one, edit the configuration and restart the node. |
 
 Scope answers a second question: must the fleet agree on the value?
 
 | Value | Meaning |
 | --- | --- |
-| `cluster` | Disagreement between nodes changes what a user transaction does, and the node that accepted it decides the result. Examples are the isolation defaults, the caps on mutations, and the TTL and lease policy. |
-| `node` | The value is per node by design. Examples are the trace switches, the local cache sizes, and the decision whether this node runs a refresh of a materialized view. |
+| `cluster` | Disagreement between nodes changes what a user transaction does, and the node that accepted it decides the result. Examples are the isolation defaults, the caps on mutations, and the TTL and [lease](/docs/concepts#lease) policy. |
+| `node` | The value may differ between nodes, through each node's `config.yml`. A cluster setting still applies to every node. Examples are the trace switches, the local cache sizes, and the decision whether this node runs a refresh of a materialized view. |
 
 The two axes are independent:
 
 - `data_dir` is `restart` and `node`.
 - `max_mutations_per_transaction` is `runtime` and `cluster`.
-- `query_tracing_enabled` is `runtime` and `node`. You can change it live, and
-  two nodes may hold different values.
+- `query_tracing_enabled` is `runtime` and `node`. You can change it live.
+  `SET CLUSTER SETTING` applies the new value on every node and overrides each
+  node's `config.yml`. Two nodes hold different values only through their own
+  `config.yml` files, while no cluster override exists for the key.
 - `authentication_enabled` is `restart` and `cluster`. The fleet must agree on
   it, but not through a live change.
 
@@ -88,14 +91,17 @@ An enum value needs no quotation marks. A value that `SHOW VARIABLES` prints
 pastes back without a change. That property stops a file and a statement from
 two different meanings.
 
-You can send the statement to any node. A node that does not lead the settings
-partition forwards the change to the node that does. It uses the authenticated
+You can send the statement to any node. Cluster settings live in one settings
+[partition](/docs/concepts#partition). A node that is not the
+[leader](/docs/concepts#leader) of that partition, the node that coordinates
+its writes, forwards the change to the leader. It uses the authenticated
 internal route. CamusDB then commits the change through Raft, and it applies the
 change everywhere.
 
 Two conflicting `SET` statements therefore resolve to the same winner on every
 node. The commit order decides the winner. A wall clock never decides it. A node
-that is down during the change catches up by log replay when it returns.
+that is down during the change catches up by replaying the Raft log when it
+returns.
 
 CamusDB validates the change before it applies the change anywhere. It validates
 against the configuration that would result. The validation includes an
@@ -103,6 +109,22 @@ invariant across two fields, such as the rule that a lease-renew interval must
 stay below its lease. CamusDB rejects a value that would break such a rule. The
 message of the validator names both sides of the check. CamusDB writes nothing
 in that case.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant N as Any node
+    participant L as Settings partition leader
+    participant A as Every node
+    C->>N: SET CLUSTER SETTING
+    opt The node does not lead the settings partition
+        N->>L: Forward over the authenticated internal route
+    end
+    Note over N,L: Validate the resulting configuration<br/>A rejected value writes nothing
+    L->>A: Commit through Raft
+    A->>A: Apply the change in commit order
+    Note over A: A node that was down catches up by log replay
+```
 
 ## Undo a change
 
@@ -179,7 +201,8 @@ logs of that node for a warning about a failed apply.
 
 ## What CamusDB rejects
 
-Four different mistakes produce four different errors. Each error sends you to a
+Four different mistakes produce four different messages. Three of them share the
+code `CADB0400`, so read the message to tell them apart. Each one sends you to a
 different place:
 
 | Statement | Error | Why |

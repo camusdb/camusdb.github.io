@@ -4,6 +4,30 @@ sidebar_position: 2.2
 
 # Indexes
 
+An index is a sorted copy of one or more columns of a table, with a pointer back
+to each row. With an index, CamusDB finds the rows that match a value without a
+read of the whole table.
+
+## Why add an index
+
+Without a matching index, a query that filters on a column reads every row of
+the table. That cost grows with the table. An index makes these operations fast:
+
+- A lookup of the rows with one value, such as `WHERE email = @email`.
+- A range of values, such as `WHERE created_at >= @since`.
+- An `ORDER BY` with a `LIMIT`, such as the 20 newest rows. CamusDB reads the
+  index in its order, and it can stop after 20 rows.
+- A rule that a value must be unique. A unique index rejects a duplicate.
+
+An index has a cost. Each `INSERT`, `UPDATE`, and `DELETE` must also change each
+index of the table, so writes become slower, and the table uses more storage.
+Add an index for a query that runs often, or for a query that must be fast. Do
+not add an index for each column.
+
+Use [`EXPLAIN`](/docs/explain) to see whether a query uses an index.
+
+## Indexes that CamusDB creates for you
+
 A primary key creates an index. A unique column also creates one. You can add
 another index with `CREATE INDEX`, or with `ALTER TABLE`.
 
@@ -20,18 +44,8 @@ CamusDB supports a unique index over several columns:
 CREATE UNIQUE INDEX robots_kind_year_uq ON robots (kind, year);
 ```
 
-Create a covering index with `INCLUDE (...)`. Use it when a common query filters
-by the key of the index, and also returns a few more columns:
-
-```camussql
-CREATE INDEX robots_kind_idx
-ON robots (kind)
-INCLUDE (name, year);
-```
-
-The key columns of the index drive four things: a lookup, a scan of a range, the
-order, and the uniqueness. CamusDB stores an included column with each entry of
-the index. A covered query can therefore avoid a fetch of the primary row.
+To store extra columns in the index with `INCLUDE (...)`, see
+[Covering indexes](#covering-indexes).
 
 ## Covering indexes
 
@@ -72,7 +86,7 @@ INCLUDE (display_name, status);
 the uniqueness on `email`. `display_name` and `status` take no part in the
 constraint of the uniqueness.
 
-### The inline syntax, and the ALTER TABLE syntax
+### The inline syntax
 
 You can declare a covering index inside `CREATE TABLE`:
 
@@ -86,15 +100,8 @@ CREATE TABLE orders (
 );
 ```
 
-You can also add one with `ALTER TABLE`:
-
-```camussql
-ALTER TABLE orders
-ADD INDEX orders_customer_idx (customer_id) INCLUDE (status, total);
-
-ALTER TABLE users
-ADD UNIQUE INDEX users_email_idx (email) INCLUDE (display_name, status);
-```
+You can also add one with `ALTER TABLE ... ADD INDEX`. See
+[The DDL of an index in ALTER TABLE](#the-ddl-of-an-index-in-alter-table).
 
 To change the included columns of an existing index, drop that index. Then
 create it again, with the `INCLUDE` list that you want.
@@ -228,6 +235,7 @@ column in an index, with `InvalidInput`. You cannot index an `ARRAY(T)` column.
 ```camussql
 ALTER TABLE robots ADD INDEX robots_kind_year_idx (kind, year DESC);
 ALTER TABLE robots ADD UNIQUE INDEX robots_code_year_uq (code, year);
+ALTER TABLE robots ADD UNIQUE INDEX robots_code_uq (code) INCLUDE (name);
 ALTER TABLE robots ADD INDEX robots_kind_idx (kind) INCLUDE (name, year);
 ALTER TABLE robots DROP INDEX robots_kind_year_idx;
 ```

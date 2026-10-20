@@ -4,9 +4,22 @@ sidebar_position: 2.2
 
 # Data types
 
-A CamusDB column has a strong type. You declare that type in `CREATE TABLE`, or
-in `ALTER TABLE ... ADD COLUMN`. CamusDB uses the type for the storage, for a
-comparison, for an index, for a cast, for a default, and for a JSON value.
+Every CamusDB column has a strong type, so each value is stored, compared, and
+indexed in its native form rather than as loose text. That gives you:
+
+- Exact `NUMERIC` decimals for money and balances. `0.1` is stored exactly, with
+  no floating-point drift.
+- Native `UUID` and `OID` keys, stored as compact binary values instead of
+  text.
+- `ARRAY(T)` columns for short lists, such as tags, without a join table.
+- `BYTES(N)` columns that hold [vector embeddings](/docs/vector-search) for
+  similarity search.
+
+If you know PostgreSQL or MySQL, most type names work as aliases: `INTEGER`,
+`VARCHAR(N)`, `TEXT`, `DECIMAL`, `TIMESTAMP`, and `BOOLEAN` all map to a
+CamusDB type. You declare a column's type in `CREATE TABLE` or in
+`ALTER TABLE ... ADD COLUMN`. CamusDB then uses that type for storage,
+comparisons, indexes, casts, defaults, and JSON values.
 
 ## Reference of the types
 
@@ -125,7 +138,7 @@ Arithmetic follows these rules:
 ## The length of a string and of a bytes value
 
 `STRING(N)` accepts at most `N` UTF-16 code units. A bare `STRING` column uses
-the default maximum length of `2,621,440` characters.
+the default maximum length of `2,621,440` UTF-16 code units.
 
 `BYTES(N)` accepts at most `N` bytes. A bare `BYTES` column uses the default
 maximum length of `10,485,760` bytes, which is 10 MB.
@@ -275,9 +288,16 @@ COMMENT ON TABLE events IS E'first line\nsecond line';
 ```
 
 Use an escape string when the value needs a control character. Examples are a
-new line, a tab, a carriage return, and a NUL. Three inputs fail with
-`InvalidInput`: a numeric escape with a wrong form, a Unicode escape outside the
-valid range, and a surrogate escape without its pair.
+new line, a tab, a carriage return, and a NUL.
+
+These escapes fail with `InvalidInput`:
+
+- `\x`, `\u`, or `\U` with too few hexadecimal digits, or with a character that
+  is not a hexadecimal digit.
+- `\U` with a value above `U+10FFFF`.
+- A surrogate (`\uD800` to `\uDFFF`) without its pair.
+
+A malformed octal escape is not an error.
 
 An escape that CamusDB does not know keeps only the escaped character. `E'\d+'`
 therefore stores `d+`. Use a plain string when you want a literal backslash.
@@ -313,15 +333,17 @@ expression:
 
 ```camussql
 SELECT ARRAY[1, 2, 3];
-SELECT ARRAY[n::string, upper(name), n + 1] FROM measurements;
+SELECT ARRAY[n::string, upper(name), (n + 1)::string] FROM measurements;
 
 INSERT INTO measurements (id, samples)
 VALUES (GEN_ID(), ARRAY[1, 2, 3]);
 ```
 
 CamusDB infers the type of the elements from the first element that is not
-`NULL`. Every other element must be compatible with that type. CamusDB coerces
-an element to the declared type of the target column, where that is necessary.
+`NULL`. Every other element must have exactly that type or be `NULL`. Numeric
+types do not mix: `ARRAY[1, 2.5]` fails because `1` is `INT64` and `2.5` is
+`FLOAT64`. CamusDB coerces an element to the declared type of the target column,
+where that is necessary.
 
 ```camussql
 -- Accepted for ARRAY(FLOAT64): integer elements widen to float64.

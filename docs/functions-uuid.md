@@ -44,12 +44,14 @@ new values spread across the whole index.
 
 Use `gen_uuid_v7()` when the locality of the inserts matters, and the rate of
 inserts is low. A scan of recent rows then reads one part of the index. With
-hash routing, the whole table is on one partition, so the order of the keys
-causes no range hotspot.
+[hash routing](/docs/concepts#hash-and-key-range-routing) (the default), the
+whole table is on one [partition](/docs/concepts#partition), so the order of the
+keys causes no hotspot.
 
 Use `gen_uuid_v4()` for a table with a high rate of inserts when
 [key-range sharding](/docs/key-range-sharding) is on. A key in time order sends
-every insert to the last range of the index, and that range becomes a hotspot.
+every insert to the last [range](/docs/concepts#ranges-and-spans) (a contiguous
+slice of keys) of the index, and that range becomes a hotspot.
 A random key spreads the inserts across all ranges.
 
 See [Best practices](/docs/best-practices#primary-keys) for the choice of a

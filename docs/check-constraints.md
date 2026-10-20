@@ -4,9 +4,14 @@ sidebar_position: 2.15
 
 # Check constraints
 
-Use a `CHECK` constraint to keep an invalid row out of a table. A check
-constraint is a boolean expression. CamusDB evaluates it at the insert of a row,
-and at the update of a row.
+Validation in your application protects only the writes that go through your
+application. A `CHECK` constraint puts the rule in the database, so it holds for
+every client: other services, scripts, and ad hoc SQL. A negative price or an
+unknown status never reaches the table, whoever writes it.
+
+A check constraint is a boolean expression, with the same standard `CHECK`
+syntax you use in PostgreSQL. CamusDB evaluates it whenever a row is inserted or
+updated.
 
 ```camussql
 CREATE TABLE products (
@@ -175,7 +180,7 @@ CREATE TABLE users (
 CREATE TABLE products (
   id OID PRIMARY KEY NOT NULL DEFAULT (gen_id()),
   sku STRING NOT NULL,
-  CONSTRAINT sku_has_no_whitespace CHECK (sku !~ "\\s")
+  CONSTRAINT sku_has_no_whitespace CHECK (sku !~ "\s")
 );
 ```
 

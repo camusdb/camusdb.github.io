@@ -142,10 +142,12 @@ SHOW CREATE TABLE editions;`,
 export const tutorialExamples = [
   {
     label: 'Create database',
+    description: 'Creates the `factory` database. `IF NOT EXISTS` makes the statement safe to run again. After it runs, the database selector switches to `factory`, so the next steps run there.',
     sql: 'CREATE DATABASE IF NOT EXISTS factory;',
   },
   {
     label: 'Create table',
+    description: 'Creates the `robots` table. `id` is an object ID and the primary key, `name` and `kind` are required strings, and `year` is 2024 when an insert leaves it out.',
     sql: `CREATE TABLE IF NOT EXISTS robots (
   id OID PRIMARY KEY NOT NULL,
   name STRING NOT NULL,
@@ -155,6 +157,7 @@ export const tutorialExamples = [
   },
   {
     label: 'Insert rows',
+    description: 'Adds four robots. `GEN_ID()` makes a unique ID for each row, and `DEFAULT` gives K-2SO the default year.',
     sql: `INSERT INTO robots (id, name, kind, year)
 VALUES
   (GEN_ID(), 'R2-D2', 'utility', 1977),
@@ -164,6 +167,7 @@ VALUES
   },
   {
     label: 'Query rows',
+    description: 'Reads the robots from 1977 or later, sorted by year and then by name.',
     sql: `SELECT name, kind, year
 FROM robots
 WHERE year >= 1977
@@ -171,6 +175,7 @@ ORDER BY year, name;`,
   },
   {
     label: 'Add index',
+    description: 'Creates an index on `year`. `EXPLAIN` then shows the plan that CamusDB chooses for a lookup by year.',
     sql: `CREATE INDEX robots_year ON robots (year);
 
 EXPLAIN SELECT name
@@ -179,6 +184,7 @@ WHERE year = 1977;`,
   },
   {
     label: 'Update and delete',
+    description: 'Changes the kind of R2-D2, deletes T-800, and lists the robots that remain. CamusDB requires a `WHERE` clause on `UPDATE` and `DELETE`.',
     sql: `UPDATE robots
 SET kind = 'astromech'
 WHERE name = 'R2-D2';
@@ -192,6 +198,7 @@ ORDER BY name;`,
   },
   {
     label: 'Experiment',
+    description: 'Counts the robots of each kind with `GROUP BY`. Edit the SQL and try your own queries.',
     sql: `SELECT kind, COUNT(*) AS robots
 FROM robots
 GROUP BY kind
@@ -201,26 +208,28 @@ ORDER BY robots DESC;`,
 
 const numericTypes = new Set(['Integer64', 'Float64', 'Float32', 'Numeric']);
 const sqlKeywords = new Set([
-  'ACTION', 'ADD', 'ALL', 'ALTER', 'ALWAYS', 'ANALYZE', 'ANCESTORS', 'AND', 'ANY', 'AS', 'ASC',
-  'BACKGROUND', 'BEGIN', 'BETWEEN', 'BRANCH', 'BRANCHES', 'BY', 'CACHE',
+  'ACTION', 'ADD', 'AFTER', 'ALL', 'ALTER', 'ALWAYS', 'ANALYZE', 'ANCESTORS', 'AND', 'ANY', 'AS',
+  'ASC', 'BACKGROUND', 'BEFORE', 'BEGIN', 'BETWEEN', 'BRANCH', 'BRANCHES', 'BY', 'CACHE', 'CALL',
   'CANCEL', 'CASCADE', 'CASCADED', 'CASE', 'CAST', 'CHECK', 'CLEAR', 'CLUSTER', 'COLUMN',
   'COLUMNS', 'COMMENT', 'COMMIT', 'COMMITTED', 'CONCURRENTLY', 'CONNECTIONS', 'CONSTRAINT',
-  'CONTINUE', 'CREATE', 'CRITICAL', 'CROSS', 'CYCLE', 'DATA', 'DATABASE', 'DATABASES', 'DEFAULT', 'DEFERRABLE', 'DEFERRED', 'DELETE',
-  'DESC', 'DESCRIBE', 'DISTINCT', 'DROP', 'ELSE', 'END', 'ENGINE', 'EVICT',
-  'EXISTS', 'EXIT', 'EXPLAIN', 'EXTERNAL', 'EXTENDED', 'FALSE', 'FOR', 'FORCE',
-  'FORCE_INDEX', 'FOREIGN', 'FROM', 'FULL', 'GENERATED', 'GRANT', 'GRANTS', 'GROUP', 'HAVING', 'HIGH',
-  'IDENTIFIED', 'IDENTITY', 'IF', 'ILIKE', 'IMMEDIATE', 'IN', 'INCLUDE', 'INCREMENT', 'INDEX', 'INDEXES', 'INITIALLY', 'INLINE',
-  'INNER', 'INSERT', 'INTO', 'IS', 'ISOLATION', 'JOIN', 'KEY', 'LEFT', 'LEVEL', 'LIKE',
-  'LIMIT', 'LOCAL', 'LOCKING', 'LOGICAL', 'LOW', 'MAIN', 'MATCH', 'MATERIALIZED', 'MAXVALUE', 'MINVALUE', 'NATURAL', 'NO',
-  'NORMAL', 'NOT', 'NULL', 'OF', 'OFFSET', 'ON', 'ONLY', 'OPTIMISTIC', 'OPTION',
-  'OR', 'ORDER', 'ORPHAN', 'OUTER', 'OWNED', 'OWNER', 'PARTIAL', 'PASSWORD', 'PESSIMISTIC', 'PHYSICAL',
-  'PLAIN', 'PRIMARY', 'PRIORITY', 'PRIVILEGES', 'QUERIES', 'QUERY', 'QUIT',
-  'RANGE', 'RANGES', 'READ', 'REFERENCES', 'REFRESH', 'RELINK', 'RENAME', 'REPLACE', 'RESET', 'RESTART', 'RESTRICT', 'RETURNING', 'REVOKE',
-  'REWRITE', 'RIGHT', 'ROLLBACK', 'SELECT', 'SEQUENCE', 'SEQUENCES', 'SERIALIZABLE', 'SET', 'SETTING', 'SETTINGS',
-  'SHOW', 'SIMPLE', 'SLOW', 'SOME', 'SOURCE', 'START', 'STATISTICS', 'STATS', 'STORAGE',
-  'STRICT', 'SYSTEM', 'TABLE', 'TABLES', 'THEN', 'TIME', 'TO', 'TRANSACTION',
-  'TRUE', 'TRUNCATE', 'TTL', 'UNIQUE', 'UPDATE', 'USE', 'USER', 'USING', 'VALID', 'VALIDATE', 'VALUES',
-  'VARIABLES', 'VIEW', 'VIEWS', 'WHEN', 'WHERE', 'WITH', 'WITHOUT', 'WRITE',
+  'CONTINUE', 'CREATE', 'CRITICAL', 'CROSS', 'CYCLE', 'DATA', 'DATABASE', 'DATABASES', 'DEFAULT',
+  'DEFERRABLE', 'DEFERRED', 'DELETE', 'DESC', 'DESCRIBE', 'DISTINCT', 'DROP', 'ELSE', 'END',
+  'ENGINE', 'EVICT', 'EXISTS', 'EXIT', 'EXPLAIN', 'EXTENDED', 'EXTENSIONS', 'EXTERNAL', 'FALSE',
+  'FLUSH', 'FOR', 'FORCE', 'FORCE_INDEX', 'FOREIGN', 'FROM', 'FULL', 'GENERATED', 'GRANT',
+  'GRANTS', 'GROUP', 'HAVING', 'HIGH', 'IDENTIFIED', 'IDENTITY', 'IF', 'ILIKE', 'IMMEDIATE', 'IN',
+  'INCLUDE', 'INCREMENT', 'INDEX', 'INDEXES', 'INITIALLY', 'INLINE', 'INNER', 'INSERT', 'INTO',
+  'IS', 'ISOLATION', 'JOIN', 'KEY', 'LEFT', 'LEVEL', 'LIKE', 'LIMIT', 'LOCAL', 'LOCKING',
+  'LOGICAL', 'LOW', 'MAIN', 'MATCH', 'MATERIALIZED', 'MAXVALUE', 'MINVALUE', 'MONITOR', 'NAME',
+  'NATURAL', 'NO', 'NORMAL', 'NOT', 'NULL', 'OF', 'OFFSET', 'ON', 'ONLY', 'OPTIMISTIC', 'OPTION',
+  'OR', 'ORDER', 'ORPHAN', 'OUTER', 'OWNED', 'OWNER', 'PARTIAL', 'PASSWORD', 'PESSIMISTIC',
+  'PHYSICAL', 'PLAIN', 'PRIMARY', 'PRIORITY', 'PRIVILEGES', 'QUERIES', 'QUERY', 'QUIT', 'RANGE',
+  'RANGES', 'READ', 'REFERENCES', 'REFRESH', 'RELINK', 'RENAME', 'REPLACE', 'RESET', 'RESTART',
+  'RESTRICT', 'RETURNING', 'REVOKE', 'REWRITE', 'RIGHT', 'ROLLBACK', 'ROW', 'SELECT', 'SEQUENCE',
+  'SEQUENCES', 'SERIALIZABLE', 'SESSIONS', 'SET', 'SETTING', 'SETTINGS', 'SHOW', 'SIMPLE', 'SLOW',
+  'SOME', 'SOURCE', 'START', 'STATISTICS', 'STATS', 'STORAGE', 'STRICT', 'SYSTEM', 'TABLE',
+  'TABLES', 'THEN', 'TIME', 'TO', 'TRANSACTION', 'TRIGGER', 'TRUE', 'TRUNCATE', 'TTL', 'UNIQUE',
+  'UPDATE', 'USE', 'USER', 'USERS', 'USING', 'VALID', 'VALIDATE', 'VALUES', 'VARIABLES', 'VIEW',
+  'VIEWS', 'WHEN', 'WHERE', 'WITH', 'WITHOUT', 'WRITE',
 ]);
 const sqlTypes = new Set([
   'ARRAY', 'BLOB', 'BOOL', 'BOOLEAN', 'BYTES', 'CHAR', 'DATE', 'DATETIME',
@@ -229,25 +238,28 @@ const sqlTypes = new Set([
   'TIMESTAMP', 'UUID', 'VARCHAR',
 ]);
 const sqlFunctions = new Set([
-  'ABS', 'ACOS', 'ARRAY_CONTAINS', 'ARRAY_LENGTH', 'ASIN', 'ATAN', 'ATAN2',
-  'AVG', 'CARDINALITY', 'CEIL', 'CEILING', 'COALESCE', 'CONCAT', 'CONTAINS',
-  'COS', 'COSINE_DISTANCE', 'COUNT', 'CURRENT_DATABASE', 'CURRENT_DATE', 'CURRVAL',
-  'CURRENT_ROLE', 'CURRENT_TIMESTAMP', 'CURRENT_USER', 'DATE_ADD', 'DATE_DIFF',
-  'DATE_FORMAT', 'DATE_PARSE', 'DATE_PART', 'DATE_SUB', 'DATE_TRUNC', 'DAY',
-  'ENDS_WITH', 'EXP', 'FLOOR', 'FROM_UNIXTIME', 'GEN_ID', 'GEN_UUID_V4',
-  'GEN_UUID_V7', 'HOUR', 'IFNULL', 'INNER_PRODUCT', 'IS_SUPERUSER',
-  'JSON_ARRAY_LENGTH', 'JSON_CONTAINS', 'JSON_EXTRACT', 'JSON_TYPE',
-  'JSON_VALID', 'JSON_VALUE', 'L2_DISTANCE', 'LASTVAL', 'LENGTH', 'LN', 'LOG', 'LOWER',
-  'LTRIM', 'MAX', 'MD5', 'MIN', 'MINUTE', 'MOD', 'MONTH', 'NOW', 'NULLIF',
-  'NEXTVAL', 'NVL', 'OCTET_LENGTH', 'PI', 'POW', 'POWER', 'RAND', 'RANDOM',
-  'REGEXP_COUNT', 'REGEXP_INSTR', 'REGEXP_LIKE', 'REGEXP_MATCH',
-  'REGEXP_MATCHES', 'REGEXP_REPLACE', 'REGEXP_SPLIT_TO_ARRAY',
-  'REGEXP_SPLIT_TO_TABLE', 'REGEXP_SUBSTR', 'REPLACE', 'ROUND', 'RTRIM',
-  'SECOND', 'SETVAL', 'SHA1', 'SHA256', 'SHA512', 'SIGN', 'SIN', 'SQRT', 'STARTS_WITH',
-  'STR_ID', 'SUBSTR', 'SUBSTRING', 'SUM', 'TAN', 'TO_BOOL', 'TO_BYTES',
-  'TO_DATE', 'TO_DATETIME', 'TO_FLOAT32', 'TO_FLOAT64', 'TO_ID', 'TO_INT64',
-  'TO_STRING', 'TRIM', 'TRUNC', 'UNIX_MICROSECONDS', 'UNIX_MILLISECONDS',
-  'UNIX_SECONDS', 'UNIX_TIMESTAMP', 'UPPER', 'VECTOR_DIMS', 'YEAR',
+  'ABS', 'ACOS', 'ARRAY_CONTAINS', 'ARRAY_LENGTH', 'ASIN', 'ATAN', 'ATAN2', 'AVG', 'BIT_COUNT',
+  'BIT_LENGTH', 'CARDINALITY', 'CAST', 'CEIL', 'CEILING', 'CLOCK_TIMESTAMP', 'COALESCE', 'CONCAT',
+  'CONTAINS', 'CONVERT_FROM', 'CONVERT_TO', 'COS', 'COSINE_DISTANCE', 'COUNT', 'CRC32',
+  'CURRENT_DATABASE', 'CURRENT_DATE', 'CURRENT_ROLE', 'CURRENT_TIMESTAMP', 'CURRENT_USER',
+  'CURRVAL', 'DATE_ADD', 'DATE_DIFF', 'DATE_FORMAT', 'DATE_PARSE', 'DATE_PART', 'DATE_SUB',
+  'DATE_TRUNC', 'DAY', 'DAYNAME', 'DAYOFMONTH', 'DAYOFWEEK', 'DAYOFYEAR', 'DECODE', 'DIGEST',
+  'ENCODE', 'ENDS_WITH', 'EXP', 'EXTRACT', 'FLOOR', 'FROM_BASE64', 'FROM_UNIXTIME',
+  'GENERATE_SERIES', 'GEN_ID', 'GEN_RANDOM_BYTES', 'GEN_UUID_V4', 'GEN_UUID_V7', 'GET_BIT',
+  'GET_BYTE', 'HEX', 'HMAC', 'HOUR', 'IFNULL', 'INNER_PRODUCT', 'IS_SUPERUSER',
+  'JSON_ARRAY_LENGTH', 'JSON_CONTAINS', 'JSON_EXTRACT', 'JSON_TYPE', 'JSON_VALID', 'JSON_VALUE',
+  'L2_DISTANCE', 'LASTVAL', 'LAST_DAY', 'LENGTH', 'LN', 'LOG', 'LOWER', 'LTRIM', 'MAKEDATE',
+  'MAKE_DATE', 'MAKE_TIMESTAMP', 'MAX', 'MD5', 'MIN', 'MINUTE', 'MOD', 'MONTH', 'MONTHNAME',
+  'NEXTVAL', 'NOW', 'NULLIF', 'NVL', 'OCTET_LENGTH', 'PI', 'POSITION', 'POW', 'POWER', 'QUARTER',
+  'RAND', 'RANDOM', 'REGEXP_COUNT', 'REGEXP_INSTR', 'REGEXP_LIKE', 'REGEXP_MATCH',
+  'REGEXP_MATCHES', 'REGEXP_REPLACE', 'REGEXP_SPLIT_TO_ARRAY', 'REGEXP_SPLIT_TO_TABLE',
+  'REGEXP_SUBSTR', 'REPLACE', 'ROUND', 'RTRIM', 'SECOND', 'SETVAL', 'SET_BIT', 'SET_BYTE', 'SHA1',
+  'SHA256', 'SHA512', 'SIGN', 'SIN', 'SQRT', 'STARTS_WITH', 'STATEMENT_TIMESTAMP', 'STRPOS',
+  'STR_ID', 'STR_TO_DATE', 'SUBSTR', 'SUBSTRING', 'SUM', 'SYSDATE', 'TAN', 'TO_BASE64', 'TO_BOOL',
+  'TO_BYTES', 'TO_CHAR', 'TO_DATE', 'TO_DATETIME', 'TO_FLOAT32', 'TO_FLOAT64', 'TO_ID',
+  'TO_INT64', 'TO_STRING', 'TO_TIMESTAMP', 'TRANSACTION_TIMESTAMP', 'TRIM', 'TRUNC', 'UNHEX',
+  'UNIX_MICROSECONDS', 'UNIX_MILLISECONDS', 'UNIX_SECONDS', 'UNIX_TIMESTAMP', 'UNIX_TIMESTAMP_MS',
+  'UPPER', 'VECTOR_DIMS', 'WEEK', 'WEEKDAY', 'YEAR',
 ]);
 
 function readQuoted(sql, start) {
@@ -401,6 +413,12 @@ function Status({state, text}) {
   );
 }
 
+function InlineCode({text}) {
+  return text.split('`').map((part, index) => (
+    index % 2 === 1 ? <code key={index}>{part}</code> : part
+  ));
+}
+
 function EmptyResult({children, kind}) {
   return <p className={clsx(styles.empty, kind && styles[kind])}>{children}</p>;
 }
@@ -413,6 +431,7 @@ function ResultTable({outcome}) {
           <tr>
             {outcome.columns.map((column) => (
               <th
+                scope="col"
                 className={numericTypes.has(column.type) ? styles.num : undefined}
                 key={column.name}
                 title={column.type}>
@@ -453,7 +472,7 @@ export function ResultCard({outcome}) {
   return (
     <article className={clsx(styles.resultCard, !outcome.ok && styles.failed)}>
       <header>
-        <code>{outcome.sql}</code>
+        <code title={outcome.sql}>{outcome.sql}</code>
         <span>{describeOutcome(outcome)}</span>
       </header>
       {!outcome.ok ? (
@@ -474,6 +493,7 @@ export default function CamusPlayground({
   initialSql,
   seedScript = defaultSeedScript,
   compact = false,
+  guided = false,
   runExampleOnSelect = true,
   title = 'CamusDB playground',
   description = 'Run SQL against the real CamusDB engine in this browser tab.',
@@ -482,6 +502,11 @@ export default function CamusPlayground({
   const [busy, setBusy] = useState(true);
   const [status, setStatus] = useState({state: 'loading', text: 'Loading the engine...'});
   const [sql, setSql] = useState(initialSql ?? examples[0]?.sql ?? '');
+  const [activeIndex, setActiveIndex] = useState(() =>
+    examples.findIndex((example) => example.sql === (initialSql ?? examples[0]?.sql)),
+  );
+  // Guided mode: the number of steps that ran without an error, in order.
+  const [completedSteps, setCompletedSteps] = useState(0);
   const [results, setResults] = useState([]);
   const [database, setDatabase] = useState('playground');
   const [databases, setDatabases] = useState(['playground']);
@@ -589,7 +614,7 @@ export default function CamusPlayground({
     return nextDatabase;
   }
 
-  async function run(nextSql = sql) {
+  async function run(nextSql = sql, {wholeStep = true} = {}) {
     const script = nextSql.trim();
     if (!engine || busy || !script) return;
 
@@ -600,6 +625,10 @@ export default function CamusPlayground({
       const outcomes = JSON.parse(await execute(engine, script, database));
       setResults(outcomes);
       const failed = outcomes.some((outcome) => !outcome.ok);
+      if (guided && wholeStep && !failed) {
+        // A step counts only when every earlier step is complete.
+        setCompletedSteps((count) => (activeIndex === count ? count + 1 : count));
+      }
       await refreshDatabases(engine, database, previousDatabases, !failed);
       setStatus({
         state: failed ? 'error' : 'ready',
@@ -631,7 +660,7 @@ export default function CamusPlayground({
   }
 
   async function runSelected() {
-    await run(getSelectedSql());
+    await run(getSelectedSql(), {wholeStep: false});
   }
 
   async function reset() {
@@ -650,6 +679,10 @@ export default function CamusPlayground({
       }
       await refreshDatabases(engine, 'playground');
       setResults([]);
+      if (guided) {
+        setCompletedSteps(0);
+        if (examples.length) chooseExample(examples[0], 0);
+      }
       setStatus({state: 'ready', text: 'Ready'});
     } catch (error) {
       setStatus({state: 'error', text: `Reset failed: ${error.message}`});
@@ -658,7 +691,8 @@ export default function CamusPlayground({
     }
   }
 
-  function chooseExample(example) {
+  function chooseExample(example, index) {
+    setActiveIndex(index);
     setSql(example.sql);
     setSelection({start: 0, end: 0});
     if (runExampleOnSelect) {
@@ -666,6 +700,17 @@ export default function CamusPlayground({
     } else {
       setResults([]);
       setStatus((current) => (current.state === 'error' ? {state: 'ready', text: 'Ready'} : current));
+    }
+  }
+
+  const activeExample = examples[activeIndex];
+  const showGuide = guided || Boolean(activeExample?.description);
+  const stepComplete = activeIndex >= 0 && activeIndex < completedSteps;
+  const isLastStep = activeIndex >= examples.length - 1;
+
+  function chooseStep(index) {
+    if (index >= 0 && index < examples.length) {
+      chooseExample(examples[index], index);
     }
   }
 
@@ -697,17 +742,64 @@ export default function CamusPlayground({
 
       <div className={styles.shell}>
         <div className={styles.editorPane}>
-          <div className={styles.exampleBar} aria-label="Example queries">
-            {examples.map((example) => (
-              <button
-                key={example.label}
-                type="button"
-                onClick={() => chooseExample(example)}
-                disabled={!engine || busy}>
-                {example.label}
-              </button>
-            ))}
-          </div>
+          {!guided && (
+            <div className={styles.exampleBar} aria-label="Example queries">
+              {examples.map((example, index) => (
+                <button
+                  key={example.label}
+                  type="button"
+                  className={clsx(index === activeIndex && styles.activeExample)}
+                  aria-pressed={index === activeIndex}
+                  onClick={() => chooseExample(example, index)}
+                  disabled={!engine || busy}>
+                  {example.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {showGuide && (
+            <div className={styles.stepGuide} aria-live="polite">
+              {guided && (
+                <div className={styles.stepHeader}>
+                  <p className={styles.stepCount}>
+                    {activeIndex >= 0 && `Step ${activeIndex + 1} of ${examples.length}`}
+                    {activeExample && <span> · {activeExample.label}</span>}
+                  </p>
+                  <div className={styles.stepNav}>
+                    <button
+                      type="button"
+                      onClick={() => chooseStep(activeIndex - 1)}
+                      disabled={!engine || busy || activeIndex <= 0}>
+                      ← Prev
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.nextButton}
+                      onClick={() => chooseStep(activeIndex + 1)}
+                      disabled={!engine || busy || isLastStep || !stepComplete}
+                      title={stepComplete ? undefined : 'Run this step first'}>
+                      Next →
+                    </button>
+                  </div>
+                </div>
+              )}
+              {activeExample?.description && (
+                <p className={styles.stepDescription}>
+                  <InlineCode text={activeExample.description} />
+                </p>
+              )}
+              {guided && activeIndex >= 0 && (
+                <p className={clsx(styles.stepHint, stepComplete && styles.stepDone)}>
+                  {!stepComplete
+                    ? 'Click Run to finish this step. Next unlocks when it runs without an error.'
+                    : isLastStep
+                      ? '✓ Tutorial complete. Keep experimenting with your own SQL.'
+                      : '✓ Step complete. Click Next to continue.'}
+                </p>
+              )}
+            </div>
+          )}
 
           <label className={styles.visuallyHidden} htmlFor="camus-playground-sql">
             SQL

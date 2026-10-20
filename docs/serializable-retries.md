@@ -21,10 +21,17 @@ A retry follows one of these conditions:
 - A transient condition stopped the transaction before its write. That condition
   can occur at the start, during the routing, at lock acquisition, or at the
   storage write.
+- In a cluster, the transaction could not prepare or commit on every
+  [partition](/docs/concepts#partition) that it touched. See
+  [How a commit works](/docs/distributed-transactions#how-a-commit-works).
 - In a cluster, a node could not reach the peer that owns a partition before the
   server-side retry budget expired.
-- A read or scan reached a range whose current state could not be served before
-  the server-side retry budget expired.
+- A read or scan reached a [range](/docs/concepts#ranges-and-spans) (a
+  contiguous slice of keys) whose current state could not be served before the
+  server-side retry budget expired.
+- The node lags the cluster's committed schema by more than one version, so it
+  rejects table work with `CADB0503` until it catches up. See
+  [Distributed schema changes](/docs/distributed-schema#a-slow-node-and-bounded-progress-of-a-ddl-statement).
 - The transaction wrote a table that gained an index or a constraint before the
   transaction committed. The staged writes do not maintain that new write shape,
   so CamusDB aborts the transaction and asks the client to replay it.
@@ -45,6 +52,18 @@ differs:
 | `CADB0506` | `TransactionMutationLimitExceeded` | Do not retry. Split the workload. |
 
 See [Error Codes](/docs/error-codes) for the full list.
+
+```mermaid
+flowchart TD
+    B[BEGIN] --> W[Run every read and write]
+    W --> C[COMMIT]
+    C -->|OK| D[Done]
+    W -->|error| E{Error code}
+    C -->|error| E
+    E -->|"CADB0502,<br/>0504, 0505"| RB["Replay the whole<br/>transaction from BEGIN"]
+    E -->|CADB0509| RC["Send COMMIT again<br/>on the same transaction"]
+    E -->|CADB0506| S["Do not retry<br/>split the workload"]
+```
 
 ## Replay from BEGIN
 
@@ -84,7 +103,7 @@ that stays in the finalize state.
 CamusDB retries this for you first. Four conditions can make a finalize report
 that the outcome is not known yet:
 
-1. A change of leadership during the finalize.
+1. A change of [leader](/docs/concepts#leader) during the finalize.
 2. A drain that is in progress.
 3. A participant that shed a write under load.
 4. A transport or unexpected fault after the commit request already left the
@@ -103,10 +122,17 @@ sooner, and if you prefer to retry it yourself.
 
 ## Keep transactions short
 
-A read-write transaction holds locks. The Kahuna coordinator renews a live range
-lock while the transaction is alive. The initial range-lock TTL is therefore not
+A read-write transaction holds locks. The transaction coordinator in
+[Kahuna](/docs/concepts#kahuna) renews a live range lock while the transaction
+is alive. The initial range-lock TTL is therefore not
 a limit on the run time. A hard backstop remains, at about one hour by default.
 After that time the transaction aborts with `TransactionLifetimeExceeded`.
+
+An explicit transaction that stays idle between statements for
+`transaction_idle_timeout_ms` (default 5 minutes) is rolled back as abandoned.
+The next statement on it fails with `CADB0400` ("Unknown transaction"). Replay
+the work from `BEGIN`. See
+[Transaction Limits](/docs/transaction-limits#idle-timeout).
 
 A short transaction gives less contention, less risk of deadlock, fewer retries,
 and no expiry of the lifetime.

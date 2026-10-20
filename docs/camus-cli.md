@@ -6,24 +6,35 @@ sidebar_position: 1.5
 
 ![camus-cli interactive shell](/img/cli.png)
 
-`camus-cli` is the command-line SQL shell for CamusDB. It gives you these
-features:
+`camus-cli` is the command-line SQL shell for CamusDB. You type SQL in a
+terminal, and you see the results at once. It is the fastest way to talk to a
+CamusDB node without an application or a graphical tool.
 
-- an interactive SQL prompt
-- a full-screen mode with catalog, editor, and result panes
-- multiline editing
-- syntax highlighting
-- Tab autocompletion
-- command history
-- transaction commands
-- SQL script execution
-- non-interactive SQL execution with `-e`, and whole-file execution with `-f`
-- database switching
-- vertical query output for wide rows
-- JSON or YAML row output for scripts
-- prepared-statement inspection
-- backup administration
-- built-in workload helpers
+## When to use it
+
+Use `camus-cli` for these purposes:
+
+- A quick interactive SQL session, to look at data or to test a query.
+- Local development against a CamusDB node.
+- Execution of `.sql` script files, interactively or with `-f`, for example a
+  schema setup in a CI job.
+- Manual tests of transactions.
+- Backups. You take and inspect them without HTTP calls by hand.
+- A small workload for a demo or an experiment.
+
+For a graphical workspace in a browser, see [Web Console](/docs/web-console).
+For an integration with an application, use a driver, such as the
+[.NET driver](/docs/dotnet-driver), the [EF Core provider](/docs/ef-core), or
+the [TypeScript connector](/docs/typescript-connector).
+
+## Features
+
+- An interactive prompt with syntax highlighting, Tab autocompletion, and
+  history, plus a full-screen mode with catalog, editor, and result panes.
+- Scripted execution with `-e` and `-f`, with JSON or YAML output.
+- Result export to CSV, JSON, or YAML.
+- Backup administration and prepared-statement inspection.
+- Built-in workloads for demos and load tests.
 
 ## Install
 
@@ -64,8 +75,7 @@ Endpoint=http://localhost:5095;Database=<database>;Protocol=rest
 You can pass no name of a database in the position of the first argument. The
 connection then starts with no selected database.
 
-A command at the level of the server still works. You can also create a database
-from the shell, and you can select one:
+You can create a database from the shell, and then select it:
 
 ```camussql
 CREATE DATABASE IF NOT EXISTS test;
@@ -190,13 +200,9 @@ A statement can hold a password inline, with an `IDENTIFIED ... BY '...'`. Such
 a statement stays in the history in the memory, during the session. The shell
 nevertheless writes no such statement to the file of the history on the disk.
 
-Common auth errors:
-
-| Code | Meaning |
-| --- | --- |
-| `CADB0516` | Not authenticated: missing, invalid, expired, or rejected credentials. |
-| `CADB0517` | Authenticated, but missing a privilege on a table touched by the statement, including joins and subqueries. |
-| `CADB0519` | The server requires TLS for credential-bearing requests. Use `https://`, or configure the server for a trusted TLS-terminating proxy. |
+Authentication failures use the codes `CADB0516` to `CADB0519`. See
+[Error codes](/docs/error-codes#common-user-facing-errors) for what each one
+means.
 
 ## Command line syntax
 
@@ -279,8 +285,11 @@ Built-in shell commands:
 | `source <path> [--force]` | Execute SQL from a file, streaming it. |
 | `use <database>` | Switch to another database. |
 | `show prepared [sql]` | Report what the driver keeps prepared. Alias: `\prepared`. |
+| `\plan [flow\|table]` | Choose the display used for `EXPLAIN`. Alias: `/plan`. |
+| `\export csv\|json\|yaml [to <file>] <query>` | Write a query result to a file. Alias: `/export`. |
 | `backup ...` | Take and administer server backups. |
 | `exit` / `quit` | Exit the shell. |
+| `help`, `\h`, `\?`, `?`, `/help` | List the shell commands. |
 
 Examples:
 
@@ -302,6 +311,24 @@ Important guards:
   or `rollback`
 - if a transaction is active, `use <database>` is also blocked
 
+### Export a result set
+
+`\export` runs a row-returning query and writes CSV, JSON, or YAML without
+printing the rows to the terminal:
+
+```camussql
+\export csv select * from titles
+\export json to titles.json select id, title from titles where production_year > 2000
+/export yaml to 'my titles.yaml' select * from titles
+```
+
+Without `to <file>`, the shell suggests a timestamped name based on the first
+table after `FROM`. At an interactive prompt you can accept or edit it; in a
+`source` file, `-e`, or `-f`, the suggestion is used without prompting. CSV has
+a header row, JSON and YAML use the same shape as `--format`, and an existing
+target is replaced. The shell writes to a temporary file first, so a failed
+query does not leave a partial export.
+
 ## Full-screen mode
 
 Use `--tui` when you want the catalog, editor, and results visible at the same
@@ -318,7 +345,7 @@ The screen has three panes:
 
 | Pane | Purpose |
 | --- | --- |
-| Data Catalog | Lists tables in the current database. Expand a table to see its columns and types. |
+| Data Catalog | Lists databases, tables, columns, and types. A green dot marks the current database. |
 | Query Editor | Holds SQL text with syntax coloring and completion. |
 | Query Results | Shows the latest result grid and one log line for each statement that ran. |
 
@@ -327,18 +354,31 @@ Common keys:
 | Key | Action |
 | --- | --- |
 | `Tab` / `Shift+Tab` | Move between panes. |
-| `F5` / `Ctrl+R` / `Shift+Enter` | Run every statement in the editor. |
+| `F5` / `Ctrl+R` / `Shift+Enter` | Run the statement at the cursor. |
+| `F6` / `Ctrl+G` | Run every statement in the editor. |
 | `Esc` | Cancel the running query or close the help bar. |
+| `Ctrl+C` | Cancel a running query; when idle, ask to quit. |
 | `F1` | Show or hide the key list. |
 | `F2` | Turn the result row cap on or off. |
+| `F4` | Refresh the catalog. |
 | `Ctrl+S` | Save the editor text. |
 | `Ctrl+L` / `Ctrl+U` | Clear the editor. |
 | `Ctrl+Q` | Quit. |
 
-The catalog pane uses `Space` to insert the selected name into the editor. The
-editor pane uses `Ctrl+N` and `Ctrl+P` to move through completions because
-`Tab` changes panes. The result pane supports `Up`, `Down`, `PageUp`,
-`PageDown`, `Left`, `Right`, `Home`, and `End` for scrolling.
+Expand a database in the catalog to load its tables, and expand a table to see
+its columns. `Enter` on another database switches the session to it. `Space`
+inserts the selected name into the editor. The catalog refreshes after schema
+or database DDL; use `F4` to see changes made by another session.
+
+The editor uses `Ctrl+N` and `Ctrl+P` to move through completions because `Tab`
+changes panes. The statement at the cursor extends through its terminating
+semicolon. If the cursor is after the final statement, the final statement is
+run.
+
+The result pane uses the arrow, paging, `Home`, and `End` keys to select cells.
+Press `Enter` to inspect the complete cell, `c` to copy a cell, `Shift+C` to copy
+a row, and `m` to open the last 500 execution messages. Clipboard copying uses
+OSC 52 and therefore depends on terminal support.
 
 The result grid pages rows in chunks of 200. A display cap of 500 rows is on at
 startup; press `F2` to remove that display cap. The cap is not a SQL `LIMIT`.
@@ -355,6 +395,17 @@ Backup commands do not run inside `--tui`. Use the prompt, `source`, `-e`, or
 
 The mode needs an ANSI terminal. If detection fails for a capable terminal, use
 `--force-rich` or set `CAMUS_FORCE_RICH=1`.
+
+## Query plans
+
+At the interactive prompt, `EXPLAIN` results open as a flow from source to
+result. Operator boxes show their detail and estimated cost, arrows show row
+estimates, and joins show their right input beside the operator. `EXPLAIN
+(ANALYZE)` adds measured rows and flags large estimate misses.
+
+Use `\plan table` for the raw rows and `\plan flow` to return to the diagram.
+`/plan` is an alias. Vertical output, `--format json|yaml`, and the TUI retain
+the raw table representation.
 
 ## Multiline input
 
@@ -577,7 +628,9 @@ Things worth knowing:
 - An incremental can become a full. If the parent has aged past the
   retention floor, the server takes a full backup instead. The command still
   succeeds and reports the substitution and its reason.
-- `backup coordinated` must reach the coordinator. Any other node refuses
+- `backup coordinated` must reach the backup coordinator, the node that
+  currently [leads](/docs/concepts#leader) the cluster's backup metadata. Any
+  other node refuses
   with `CADB070E BackupNotCoordinator`. Pin `BackupEndpoint=` to the coordinator
   when `Endpoint=` names a multi-node pool.
 - The API uses REST only. It has no form in SQL, and it has no service of gRPC.
@@ -599,13 +652,10 @@ camus> backup gc preview
 Retention preview: 2 backups, 0 orphans, 1.41 GB would reclaim (00:00:00.041)
 ```
 
-The restore is not part of this family. A restore builds into a fresh root of
-the data. An operator then stops the server, and starts a new server against
-that root.
-
-There is no hot restore in place. A restore therefore stays a step of the
-runbook of an operator. The shell cannot drive it to its end. See
-[Backup And Restore](/docs/backup-and-restore).
+Restore is not part of this family. There is no hot restore in place: a restore
+builds into a fresh data directory, and an operator then stops the server and
+starts a new one against that directory. The shell cannot drive that runbook to
+its end. See [Backup And Restore](/docs/backup-and-restore#the-restore-runbook).
 
 ## History
 
@@ -952,27 +1002,6 @@ export CAMUS_FORCE_RICH=1
 
 ## Connection validation
 
-The shell validates the connection string before it opens a connection. That
-string must hold these parts:
-
-- a valid absolute `Endpoint`
-
-The shell also sends a first ping. The startup therefore fails early, when it
-cannot reach the target node.
-
-Without a selected database, run a `CREATE DATABASE ...`, or a `use <database>`.
-Do that before any work at the level of a table.
-
-## When to use it
-
-Use `camus-cli` for these purposes:
-
-- a quick interactive SQL session
-- easy local development against a CamusDB node
-- script execution from `.sql` files, interactively or with `-f`
-- manual transaction testing
-- taking and inspecting backups without writing HTTP calls by hand
-- lightweight workload bootstrapping for demos and experiments
-
-For an integration with an application, see [.NET Driver](/docs/dotnet-driver)
-and [EF Core Provider](/docs/ef-core).
+Before it opens a connection, the shell checks that the connection string holds
+a valid `Endpoint` (see [Basic usage](#basic-usage)). It then sends a first
+ping, so startup fails early when it cannot reach the target node.

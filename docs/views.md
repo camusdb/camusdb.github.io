@@ -39,12 +39,10 @@ A name for a query is worth more than the text that it saves.
   owner. You can therefore give a user exactly the rows and the columns that the
   view exposes. You grant no access to the table below it. See
   [Ownership and security](#ownership-and-security).
-- A stable contract over a schema that moves. CamusDB fixes the shape of a view
-  at its creation, and it keeps that shape. You can rename the base table, and
-  you can rename a base column. The view continues without a change. CamusDB
-  also refuses a `DROP` that would strand the view. A client therefore keeps the
-  columns that it was written against, while the tables below stay free to
-  change.
+- A stable contract over a schema that moves. A client keeps the columns that
+  it was written against, while you rename the tables and columns below. CamusDB
+  also refuses a `DROP` that would strand the view. See
+  [Dependencies and schema changes](#dependencies-and-schema-changes).
 - A view composes, and CamusDB plans it like a subquery. A view expands before
   the plan. It therefore joins, aggregates, and nests inside another view. It
   receives the same optimizer, the same choice of an index, and the same
@@ -110,7 +108,7 @@ works on a subquery therefore works on a view. Eight examples follow:
 - A subquery.
 - The cost-based optimizer.
 - The spill to disk.
-- A serializable range lock on a base table.
+- A serializable lock on the range of a base table that the query reads.
 
 ```camussql
 SELECT v.id, c.region
@@ -254,9 +252,17 @@ ALTER TABLE sales RENAME COLUMN total TO amount;
 SELECT id, total FROM open_orders;   -- still works, still called "total"
 ```
 
-CamusDB fixes the output names of a view at its creation. They do not follow the
-base column. A rename below the view is therefore invisible to every reader of
-it.
+The output names of the view do not follow the base column, so a rename below
+the view is invisible to every reader of it.
+
+A rename of a column fails, instead of being absorbed, in two corner cases where
+the body would be stranded:
+
+1. A view created by a CamusDB version that did not yet bind columns by id.
+2. A reference in an `ORDER BY`, a `GROUP BY`, or a `HAVING` clause that matches
+   one of the output names of the view itself. Those clauses may legally name an
+   output column instead of a base column, so CamusDB leaves such a reference as
+   you wrote it rather than guess at its meaning.
 
 A name returns only in the display of the definition. `SHOW CREATE VIEW` renders
 each relation and each column under its current name.
@@ -266,12 +272,6 @@ qualified reference to a column inside the body resolves through that alias. The
 alias must therefore stay fixed for the life of the definition. CamusDB does not
 print an alias that would only repeat the current name of the relation. An
 ordinary view therefore renders as you wrote it.
-
-A definition from an earlier version names its relations directly. It continues
-to work, and it continues to render without a change. The first rename that
-would otherwise strand such a definition converts it to the form with ids. That
-conversion is part of the same replicated change. There is therefore no period
-in which the rename landed and the view did not catch up.
 
 ### Drop a relation
 
@@ -294,10 +294,9 @@ DROP TABLE orders;
 -- CADB0530: cannot drop table 'orders' because other objects depend on it: open_orders
 ```
 
-`DROP TABLE` has no `CASCADE` form. Drop the dependent views first. That rule
-makes `DROP TABLE` stricter than it was before views existed. The alternative is
-a drop of a table that quietly converts every dependent view into a later error,
-for the next reader.
+`DROP TABLE` has no `CASCADE` form. Drop the dependent views first. The
+alternative is a drop of a table that quietly turns every dependent view into an
+error for its next reader.
 
 ### Drop a column
 
@@ -315,17 +314,6 @@ the columns that it reads, at every refresh.
 
 `DROP COLUMN` has no `CASCADE` form either. Drop the dependent view first, or
 replace it.
-
-Two corner cases refuse a rename of a column, instead of an absorption of that
-rename. The body would be stranded, and not merely unaffected:
-
-1. A definition from before the time when CamusDB bound a column by its id.
-2. A reference in an `ORDER BY`, a `GROUP BY`, or a `HAVING` clause that matches
-   one of the output names of the view itself.
-
-CamusDB refuses the second case by design. Those clauses may legally name an
-output column, and not a base column. CamusDB therefore leaves such a reference
-as you wrote it. It does not guess at the meaning.
 
 The check of a drop is a lower bound. It is not a guarantee. CamusDB does not
 record a reference that its analysis cannot attribute to exactly one relation. A
@@ -346,8 +334,8 @@ CREATE OR REPLACE VIEW b AS SELECT id FROM a;
 -- CADB0528: infinite recursion detected in the definition of view 'b'
 ```
 
-`max_view_expansion_depth` caps the depth of the nest as a backstop. The default
-is `32`.
+[`max_view_expansion_depth`](#configuration) also caps the nesting depth as a
+backstop.
 
 ### Reserved names of a relation and of a column
 
@@ -384,6 +372,13 @@ CamusDB checks the caller on the view. It checks the owner on everything that
 the body reads. A view can therefore widen the access to a slice of a table. It
 widens nothing more.
 
+```mermaid
+flowchart LR
+    B[bob] -->|"reads the view<br/>check: bob on cheap_orders"| V[cheap_orders]
+    V -->|"body runs as alice<br/>check: alice on orders"| O[(orders)]
+    B -.->|"reads orders directly<br/>CADB0517"| O
+```
+
 These details are worth your attention:
 
 - CamusDB records the owner by an immutable id. It does not record a name. A
@@ -412,8 +407,9 @@ caller, and not as the owner. See
 
 CamusDB never serves a query through a view from the
 [query result cache](/docs/query-result-cache). Each entry of the cache fences
-the key space of the rows of one physical table. A view expands to a derived
-table, and such a table has no key space of its own. The same limit makes a join
+the [key space](/docs/concepts#key-space) (the range of storage keys) of one
+physical table. A view expands to a derived table, and such a table has no key
+space of its own. The same limit makes a join
 uncacheable.
 
 CamusDB accepts a `{cache=name}` hint on a reference to a view. It does not
@@ -478,20 +474,19 @@ See [Configuration](/docs/configuration) and
 | Area | CamusDB | Why |
 | --- | --- | --- |
 | A column of an expression without a name | Refused | PostgreSQL names such a column `?column?`, and nothing can reference that name. One `AS` produces a usable view. |
-| An updatable view | Not implemented | Every view is read-only today. |
+| An updatable view | Not implemented | See [Not implemented yet](#not-implemented-yet). |
 | A rule, and an `INSTEAD OF` trigger | Not supported | CamusDB has neither. There is therefore no path to a writable view that CamusDB cannot update on its own. |
 | `DROP TABLE ... CASCADE` | There is no `CASCADE` form | Drop the dependent views explicitly. |
 | A `security_invoker` view | Not supported | CamusDB implements the model of the rights of the owner only. |
 | A `WITH RECURSIVE` view | Not supported | CamusDB has no `WITH RECURSIVE`. |
 | A view across two databases | Not supported | The rule matches the existing restriction of `INSERT ... SELECT` to one database. |
 | A temporary view | Not supported | CamusDB has no temporary relation. |
-| A mix of a `*` with another projection | Refused | The order of the expansion is not stable when somebody adds a base column. |
-| An `AS OF SYSTEM TIME` in a body | Refused | CamusDB can store neither an absolute timestamp nor a relative one in a coherent way. |
+| A mix of a `*` with another projection | Refused | See [CamusDB expands a SELECT * one time](#camusdb-expands-a-select--one-time). |
+| An `AS OF SYSTEM TIME` in a body | Refused | See [What a body may not hold](#what-a-body-may-not-hold). |
 
 ## Not implemented yet
 
-These three forms parse, and CamusDB rejects them at the execution. They
-therefore fail loudly. They do nothing unexpected:
+Three gaps remain. Each item says what CamusDB does today:
 
 - An updatable view. That set covers an `INSERT`, an `UPDATE`, and a `DELETE`
   through a view. It also covers the rules of automatic updatability, and the
@@ -503,11 +498,8 @@ therefore fail loudly. They do nothing unexpected:
   every read. A grant that you revoke later does not break the outer view until
   you replace it. The inner view still runs as its own owner. This behavior
   therefore widens nothing past the reach of its author.
-- The absorption of a rename of a column, in two cases. The first case is a
-  definition from before the time when CamusDB bound a column by its id. The
-  second case is a reference in an `ORDER BY`, a `GROUP BY`, or a `HAVING`
-  clause that matches an output name of the view. CamusDB refuses both. See
-  [Drop a column](#drop-a-column).
+- The absorption of a column rename in two corner cases. CamusDB refuses the
+  rename instead. See [A rename is transparent](#a-rename-is-transparent).
 
 ## Related pages
 

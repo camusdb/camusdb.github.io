@@ -22,6 +22,10 @@ const heroProofs = [
     title: 'Copy-on-write branches',
     detail: 'Test changes without writing to the source database.',
   },
+  {
+    title: 'In-process C# extensions',
+    detail: 'Run reviewed .NET functions, triggers, and procedures inside the server.',
+  },
 ];
 
 const outcomes = [
@@ -29,7 +33,7 @@ const outcomes = [
     label: 'Scale',
     title: 'Spend less time on sharding logic',
     detail:
-      'CamusDB partitions data and routes writes to the Raft leader that owns each key range.',
+      'CamusDB partitions data and routes each write to the leader of the partition that owns its key range.',
     link: '/docs/cluster',
     linkLabel: 'Explore cluster mode',
   },
@@ -51,6 +55,14 @@ const outcomes = [
     secondaryLink: '/docs/recover-dropped-objects',
     secondaryLinkLabel: 'See drop recovery',
   },
+  {
+    label: 'Extensibility',
+    title: 'Run business logic next to the data',
+    detail:
+      'Load reviewed C# code into the server as SQL functions, row triggers, and transactional procedures. Every microservice and every operator session then follows the same rules.',
+    link: '/docs/csharp-extensions',
+    linkLabel: 'See C# extensions',
+  },
 ];
 
 const sqlExamples = [
@@ -69,6 +81,60 @@ UPDATE accounts SET balance = balance - 100 WHERE id = "A";
 UPDATE accounts SET balance = balance + 100 WHERE id = "B";
 
 COMMIT;`,
+  },
+  {
+    id: 'extensions',
+    label: 'C# extensions',
+    title: 'Call C# code from SQL',
+    detail:
+      'Load a reviewed C# assembly into the server, then use its members as scalar functions, row triggers, and transactional procedures. The code runs in the database process, in the same transaction as the statement that invoked it.',
+    link: '/docs/csharp-extensions',
+    linkLabel: 'Read the extensions guide',
+    code: `-- slugify() is a C# method marked [CamusFunction].
+SELECT slugify(title) FROM posts;
+
+-- Fire a C# class for every changed row,
+-- inside the same transaction.
+CREATE TRIGGER audit ON orders
+AFTER INSERT, UPDATE, DELETE
+EXTERNAL NAME 'MyCompany.Ext.AuditTrigger';
+
+-- Run a multi-statement C# procedure atomically.
+CALL transfer('alice', 'bob', 30);`,
+  },
+  {
+    id: 'optimizer',
+    label: 'Query optimizer',
+    title: 'Let the optimizer plan a complex query',
+    detail:
+      'The cost-based optimizer uses table statistics to pick the join order, the access path for each table, and the join algorithm. Prefix the query with EXPLAIN to see the plan.',
+    link: '/docs/query-planning',
+    linkLabel: 'Read the query-planning guide',
+    code: `-- Join order, access paths, and join algorithms
+-- come from statistics, not from the text order.
+SELECT c.region,
+       COUNT(*)      AS paid_orders,
+       SUM(o.total)  AS revenue,
+       AVG(li.items) AS avg_items
+FROM orders o
+JOIN customers c ON c.id = o.customer_id
+JOIN (
+  SELECT order_id, COUNT(*) AS items
+  FROM order_items
+  GROUP BY order_id
+) li ON li.order_id = o.id
+WHERE o.status = "paid"
+  -- Eligible for an anti-join rewrite.
+  AND c.id NOT IN (SELECT customer_id FROM fraud_flags)
+  -- Eligible for an indexed seek per order.
+  AND EXISTS (
+    SELECT * FROM shipments s
+    WHERE s.order_id = o.id AND s.delivered = true
+  )
+GROUP BY c.region
+HAVING SUM(o.total) > 10000
+ORDER BY revenue DESC
+LIMIT 10;`,
   },
   {
     id: 'recovery',
@@ -194,6 +260,7 @@ function PyramidNetwork({className}) {
 function HomepageHeader() {
   return (
     <header className={styles.heroBanner}>
+      <div className={styles.heroClouds} aria-hidden="true" />
       <div className="container">
         <div className={styles.heroLayout}>
           <div className={styles.heroCopy}>
@@ -204,9 +271,9 @@ function HomepageHeader() {
               Scale with your traffic, without giving up transactions
             </Heading>
             <p className={styles.subtitle}>
-              CamusDB partitions data, routes writes through Raft, and runs
-              Serializable transactions by default, while your application uses
-              familiar SQL
+              CamusDB partitions data, replicates every write by consensus, and
+              runs Serializable transactions by default, while your application
+              uses familiar SQL
             </p>
             <div className={styles.buttons}>
               <Link className={clsx('button button--lg', styles.playgroundAction)} to="/playground">
@@ -221,7 +288,7 @@ function HomepageHeader() {
             </div>
             <p className={styles.statusNote}>
               <span className={styles.statusDot} aria-hidden="true" />
-              <Link className={styles.statusLink} to="/docs/caraxes">Jepsen-tested with Caraxes</Link>
+              <Link className={styles.statusLink} href="https://github.com/camusdb/camusdb-caraxes">Jepsen-tested with Caraxes</Link>
               <span aria-hidden="true">·</span>
               Actively used in production — some features are alpha
             </p>
@@ -251,7 +318,7 @@ function OutcomeSection() {
       <div className="container">
         <div className={styles.sectionIntro}>
           <p className={styles.sectionEyebrow}>Why look closer</p>
-          <Heading as="h2">Three practical reasons to explore CamusDB</Heading>
+          <Heading as="h2">Four practical reasons to explore CamusDB</Heading>
         </div>
         <div className={styles.outcomeGrid}>
           {outcomes.map((outcome) => (
@@ -316,8 +383,9 @@ function FamiliarSqlSection() {
             role="tabpanel"
             aria-labelledby={`sql-tab-${activeExample.id}`}>
             <div className={styles.exampleHeader}>
-              <span>{activeExample.label}</span>
+              <i className={styles.windowDots} aria-hidden="true" />
               <strong>{activeExample.title}</strong>
+              <span>{activeExample.label}</span>
             </div>
             <CodeBlock key={activeExample.id} language="camussql">
               {activeExample.code}
@@ -336,7 +404,11 @@ function FinalCallToAction() {
         <div>
           <p className={styles.sectionEyebrow}>Evaluate it for yourself</p>
           <Heading as="h2">See whether CamusDB fits your use case</Heading>
-          <p>Install the server from NuGet, run it locally, follow the tutorial, and review the current scope.</p>
+          <p>
+            Run the server locally from NuGet or Docker, or deploy a cluster with
+            the <Link to="/docs/kubernetes-operator">Kubernetes Operator</Link>. Then follow the
+            tutorial and review the current scope.
+          </p>
         </div>
         <div className={styles.finalActions}>
           <Link className={clsx('button button--lg', styles.playgroundAction)} to="/playground">
@@ -357,7 +429,7 @@ export default function Home() {
   return (
     <Layout
       title={siteConfig.title}
-      description="Explore CamusDB, an open-source distributed SQL database with partitioned writes, Serializable transactions, database branching, and recoverable drops.">
+      description="Explore CamusDB, an open-source distributed SQL database with partitioned writes, Serializable transactions, database branching, recoverable drops, and in-process C# extensions.">
       <HomepageHeader />
       <main>
         <OutcomeSection />

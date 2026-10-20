@@ -127,27 +127,35 @@ clause and plan it as a join predicate.
 
 ### How a join executes
 
-The planner selects one of three strategies for inner joins and eligible outer
-joins:
+For an inner join or a left outer join with an equality key, the planner selects
+one of three strategies:
 
 | Strategy | CamusDB selects it when | Shape of the cost |
 | --- | --- | --- |
-| An indexed lookup | The right side has an index on the column of the equality. | One probe for each outer row. |
-| A hash join | The join is larger, and it has no usable index. | It builds a hash table from the side that the estimate calls smaller. |
-| A merge join | Two compatible indexes already give both sides in the order of the join key. | It streams both sides. There is no phase for a build. |
+| An indexed lookup | The right side has an index on the column of the equality, and the outer side is small. | One probe for each outer row. |
+| A hash join | The right side has no usable index, or the outer side is large compared with the indexed side. | It builds a hash table from the side that the estimate calls smaller (the build side), then looks up each row of the other side (the probe side) in it. |
+| A merge join | Two compatible indexes already give both sides in the order of the join key, and the outer side is large. | It streams both sides. There is no phase for a build. |
 
-An index on the join column of the right side is the change with the highest
-value for a slow join. Without that index, every outer row scans the inner
-table.
+An equality join without an index uses a hash join. It does not scan the inner
+table once for each outer row. CamusDB plans a nested loop only when the join
+has no usable equality key, for example `ON o.total > c.credit_limit`. An equality
+between columns of different declared types, or on an array column, is not a
+usable key.
+
+An index on the join column of the right side helps most when the outer side is
+small, because each outer row becomes one index probe.
 
 A hash join can become too large. It can then divide the intermediate rows onto
 the disk, instead of a growth of the memory without a bound. That behavior needs
-[spill to disk](/docs/spill-to-disk).
+[spill to disk](/docs/spill-to-disk). With spill to disk off, a hash join whose
+build side passes `hash_join_max_build_rows` falls back to a nested loop.
 
 In a cluster with [distributed queries](/docs/distributed-queries) enabled,
 CamusDB can broadcast a small build side of a hash join. It sends that side to
-the nodes that own the partitions of the probe table. Those nodes probe locally.
-They return only the rows that matched. The output is the same in both cases.
+the nodes that own the [partitions](/docs/concepts#partition) (the units into
+which the cluster divides its data) of the probe table. Those nodes probe
+locally. They return only the rows that matched. The output is the same in both
+cases.
 
 For a left outer join, the preserved side must remain the probe side. A
 broadcast hash join is therefore not used for a left outer join, because a
@@ -212,8 +220,9 @@ ORDER BY email;
 ```
 
 The inner query can be indexed and eligible. CamusDB then runs a semi-join for
-an `IN`, and an anti-join for a `NOT IN`. It does not materialize the full inner
-result first.
+an `IN` (it keeps each outer row that has at least one match), and an anti-join
+for a `NOT IN` (it keeps each outer row that has no match). It does not
+materialize the full inner result first.
 
 `NOT IN` follows the null semantics of SQL. One `NULL` in the inner result makes
 every row that does not match evaluate to unknown. CamusDB drops those rows, and

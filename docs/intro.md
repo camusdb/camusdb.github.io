@@ -6,66 +6,30 @@ import CamusPlayground, {tutorialExamples} from '@site/src/components/CamusPlayg
 
 # CamusDB tutorial
 
-CamusDB is an open-source NewSQL distributed database. It runs on one node, or
-on a cluster of several nodes. It gives an application a full relational engine,
-and not a thin layer of SQL over a key/value store.
+This tutorial takes you from install to working SQL. You start a CamusDB node,
+create a database and a table, insert and query rows, add an index, rename
+objects, and update and delete data. You do it all from `camus-cli`, the
+interactive SQL shell, and you can try every step in your browser first.
 
-CamusDB includes these capabilities:
-
-- [Transactional SQL](/docs/sql), for a schema, a write, a read, an index, and
-  an aggregation. It also supports a join, a subquery, a derived table, a view,
-  and a materialized view.
-- [Serializable transactions](/docs/serializable-transactions) by default, with
-  the detection of a conflict. CamusDB uses two-phase commit for a write across
-  two partitions.
-- [Distributed storage](/docs/cluster) on the Raft consensus, with a leader for
-  each partition, and with a
-  [replicated schema](/docs/distributed-schema).
-- A [cost-based query planner](/docs/query-planning), with
-  [`EXPLAIN`](/docs/explain), statistics, an
-  [automatic analyze](/docs/automatic-analyze), and a
-  [cache of the results](/docs/query-result-cache).
-- A [branch of a database](/docs/database-branching), with a copy at the first
-  write.
-- A [time travel read](/docs/time-travel-reads), which reads the data at a point
-  in the past.
-- [Vector search](/docs/vector-search) over an embedding, with a distance
-  function that the CPU accelerates.
-- A [recoverable drop](/docs/recover-dropped-objects) of a database and of a
-  table.
-- Several interfaces: [`camus-cli`](/docs/camus-cli), a
-  [web console](/docs/web-console), an [HTTP API](/docs/http-api), a
-  [gRPC API](/docs/grpc-api), a
-  [TypeScript connector](/docs/typescript-connector), a
-  [driver for .NET](/docs/dotnet-driver), a
-  [Dapper adapter](/docs/dapper), a
-  [provider for EF Core](/docs/ef-core), and a
-  [server for the Model Context Protocol](/docs/mcp-server).
-
-This tutorial uses `camus-cli`, which is the interactive shell of SQL. It walks
-through the basic workflow, against a CamusDB node or a cluster that runs. The
-workflow has six steps:
-
-1. Create a database.
-2. Create a table.
-3. Insert some rows.
-4. Query the data.
-5. Add an index.
-6. Update a row, and delete one.
-
-Start with [Why CamusDB?](/docs/why-camusdb) for an overview at a higher level.
-That page explains the design of CamusDB as a distributed database of SQL.
+CamusDB is an open-source distributed SQL database with a full relational
+engine, not a thin SQL layer over a key/value store. The SQL in this tutorial
+runs the same on one node or on a cluster, so you can start small and add nodes
+later. To see what CamusDB adds over a single-node database, read
+[Why CamusDB?](/docs/why-camusdb).
 
 ## Try it in your browser
 
 You can run the tutorial commands here before installing anything. The embedded
 playground starts with a pre-created `playground` database, but you can also
-create your own database and switch with the database selector. Click the
-examples in order, then click **Run** for each one. You can also edit the SQL
-before running it.
+create your own database and switch with the database selector. Each step
+explains what its SQL does. Click **Run** to execute a step, then click
+**Next**. **Next** unlocks only after the current step runs without an error,
+so the steps always run in order. **Prev** goes back to an earlier step. You
+can also edit the SQL before running it.
 
 <CamusPlayground
   compact
+  guided
   seedScript=""
   examples={tutorialExamples}
   initialSql={tutorialExamples[0].sql}
@@ -151,8 +115,8 @@ $ camus-cli
 
 An interactive prompt appears:
 
-```camussql
-CamusDB SQL Shell 0.11.0
+```text
+CamusDB SQL Shell 0.16.0
 
 Connected to http://localhost:5096 over gRPC, database: (none)
 
@@ -207,7 +171,10 @@ an index than the text of a UUID.
 Show the tables of the current database:
 
 ```camussql
-camus> show tables
+SHOW TABLES;
+```
+
+```text
 ┌────────┐
 │ tables │
 ├────────┤
@@ -219,7 +186,10 @@ camus> show tables
 Show the columns of `robots`:
 
 ```camussql
-camus> show columns from robots
+SHOW COLUMNS FROM robots;
+```
+
+```text
 ┌───────┬───────────┬──────┬─────┬─────────┬───────┐
 │ Field │ Type      │ Null │ Key │ Default │ Extra │
 ├───────┼───────────┼──────┼─────┼─────────┼───────┤
@@ -242,7 +212,10 @@ SHOW INDEX FROM robots;
 Show the definition in SQL of the table:
 
 ```camussql
-camus> show create table robots;
+SHOW CREATE TABLE robots;
+```
+
+```text
 ┌────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ Table  │ Create Table                                                                                                                       │
 ├────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
@@ -281,7 +254,10 @@ VALUES (GEN_ID(), "K-2SO", "security", DEFAULT);
 Select the rows of the table:
 
 ```camussql
-camus> SELECT id, name, kind, year FROM robots ORDER BY year ASC;
+SELECT id, name, kind, year FROM robots ORDER BY year ASC;
+```
+
+```text
 ┌──────────────────────────┬───────┬──────────┬──────┐
 │ id                       │ name  │ kind     │ year │
 ├──────────────────────────┼───────┼──────────┼──────┤
@@ -296,7 +272,10 @@ camus> SELECT id, name, kind, year FROM robots ORDER BY year ASC;
 Filter the result with a `WHERE` clause:
 
 ```camussql
-camus> SELECT name, year FROM robots WHERE year >= 1980;
+SELECT name, year FROM robots WHERE year >= 1980;
+```
+
+```text
 ┌───────┬──────┐
 │ name  │ year │
 ├───────┼──────┤
@@ -309,7 +288,10 @@ camus> SELECT name, year FROM robots WHERE year >= 1980;
 `LIKE` and `ILIKE` match a pattern:
 
 ```camussql
-camus> SELECT id, name FROM robots WHERE name ILIKE "r%";
+SELECT id, name FROM robots WHERE name ILIKE "r%";
+```
+
+```text
 ┌──────────────────────────┬───────┐
 │ id                       │ name  │
 ├──────────────────────────┼───────┤
@@ -351,7 +333,8 @@ ALTER TABLE robots RENAME TO machines;
 
 ## Update rows
 
-An `UPDATE` in SQL needs a `WHERE` clause.
+CamusDB requires a `WHERE` clause on every `UPDATE`. PostgreSQL and MySQL do
+not. To update every row, write `WHERE true`.
 
 ```camussql
 UPDATE machines
@@ -369,27 +352,13 @@ WHERE name = "T-800";
 
 ## Delete rows
 
-A `DELETE` in SQL also needs a `WHERE` clause.
+CamusDB also requires a `WHERE` clause on every `DELETE`. To delete every row,
+write `WHERE true`.
 
 ```camussql
 DELETE FROM machines
 WHERE name = "K-2SO";
 ```
-
-## Column types
-
-| SQL type | Notes |
-| --- | --- |
-| `OID` | Native object id values. |
-| `UUID` | Native 128-bit UUID values. Prefer this over `STRING` for UUID identifiers. |
-| `INT64` | Signed 64-bit integers. |
-| `FLOAT64` | Double-precision floating point values. |
-| `FLOAT32` | Single-precision floating point values. |
-| `BOOL` | Boolean values. |
-| `STRING`, `STRING(N)` | Text values, optionally with a maximum length. |
-| `DATE`, `DATETIME` | Calendar dates and UTC instants. |
-| `BYTES` | Opaque byte strings. |
-| `ARRAY(T)` | Ordered lists of scalar values. |
 
 Continue with three pages: the [SQL overview](/docs/sql),
 [Data Types](/docs/data-types), and

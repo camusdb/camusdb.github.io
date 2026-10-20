@@ -4,9 +4,12 @@ sidebar_position: 3.74
 
 # SHOW RANGES
 
-`SHOW RANGES` shows how CamusDB currently routes a table or index key space.
-Use it to see whether a relation is hash-routed or key-range-routed, whether a
-range split happened, and which partition owns a key.
+`SHOW RANGES` shows how CamusDB currently routes a table or index
+[key space](/docs/concepts#key-space), the storage keys that hold its rows or
+index entries. Use it to see whether a relation is
+[hash-routed or key-range-routed](/docs/concepts#hash-and-key-range-routing),
+whether a [range](/docs/concepts#ranges-and-spans) split happened, and which
+[partition](/docs/concepts#partition) owns a key.
 
 ```camussql
 SHOW RANGES FROM TABLE users;
@@ -20,7 +23,8 @@ It answers operator questions that table statistics and engine metrics cannot:
 - Has this table or index split, or is it still one whole-space range?
 - Which partition serves each range?
 - Which range holds a hot row or index key?
-- Does this node believe a range leader is local or remote?
+- Does this node believe a range [leader](/docs/concepts#leader), the node that
+  coordinates its writes, is local or remote?
 - Is a plan's network cost high because the data is actually remote?
 
 For the cost a query paid, use [EXPLAIN](/docs/explain). For process-level
@@ -33,17 +37,17 @@ metrics, use [SHOW ENGINE STATS](/docs/engine-stats).
 | `relation` | `STRING` | Table name, or `table@index` for an index. |
 | `key_space` | `STRING` | Internal key-space prefix, such as `{databaseId}:{tableId}\|r` for table rows or `{databaseId}:{tableId}\|i:{indexId}` for an index. |
 | `routing` | `STRING` | `key_range` or `hash`, as this node routes it. |
-| `span` | `INT64` | 1-based position inside this key space. It is not a stable range id. |
+| `span` | `INT64` | 1-based position of this range inside the key space. It is not a stable range id. |
 | `start_key` | `STRING` | Decoded lower bound. `NULL` means unbounded. |
 | `end_key` | `STRING` | Decoded upper bound. `NULL` means unbounded. |
 | `raw_start_key` | `STRING` | Encoded lower bound. |
 | `raw_end_key` | `STRING` | Encoded upper bound. |
-| `partition_id` | `INT64` | Raft partition currently serving the span. |
-| `generation` | `INT64` | Routing generation. Hash routing reports `0`. |
+| `partition_id` | `INT64` | Partition currently serving the span. |
+| `generation` | `INT64` | Version of the range's routing. It advances when the range changes, for example after a split. Hash routing reports `0`. |
 | `leader` | `STRING` | Leader endpoint hint. `NULL` means unknown. |
 | `leader_is_local` | `BOOL` | Whether this node believes it leads the span. |
 | `hosted_locally` | `BOOL` | Whether this node hosts the partition. |
-| `replicas` | `STRING` | Comma-separated replica endpoints. Empty means legacy full replication. |
+| `replicas` | `STRING` | Comma-separated endpoints of the nodes that hold a copy ([replica](/docs/concepts#replica-and-replication-factor)) of the partition. Empty means full replication: every node holds it. |
 | `probe_key` | `STRING` | Exact key located by `FOR ROW`; `NULL` in plural forms. |
 
 Read `partition_id`, not `span`, when comparing two runs. A split can renumber

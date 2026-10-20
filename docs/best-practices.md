@@ -13,13 +13,16 @@ which case applies.
 
 Read this section first. The other practices follow from it.
 
-- **Hash routing** is the default. All rows of a table, and all of its secondary
-  indexes, live on one Raft partition. The choice of a key does not spread one
-  table across partitions.
-- **Key-range sharding** routes each key space by key order. The rows of a
-  table, its large values, and each secondary index are separate key spaces. A
-  key space starts as one range. It can then split into ranges that different
-  partitions serve.
+- **[Hash routing](/docs/concepts#hash-and-key-range-routing)** is the
+  default. All rows of a table, and all of its secondary indexes, live on one
+  [partition](/docs/concepts#partition), a slice of the data that one group of
+  nodes replicates. The choice of a key does not spread one table across
+  partitions.
+- **Key-range sharding** routes each [key space](/docs/concepts#key-space) by
+  key order. The rows of a table, its large values, and each secondary index are
+  separate key spaces. A key space starts as one
+  [range](/docs/concepts#ranges-and-spans). It can then split into ranges that
+  different partitions serve.
 
 CamusDB stores a row under an internal row id, and not under the primary key.
 The row id is an ObjectId with a timestamp prefix. The primary key is a unique

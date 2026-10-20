@@ -183,6 +183,19 @@ snapshot. A reader that starts after the change sees the new contents complete.
 Nobody waits. Nobody ever observes a materialized view that is half built. That
 is true for a short moment, and it is true on every node of a cluster.
 
+```mermaid
+sequenceDiagram
+    participant A as Running reader
+    participant R as REFRESH
+    participant M as customer_totals
+    participant B as Later reader
+    A->>M: Read the previous contents at its snapshot
+    R->>R: Build and fill a new relation
+    R->>M: Move the name onto the new relation<br/>in one atomic schema change
+    A->>M: Continue on the previous contents
+    B->>M: Read the new contents, complete
+```
+
 For that reason, CamusDB refuses `REFRESH MATERIALIZED VIEW ... CONCURRENTLY`
 with `CADB0533`. It does not accept the word as a synonym.
 
@@ -211,7 +224,8 @@ CamusDB refuses a second one with `CADB0532` while the first is in flight. The
 node of the second statement does not matter.
 
 A refresh can stop without a failure, because the process died or the node lost
-its leadership in the middle. A background sweep then takes that refresh, and it
+its [leadership](/docs/concepts#leader) (its role as the coordinating node) in
+the middle. A background sweep then takes that refresh, and it
 runs the refresh again from the start. `materialized_view_refresh_takeover_attempts`
 caps the number of those attempts.
 
@@ -257,21 +271,10 @@ caller.
 
 ## A truncate of a base table
 
-[`TRUNCATE`](/docs/truncate-table) empties a base table. A materialized view
-that reads that table keeps the rows of its last refresh, and it becomes stale.
-
-That behavior matches the treatment of `INSERT`, `UPDATE`, and `DELETE`. No
-mutation of a base table invalidates a dependent materialized view. Run a
-refresh when you want the view to agree:
-
-```camussql
-TRUNCATE TABLE orders;
-REFRESH MATERIALIZED VIEW orders_by_day;
-```
-
-CamusDB refuses a truncate of a materialized view itself, with `CADB0525`
-`ViewNotUpdatable`. Use `REFRESH MATERIALIZED VIEW ... WITH NO DATA` to empty
-one.
+A [`TRUNCATE`](/docs/truncate-table) of a base table leaves a dependent
+materialized view stale, like any other write to that table. You cannot truncate
+a materialized view itself. See
+[TRUNCATE TABLE](/docs/truncate-table#a-dependent-view).
 
 ## Introspection
 
@@ -301,14 +304,11 @@ All three settings appear in [`SHOW VARIABLES`](/docs/show-variables).
 
 ## Not implemented yet
 
-- An incremental refresh, which is `REFRESH MATERIALIZED VIEW ...
-  CONCURRENTLY`. It would write only the rows that changed, instead of a
-  rebuild. The plain form works, and it blocks no reader.
-- A resume of an interrupted refresh in the middle of its scan. CamusDB restarts
-  such a refresh from the start. It does not continue from the point of the
-  stop. See [One refresh at a time](#one-refresh-at-a-time). The work of the
-  dead run is therefore paid for again. The materialized view stays untouched
-  during that time. Nothing is left in an inconsistent state.
+- An incremental refresh (`REFRESH MATERIALIZED VIEW ... CONCURRENTLY`). See
+  [What a refresh does to a reader](#what-a-refresh-does-to-a-reader).
+- A resume of an interrupted refresh from the point where it stopped. CamusDB
+  restarts it from the start. See [One refresh at a
+  time](#one-refresh-at-a-time).
 
 ## Related pages
 

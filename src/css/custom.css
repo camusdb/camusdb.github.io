@@ -17,8 +17,9 @@
   --ifm-navbar-link-hover-color: #2d70f0;
   --ifm-footer-background-color: #100f2f;
   --ifm-code-font-size: 95%;
+  --ifm-font-family-monospace: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
   --ifm-h1-font-size: 2.2rem;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
 }
 
 .markdown h1:first-child,
@@ -49,7 +50,6 @@ h1 {
   --ifm-tabs-color-active-border: #78b4fb;
   --ifm-background-color: #100f2f;
   --ifm-background-surface-color: #151a53;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
 
 [data-theme='dark'] .table-of-contents__link--active,
@@ -127,23 +127,84 @@ h1 {
   width: 100%;
 }
 
-.language-camussql .token.builtin,
-.language-camussql .token.class-name {
-  color: #0f8a74;
-  font-weight: 600;
+/* Code blocks: the dark editor surface and type of the front page SQL examples. */
+.theme-code-block {
+  --docusaurus-highlighted-code-line-bg: rgba(96, 165, 250, 0.14);
+  border: 1px solid rgba(148, 163, 184, 0.16);
 }
 
-.language-camussql .token.number,
-.language-camusdbsql .token.number {
-  color: #008aa8;
+.theme-code-block pre {
+  font-size: 0.84rem;
+  line-height: 1.75;
 }
 
-[data-theme='dark'] .language-camussql .token.builtin,
-[data-theme='dark'] .language-camussql .token.class-name {
-  color: #66d9c3;
+/* Footer: a dark navy band that matches the hero and the final call to action. */
+.footer--dark {
+  --ifm-footer-background-color: #050b1a;
+  --ifm-footer-color: #8ea3c2;
+  --ifm-footer-link-color: #a9bbd6;
+  --ifm-footer-link-hover-color: #ffffff;
+  --ifm-footer-title-color: #e6efff;
+  --ifm-footer-padding-vertical: 4rem;
+  border-top: 1px solid rgba(111, 180, 255, 0.14);
+  background:
+    radial-gradient(60% 120% at 0% 0%, rgba(45, 112, 240, 0.12), transparent 60%),
+    var(--ifm-footer-background-color);
 }
 
-[data-theme='dark'] .language-camussql .token.number,
-[data-theme='dark'] .language-camusdbsql .token.number {
-  color: #67e8f9;
+.footer--dark .footer__title {
+  margin-bottom: 1rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.footer--dark .footer__item {
+  margin-bottom: 0.55rem;
+}
+
+.footer--dark .footer__link-item {
+  overflow-wrap: anywhere;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  transition: color 160ms ease;
+}
+
+.footer--dark .footer__link-item:hover {
+  text-decoration: none;
+}
+
+.footer--dark .footer__bottom {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.footer--dark .footer__copyright {
+  font-size: 0.82rem;
+}
+
+@media (max-width: 996px) {
+  .footer--dark .footer__links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2rem 1rem;
+    margin: 0;
+  }
+
+  .footer--dark .footer__col {
+    margin-bottom: 0;
+    padding: 0;
+  }
+
+  .footer--dark .footer__link-item {
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .footer--dark .footer__link-item {
+    transition: none;
+  }
 }

@@ -4,12 +4,19 @@ sidebar_position: 7.3
 
 # TypeScript
 
-CamusDB ships a Node.js connector for TypeScript and JavaScript applications.
-The package name is `camusdb`.
+The `camusdb` package connects a Node.js application (a web server, an API, or a
+background worker) to CamusDB, so you do not write HTTP or gRPC calls by hand.
+You pass typed parameters, `transaction()` retries serializable conflicts for
+you, and in a multi-node cluster learned routing can send a statement straight
+to the node that leads its data. It works from TypeScript and JavaScript.
 
-It supports REST and gRPC transports, typed parameters, transactions, automatic
-prepared statements, authentication, learned routing, database branches, query
-result cache metadata, and online backup administration.
+For an interactive SQL session, use [camus-cli](/docs/camus-cli). For a script
+that needs no library, use the [HTTP API](/docs/http-api).
+
+The connector also supports REST and gRPC transports, transaction pipelines,
+automatic prepared statements, authentication, database branches, query result
+cache metadata, online backup administration, node statistics, and
+OpenTelemetry.
 
 The connector requires Node.js 20.19 or later, or Node.js 22.12 or later on the
 22 line. It ships as ECMAScript modules with TypeScript declarations.
@@ -25,6 +32,13 @@ set `protocol: 'grpc'`:
 
 ```bash
 npm install @grpc/grpc-js @grpc/proto-loader
+```
+
+Install the optional OpenTelemetry API when the application collects driver
+traces or metrics:
+
+```bash
+npm install @opentelemetry/api
 ```
 
 ## Create a client
@@ -71,6 +85,7 @@ them and sets aside an unreachable endpoint for 30 seconds.
 | `coalescingDelayMs` | `CoalescingDelay` | gRPC coalescing delay in milliseconds. Default is `0`. |
 | `requestFrames` | `RequestFrames` | gRPC only. Packs operations that are already waiting together into one stream message when the server supports it. Default is `true`. |
 | `streamDrainTimeoutMs` | `StreamDrainTimeout` | gRPC only. How long a rotated-out stream can stay open for transactions that began on it. Default is `300000`. |
+| `httpVersion` | `HttpVersion` | REST only. Node's `fetch` supports `1.1`, the default. The connector rejects `2` and `3`; gRPC always uses HTTP/2. |
 | `backupEndpoint` | `BackupEndpoint` | HTTP endpoint for the backup admin API. Required when `protocol` is `grpc`. |
 | `backupTimeoutSeconds` | `BackupTimeout` | Backup admin timeout in seconds. Default is `300`. |
 | `allowInsecureCredentials` | `AllowInsecureCredentials` | Allows credentials over a remote plaintext endpoint. Use only behind a trusted TLS terminator or private hop. |
@@ -79,6 +94,7 @@ them and sets aside an unreachable endpoint for 30 seconds.
 | `routingMaxHintAgeMs` | `RoutingMaxHintAge` | Maximum reuse age for a learned route. Default is `5000`. |
 | `defaultTransactionOptions` | `IsolationLevel`, `TransactionMode`, `Locking` | Defaults for transactions and autocommit statements. |
 | `int64` | `Int64` | `auto`, `number`, or `bigint`. Default is `auto`. |
+| `traceQueryText` | `TraceQueryText` | Adds SQL text to OpenTelemetry spans. Default is `false`, because SQL literals can contain sensitive data. |
 
 Connection string keys are case-insensitive and trimmed. Repeating a key is an
 error. Quote a value with single or double quotes when it contains a semicolon
@@ -280,13 +296,53 @@ await client.execute(
 await txn.commit();
 ```
 
-Transaction options include `isolationLevel`, `mode`, `locking`, and, with
-learned routing, `affinity`. The connector exports
+Transaction options include `isolationLevel`, `mode`, `locking`, `deferBegin`,
+and, with learned routing, `affinity`. With `deferBegin: true`, the connector
+sends `BEGIN` with the first statement instead of making a separate request.
+The connector exports
 `OPTIMISTIC_TRANSACTION_OPTIONS` and `SNAPSHOT_TRANSACTION_OPTIONS`.
 
 Use `withRetry(...)` around your own idempotent units of work. `CADB0509`
 `TransactionFinalizeUnresolved` is handled by retrying the same commit on the
 same handle; it is not a signal to replay the whole transaction.
+
+### Pipelined transactions
+
+Use a transaction pipeline when several statements have independent inputs.
+The connector queues them and, over gRPC with request frames, sends each group
+in one stream message:
+
+```ts
+import { CamusLocking } from 'camusdb';
+
+const txn = await client.beginTransaction({
+  locking: CamusLocking.Optimistic,
+  deferBegin: true,
+});
+
+const pipeline = txn.pipeline();
+const first = pipeline.query<{ balance: number }>(
+  'SELECT balance FROM accounts WHERE id = @id', { id: firstId },
+);
+const second = pipeline.query<{ balance: number }>(
+  'SELECT balance FROM accounts WHERE id = @id', { id: secondId },
+);
+
+await pipeline.send();
+console.log((await first).rows, (await second).rows);
+
+pipeline.execute('UPDATE accounts SET balance = @balance WHERE id = @id', {
+  id: firstId,
+  balance: 100,
+});
+await pipeline.commit();
+```
+
+`pipeline.commit()` commits only after every queued statement succeeds.
+`pipeline.exchanges` reports the round trips used. REST, older servers, and
+gRPC clients with `requestFrames: false` preserve the same behavior by running
+the queued operations sequentially. DDL and `TRUNCATE` cannot be queued in a
+transaction pipeline.
 
 ## Prepared statements
 
@@ -337,7 +393,9 @@ const client = new CamusClient({
 ```
 
 gRPC statements ride a small pool of long-lived `BatchExecute` streams and carry
-the session causal token between requests.
+the session's causal token between requests. The causal token is a cluster
+timestamp ([HLC](/docs/concepts#hlc)) that lets a session read its own writes on
+any node.
 
 When a server announces support for gRPC request frames, the connector can pack
 operations that are already waiting together into one stream message. This is on
@@ -349,7 +407,8 @@ retired stream stays open for transactions that began on it until they finish,
 or until `streamDrainTimeoutMs` elapses.
 
 For multi-node clusters, learned routing can use server routing advice to send
-future executions of the same statement directly to the data leader:
+future executions of the same statement directly to the node that
+[leads](/docs/concepts#leader) the data it touches:
 
 ```ts
 const client = new CamusClient({
@@ -447,6 +506,36 @@ const full = await client.backups.takeFullBackup();
 const catalog = await client.backups.listBackups();
 const preview = await client.backups.previewGarbageCollection();
 ```
+
+### Node statistics
+
+`nodeStats()` returns the disk, CPU, and memory reported by one node over REST
+or gRPC. Call it for each configured endpoint to inspect a cluster:
+
+```ts
+for (const endpoint of client.endpoints) {
+  const stats = await client.nodeStats(endpoint);
+  console.log(stats.address, stats.cpu.processCpuPercent);
+}
+```
+
+Each node answers only for itself. An explicitly supplied endpoint must be in
+`client.endpoints`, and unavailable fields are `-1` with details in `errors`.
+When authentication is enabled, this call requires a superuser or
+`GRANT MONITOR ON *.*`.
+
+## OpenTelemetry
+
+With `@opentelemetry/api` installed and an OpenTelemetry SDK registered, the
+connector emits client spans and `db.client.operation.duration` for statements,
+typed inserts, transaction boundaries, and pipeline batches. It also records
+retry, endpoint quarantine, and prepared-statement metrics under the `camusdb`
+instrumentation scope.
+
+Spans include the database, operation, transport, destination endpoint, and
+error code. They follow the active OpenTelemetry context, so transport spans
+become children of the database operation. Set `traceQueryText: true` only when
+recording SQL text is acceptable; parameter values are never recorded.
 
 ## Process lifetime
 

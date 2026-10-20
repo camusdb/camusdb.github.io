@@ -122,8 +122,8 @@ SELECT SUM(CASE WHEN status = "paid" THEN amount ELSE 0 END) AS paid_total
 FROM orders;
 ```
 
-`CASE` and `END` are reserved keywords. A column with the name `end` needs
-backticks: ``SELECT `end` FROM events``.
+`CASE` and `END` are reserved keywords. See
+[Backticks](/docs/sql#backticks) to use one as a column name.
 
 ## Filter the rows
 
@@ -174,7 +174,7 @@ WHERE username ~ "^[a-zA-Z][a-zA-Z0-9_]{2,29}$";
 
 SELECT sku
 FROM products
-WHERE sku !~ "\\s";
+WHERE sku !~ "\s";
 ```
 
 A pattern has no anchor of its own. It matches at any position of the value,
@@ -298,6 +298,18 @@ FROM app_users
 GROUP BY role
 ORDER BY cnt DESC, role;
 ```
+
+An alias in `ORDER BY` outranks a base column of the same name. In a query
+without `GROUP BY`, an expression in `ORDER BY` can also read a column that the
+`SELECT` list does not project.
+
+Two `ORDER BY` shapes are refused with `CADB0400 InvalidInput`:
+
+- An aggregate function in `ORDER BY` without a `GROUP BY` clause.
+- In a grouped query, a computed expression that is not in the `SELECT` list or
+  the `GROUP BY` clause. A grouped query sorts after the projection, so a base
+  column that the expression names no longer exists at that point. Project the
+  value first, then sort by the alias.
 
 An index can already give the requested order. The planner then omits the sort
 completely. An `ORDER BY` with a `LIMIT` on an indexed column is therefore much

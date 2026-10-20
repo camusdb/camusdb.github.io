@@ -9,6 +9,31 @@ endpoint of gRPC uses HTTP/2, on its own port. It reaches the same engine as the
 endpoints of HTTP. That engine covers the SQL, the transactions, and the
 operations on a row.
 
+[gRPC](https://grpc.io/) is a protocol for calls between programs. A client
+calls typed methods that a `.proto` file defines. The messages travel in a
+compact binary format over HTTP/2, so each call costs less than the same call
+with JSON.
+
+## When to use the gRPC API
+
+Most applications do not call this API directly. The
+[.NET driver](/docs/dotnet-driver) and the
+[TypeScript connector](/docs/typescript-connector) already speak gRPC. Set
+their protocol option to `grpc`. Use this page when you write a client in a
+language without a CamusDB driver, or when you want to know what a driver does.
+
+| | [HTTP API](/docs/http-api) | [gRPC API](/docs/grpc-api) |
+| --- | --- | --- |
+| Format | JSON text | Protobuf, a compact binary format |
+| What a client needs | Any HTTP client, such as `curl` | Bindings that you generate from the `.proto` file |
+| Good for | Scripts, automation, health checks, quick tests, and languages without a CamusDB driver | High request rates, long result streams, and many statements over one duplex stream |
+| Default port | `5095` | `5096` |
+
+Both APIs reach the same engine, with the same SQL, the same transactions, and
+the same errors.
+
+## Enable and configure the endpoint
+
 The endpoint is enabled by default. Configure it in `config.yml`. You can also
 disable it there:
 
@@ -19,7 +44,8 @@ grpc_certificate:
 ```
 
 Set `grpc_certificate` to a PFX certificate for the client-facing gRPC
-listener. If it is empty, CamusDB reuses a configured `raft_certificate`.
+listener. If it is empty, CamusDB reuses a configured `raft_certificate`, the
+certificate of the node's internal cluster port.
 Without either certificate, the listener uses HTTP/2 over plaintext. That form
 suits local development and a private test network.
 
@@ -114,10 +140,8 @@ propagates cancellation into the query pipeline. CamusDB stops scans, joins,
 grouping, sorting, distinct, and subqueries at their next storage read or
 operator boundary instead of continuing work for a caller that has gone away.
 
-`BatchExecute` applies server-side backpressure with
-`grpc_batch_max_in_flight`. Once a stream reaches that many in-flight
-operations, the server stops pulling more requests from the stream until work
-finishes.
+`BatchExecute` also applies server-side backpressure; see
+[Duplex batching](#duplex-batching).
 
 ## Row service
 
@@ -163,6 +187,7 @@ types of a column of CamusDB:
 | `DATETIME` | `datetime_value` | UTC .NET ticks. |
 | `ARRAY` | `array_value` | Element type plus nested `Value` items. |
 | `UUID` / `GUID` | `uuid_value` | Exactly 16 bytes in canonical big-endian order. |
+| `NUMERIC` | `numeric_value` | Canonical decimal text with at most 9 fractional digits, such as `"-12.5"`. |
 
 These rules matter to a person who writes a client:
 
@@ -245,8 +270,9 @@ admission, and for the configuration.
 
 ## Causal tokens
 
-Replies that advance transaction state include a causal token with three HLC
-components:
+Replies that advance transaction state include a causal token: a cluster
+timestamp with the three parts of a [hybrid logical clock (HLC)](/docs/concepts#hlc)
+value:
 
 - `causal_token_n`
 - `causal_token_l`
@@ -283,6 +309,20 @@ Each request contains:
 The responses of two different values of a `request_id` can mix. They can also
 arrive out of their order. A client must separate them by the `request_id`.
 
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+    Note over C,S: One BatchExecute stream
+    C->>S: request_id 1, QUERY
+    C->>S: request_id 2, NON_QUERY
+    S-->>C: request_id 2, final response
+    S-->>C: request_id 1, schema
+    S-->>C: request_id 1, row
+    S-->>C: request_id 1, query_complete
+    Note over C: Match each response to its operation by request_id
+```
+
 A batched query emits:
 
 ```text
@@ -307,9 +347,9 @@ stream of a batch. A client can use several streams of a batch. It must then put
 every operation of one transaction on the same stream. An operation in autocommit
 mode can use any stream.
 
-`grpc_batch_max_in_flight` controls the number of the operations that one stream
-of a batch executes at the same time. Past that number, the server applies
-back-pressure.
+`grpc_batch_max_in_flight` controls how many operations one batch stream
+executes at the same time. Once a stream reaches that many in-flight operations,
+the server stops pulling more requests from the stream until work finishes.
 
 ## Batch stream frames
 
@@ -364,6 +404,19 @@ message. This lets a client send a bank-style transaction in two frames, such as
 `[UPDATE a, UPDATE b, COMMIT_IF_OK]` by handle. A client may use
 `txn_start_ref` on `COMMIT_IF_OK` too when the whole transaction fits in one
 frame.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+    S-->>C: Response header camusdb-batch-frames 2
+    C->>S: Frame 1 with START, SELECT a, SELECT b
+    Note over S: The SELECT items name the START by txn_start_ref
+    S-->>C: Replies for START (with the real handle), SELECT a, SELECT b
+    C->>S: Frame 2 with UPDATE a, UPDATE b, COMMIT_IF_OK by handle
+    Note over S: COMMIT_IF_OK commits only if no earlier operation failed
+    S-->>C: Commit reply, or the first failure after a rollback
+```
 
 Only send `txn_start_ref` or `COMMIT_IF_OK` on a stream whose
 `camusdb-batch-frames` header announced version `2` or higher. A version 1

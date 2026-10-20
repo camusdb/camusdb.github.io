@@ -4,15 +4,34 @@ sidebar_position: 4
 
 # Distributed transactions and HLC
 
-A transaction can touch data on more than one partition. The storage layer then
-coordinates the work with two-phase commit, or 2PC. The transaction commits on
-every partition, or it aborts on every partition.
+A transaction can touch data on more than one
+[partition](/docs/concepts#partition), the slice of data that one group of nodes
+replicates together. The storage layer then coordinates the work with
+[two-phase commit](/docs/concepts#two-phase-commit), or 2PC. The transaction
+commits on every partition, or it aborts on every partition.
+
+For your application, this means that a transaction in a cluster behaves like a
+transaction on one node. You do not need to know which partition holds a row.
+You do not write compensation code for a transfer that succeeds on one
+partition and fails on another, because that case cannot occur. You use
+`BEGIN` and `COMMIT` as usual. The only addition is a retry loop for a
+conflict, which a serializable transaction needs on one node too. See
+[Retries and conflicts](/docs/serializable-retries).
+
+You do not need this page to write correct application code. Read it when you
+want to know what happens below `COMMIT` in a cluster, or when you diagnose a
+slow commit across partitions.
+
+The HLC in the title is a [hybrid logical clock](/docs/concepts#hlc). It gives each transaction a
+timestamp that all nodes order the same way, even when their clocks differ a
+little. See [How HLC timestamps fit in](#how-hlc-timestamps-fit-in).
 
 CamusDB uses two components for this work:
 
-- [Kahuna](https://kahunakv.github.io/) executes transactional key/value work.
-- [Kommander](https://kahunakv.github.io/kommander.github.io/) replicates each
-  partition with the Raft algorithm.
+- [Kahuna](/docs/concepts#kahuna) executes transactional key/value work.
+- [Kommander](/docs/concepts#kommander) replicates each partition with the
+  [Raft](/docs/concepts#raft) consensus algorithm, which commits a write once a
+  [majority](/docs/concepts#majority) of the partition's copies has it.
 
 This page gives the guarantee first. It then describes the flow under the
 guarantee.
@@ -41,33 +60,83 @@ CamusDB can therefore run work of these four kinds:
 4. Indexed point writes together with range reads, in one serializable
    read-write unit.
 
-## Why 2PC exists
+## How a commit works
 
-In a distributed database, two keys can belong to two different partition
-leaders. One node cannot safely mark the whole transaction committed. It must
-first confirm that every partition that the transaction touched is ready.
+In PostgreSQL, one server decides whether a transaction committed. In a
+cluster, two keys can belong to partitions with different
+[leaders](/docs/concepts#leader), the node that accepts writes for a partition.
+No single node can mark the whole transaction committed until every partition
+that the transaction touched is ready. Two-phase commit solves this: first every
+participant prepares, then every participant commits, or every participant
+rolls back.
 
-CamusDB uses two-phase commit for that purpose:
+A read-write transaction follows this path:
 
-1. A transaction runs through a Kahuna coordinator session.
-2. The SQL operations register their confirmed writes, their locks, and their
-   read observations with that coordinator session.
-3. At commit, CamusDB asks each partition that the transaction touched to
-   prepare the registered mutations.
-4. The transaction commits if every participant prepares successfully.
-5. The transaction aborts if a participant cannot prepare. CamusDB then rolls
-   the prepared work back.
+1. `BEGIN` asks Kahuna to start a transaction. Kahuna returns an HLC
+   transaction id, which is the start timestamp, and a handle to a coordinator
+   session. The coordinator session is the server-side record that tracks the
+   transaction until it ends.
+2. The SQL statements read rows, write rows, maintain the indexes, and acquire
+   locks. Each successful operation registers its confirmed writes, its locks,
+   and its tracked reads with the coordinator.
+3. CamusDB pins the schema version of each table that the work touches.
+4. At `COMMIT`, CamusDB validates the schema pins, so the transaction cannot
+   commit against a table definition that became incompatible while it ran. It
+   then sends the transaction handle to Kahuna.
+5. Kahuna validates the read dependencies, when the transaction needs that
+   check.
+6. Kahuna prepares the registered mutations on every partition that the
+   transaction touched, with a fresh commit timestamp. These partitions are the
+   participants.
+7. Kahuna checks for a conflicting [write intent](/docs/concepts#write-intent)
+   (an uncommitted write from another transaction) on the read keys, when the
+   execution path requires that check.
+8. If every participant prepared, Kahuna commits the prepared mutations on all
+   of them. If any participant failed to prepare, Kahuna rolls the prepared work
+   back on all of them.
+9. The coordinator releases the registered locks and finalizes the session.
 
-The result is an atomic commit across partitions. All the data does not have to
-live on one leader.
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant C as CamusDB
+    participant K as Kahuna coordinator
+    participant P1 as Partition A
+    participant P2 as Partition B
+    App->>C: BEGIN
+    C->>K: Open a transaction
+    K-->>C: HLC timestamp and coordinator handle
+    App->>C: SQL reads and writes
+    C->>K: Register writes, locks and reads
+    App->>C: COMMIT
+    Note over C: Validate the schema pins
+    C->>K: Commit the transaction handle
+    Note over K: Validate the read dependencies
+    K->>P1: Prepare registered mutations
+    K->>P2: Prepare registered mutations
+    alt Prepare succeeded everywhere
+        K->>P1: Commit
+        K->>P2: Commit
+    else Prepare failed on a participant
+        K->>P1: Roll back
+        K->>P2: Roll back
+    end
+    Note over K: Release the locks, finalize the session
+```
+
+The result is an atomic commit across partitions. The data does not have to
+live on one leader. The cluster tests of CamusDB exercise this path for a
+transaction across partitions. For the order in which Kahuna commits the
+participants and makes the decision durable, see
+[Transaction internals](/docs/transactions-locking-internals#the-durability-of-a-commit-decision).
 
 ## Durability across a leader change
 
 CamusDB stores a committed transactional write through the same replicated
-partition log as an ordinary write. A participant is not durably committed until
-two conditions hold. Its partition accepted the commit through
-[Kommander](https://kahunakv.github.io/kommander.github.io/), and
-[Kahuna](https://kahunakv.github.io/) can restore the committed entry.
+partition log, the partition's [write-ahead log](/docs/concepts#wal), as an
+ordinary write. A participant is not durably committed until
+two conditions hold. Its partition accepted the commit through Kommander, and
+Kahuna can restore the committed entry.
 
 That matters during a failure:
 
@@ -76,9 +145,10 @@ That matters during a failure:
   needed.
 - A partition leader can change. The new leader continues from a log state that
   Raft made safe. It can continue to serve the partition.
-- A transaction can install a durable commit decision. The partition that owns
-  the decision anchor can then drive the remaining participant commits. It does
-  so even after the original live coordinator disappears.
+- A transaction can install a durable commit decision. The partition that stores
+  that decision, called the decision anchor, can then drive the remaining
+  participant commits. It does so even after the original live coordinator
+  disappears.
 - A failure can happen before CamusDB installs a durable commit decision.
   CamusDB then does not report the transaction as a committed SQL result. Your
   application must replay the business operation from `BEGIN` if it still wants
@@ -112,27 +182,6 @@ still treat a failed explicit serializable transaction as a failed unit. Replay
 the whole transaction from `BEGIN`. The business logic may observe different data
 on the next attempt.
 
-## The 2PC flow
-
-For a write transaction, the commit path has these steps:
-
-1. CamusDB opens a transaction. It receives a transaction timestamp from Kahuna,
-   and a coordinator handle.
-2. The SQL statements read rows, write rows, maintain the indexes, and acquire
-   locks.
-3. Each successful transactional operation registers itself with the
-   coordinator.
-4. At `COMMIT`, CamusDB sends the transaction handle to Kahuna.
-5. Kahuna validates that the transaction can still commit.
-6. Kahuna prepares the registered mutations on the affected partitions.
-7. Kahuna commits the prepared mutations if the prepare step succeeds
-   everywhere.
-8. Kahuna rolls the prepared mutations back if the prepare step fails anywhere.
-9. CamusDB releases the locks after the transaction ends.
-
-The cluster tests of CamusDB exercise this path for a transaction across
-partitions.
-
 ## Conflict detection
 
 The current implementation uses a combination of five mechanisms:
@@ -153,12 +202,16 @@ key.
 
 ### Phantom protection
 
-CamusDB can hold shared range locks for a range read in a key-range-routed
-execution path. A concurrent transaction then cannot insert, change, or delete a
-row inside the protected scan range while that scan is active.
+Every scan in a serializable read-write transaction takes a shared range lock
+over the [span](/docs/concepts#ranges-and-spans), the contiguous run of keys,
+that it reads. This happens under both
+[hash routing and key-range routing](/docs/concepts#hash-and-key-range-routing).
+Under key-range routing, a Read Committed read-write transaction also takes the
+scan lock, so that pages served by several ranges form one consistent read.
 
-This mechanism prevents a phantom anomaly on those scan-based paths. Concurrent
-readers can still continue.
+A concurrent transaction cannot insert, change, or delete a row inside a locked
+range until the lock holder commits or rolls back. This prevents phantoms.
+Concurrent readers can still continue.
 
 The same idea of predicate protection also applies to a serializable read-write
 transaction. It protects the read set that the transaction must preserve until
@@ -182,13 +235,15 @@ signal to retry. It is not a silent defect in correctness.
 Every distributed transaction needs an order that works across nodes. CamusDB
 uses Hybrid Logical Clock timestamps, or HLC timestamps, through Kahuna.
 
-An HLC timestamp has two parts:
+An HLC timestamp has three parts:
 
-- `L` is the logical wall-clock component.
+- `N` is the id of the node that issued the timestamp.
+- `L` is the physical time in milliseconds.
 - `C` is a counter. CamusDB uses it when physical time alone cannot preserve the
   order.
 
-The local `HLCTimestamp` type of CamusDB shows that timestamp as `HLC(L:C)`.
+Timestamps sort by `L`, then by `C`, then by `N`. The node id breaks ties, so two
+nodes never produce equal timestamps.
 
 ## Why HLC instead of plain wall-clock time
 
@@ -231,67 +286,20 @@ newer than the start time of transaction A. The commit timestamp of B then
 advances by the same amount. CamusDB does not commit B with an older timestamp,
 because that timestamp would break the serial order.
 
-## Internal commit flow
+## Retryable failures
 
-Internally, CamusDB and Kahuna follow this shape:
+A conflict, a failed prepare, or a passed lifetime deadline aborts the
+transaction with nothing committed. Replay the whole transaction from `BEGIN`.
+These failures are how CamusDB preserves correctness. They are not partial
+commits.
 
-1. `BEGIN` asks Kahuna to start a transaction. It returns an HLC transaction ID
-   and a coordinator handle.
-2. CamusDB executes the SQL work. It registers the confirmed writes, the locks,
-   and the tracked reads with the coordinator.
-3. CamusDB also pins the schema version of each table that the work touches.
-4. `COMMIT` validates the schema pins. The transaction therefore cannot commit
-   against a table definition that became incompatible during the transaction.
-5. CamusDB asks Kahuna to commit the transaction handle.
-6. Kahuna validates the read dependencies when that check is needed.
-7. Kahuna prepares the mutations of the transaction with a fresh commit
-   timestamp.
-8. Kahuna checks for a conflicting write intent on the read keys, when the
-   execution path requires that check.
-9. Kahuna commits the prepared mutations on every participant. It rolls them
-   back if the prepare step failed.
-10. The coordinator releases the registered locks. It then finalizes the
-    session.
+`CADB0509 TransactionFinalizeUnresolved` is the exception: the outcome is not
+final yet. Send the same `COMMIT` or `ROLLBACK` again on the same transaction,
+and do not run the business operation again.
 
-## What counts as a retryable failure
-
-Prepare your application to retry after these failures:
-
-- Another transaction committed a conflicting write.
-- A read dependency changed before the commit.
-- A concurrent write intent made the serial order invalid.
-- The transaction could not prepare on every participant.
-- A read or scan reached a range that could not serve the snapshot before the
-  server-side retry budget expired.
-- A serializable read-write transaction passed its lifetime deadline.
-
-Each failure above means one action: replay the whole transaction from `BEGIN`.
-
-`TransactionFinalizeUnresolved` is different. The outcome of the commit or of
-the rollback is not final yet. This can happen after a leader change, drain,
-participant retry, or transport fault once the finalize request has already left
-the node. Send the same finalize request again, on the same transaction handle.
-Do not run the business operation again.
-
-Also select the correct isolation mode for the job:
-
-- Use the default Serializable isolation for work that is sensitive to
-  correctness.
-- Use serializable read-only for consistent reads across several statements,
-  without a block on writers.
-- Use Read Committed only as an explicit opt-out. Choose it when fresh committed
-  reads and cheaper concurrency matter more than full serializable behavior.
-
-CamusDB does not replay a failed explicit serializable transaction for you. The
-client must restart the transaction from the start after a retryable conflict or
-a deadline error.
-
-For single-statement autocommit serializable work, CamusDB includes a helper. It
-performs a bounded replay with backoff. An explicit transaction of several
-statements still needs a replay from `BEGIN`.
-
-One point matters most. These failures are how CamusDB preserves correctness.
-They are not partial commits.
+[Retries and conflicts](/docs/serializable-retries) lists every retry cause and
+error code, and the action for each. To choose an isolation level for a job, see
+[Transactions and isolation](/docs/serializable-transactions#isolation-levels).
 
 ## Limits and scope
 

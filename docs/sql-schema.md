@@ -4,9 +4,16 @@ sidebar_position: 2.1
 
 # Tables and columns
 
-The DDL of a table runs inside an existing database. Create the database first,
-or select it. Then create a table, alter a column, rename a schema object, or
-drop a table.
+A table definition is where you make the database enforce your data rules:
+column types, primary keys, defaults, `CHECK` constraints, and foreign keys.
+Every client then gets the same rules, not only the application that wrote them.
+The statements look like the `CREATE TABLE` and `ALTER TABLE` you know from
+PostgreSQL or MySQL. One difference helps when mistakes happen: by default, a
+dropped table stays [recoverable](#drop-a-table) for a retention window.
+
+Table statements run inside an existing database, so create the database first
+or select it. Then you can create a table, alter a column, rename a table or a
+column, or drop a table.
 
 ## Create a table
 
@@ -32,7 +39,7 @@ Create a table from the result of a query:
 
 ```camussql
 CREATE TABLE vintage_robots AS
-SELECT name, kind, year
+SELECT name, year
 FROM robots
 WHERE year < 1990;
 
@@ -135,31 +142,10 @@ included column helps a query, because the query then fetches no primary row.
 
 ## Comments in a schema
 
-Use an inline `COMMENT '<text>'` clause to document a table, a column, and an
-inline secondary index. Write it in the `CREATE TABLE` statement:
-
-```camussql
-CREATE TABLE users (
-  id OID PRIMARY KEY NOT NULL COMMENT 'Internal user identifier',
-  email STRING NOT NULL COMMENT 'Unique login email address',
-  KEY email_idx (email) COMMENT 'Lookup by login email'
-) COMMENT 'Application users';
-```
-
-You can also set a comment later, or remove one, with `COMMENT ON`:
-
-```camussql
-COMMENT ON TABLE users IS 'Application users';
-COMMENT ON COLUMN users.email IS 'Unique login email address';
-COMMENT ON INDEX users.email_idx IS 'Lookup by login email';
-```
-
-See [Schema Comments](/docs/comment-on) for four subjects:
-
-- A comment on a database.
-- The removal of a comment, with `IS NULL`.
-- The limits.
-- The behavior of the introspection.
+A table, a column, and an inline secondary index accept an inline
+`COMMENT '<text>'` clause, and `COMMENT ON` sets or removes a comment later. See
+[Schema Comments](/docs/comment-on) for the syntax, the limits, and where a
+comment appears.
 
 ## Column storage strategies
 
@@ -213,20 +199,35 @@ INSERT INTO events (id, event_name, priority)
 VALUES (DEFAULT, "robot-updated", DEFAULT);
 ```
 
-CamusDB stores a constant default in the schema. It evaluates a supported
-generator one time for each inserted row. That rule covers each row of an
-`INSERT` of several rows.
+Most defaults are evaluated once, when the DDL runs, and CamusDB stores the
+value in the schema. That covers literals and deterministic expressions,
+including function calls with arguments such as `upper('new')`.
+
+Two kinds of default run again for each inserted row, including each row of a
+multi-row `INSERT`:
+
+- A zero-argument volatile function, such as `gen_id()`, `gen_uuid_v7()`,
+  `random()`, `now()`, or `clock_timestamp()`.
+- `nextval('sequence_name')`.
 
 | Default expression | Column type | Use |
 | --- | --- | --- |
 | `DEFAULT (gen_id())` | `OID` | Generate an ObjectId at the insert of the row. |
 | `DEFAULT (gen_uuid_v4())` | `UUID` or `GUID` | Generate a random UUID at the insert of the row. |
 | `DEFAULT (gen_uuid_v7())` | `UUID` or `GUID` | Generate a UUID in time order, at the insert of the row. |
+| `DEFAULT (random())` | `FLOAT64` | Generate a random number at the insert of the row. |
+| `DEFAULT (now())` | `TIMESTAMP` | Record the transaction start time. |
+| `DEFAULT (clock_timestamp())` | `TIMESTAMP` | Record the time of the insert of the row. |
 | `DEFAULT (nextval('sequence_name'))` | `INT64` | Draw the next value from a sequence. |
 
-A default that calls a function must be a bare call, with no argument. CamusDB
-rejects a default that does not match the type. One example is `DEFAULT
-(gen_id())` on a `UUID` column.
+`now()`, `current_timestamp()`, and `current_date()` return the transaction
+start time, so every row of a transaction gets the same value. See
+[Functions](/docs/functions) for the full list of volatile functions.
+
+A volatile default must be a bare call with no argument. CamusDB rejects
+`DEFAULT (random() * 10)` and session functions such as `current_user()`. It
+also rejects a default that does not match the column type, such as
+`DEFAULT (gen_id())` on a `UUID` column.
 
 ## Identity columns
 
@@ -256,40 +257,11 @@ See [Sequences](/docs/sequences) for `CREATE SEQUENCE`, `nextval`, `currval`,
 
 ## Column types
 
-| SQL type | Notes |
-| --- | --- |
-| `OID` | A native value of an object id. |
-| `UUID` | A native UUID value of 128 bits. CamusDB also accepts `GUID`. |
-| `INT64` | A signed integer of 64 bits. CamusDB also accepts `SMALLINT`. |
-| `FLOAT64` | A value in floating point, at double precision. CamusDB also accepts `FLOAT`. |
-| `FLOAT32` | A value in floating point, at single precision. |
-| `BOOL` | A boolean value. |
-| `STRING`, `STRING(N)` | Text, with an optional maximum length. CamusDB also accepts `CHAR`, `VARCHAR`, and `TEXT`. |
-| `DATE` | A calendar date, without a time. |
-| `DATETIME` | An instant in UTC. |
-| `BYTES` | An opaque string of bytes. |
-| `ARRAY(T)` | An ordered list of scalar values. You cannot index an array. |
-
-These aliases are common:
-
-- `INT`, `INTEGER`, and `SMALLINT` for `INT64`.
-- `FLOAT` for `FLOAT64`.
-- `REAL` for `FLOAT32`.
-- `TIMESTAMP` for `DATETIME`.
-- `BLOB` for `BYTES`.
-- `CHAR`, `VARCHAR`, and `TEXT` for `STRING`.
-- `BOOLEAN` for `BOOL`.
-- `OBJECT_ID` for `OID`.
-- `GUID` for `UUID`.
-
-See [Data Types](/docs/data-types) for six subjects:
-
-- The limits on a length.
-- The formats of a literal.
-- The casts.
-- The recommendations for the storage.
-- The encoding of a value in an API.
-- The rules of an array.
+CamusDB columns use types such as `OID`, `UUID`, `INT64`, `NUMERIC`, `FLOAT64`,
+`BOOL`, `STRING`, `DATETIME`, `BYTES`, and `ARRAY(T)`, plus familiar aliases such
+as `INT`, `TEXT`, and `TIMESTAMP`. See [Data Types](/docs/data-types) for the
+full type and alias tables, length limits, literal formats, casts, and array
+rules.
 
 ## Alter a table
 
@@ -337,25 +309,8 @@ a name that exists fails with `DuplicateColumn`.
 
 ## The case of an identifier
 
-CamusDB keeps the case of the name of a schema object. It keeps the case of the
-creation, and of a rename. A lookup of a name nevertheless ignores the case.
-
-```camussql
-CREATE TABLE Robots (
-  Id OID PRIMARY KEY NOT NULL,
-  RobotName STRING NOT NULL
-);
-
-INSERT INTO robots (id, robotname) VALUES (GEN_ID(), "R2-D2");
-SELECT ROBOTNAME FROM ROBOTS;
-```
-
-`SHOW TABLES`, `SHOW COLUMNS`, and `SHOW CREATE TABLE` show the stored names, in
-their original case. A reference in SQL can use any case.
-
-CamusDB rejects two names that differ only in their case. A table therefore
-cannot hold both `RobotName` and `robotname`. A database cannot hold both
-`Robots` and `robots` as two tables.
+CamusDB keeps the case you use when you create or rename an object, but name
+lookups ignore case. See [Identifiers and case](/docs/sql#identifiers-and-case).
 
 ## Settings of a table
 

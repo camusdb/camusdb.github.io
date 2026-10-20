@@ -4,11 +4,32 @@ sidebar_position: 7.2
 
 # EF Core provider
 
-CamusDB also ships a provider for Entity Framework Core. That provider sits on
-the driver of ADO.NET. The name of the package is
-`CamusDB.EntityFrameworkCore`.
+`CamusDB.EntityFrameworkCore` lets a .NET application use CamusDB through
+Entity Framework Core. Entity Framework Core, or EF Core, is the
+object-relational mapper (ORM) of .NET. You define your data as C# classes. You
+query it with LINQ. EF Core writes the SQL, tracks the changes to your objects,
+and saves them.
 
-It targets `net10.0`. It depends on the relational APIs of EF Core 10.
+Use EF Core when your application already uses it, or when you want to work
+with objects instead of SQL text. The provider sits on the
+[.NET driver](/docs/dotnet-driver), so the transport, the authentication, and
+the routing are the same.
+
+To compare the three .NET packages (driver, Dapper, EF Core) and their target
+frameworks, see [Which .NET package to use](/docs/dotnet-driver#which-net-package-to-use).
+
+Use the EF Core provider in these cases:
+
+- You want LINQ over CamusDB tables.
+- You want EF Core change tracking.
+- You create the schema with `EnsureCreated()`, or with EF migrations for the
+  supported DDL.
+- You want optimistic concurrency in the application, with version columns.
+
+Use the [.NET driver](/docs/dotnet-driver) instead when you want to write SQL
+first, or when you need finer control of each command and each transaction.
+
+The provider depends on the relational APIs of EF Core 10.
 
 ## Install
 
@@ -152,19 +173,10 @@ Supported CLR-to-store mappings:
 | `DateTime`, `DateTimeOffset` | `datetime` or `timestamp` | `DATETIME` |
 | `long[]`, `string[]`, `double[]`, `bool[]` | `array(int64)`, `array(string)`, `array(float64)`, `array(bool)` | `ARRAY(T)` |
 
-Practical rule:
-
-- use `HasColumnType("id")` on a `string` property for CamusDB ObjectId primary
-  keys
-- use `Guid` for native UUID columns; `HasColumnType("uuid")` is optional
-- use `HasColumnType("string")`, `HasColumnType("int64")`,
-  `HasColumnType("float32")`, `HasColumnType("float64")`,
-  `HasColumnType("numeric")`,
-  `HasColumnType("bytes")`, `HasColumnType("date")`,
-  `HasColumnType("datetime")`, and `HasColumnType("bool")` for regular columns
-
-A plain `Guid` property maps to native `UUID`. Do not declare a `Guid` property
-with `HasColumnType("id")`; CamusDB ObjectId values are 12 bytes and should be
+For CamusDB ObjectId primary keys, use `HasColumnType("id")` on a `string`
+property. A plain `Guid` property maps to native `UUID`, so
+`HasColumnType("uuid")` is optional. Do not declare a `Guid` property with
+`HasColumnType("id")`: CamusDB ObjectId values are 12 bytes and should be
 modeled as strings or `CamusObjectIdValue`.
 
 A `decimal` property maps to `NUMERIC`. CamusDB uses fixed precision and scale
@@ -235,6 +247,59 @@ List<Robot> active = await ctx.Robots
     .Where(r => r.Enabled && r.Year > 1980)
     .ToListAsync();
 ```
+
+### Update
+
+```csharp
+await using var ctx = new AppDbContext(options);
+
+Robot robot = await ctx.Robots.FindAsync(id)
+    ?? throw new InvalidOperationException("Not found");
+
+robot.Price = 99.0;
+await ctx.SaveChangesAsync();
+```
+
+### Delete
+
+```csharp
+await using var ctx = new AppDbContext(options);
+
+Robot robot = await ctx.Robots.FindAsync(id)
+    ?? throw new InvalidOperationException("Not found");
+
+ctx.Robots.Remove(robot);
+await ctx.SaveChangesAsync();
+```
+
+### Bulk update and delete
+
+Use EF Core `ExecuteUpdateAsync()` and `ExecuteDeleteAsync()` when the change can
+run as one server-side statement and you do not need to load entities into the
+change tracker:
+
+```csharp
+int paid = await ctx.Orders
+    .Where(o => o.Status == "open" && o.Total > 100)
+    .ExecuteUpdateAsync(s => s
+        .SetProperty(o => o.Status, "paid")
+        .SetProperty(o => o.Total, o => o.Total * 2));
+
+int removed = await ctx.Orders
+    .Where(o => ctx.Customers.Any(c => c.Id == o.CustomerId && c.Name == "bob"))
+    .ExecuteDeleteAsync();
+```
+
+CamusDB requires `UPDATE` and `DELETE` to have a `WHERE` clause, so an unfiltered
+bulk operation is emitted with `WHERE TRUE`. A filter over the target table is
+sent directly. A filter that uses a navigation, a join, a correlated subquery,
+or `Take` / `Skip` is rewritten as `WHERE <pk> IN (SELECT ...)`, which requires
+a single-column primary key.
+
+Values passed to `SetProperty` can use constants, parameters, and columns of
+the row being updated. They cannot read another table. Like all EF Core bulk
+operations, these bypass the change tracker, and provider-managed row-version
+tokens are not advanced unless you set them explicitly.
 
 ## LINQ translation
 
@@ -347,59 +412,6 @@ Available helpers:
 
 Vector ranking is exact. Pair an `OrderBy` over a distance with `Take(k)` so the
 server can plan it as a bounded top-k query. See [Vector Search](/docs/vector-search).
-
-### Update
-
-```csharp
-await using var ctx = new AppDbContext(options);
-
-Robot robot = await ctx.Robots.FindAsync(id)
-    ?? throw new InvalidOperationException("Not found");
-
-robot.Price = 99.0;
-await ctx.SaveChangesAsync();
-```
-
-### Delete
-
-```csharp
-await using var ctx = new AppDbContext(options);
-
-Robot robot = await ctx.Robots.FindAsync(id)
-    ?? throw new InvalidOperationException("Not found");
-
-ctx.Robots.Remove(robot);
-await ctx.SaveChangesAsync();
-```
-
-### Bulk update and delete
-
-Use EF Core `ExecuteUpdateAsync()` and `ExecuteDeleteAsync()` when the change can
-run as one server-side statement and you do not need to load entities into the
-change tracker:
-
-```csharp
-int paid = await ctx.Orders
-    .Where(o => o.Status == "open" && o.Total > 100)
-    .ExecuteUpdateAsync(s => s
-        .SetProperty(o => o.Status, "paid")
-        .SetProperty(o => o.Total, o => o.Total * 2));
-
-int removed = await ctx.Orders
-    .Where(o => ctx.Customers.Any(c => c.Id == o.CustomerId && c.Name == "bob"))
-    .ExecuteDeleteAsync();
-```
-
-CamusDB requires `UPDATE` and `DELETE` to have a `WHERE` clause, so an unfiltered
-bulk operation is emitted with `WHERE TRUE`. A filter over the target table is
-sent directly. A filter that uses a navigation, a join, a correlated subquery,
-or `Take` / `Skip` is rewritten as `WHERE <pk> IN (SELECT ...)`, which requires
-a single-column primary key.
-
-Values passed to `SetProperty` can use constants, parameters, and columns of
-the row being updated. They cannot read another table. Like all EF Core bulk
-operations, these bypass the change tracker, and provider-managed row-version
-tokens are not advanced unless you set them explicitly.
 
 ## Transactions
 
@@ -846,15 +858,3 @@ Model restrictions:
   throws when materialized into a `decimal` property. Read it as `string` when
   exact wide values are possible.
 - `WithCache(...)` is effective only on single-table autocommit reads
-
-## When to use it
-
-Use the EF provider when you want:
-
-- LINQ over CamusDB tables
-- EF Core change tracking
-- `EnsureCreated()` or EF migrations for supported DDL
-- application-level optimistic concurrency with version columns
-
-See [.NET Driver](/docs/dotnet-driver) for two purposes: a direct access with
-SQL first, and a finer control of a command and of a transaction.

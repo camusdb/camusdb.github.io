@@ -4,9 +4,19 @@ sidebar_position: 2.3
 
 # Insert, update, delete
 
-Every write runs inside a transaction. CamusDB opens a transaction around your
-statement if you do not open one. It then commits that transaction. For work of
-several statements, see [Transactions In SQL](/docs/sql-transactions).
+This page shows how to add, change, and remove rows with `INSERT`, `UPDATE`,
+and `DELETE`. The statements look like the ones you use in PostgreSQL,
+including [`RETURNING`](#returning). `RETURNING` sends the changed rows back in the same
+round trip, so you get generated ids or new totals without a follow-up `SELECT`.
+
+CamusDB also guards against common mistakes. Each statement is atomic: all of
+its rows are written, or none are. `UPDATE` and `DELETE` require a
+[`WHERE` clause](#a-where-clause-is-mandatory), so a missing filter cannot
+change or erase a whole table by accident.
+
+Every write runs inside a transaction. If you do not open one, CamusDB opens a
+transaction around your statement and commits it. For work that spans several
+statements, see [Transactions In SQL](/docs/sql-transactions).
 
 ## INSERT
 
@@ -61,16 +71,9 @@ FROM robots
 WHERE year < 2000;
 ```
 
-The source is an ordinary `SELECT`. A join, a subquery, a group, a parameter,
-and a time-travel source all work.
-
-CamusDB matches the columns by position. It does not match them by name. The
-order of the projection must therefore agree with the list of the target
-columns.
-
-The statement is all-or-nothing, like any insert. It enforces the same defaults,
-the same constraints, the same indexes, and the same transaction limits as an
-`INSERT ... VALUES`.
+CamusDB matches the columns by position, not by name. See
+[Copying Query Results](/docs/insert-select-and-ctas#insert-into--select) for
+the full rules, the limits, and time-travel sources.
 
 ### RETURNING {#returning}
 
@@ -186,7 +189,9 @@ statement is rolled back.
 Use one of these options for a large returned row set:
 
 - Send the statement to `ExecuteQuery`, which streams the rows.
-- Set the count-only flag.
+- Set the count-only flag: `discard_returning_rows` on a gRPC request, or
+  `discardReturningRows` in the JSON body of an HTTP request. The reply then
+  carries only the row count.
 
 To create the target table from the query instead, see
 [Copying Query Results](/docs/insert-select-and-ctas).
@@ -236,5 +241,6 @@ expiry, use a [TTL policy](/docs/row-level-ttl) instead. That policy deletes in
 batches.
 
 To empty a whole table, use [`TRUNCATE`](/docs/truncate-table). That statement
-replaces the key space of the table. It reads no row, and it therefore has no
+replaces the [key space](/docs/concepts#key-space) that holds the rows of the
+table. It reads no row, and it therefore has no
 limit on the mutations to exceed.

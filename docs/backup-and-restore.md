@@ -4,15 +4,45 @@ sidebar_position: 5.5
 
 # Backup and restore
 
+A backup is a copy of your data that you keep outside the running database. You
+use it to get the data back after an event that the database cannot repair by
+itself:
+
+- A disk or a whole server is lost.
+- Storage files become corrupt.
+- A bad migration, a wrong script, or a bug in an application changes or
+  deletes a large amount of data.
+- You must return the database to its state at an exact moment, for example
+  the minute before an incident. The moment must be inside the
+  [retention window](#retention).
+
+A [cluster](/docs/cluster) keeps several copies of each write, but it does not
+replace a backup. Replication copies a bad change to every node as fast as a
+good change. Only a backup lets you go back to a point before the change.
+
+Use this page when you need disaster recovery for a production node or
+cluster. For a smaller problem, a lighter tool is often faster:
+
+- To read the earlier contents of a table while the server runs, use
+  [Time-travel reads](/docs/time-travel-reads).
+- To undo an accidental `DROP TABLE` or `DROP DATABASE`, use
+  [Recover dropped objects](/docs/recover-dropped-objects).
+- To copy data to another environment, or to keep an export in SQL, use
+  [camus-dump](/docs/camus-dump).
+
+[Which recovery tool to use](#which-recovery-tool-to-use) compares the four
+tools.
+
+## How a CamusDB backup works
+
 CamusDB takes a physical backup of its storage engine. The backup holds a base
-image, and the WAL that the engine wrote after that image. A restore can
+image, and the [write-ahead log (WAL)](/docs/concepts#wal): the record of
+changes that the engine wrote after that image. A restore can
 therefore target any moment inside the retention window. It is not limited to
 the instant of the backup.
 
-Two properties surprise people. This page states them first.
-
-A backup covers a whole node. Every database on a node shares one Kahuna storage
-engine, so one backup captures all of them together. There is no backup of one
+A backup covers a whole node. Every database on a node shares one storage
+engine ([Kahuna](/docs/concepts#kahuna)), so one backup captures all of them together. There is no backup of one
 database, and no backup of one table. There is no `BACKUP` statement in SQL.
 These operations administer the server, and CamusDB exposes them over HTTP.
 
@@ -22,38 +52,28 @@ first. You then start a server against the restored directory.
 
 ## Why it works this way
 
-The two constraints above come from one design goal. This is the recovery path
-for a database that is far too large for a dump.
+This is the recovery path for a database that is too large for a dump. A
+logical export, such as [camus-dump](/docs/camus-dump), reads every row through
+the SQL layer and writes it out as text. That works at gigabyte scale, but not
+at terabyte scale: the dump is slower than the disk, the file is larger than the
+data, and the restore must parse every statement, check every constraint, and
+build every index again. That replay can take hours or days.
 
-A logical export, such as [camus-dump](/docs/camus-dump), reads every row through
-the SQL layer. It writes each row back out as text. That method works at
-gigabyte scale. It is impractical at terabyte scale, for three reasons. The dump
-is slower than the disk. The file is larger than the data that produced it. The
-restore must parse every statement again, check every constraint again, and
-build every index again. The cost lands on the restore, not on the backup.
+A physical backup copies the base image and the WAL after it, so its cost
+follows the bytes on disk, not the row count. A restore is a file copy plus a
+WAL replay. An incremental backup keeps the steady cost close to the volume of
+change. Compressed and out-of-line large values are ordinary storage data, so a
+backup captures them with the rows that reference them, and a restore to an
+earlier point returns the large values each row pointed at then. See
+[Large Values](/docs/storage-layout).
 
-A physical backup avoids all of that cost. It copies the base image of the
-storage engine, and the WAL segments after that image. The work is therefore
-proportional to the bytes on disk, not to the rows in the database. A restore is
-a file copy and a WAL replay, not a full logical reload. An incremental backup
-then keeps the steady-state cost close to the volume of change, not to the size
-of the database.
+The two constraints above follow from this design:
 
-Compressed and out-of-line large values are ordinary data in that storage
-engine. A backup captures them with the rows and WAL that reference them; there
-is no separate blob backup step. A restore to an earlier point reads each row
-with the large values it pointed at then. See [Large Values](/docs/storage-layout).
-
-The two properties above follow from that design:
-
-- A backup covers a whole node, because the image does. The unit of the copy is
-  the on-disk state of the storage engine, and every database of the node lives
-  inside it. To take one database out, CamusDB would read it row by row. That is
-  the logical dump that this design avoids.
-- A restore is offline, because CamusDB cannot overwrite a live engine under
-  itself. A restore in place would replace the files that a running server holds
-  open and holds in its cache. A build into a fresh directory leaves the live
-  node untouched. It also lets you verify the restore before you commit to it.
+- A backup covers a whole node because the image does. Taking one database out
+  would mean reading it row by row, which is the logical dump this design avoids.
+- A restore is offline because CamusDB cannot replace files that a running
+  server holds open and caches. A build into a fresh directory leaves the live
+  node untouched, and lets you verify the restore first.
 
 ## Enable backups
 
@@ -104,9 +124,15 @@ administration of users:
 Authorization: Bearer <token>
 ```
 
-Use HTTPS. CamusDB refuses a token over plaintext while TLS is required. The
-endpoints are open while authentication is disabled, like the rest of the
-engine. See [Authentication And Authorization](/docs/sql-authentication).
+Use HTTPS (port 7141 by default). CamusDB refuses a token over plaintext while
+TLS is required, except from loopback. The examples below use
+`http://localhost:5095`, which is loopback.
+
+While authentication is disabled, only a loopback caller can use these
+endpoints. A request from any other address fails with `CADB0517
+InsufficientPrivilege`, so a network peer cannot start a backup or a restore
+without credentials. See
+[Authentication And Authorization](/docs/sql-authentication).
 
 ## The API
 
@@ -131,16 +157,16 @@ family. That family is usually easier than curl for daily work. See
 
 ```sh
 # Take a full backup, then an incremental on top of it
-curl -sX POST http://localhost:5000/v1/backups/full \
+curl -sX POST http://localhost:5095/v1/backups/full \
   -H "Authorization: Bearer $TOKEN"
 
-curl -sX POST http://localhost:5000/v1/backups/incremental \
+curl -sX POST http://localhost:5095/v1/backups/incremental \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"parentBackupId":"<full-guid>"}'
 
 # List the catalog and inspect one chain
-curl -s http://localhost:5000/v1/backups -H "Authorization: Bearer $TOKEN"
-curl -s http://localhost:5000/v1/backups/<leaf-guid>/chain -H "Authorization: Bearer $TOKEN"
+curl -s http://localhost:5095/v1/backups -H "Authorization: Bearer $TOKEN"
+curl -s http://localhost:5095/v1/backups/<leaf-guid>/chain -H "Authorization: Bearer $TOKEN"
 ```
 
 Every response is an envelope with a status. A failure carries a domain code:
@@ -154,6 +180,12 @@ Every response is an envelope with a status. A failure carries a domain code:
 A restore replays one chain. A chain is a full backup at the root, plus the
 incremental backups on top of it. `GET /v1/backups/{id}/chain` returns that
 chain, with the root first, and validates it.
+
+```mermaid
+flowchart LR
+    F[(Full backup<br/>root)] --> I1[Incremental] --> I2[Incremental] --> I3[Incremental<br/>leaf]
+    I3 -->|restore| R[(Fresh data root)]
+```
 
 CamusDB rejects a chain with `CADB0701 BackupChainInvalid` in four cases: the
 chain does not start at a full backup, the chain has a gap, a parent link is
@@ -189,6 +221,12 @@ takes a full backup instead, and it says so. The response carries
 therefore visible in the catalog. It does not change the shape of your chain in
 silence.
 
+When the parent chain spans several nodes, the replacement must be a
+coordinated full backup. If the node that received the request is not the
+backup coordinator (the node that currently [leads](/docs/concepts#leader) the
+cluster's backup metadata), the request fails with `CADB070E
+BackupNotCoordinator`. Retry it on the coordinator node.
+
 ## The restore runbook
 
 A restore is offline. Follow this sequence:
@@ -200,7 +238,7 @@ A restore is offline. Follow this sequence:
    RestoreTargetConflict`. The running server is unaffected.
 
    ```sh
-   curl -sX POST http://localhost:5000/v1/restore \
+   curl -sX POST http://localhost:5095/v1/restore \
      -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
      -d '{"leafBackupId":"<leaf-guid>","targetDir":"/data/restored","targetTimeMs":1750000000000}'
    ```
@@ -226,17 +264,40 @@ A restore is offline. Follow this sequence:
    a backup, use the seeded join below. Starting a restored data root as an
    ordinary joining node does not preserve its restored data.
 
+```mermaid
+flowchart TD
+    A["POST /v1/restore<br/>leafBackupId, targetDir, targetTimeMs"] --> B["Validate the chain<br/>and verify every artifact"]
+    B --> C["Copy the base image<br/>and replay the WAL to targetTimeMs"]
+    C --> D["Fresh data root<br/>{targetDir}/kv and empty {targetDir}/wal"]
+    D --> E[Stop the CamusDB server]
+    E --> F["Start a fresh server<br/>with data_dir set to dataRoot"]
+```
+
 `kahuna.backup_restore_throttle_bytes_per_sec` limits the rate of the checkpoint
 copy of a restore. Use it when the restore shares a volume with something that
 matters to you.
 
 ## Seed a joining node from a backup
 
-An ordinary node joining a running cluster with an empty WAL starts at Raft
-index zero. The leader sends it a full snapshot, replacing the restored store.
-A seeded join instead replays the backup chain before Raft starts and writes a
-committed checkpoint for each partition at the index reached by that chain.
+An ordinary node joining a running cluster with an empty WAL starts at index
+zero of the replication log ([Raft](/docs/concepts#raft)). The leader sends it a
+full snapshot, replacing the restored store. A seeded join instead replays the
+backup chain before Raft starts and writes a committed checkpoint for each
+[partition](/docs/concepts#partition) at the index reached by that chain.
 The leader then sends only newer log entries.
+
+```mermaid
+flowchart TB
+    subgraph O["Ordinary join"]
+        direction LR
+        O1["Empty WAL<br/>Raft index zero"] --> O2["Leader sends a full snapshot<br/>(replaces the restored store)"]
+    end
+    O ~~~ S
+    subgraph S["Seeded join"]
+        direction LR
+        S1["Replay the backup chain<br/>before Raft starts"] --> S2["Committed checkpoint<br/>for each partition"] --> S3["Leader sends only<br/>newer log entries"]
+    end
+```
 
 1. Restore a backup chain into a fresh data root with `POST /v1/restore`. Keep
    the `leafBackupId` and `targetTimeMs`.
@@ -275,10 +336,11 @@ restored root before retrying after a partial seed attempt.
 On a single embedded node, a coordinated backup and a full backup are
 effectively the same operation.
 
-A coordinated backup matters in a real cluster. It takes one consistent HLC cut
-across every partition. A transaction across partitions therefore cannot break
-in half. The capture and the restore both cut on the shared commit HLC. Neither
-cuts on the WAL time of one shard.
+A coordinated backup matters in a real cluster. It takes one consistent cut
+across every partition, at a single cluster timestamp
+([HLC](/docs/concepts#hlc)). A transaction across partitions therefore cannot
+break in half. The capture and the restore both cut on the shared commit
+timestamp, not on the WAL time of one partition.
 
 Two rules follow:
 
@@ -322,7 +384,7 @@ cannot restore.
 Preview a pass before you trust it:
 
 ```sh
-curl -sX POST 'http://localhost:5000/v1/backups/gc?dryRun=true' \
+curl -sX POST 'http://localhost:5095/v1/backups/gc?dryRun=true' \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -363,7 +425,7 @@ position of that line.
 | --- | --- | --- | --- |
 | `CADB0700` | `BackupNotConfigured` | 503 | `kahuna.backup_dir` is unset. Backups are opt-in. |
 | `CADB0701` | `BackupChainInvalid` | 422 | The chain has no full root, or a gap, or a broken link, or a cycle. |
-| `CADB0702` | `BackupNeedsFullBackup` | 409 | The parent of an incremental backup aged past the retention floor. Take a full backup. |
+| `CADB0702` | `BackupNeedsFullBackup` | 409 | Reserved. When an incremental backup is impossible, CamusDB takes a full backup instead (see [the fallback](#verification-and-a-fallback-for-an-incremental-backup)), so this code is effectively not returned. |
 | `CADB0703` | `RestorePointOutOfWindow` | 422 | `targetTimeMs` falls outside the recoverable coverage of the chain. |
 | `CADB0704` | `RestoreFailed` | 500 | The restore failed during the copy of the base image, or during the WAL replay. |
 | `CADB0705` | `BackupParentMissing` | 404 | The named `parentBackupId` does not exist. |
@@ -375,7 +437,7 @@ position of that line.
 | `CADB070B` | `BackupCancelled` | 499 | The caller cancelled the operation. |
 | `CADB070C` | `RemoteRestoreDisabled` | 403 | There is no `kahuna.restore_root`, and the unconfined opt-in is off. |
 | `CADB070D` | `BackupTopologyChanged` | 503 | The topology changed during a coordinated backup. CamusDB published nothing. Retry. |
-| `CADB070E` | `BackupNotCoordinator` | 421 | A caller requested a coordinated backup on a node that is not the coordinator. |
+| `CADB070E` | `BackupNotCoordinator` | 421 | A caller requested a coordinated backup on a node that is not the coordinator. An incremental backup whose fallback must be a coordinated full backup fails the same way. Retry on the coordinator. |
 | `CADB070F` | `BackupInsecureRoot` | 500 | The backup root or the restore root is a symbolic link, or the group or the world can write to it. |
 | `CADB0710` | `PitrBootstrapFailed` | 500 | A joining node could not validate or seed its restored data root and WAL from the configured backup chain. |
 

@@ -37,7 +37,7 @@ Each `STRING`, `BYTES`/`BLOB`, and `ARRAY` column has a storage strategy.
 | `EXTENDED` | Yes, when it saves enough | Yes, at or above the threshold | Default. Text, JSON, documents, and most large columns. |
 | `MAIN` | Yes, when it saves enough | Never | Compressible values that most queries read. |
 | `EXTERNAL` | Never | Yes, at or above the threshold | Images, archives, and incompressible large values that most queries skip. |
-| `PLAIN` | Never | Never | Values every query reads, such as KNN embeddings. |
+| `PLAIN` | Never | Never | Values every query reads, such as embeddings for nearest-neighbor (KNN) search. |
 
 Set a strategy when you create the column:
 
@@ -75,6 +75,20 @@ applies these steps:
    `large_value_threshold_bytes`, 2048 bytes by default.
 5. Store the value outside the row when it is at or above the threshold. Store a
    pointer in the row. Otherwise keep the value inside the row.
+
+```mermaid
+flowchart TD
+    A[Encode the value to raw bytes] --> B{Compress?}
+    B -->|"yes, the strategy allows it<br/>and the value is at least 256 bytes"| C[Try LZ4 compression]
+    B -->|no| F[Keep the raw form]
+    C --> D{Saves enough?}
+    D -->|"yes, at least<br/>the minimum percent"| E[Keep the compressed form]
+    D -->|no| F
+    E --> G{Out of line?}
+    F --> G
+    G -->|"yes, the strategy allows it and the<br/>stored form is at least the threshold"| H["Store the value under its own key<br/>the row keeps a pointer"]
+    G -->|no| I[Keep the value inside the row]
+```
 
 Compression runs before the out-of-line decision. A text value that compresses
 below the threshold stays inside the row, so reading that column costs no second

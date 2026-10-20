@@ -10,7 +10,7 @@ the exception. It handles a null in its own way.
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `length(text)` | `INT64` | The number of characters in `text`. |
+| `length(text)` | `INT64` | The number of UTF-16 code units in `text`. A character outside the Basic Multilingual Plane, such as an emoji, counts as 2. `length(bytes)` returns the number of bytes. |
 | `lower(text)` | `STRING` | The text in lowercase, with the invariant rules of the case. |
 | `upper(text)` | `STRING` | The text in uppercase, with the invariant rules of the case. |
 | `trim(text)` | `STRING` | It removes the space at the start and at the end. |
@@ -54,8 +54,11 @@ string. The function then returns an empty string.
 
 ## The rules of concat
 
-`concat` accepts six types: `STRING`, `OID`, `UUID`, `INT64`, `FLOAT64`, and
-`BOOL`. It formats a UUID as canonical text: lowercase, and with hyphens.
+`concat` accepts eleven types: `STRING`, `OID`, `UUID`, `INT64`, `FLOAT64`,
+`FLOAT32`, `NUMERIC`, `BOOL`, `DATE`, `DATETIME`, and `BYTES`. It uses the same
+text form as `to_string`. For example, a UUID becomes lowercase text with
+hyphens, and `BYTES` becomes `\x` followed by lowercase hex. An array is an
+error.
 
 `concat` skips an argument that is `NULL`. The result is `NULL` only when every
 argument is `NULL`.

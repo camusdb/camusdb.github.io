@@ -10,17 +10,19 @@ transactional SQL work. It is the implementation behind the guarantees in
 
 ## The layers
 
-CamusDB does not implement the storage, the MVCC, or the replication from the
-start.
+CamusDB does not implement the storage, the [MVCC](/docs/concepts#mvcc)
+(multi-version concurrency control, where a write adds a new version instead of
+overwriting), or the replication from the start.
 
 The data path has three layers:
 
 - CamusDB parses the SQL. It plans the statement, holds the catalog, maps the
   row keys and the index keys, and pins the schema.
-- [Kahuna](https://kahunakv.github.io/) gives the transactional KV store, the
-  MVCC versions, the locks, the write intents, the coordination of a
-  transaction, and the two-phase commit.
-- [Kommander](https://kahunakv.github.io/kommander.github.io/) gives the Raft
+- [Kahuna](/docs/concepts#kahuna) gives the transactional KV store, the MVCC
+  versions, the locks, the [write intents](/docs/concepts#write-intent)
+  (uncommitted provisional writes), the coordination of a transaction, and the
+  [two-phase commit](/docs/concepts#two-phase-commit).
+- [Kommander](/docs/concepts#kommander) gives the [Raft](/docs/concepts#raft)
   replication, and an ordered durable commit across the nodes.
 
 The isolation of CamusDB is therefore mostly a question of one map: how CamusDB
@@ -40,9 +42,11 @@ A database id and a table id are stable identities in the storage. You can
 rename a SQL object without a rewrite of every row, because the keys of the rows
 and of the indexes use the ids.
 
-The part of a row or index key space before the first `|` is the placement
-group. Under hash routing, Kahuna hashes that group, so a table's rows and all
-of its indexes live on the same partition.
+The part of a row or index [key space](/docs/concepts#key-space) (all the keys
+that share one prefix) before the first `|` is the placement group. Under
+[hash routing](/docs/concepts#hash-and-key-range-routing), Kahuna hashes that
+group, so a table's rows and all of its indexes live on the same
+[partition](/docs/concepts#partition).
 
 That layout matters for five mechanisms:
 
@@ -57,9 +61,10 @@ That layout matters for five mechanisms:
 A Kahuna transaction handle represents every read-write transaction. The handle
 holds two fields:
 
-- `TransactionId` is a Hybrid Logical Clock timestamp. Kahuna allocates it.
+- `TransactionId` is a [hybrid logical clock](/docs/concepts#hlc) (HLC)
+  timestamp. Kahuna allocates it.
 - `CoordinatorKey` is a stable routing key. It points at the coordinator session
-  on the server.
+  on the server, the record that tracks the transaction until it ends.
 
 CamusDB passes the handle through the whole life of the transaction. The Kahuna
 coordinator owns the authoritative working set of the transaction. That set
@@ -81,7 +86,8 @@ A retry of a batch can send a different subset of the pending work. CamusDB then
 uses a new operation id, because that attempt represents different work.
 
 The operation id also protects the window where an acknowledgement is lost. A
-participant can apply a write, and it can then lose the response before the
+participant, which is a partition that holds part of the transaction's work,
+can apply a write, and it can then lose the response before the
 coordinator records the completion. A retry with the same operation id lets the
 participant replay the cached response and the payload of the completion. The
 coordinator can therefore fold the effect. The participant does not apply the
@@ -111,22 +117,10 @@ transaction. The client builds neither list.
 
 ## The life of a transaction
 
-A read-write transaction has this internal shape:
-
-1. CamusDB starts a Kahuna transaction. It receives a transaction handle.
-2. The SQL statements read rows, write rows, maintain the indexes, and acquire
-   locks.
-3. Each successful write, each delete, each relevant lock, and each tracked read
-   registers with the coordinator.
-4. CamusDB validates the schema pins of the tables that the transaction touched.
-   It does so before the commit.
-5. CamusDB calls the commit with the transaction handle.
-6. Kahuna validates the registered read observations, where that check is
-   necessary.
-7. Kahuna prepares the registered mutations, with a fresh commit timestamp.
-8. Kahuna commits the prepared mutations on every participant. It rolls them
-   back if the prepare step fails.
-9. The coordinator releases the locks. It then completes the session.
+A read-write transaction goes from `BEGIN` through registration, schema pin
+validation, read validation, and two-phase commit to the release of its locks.
+[How a commit works](/docs/distributed-transactions#how-a-commit-works)
+describes each step and shows the flow.
 
 A rollback uses the same handle. The coordinator owns the working set already.
 The rollback can therefore undo the registered state of the transaction. It
@@ -263,8 +257,9 @@ Note this behavior:
 ## Lock escalation
 
 A serializable read-write transaction can escalate many point locks into one
-shared lock over a whole bucket. The point locks must belong to the same table
-bucket, or to the same index bucket.
+shared lock over a whole bucket. A bucket is the key space that holds one
+table's rows, or one index's entries. The point locks must belong to the same
+bucket.
 
 The default threshold is `50`.
 
@@ -278,16 +273,15 @@ That behavior gives four results:
 
 ## The durability of a commit decision
 
-A transaction has a policy for the durability of its commit decision:
+Every SQL write is persistent. Kahuna writes the commit decision of every SQL
+transaction that writes to durable storage before it returns the result. A
+recovery can therefore finish the participants of the transaction after the
+loss of the coordinator.
 
-- `BestEffort` lets the coordinator keep the decision in memory. This policy is
-  the default.
-- `Durable` makes the coordinator write the decision to durable storage before
-  it returns the result. A recovery can therefore finish the participants of the
-  transaction after the loss of the coordinator.
-
-The internal path of the begin selects a durable decision, for each transaction.
-CamusDB does not expose that choice as a YAML setting at startup today.
+The `default_decision_durability` setting accepts `best_effort` (the default)
+and `durable`. A SQL transaction takes the durable decision path under either
+value. `durable` adds one check: Kahuna refuses a transaction that modified an
+in-memory (ephemeral) key, because that key cannot survive a crash.
 
 For a durable decision, Kahuna anchors the decision to the first confirmed
 persistent key that the transaction modified. The anchor decides the placement
@@ -303,9 +297,25 @@ The flow of a durable commit has five steps:
 5. Persist the progress of the acknowledgements. Mark the decision as complete
    after every participant acknowledges.
 
+```mermaid
+sequenceDiagram
+    participant C as Coordinator
+    participant P as Other participant
+    participant A as Anchor participant
+    C->>P: Prepare
+    C->>A: Prepare with the frozen participant set
+    C->>A: Commit
+    Note over A: Durable commit decision installed. Rollback is no longer valid.
+    C->>P: Commit
+    Note over P: Record a completion receipt
+    P-->>C: Acknowledge
+    Note over C,P: Persist acknowledgement progress, then mark the decision complete
+```
+
 A rollback is no longer a valid outcome after CamusDB installs the commit
 decision of the anchor. Three events can follow: the coordinator loses its
-leadership, the process stops, or the response to the commit is lost. In every
+[leadership](/docs/concepts#leader) (another node takes over as leader), the
+process stops, or the response to the commit is lost. In every
 case, the recovery must continue to drive the participants until the committed
 decision completes.
 
@@ -368,6 +378,8 @@ max_serializable_transaction_lifetime_ms: 3600000
 lock_escalation_threshold: 50
 lock_wait_deadline_ms: 500
 key_range_sharding: false
+default_read_validation: none
+default_decision_durability: best_effort
 ```
 
 Note these details:
@@ -386,15 +398,15 @@ Note these details:
   reports a conflict.
 - `key_range_sharding` opts the row spaces of the tables, and the eligible
   secondary indexes, into the key-range routing of Kahuna.
+- `default_read_validation` accepts `none` and `track_and_validate`. With
+  `track_and_validate`, a pessimistic transaction also validates its read set at
+  commit. An optimistic transaction always validates its reads, whatever this
+  value is.
+- `default_decision_durability` accepts `best_effort` and `durable`. See
+  [The durability of a commit decision](#the-durability-of-a-commit-decision).
 
-Two internal defaults also exist:
-
-- The validation of a read is off, except in an optimistic transaction, which
-  validates its reads.
-- The durability of a decision is best effort.
-
-The begin path of a transaction selects those internal defaults. They are not
-YAML settings at startup today.
+Both settings change at runtime with `SET CLUSTER SETTING` and apply to every
+node. A new value affects transactions that begin after the change.
 
 ## Behavior in a cluster
 

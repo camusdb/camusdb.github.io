@@ -4,14 +4,39 @@ sidebar_position: 3
 
 # HTTP API
 
+The HTTP API lets any program run SQL on CamusDB with a plain HTTP request and
+a JSON body. You need no driver and no special library. A shell script with
+`curl` is enough.
+
 CamusDB exposes endpoints of JSON. They serve an automation, and an integration
 with an application. Each property of a request, and each property of a
 response, uses camel case.
 
-For a client of HTTP/2, and for a client that uses Protobuf, see
-[gRPC API](/docs/grpc-api). The API of REST with JSON, and the API of gRPC, both
-reach the same engine. That engine covers the SQL, the transactions, and the
-operations on a row.
+## When to use the HTTP API
+
+Use the HTTP API in these cases:
+
+- A script, a CI job, or an automation tool must run SQL or check the health of
+  a node.
+- Your language has no CamusDB driver.
+- You want to test a request quickly from a terminal.
+- A load balancer or a monitoring system must call a node.
+
+For application code in .NET or in TypeScript, a driver is easier. The
+[.NET driver](/docs/dotnet-driver) and the
+[TypeScript connector](/docs/typescript-connector) use this API, and they add
+typed parameters, transactions, retries, and routing. For an interactive
+session, use [camus-cli](/docs/camus-cli).
+
+| | [HTTP API](/docs/http-api) | [gRPC API](/docs/grpc-api) |
+| --- | --- | --- |
+| Format | JSON text | Protobuf, a compact binary format |
+| What a client needs | Any HTTP client, such as `curl` | Bindings that you generate from the `.proto` file |
+| Good for | Scripts, automation, health checks, quick tests, and languages without a CamusDB driver | High request rates, long result streams, and many statements over one duplex stream |
+| Default port | `5095` | `5096` |
+
+Both APIs reach the same engine, with the same SQL, the same transactions, and
+the same errors.
 
 ## Transport
 
@@ -107,8 +132,10 @@ grant, the requirements of TLS, and the enforcement of a privilege.
 
 ## Column values
 
-Six things use a `ColumnValue` object: a row, a filter, an insert, an update, a
-default, and a parameter of the SQL:
+Request bodies send values as `ColumnValue` objects: SQL parameters, filters,
+inserted and updated values, and column defaults. Result rows use a more compact
+form, with plain JSON values in column order; see
+[`POST /execute-sql-query`](#post-execute-sql-query).
 
 CamusDB serializes a `ColumnType` as the numeric value of its enum:
 
@@ -162,7 +189,8 @@ as `numericValue`.
 
 ### `GET /ping`
 
-Returns server status and UTC time.
+Returns server status and UTC time. `GET /health` is an alias that returns the
+same response. Both answer without a credential.
 
 ```json
 {
@@ -267,9 +295,11 @@ CamusDB also accepts the equivalent form, `ALTER DATABASE ... RENAME TO`:
 }
 ```
 
-The model of a creation of a table over HTTP accepts twelve types: `id`,
+The model of a creation of a table over HTTP accepts these types: `id`,
 `int64`, `float64`, `float32`, `bool`, `string`, `date`, `datetime`, `bytes`,
-`uuid`, `guid`, and `array`.
+`uuid`, `numeric`, and `array`. It also accepts the aliases `int`, `integer`,
+`char`, `varchar`, `text`, `real`, `timestamp`, `blob`, `guid`, and `decimal`.
+Type names are not case sensitive.
 
 Use a `maxLength` for the limit of a `string`, and for the limit of a `bytes`
 value. Use an `arrayElementType` for a column of an array.
@@ -360,14 +390,48 @@ Response:
 {
   "status": "ok",
   "total": 1,
+  "columns": [
+    { "name": "id", "type": 1 },
+    { "name": "name", "type": 3 }
+  ],
   "rows": [
-    {
-      "id": { "type": 1, "strValue": "507f1f77bcf86cd799439011", "longValue": 0, "floatValue": 0, "boolValue": false },
-      "name": { "type": 3, "strValue": "R2-D2", "longValue": 0, "floatValue": 0, "boolValue": false }
-    }
-  ]
+    ["507f1f77bcf86cd799439011", "R2-D2"]
+  ],
+  "code": null,
+  "message": null,
+  "causalToken": { "n": 1, "l": 1792500000000, "c": 0 },
+  "serverTimeMs": 2.4,
+  "cacheStatus": null,
+  "cacheBypassReason": null,
+  "cachedAtHlc": null,
+  "ageMs": null,
+  "cacheName": null
 }
 ```
+
+`columns` lists the output columns in order, with the numeric `ColumnType` of
+each one. It is present even when `rows` is empty. Each entry in `rows` is an
+array by position: `rows[r][c]` is the value of `columns[c]`. Values use plain
+JSON, not `ColumnValue` objects:
+
+| Column type | JSON value |
+| --- | --- |
+| id, string | string |
+| int64, float64, float32 | number |
+| bool | `true` or `false` |
+| bytes | base64 string |
+| date, datetime | number of UTC ticks |
+| uuid | array of two int64 numbers, `[high, low]` |
+| numeric | decimal text, such as `"19.99"` |
+| array | JSON array of element values. The column also has an `elementType` |
+
+A SQL `NULL` is JSON `null`. The cache fields are `null` unless the query
+carries a cache hint. See [Query Result Cache](/docs/query-result-cache).
+
+`causalToken` is a cluster timestamp, made of the three parts `n`, `l`, and `c`
+of a [hybrid logical clock (HLC)](/docs/concepts#hlc) value. Send it back as
+`causalToken` on the next request of the same session, so that session reads
+its own writes on any node.
 
 This endpoint also accepts `INSERT`, `UPDATE`, and `DELETE` statements with a
 `RETURNING` list. The response is the same query result shape: `columns`, then
@@ -755,6 +819,21 @@ transaction.
 
 Do not start a fresh transaction, and do not replay the statements. The original
 commit may have succeeded already, on the server.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant N as CamusDB node
+    C->>N: POST /start-transaction
+    N-->>C: txnIdPT and txnIdCounter
+    C->>N: POST /execute-sql-non-query with the ids
+    N-->>C: status ok and rows
+    C->>N: POST /commit-transaction with the ids
+    N-->>C: CADB0509
+    Note over C: Keep the same ids. Do not replay the statements.
+    C->>N: POST /commit-transaction with the same ids
+    N-->>C: Final outcome of the commit
+```
 
 `ROLLBACK` is idempotent by transaction id. If the transaction was already
 rolled back and the server no longer tracks it, the rollback request succeeds as

@@ -4,53 +4,49 @@ sidebar_position: 1.6
 
 # Recover dropped objects
 
-CamusDB can recover a dropped root database, and a dropped table, during a
-configurable window of the retention.
+Running `DROP TABLE` against the wrong database is an easy mistake to make. In
+PostgreSQL or MySQL, the data is gone and you restore a backup. CamusDB lets you
+undo an accidental `DROP`: it keeps a dropped root database or table
+recoverable during a configurable retention window, and a `RELINK` statement
+brings it back. The same applies to a wrong cleanup script or a destructive
+migration. You recover without restoring a full backup, as long as CamusDB still
+keeps the orphan.
 
 An ordinary `DROP DATABASE` and an ordinary `DROP TABLE` remove the object from
 the catalog immediately. Both free the name at once. CamusDB nevertheless keeps
 the data below that object as a recoverable orphan, until it reclaims that
 orphan.
 
-The feature is a safety net for a catastrophic situation. Three examples are an
-accidental `DROP` in production, a wrong script of a cleanup, and a destructive
-migration. You handle each one without a restore of a full backup, while CamusDB
-still keeps the orphan.
-
 ## The quick workflow
 
-Here is a real session of `camus-cli`. It recovers a dropped database:
+Here is a real session of `camus-cli`. It recovers a dropped database. Drop the
+database, then list the recoverable orphans:
 
 ```camussql
-camus>  show databases
-┌──────────┐
-│ Database │
-├──────────┤
-│ test     │
-└──────────┘
-1 rows in set (00:00:00.0712674)
+DROP DATABASE test;
+SHOW ORPHAN DATABASES;
+```
 
-camus>  drop database test
-Query OK, 0 rows affected (00:00:00.1203752)
-
-camus>  use test
-Database changed to test
-
-camus>  show orphan databases
+```text
 ┌────┬─────────────┬────────────────────────┬────────────────────────┐
 │ id │ former_name │ dropped_at             │ expires_at             │
 ├────┼─────────────┼────────────────────────┼────────────────────────┤
 │ I  │ test        │ HLC(1:1784427365296:2) │ HLC(1:1785032165296:2) │
 └────┴─────────────┴────────────────────────┴────────────────────────┘
 1 rows in set (00:00:00.0135411)
+```
 
-camus>  create database test relink to 'I'
-Query OK, 0 rows affected (00:00:00.0442229)
+The `dropped_at` and `expires_at` values are cluster timestamps
+([HLC](/docs/concepts#hlc)). The orphan stays recoverable until `expires_at`.
+Recover it under a name, then check its tables:
 
-camus>  use test
-Database changed to test
+```camussql
+CREATE DATABASE test RELINK TO 'I';
+USE test;
+SHOW TABLES;
+```
 
-camus>  show tables
+```text
 ┌─────────────────┐
 │ tables          │
 ├─────────────────┤
@@ -63,30 +59,25 @@ camus>  show tables
 The same pattern applies to a table of the current database:
 
 ```camussql
-camus>  show tables
-┌─────────────────┐
-│ tables          │
-├─────────────────┤
-│ orders_restored │
-│ orders          │
-└─────────────────┘
-2 rows in set (00:00:00.0036480)
+DROP TABLE orders;
+SHOW ORPHAN TABLES;
+```
 
-camus>  drop table orders
-Query OK, 0 rows affected (00:00:00.0926457)
-
-camus>  show orphan tables
+```text
 ┌────┬─────────────┬────────────────────────┬────────────────────────┐
 │ id │ former_name │ dropped_at             │ expires_at             │
 ├────┼─────────────┼────────────────────────┼────────────────────────┤
 │ s6 │ orders      │ HLC(1:1784427567387:0) │ HLC(1:1785032367387:0) │
 └────┴─────────────┴────────────────────────┴────────────────────────┘
 1 rows in set (00:00:00.0068052)
+```
 
-camus>  create table orders relink to 's6'
-Query OK, 0 rows affected (00:00:00.0655702)
+```camussql
+CREATE TABLE orders RELINK TO 's6';
+DESC orders;
+```
 
-camus>  desc orders
+```text
 ┌───────┬────────────┬──────┬─────┬──────────┬───────┐
 │ Field │ Type       │ Null │ Key │ Default  │ Extra │
 ├───────┼────────────┼──────┼─────┼──────────┼───────┤
@@ -134,6 +125,19 @@ Five things are true after the statement succeeds:
 - CamusDB keeps the rows, the indexes, the constraints, and the metadata of the
   schema, as an orphan.
 - You can recover the orphan under a new name, with a `RELINK TO`.
+
+```mermaid
+stateDiagram-v2
+    state "Live object" as Live
+    state "Orphan (recoverable)" as Orphan
+    state "Recovered under a new name" as Recovered
+    state "Permanently deleted" as Gone
+    [*] --> Live
+    Live --> Orphan: DROP
+    Live --> Gone: DROP ... FORCE
+    Orphan --> Recovered: CREATE ... RELINK TO id
+    Orphan --> Gone: reclaimed after the retention window
+```
 
 CamusDB does not reuse the id of an object. You can drop `sales`, and then
 create a new database with the same name `sales`. The new database receives a

@@ -4,16 +4,21 @@ sidebar_position: 3.66
 
 # Engine stats
 
-CamusDB embeds two libraries inside its own process: Kahuna, the transactional
-KV store, and Kommander, the Raft implementation. Both libraries publish
-operational metrics through `System.Diagnostics.Metrics`. They run in the same
-process, so CamusDB observes those metrics directly. It exposes them through a
-SQL statement.
+When a node logs a slow operation, or latency rises, you need to know whether
+the storage engine or the consensus layer is the cause. `SHOW ENGINE STATS`
+answers that from any SQL prompt, so you need no monitoring system to use it.
 
 ```camussql
 SHOW ENGINE STATS;
 SHOW ENGINE STATS LIKE 'raft.executor%';
 ```
+
+The statement reports the metrics of the two libraries that run inside the
+CamusDB process: [Kahuna](/docs/concepts#kahuna), the transactional key/value
+store, and [Kommander](/docs/concepts#kommander), the
+[Raft](/docs/concepts#raft) library that keeps copies of the data in agreement
+across nodes. Both publish their metrics through `System.Diagnostics.Metrics`,
+and CamusDB reads them directly.
 
 This statement inspects the engine. It does not report the statistics of a
 table. For the view that the optimizer has of your data, see
@@ -52,14 +57,14 @@ shows how to find the cause.
 
 | Column | Meaning |
 |---|---|
-| `node` | The local Raft endpoint that produced this row. |
+| `node` | The internal cluster address of the node that produced this row. |
 | `source` | The meter that published the row: `kommander` or `kahuna`. |
 | `metric` | The name of the instrument, as the library publishes it. |
 | `tags` | The `k=v` pairs in canonical form, separated by commas, and sorted by key. The column is empty for a metric without a tag. |
 | `kind` | `counter`, `histogram`, or `gauge`. |
 | `count` | The total of a counter, the number of observations of a histogram, or `1` for a sampled gauge. |
 | `total` | The total of a counter, or the sum of a histogram. It is NULL for a gauge. |
-| `min`, `max`, `last` | The distribution of a histogram. `last` applies to a gauge only. All three are NULL for a counter. |
+| `min`, `max`, `last` | The distribution of a histogram. `last` is the most recent value of a histogram or a gauge. A gauge has only `last`. All three are NULL for a counter. |
 
 CamusDB orders the rows by `source`, then by `metric`, then by `tags`. Two runs
 of the statement therefore compare cleanly.
@@ -74,7 +79,8 @@ Three properties will mislead you if you assume something else:
 - A gauge has no history. CamusDB samples it at the instant of the statement,
   and it reports `last` only. CamusDB reports an observable counter as a gauge.
   The `last` of that gauge is its running total.
-- The statement is local to one node. It never forwards to the leader. In a
+- The statement is local to one node. It never forwards to the
+  [leader](/docs/concepts#leader). In a
   cluster, each node answers for its own process. That behavior is exactly what
   you need when one node is slow. You must therefore query each node to see the
   whole cluster. The `node` column exists for that reason. Output that you paste
@@ -83,7 +89,8 @@ Three properties will mislead you if you assume something else:
 ## Correlate a slow dispatch with a background cycle
 
 A spike in latency once a minute usually has one cause. A periodic background
-cycle contends with the Raft executor. Take two readings, one minute apart:
+cycle contends with the Raft executor, the component that dispatches Raft
+operations for each [partition](/docs/concepts#partition). Take two readings, one minute apart:
 
 ```camussql
 SHOW ENGINE STATS LIKE 'raft.executor%';   -- reading 1
@@ -101,16 +108,12 @@ Widen the filter next. Look for a metric that did advance in the same interval:
 - `raft.wal.*` for the behavior of the WAL flush.
 - `kahuna.backup.*` for a backup cycle or a point-in-time recovery cycle.
 
-The statistics of the Kahuna collection tick answer that question most directly.
-They arrive in the Kahuna release after `0.9.8`. The version that CamusDB
-references today does not publish them. Until CamusDB takes that package, a
-collection tick appears only indirectly. It appears as a gap that no visible
-metric explains.
-
-After that release, these metrics become available:
+The statistics of the Kahuna collection cycle answer that question most
+directly:
 
 | Metric | What it tells you |
 |---|---|
+| `kahuna.collect.cycles` | The collect cycles that ran. Use it as the denominator for the per-cycle averages below. |
 | `kahuna.collect.cycle.duration` | How long a collect cycle held the mailbox thread of the actor. A spike here aligns with the spike in latency that it causes. |
 | `kahuna.collect.evicted` | The entries that the cycle reclaimed, with the tag `reason=tombstone\|expiry\|lru\|idle`. |
 | `kahuna.collect.inspected` | The entries that the cycle walked, with the tag `scan=expiry\|lru`. A value far above the evicted count means that the cycles spend their budget on pinned entries. |
@@ -121,7 +124,7 @@ These metrics are useful starting points:
 | Metric | What it tells you |
 |---|---|
 | `raft.executor.operation_duration_ms` | The dispatch latency of each operation, by partition and by class of operation. |
-| `raft.executor.rejections_total` | The proposals that CamusDB refused because a partition queue was full. A value above zero over a long period means overload. |
+| `raft.executor.rejections_total` | The proposals, writes submitted to Raft, that CamusDB refused because a partition queue was full. A value above zero over a long period means overload. |
 | `raft.wal.batch_size` | The efficiency of the WAL batches. A mean near 1 means that no coalescing happens. |
 | `raft.heartbeat_delay_ms` | The scheduling pressure on the leader. A value well above the heartbeat interval means a shortage of CPU. |
 | `raft.elections_started_total` | The churn of the leadership. |
@@ -148,6 +151,9 @@ Observation of the meters costs one call of a delegate and one lookup in a
 dictionary, for each measurement. While the flag is off, CamusDB attaches no
 listener, and the meters return to their unobserved state, which costs nothing.
 Turn the flag off only when you measure that overhead itself.
+
+CamusDB reads the flag once at startup, so a change takes effect after a
+restart.
 
 While the collection is disabled, the statement succeeds and returns zero rows.
 It does not raise an error. A script that polls a fleet therefore needs no

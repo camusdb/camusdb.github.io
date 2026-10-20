@@ -15,6 +15,28 @@ Spill is off by default. While it is off, an operator uses its normal path in
 memory. While it is on, an operator stays in memory until its own buffer passes
 the spill threshold.
 
+## Why use spill to disk
+
+Without spill, an operator keeps all of its intermediate rows in memory. A sort,
+a join, or a `GROUP BY` over millions of rows can therefore use a large part of
+the memory of the node. Several such queries at the same time can use all of it.
+The node can then become slow for every client, or the process can stop.
+
+Turn spill on in these cases:
+
+- Your workload runs large reports, exports, or batch jobs, with a large
+  `ORDER BY`, `GROUP BY`, `DISTINCT`, or hash join.
+- You run a bulk `UPDATE` or `DELETE` that matches many rows.
+- The node has limited memory, for example a small container or a virtual
+  machine with a memory limit.
+
+The cost is speed. A query that spills reads and writes temporary files, so it
+runs longer than the same query in memory. A query that stays below the
+threshold does not change.
+
+You can leave spill off when your queries read and return small sets of rows,
+for example lookups by key and short pages of results.
+
 ## What can spill
 
 Spill applies to work that blocks, and to work that materializes rows:
@@ -22,8 +44,8 @@ Spill applies to work that blocks, and to work that materializes rows:
 | Operator | Why it buffers | Spill behavior |
 | --- | --- | --- |
 | The sort of an `ORDER BY` | It needs the rows before it emits a sorted output. | An external merge sort. |
-| A hash join | It builds a hash table from one side of the join. | A grace hash join or a hybrid hash join. It divides the rows into spill files when the build side is too large. |
-| A `GROUP BY` | It keeps one accumulator for each group. | It divides the rows by the key of the group. It then aggregates one partition at a time. |
+| A hash join | It builds a hash table from one side of the join, the build side. It then streams the other side, the probe side, past that table. | A grace hash join or a hybrid hash join. It divides the rows into spill files when the build side is too large. |
+| A `GROUP BY` | It keeps one accumulator for each group. | It hashes the rows by the key of the group into spill partitions, which are groups of rows on disk and not cluster partitions. It then aggregates one partition at a time. |
 | A `SELECT DISTINCT` | It records which result tuples appeared already. | It hash-partitions the rows into spill files, then deduplicates one partition at a time. |
 | A derived table and a subquery | It materializes the rows, so the outer query can scan them. | A spill buffer that CamusDB can enumerate again. |
 | The match set of a `DELETE` and of an `UPDATE` | It must collect the matching rows before the mutation. | A spill buffer that CamusDB can enumerate again. |
@@ -34,7 +56,8 @@ buffer. There are four examples:
 - A simple scan.
 - A global aggregate, such as `COUNT(*)` without a `GROUP BY`.
 - A streaming `DISTINCT` over an ordered index.
-- A merge join. It buffers only the current run of equal keys.
+- A merge join, which walks two inputs that are already sorted on the join key.
+  It buffers only the current run of equal keys.
 
 ## DELETE and UPDATE
 
@@ -79,20 +102,25 @@ row.
 
 ## Configuration
 
-You configure spill in `config.yml`:
+You configure spill in `config.yml`. Every setting below is `runtime` class
+and `node` scope, so you can also change it without a restart, with
+[`SET CLUSTER SETTING`](/docs/runtime-cluster-settings).
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `spill_enabled` | `false` | The main switch. While it is `false`, no query operator spills. |
 | `spill_threshold_rows` | `500000` | The cap on the rows that one operator holds in memory, before the spill starts. |
-| `spill_merge_fan_in` | `16` | The maximum number of spill runs that CamusDB reads at one time, during a merge pass. |
+| `spill_threshold_bytes` | `268435456` | The cap on the estimated bytes that one operator holds in memory, before the spill starts. It is 256 MiB. An operator spills when it reaches either cap. A value of `0` or below removes the byte cap and leaves only the row cap. |
+| `spill_merge_fan_in` | `16` | The maximum number of spill runs (sorted spill files) that CamusDB reads at one time, during a merge pass. |
 | `spill_max_total_bytes` | `8589934592` | The maximum live spill bytes on one node. A value of `0` or below removes this limit. |
+| `spill_max_frame_bytes` | `268435456` | The largest record that CamusDB accepts when it reads a spill file back. It is 256 MiB. A larger length means a corrupt file, and the query fails with `CADB0507`. |
 
 Here is an example:
 
 ```yaml
 spill_enabled: true
 spill_threshold_rows: 500000
+spill_threshold_bytes: 268435456
 spill_merge_fan_in: 16
 spill_max_total_bytes: 8589934592
 ```
@@ -125,6 +153,20 @@ The query then fails with `CADB0507`, which is `SpillStorageUnavailable`.
 CamusDB does not fall back to unbounded memory in silence when the spill storage
 is unavailable.
 
+```mermaid
+flowchart TD
+    O[Operator buffers rows] --> E{spill_enabled?}
+    E -->|no| M[Normal path in memory]
+    E -->|yes| T{Buffer too large?}
+    T -->|no| M
+    T -->|"yes, past spill_threshold_rows<br/>or spill_threshold_bytes"| C{Spill file opens?}
+    C -->|"no, it cannot be<br/>created or opened"| X1[Fail with CADB0507]
+    C -->|yes| W{Within disk limits?}
+    W -->|"no, past spill_max_total_bytes<br/>or min_free_disk_bytes"| X2["Fail with CADB0549<br/>or CADB0536"]
+    W -->|yes| S[Write rows to spill files]
+    S --> D["Delete spill files when the<br/>operation ends"]
+```
+
 Three causes are typical:
 
 - The CamusDB process cannot write to `data_dir`.
@@ -138,11 +180,12 @@ Correct the problem in the storage. Then run the query again.
 
 - Spill applies to one instance of an operator. It is not a memory budget for a
   whole query.
-- An operator that stays below the threshold creates no spill file.
+- An operator that stays below both thresholds creates no spill file.
 - `spill_max_total_bytes` is a node-wide budget for live spill files. It is not
   reserved per query.
 - Spill exchanges pressure on the memory for I/O on the disk. A large sort, a
   grouped query, a distinct query, a hash join, and a bulk update can therefore
   run longer. None of them makes the heap grow without a bound.
-- A threshold in bytes could give tighter control of the memory than the current
-  threshold in rows. That threshold is a possible improvement in the future.
+- While spill is off, a hash join whose build side passes
+  `hash_join_max_build_rows` (default `1000000`) falls back to a nested-loop
+  join. The result stays correct, but the join runs slower.

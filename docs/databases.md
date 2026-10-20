@@ -4,6 +4,29 @@ sidebar_position: 1.5
 
 # Databases
 
+A database keeps one set of tables apart from another. You can run several
+applications, environments, or customers on one CamusDB node or cluster, and
+each database keeps its own tables, schema objects, and grants. As in
+PostgreSQL or MySQL, a client selects a database before it works with tables.
+
+## Why use more than one database
+
+Use a separate database to keep one set of data apart from another set:
+
+- One database for each application or service that shares the same server.
+- One database for each environment, such as development, staging, and tests.
+- One database for each customer, when each customer must have a separate set
+  of tables.
+
+The database is also the unit of several operations. You can
+[branch](/docs/database-branching) a database to get an isolated copy for a
+feature or a test. You can drop a whole database, and
+[recover](/docs/recover-dropped-objects) it during the retention window. You can
+grant a user access to one database only. A [backup](/docs/backup-and-restore)
+is different: it always covers every database on the node.
+
+## Create a database before you use it
+
 You must create a database in CamusDB explicitly before you use it. Three
 operations against an unknown database return `DatabaseDoesntExist`: an open, a
 query, and a DDL statement of a table. With authentication enabled, CamusDB uses
@@ -37,22 +60,14 @@ After the creation, connect to that database in one of five ways:
 CREATE DATABASE feature_checkout BRANCH FROM app;
 ```
 
-A branch of a database is an isolated clone of an existing database, at a point
-in time. The branch starts from the schema and the view of the data of the
-source database. A write and a DDL statement in the branch stay private to that
-branch.
-
-Use a branch to test a feature, to rehearse a migration, or to reproduce a
-problem. You use data that is like the data of production, and you affect no
-base database. See [Database Branching](/docs/database-branching) for the full
-workflow, and for the notes of an operator.
+A branch is an isolated copy of a database at a point in time, so you can test a
+feature or rehearse a migration on realistic data without touching the source.
+See [Database Branching](/docs/database-branching).
 
 ## List the databases
 
 ```camussql
 SHOW DATABASES;
-SHOW BRANCHES FROM app;
-SHOW ANCESTORS FROM feature_checkout;
 ```
 
 `SHOW DATABASES` is a statement at the level of the server. It needs no open
@@ -63,46 +78,21 @@ can reach. A global grant, a grant on `db.*`, or any grant on one table inside a
 database makes that database visible. A database with no such grant is hidden in
 the same way as a name that does not exist.
 
-Use `SHOW BRANCHES FROM <database>` to list every descendant branch of a
-database. Use `SHOW ANCESTORS FROM <database>` to inspect the chain of the
-parents of a branch. See
-[Database Branching](/docs/database-branching#inspect-the-branches) for the
-details of the columns.
+To list the branches of a database, or the parents of a branch, use
+`SHOW BRANCHES FROM` and `SHOW ANCESTORS FROM`. See
+[Inspect the branches](/docs/database-branching#inspect-the-branches).
 
 ## Drop a database
 
 ```camussql
-DROP DATABASE app;
 DROP DATABASE IF EXISTS app;
-DROP DATABASE app FORCE;
 ```
 
-`DROP DATABASE` removes the entry of that name from the registry immediately.
-CamusDB nevertheless keeps the data of the database as a recoverable orphan, for
-the configured window of the retention.
-
-You can use the name again. `SHOW DATABASES` no longer lists it. An open of the
-dropped name returns `DatabaseDoesntExist`.
-
-Use `SHOW ORPHAN DATABASES` to inspect a recoverable dropped database. Then
-recover one under a new name, with `CREATE DATABASE ... RELINK TO`:
-
-```camussql
-SHOW ORPHAN DATABASES;
-CREATE DATABASE app_recovered RELINK TO '7';
-```
-
-Use `FORCE` only when CamusDB must delete the database physically, immediately,
-and permanently:
-
-```camussql
-DROP DATABASE app FORCE;
-```
-
-`DROP DATABASE IF EXISTS` does nothing when the name is absent. A forced drop
-creates no orphan, and you cannot recover the database. See
-[Recover Dropped Objects](/docs/recover-dropped-objects) for the workflow of the
-recovery, for the settings of the retention, and for the limits.
+`DROP DATABASE IF EXISTS` does nothing when the name is absent. A plain drop
+frees the name immediately but keeps the data as a recoverable orphan for the
+retention window; `DROP DATABASE ... FORCE` deletes it permanently. See
+[Recover Dropped Objects](/docs/recover-dropped-objects) to restore a dropped
+database with `CREATE DATABASE ... RELINK TO`.
 
 ## Rename a database
 
@@ -115,15 +105,9 @@ The two forms are equivalent. `ALTER DATABASE ... RENAME TO` matches the order
 of the words of a rename of a table. `RENAME DATABASE ... TO ...` also stays
 supported.
 
-A rename changes the binding in the registry only, from the name to the internal
-id of the storage. Six things do not change:
-
-1. The id of the storage.
-2. The ids of the tables.
-3. The keys of the rows.
-4. The keys of the indexes.
-5. The keys of the statistics.
-6. The comment of the database.
+A rename changes only the registry entry that maps the name to the database's
+internal storage id, so no data moves: the storage id, table ids, and row,
+index, and statistics keys all stay the same.
 
 Note this behavior:
 
@@ -137,27 +121,11 @@ Note this behavior:
 
 ## A stable identity in the storage
 
-Every database receives a stable opaque id in the storage, at its creation.
-CamusDB allocates that id from a persistent monotonic sequence. It encodes the
-id as a short string in base62. It does not reuse the id after a `DROP
-DATABASE`.
-
-The id is an internal identity of the storage. It is not a value of SQL, and it
-is not an ObjectId. An application must address a database by its name.
-
-CamusDB stores the readable name in the registry of the databases. The entry of
-that registry nevertheless points at the stable id of the storage. The data of a
-database lives in the shared key space of
-[Kahuna](https://kahunakv.github.io/), under a key that starts with that id.
-
-A table uses the same model of an identity. A new table receives a stable short
-id in base62, from a persistent monotonic sequence. CamusDB uses the id of a
-table inside the keys of a row, of an index, of the statistics, and of the
-schema. SQL continues to address a table by its name.
-
-CamusDB uses an id instead of a name for one reason. A rename of a database, and
-a rename of a table, therefore moves no data. Neither one rewrites a key of a
-table or of an index.
+Each database and table gets a short internal id that is never reused, and its
+stored keys use that id instead of the name. The id is not a SQL value or an
+ObjectId: applications always address a database by its name. See
+[Storage](/docs/storage#key-layout) for how ids are allocated and how keys are
+laid out.
 
 ## Reserved names
 

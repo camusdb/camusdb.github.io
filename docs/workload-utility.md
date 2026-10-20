@@ -18,7 +18,7 @@ Use the utility for these purposes:
   and writes.
 - Compare the behavior of a gRPC client with the behavior of a REST client.
 - Measure the effect of a change of the configuration, such as a setting of the
-  WAL or of the optimizer.
+  [write-ahead log (WAL)](/docs/concepts#wal) or of the optimizer.
 - Collect a bundle of evidence that you can repeat, for the diagnosis of the
   performance.
 - Compare two completed runs only when their invariant settings match, and
@@ -55,7 +55,8 @@ data that it expects.
 
 Set `--tables` above `1` to spread the dataset across
 `workload_accounts_00`, `workload_accounts_01`, and so on. That shape is useful
-when you want a workload that touches several key ranges or partitions. Use the
+when you want a workload that touches several key
+[ranges](/docs/concepts#ranges-and-spans) or [partitions](/docs/concepts#partition). Use the
 same `--tables` value for `init` and `run`.
 
 The setup and the reconciliation both happen outside the measured interval.
@@ -153,7 +154,7 @@ These are the options of a run:
 | `--max-in-flight` | `4096` | The cap of the open loop, for the pending operations plus the operations in flight. Past that cap, the utility counts a drop of the schedule. |
 | `--init-if-missing` | `false` | Create the data set, and seed it, before the run, when it is absent. The setup still stays outside the measurement. |
 | `--locking` | `optimistic` | Write-transaction locking: `optimistic` or `pessimistic`. |
-| `--isolation` | `read_committed` | Write-transaction isolation: `read_committed` or `serializable`. |
+| `--isolation` | `read_committed` | Write-transaction isolation: `read_committed` or `serializable`. The utility sets it on each write transaction, so its default replaces the server default, which is `serializable`. |
 | `--workload` | `accounts` | Write shape: `accounts`, `bank`, `fanout`, or `append`. |
 | `--append-keys` | `10` | Append workload only: number of active list keys. Fewer keys create more contention and more dependency edges. |
 | `--append-max-writes-per-key` | `64` | Append workload only: rotate to a new key after this many appends, which keeps each list short enough for the checker. |
@@ -189,7 +190,9 @@ Use `--workload fanout` with `--tables >= 2` for bank-style transfers whose two
 legs land in different workload tables. That is useful for exercising
 multi-range and cross-partition transaction paths.
 
-Use `--workload append` for an Elle list-append history. The utility creates a
+Use `--workload append` for a list-append history that
+[Elle](https://github.com/jepsen-io/elle), the transaction isolation checker
+from the Jepsen project, can analyze. The utility creates a
 separate `elle_append` table and runs short transactions over a small rotating
 set of list keys. A transaction can read a list or append a unique value to a
 list. The measured run still validates the seeded workload rows, but the append
@@ -281,7 +284,8 @@ That command writes `bottleneck-report.md` in the directory of the run.
 
 The report compares the throughput and the latency at the client with the
 metrics of the server. With per-node metrics and cluster facts, it can also show
-request distribution, leader concentration, partition and table placement, WAL
+request distribution, [leader](/docs/concepts#leader) concentration, partition
+and table placement, WAL
 or storage bottlenecks, and backlog growth.
 
 The report is evidence for a diagnosis. Use it to see which measured stage

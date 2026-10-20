@@ -14,12 +14,19 @@ export default function DatacenterPlayground() {
     }
   }, [lab.sql]);
   const starting = !['ready', 'error'].includes(lab.startup);
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
+  useEffect(() => {
+    if (lab.startup !== 'ready' || noticeDismissed) return;
+    const timer = setTimeout(() => setNoticeDismissed(true), 5000);
+    return () => clearTimeout(timer);
+  }, [lab.startup, noticeDismissed]);
   const {cluster, busy, auto, setAuto, traffic, setTraffic} = lab;
   const [selected, setSelected] = useState(0);
   const [rotation, setRotation] = useState(-30);
   const [zoom, setZoom] = useState(1);
   const [drag, setDrag] = useState(null);
   const [layer, setLayer] = useState('traffic');
+  const [motionPaused, setMotionPaused] = useState(false);
   const nodes = cluster?.nodes ?? [];
   const count = nodes.length;
   const failed = nodes.filter((n) => !n.running).map((n) => n.index);
@@ -52,10 +59,10 @@ export default function DatacenterPlayground() {
   }));
   const status = !cluster
     ? busy
-      ? 'Starting engines…'
-      : 'Engines offline'
+      ? 'Starting servers…'
+      : 'Servers offline'
     : busy
-      ? 'Engine operation in progress'
+      ? 'Server operation in progress'
       : unavailable
         ? 'Election / placement converging'
         : failed.length
@@ -75,10 +82,10 @@ export default function DatacenterPlayground() {
       </header>
           <div className={styles.caption}>
             <span className={styles.badge}>REAL CAMUSDB via WASM</span> Live
-            membership, placement, and elections · in-memory engines in this tab{' '}
+            membership, placement, and elections · in-memory servers in this tab{' '}
             <a href="/docs/browser-playground#data-center">How it works ↗</a>
           </div>
-          <section className={`${styles.sessionStatus} ${starting ? styles.sessionStarting : ''}`} aria-label="Cluster session status">
+          {!noticeDismissed && <section className={`${styles.sessionStatus} ${starting ? styles.sessionStarting : ''}`} aria-label="Cluster session status">
             <div className={styles.sessionHeading} role="status">
               <span className={busy ? styles.spinner : styles.statusMark} aria-hidden="true">{busy ? '' : lab.error ? '!' : '✓'}</span>
               <div>
@@ -97,12 +104,13 @@ export default function DatacenterPlayground() {
                 </li>;
               })}
             </ol>}
-          </section>
+          </section>}
           <div className={styles.workspace}>
           <section className={styles.console} aria-label="Data center SQL">
             <div className={styles.panelTitle}>
               <div><h2>SQL console</h2><span className={styles.note}>playground / {nodeName(inspect)}</span></div>
               <button
+                className={styles.primaryAction}
                 disabled={busy || lab.startup !== 'ready' || !node?.running || !lab.sql.trim()}
                 onClick={() => lab.query(inspect)}
               >
@@ -195,6 +203,7 @@ export default function DatacenterPlayground() {
               </div>
               <div
                 className={styles.scene}
+                data-motion-paused={motionPaused}
                 aria-label="Interactive 3D server racks"
                 onPointerDown={(e) => {
                   if (e.target.closest('button')) return;
@@ -221,33 +230,39 @@ export default function DatacenterPlayground() {
                   </svg>
                   {slots.map((p) => {
                     const joining = lab.joiningNode === p.id || (nodes[p.id]?.running && nodes[p.id]?.role !== 'Voter');
-                    const visible = joining || p.id < count || (!cluster && busy && p.id < MIN);
+                    const preparing = starting && p.id < MIN;
+                    const visible = preparing || joining || p.id < count;
                     const down = failed.includes(p.id);
                     return <div key={p.id} className={styles.serverPosition} style={{left: p.x, top: p.y}}>
                       {visible ? <>
                         <button
-                          className={`${styles.server} ${inspect === p.id ? styles.selectedServer : ''} ${down ? styles.failedServer : ''} ${joining ? styles.joiningServer : ''}`}
+                          className={`${styles.server} ${inspect === p.id && !preparing ? styles.selectedServer : ''} ${down ? styles.failedServer : ''} ${joining ? styles.joiningServer : ''} ${preparing ? styles.preparingServer : ''}`}
+                          data-preparing={preparing || undefined}
+                          style={{'--reveal-delay': `${p.id * 70}ms`}}
                           data-joining={joining || undefined}
                           aria-label={joining ? `${nodeName(p.id)} joining cluster` : `Inspect ${nodeName(p.id)}`}
                           aria-pressed={inspect === p.id}
-                          disabled={!cluster || joining}
+                          disabled={!cluster || joining || preparing}
                           onClick={() => setSelected(p.id)}
                         >
-                          <span className={styles.serverTop}><span>{down ? 'DOWN' : joining ? 'JOINING' : inspect === p.id ? 'SELECTED' : 'CAMUS'}</span></span>
+                          <span className={styles.serverTop}><span>{preparing ? 'PREPARING' : down ? 'DOWN' : joining ? 'JOINING' : inspect === p.id ? 'SELECTED' : 'CAMUS'}</span></span>
                           <span className={styles.serverSide} />
                           <span className={styles.serverBack} />
                           <span className={styles.serverLeft} />
                           <span className={styles.serverFront}>
                             <span className={styles.serverName}>{nodeName(p.id)}</span>
                             {(partitions.length ? partitions : Array.from({length: 8}, (_, id) => ({id, replicas: [], leader: null}))).map((part) => {
-                              const role = down ? 'offline' : part.leader === p.id ? 'leader' : part.replicas.includes(p.id) ? 'follower' : 'absent';
+                              const role = preparing ? 'absent' : down ? 'offline' : part.leader === p.id ? 'leader' : part.replicas.includes(p.id) ? 'follower' : 'absent';
                               const label = `P${part.id}: ${role === 'absent' ? 'not hosted' : role}`;
                               return <span className={styles.drive} data-role={role} key={part.id} title={label} aria-label={label}><i /><span>P{part.id}</span><b>{role === 'leader' ? 'L' : role === 'follower' ? 'F' : '–'}</b></span>;
                             })}
                           </span>
                         </button>
                         {down && <div className={styles.fire} role="img" aria-label={`${nodeName(p.id)} is down`}>
-                          {Array.from({length: 12}, (_, spark) => <i key={spark} style={{'--spark-x': `${(spark * 17) % 48 - 24}px`, '--drift': `${(spark % 3 - 1) * 16}px`, '--delay': `${-spark * .19}s`, '--duration': `${1.1 + (spark % 4) * .2}s`}} />)}
+                          <span className={styles.firePlume} aria-hidden="true">
+                            {Array.from({length: 5}, (_, flame) => <i className={styles.flame} key={`flame-${flame}`} style={{'--offset': `${(flame - 2) * 7}px`, '--height': `${[24, 37, 46, 31, 22][flame]}px`, '--delay': `${-flame * .17}s`, '--duration': `${.32 + (flame % 3) * .13}s`}} />)}
+                            {Array.from({length: 9}, (_, spark) => <i className={styles.ember} key={`ember-${spark}`} style={{'--offset': `${(spark * 7) % 30 - 15}px`, '--drift': `${(spark % 3 - 1) * 12}px`, '--delay': `${-spark * .23}s`, '--duration': `${1 + (spark % 4) * .23}s`}} />)}
+                          </span>
                         </div>}
                       </> : <div className={styles.expansion}>0{p.id + 1}</div>}
                     </div>;
@@ -303,12 +318,13 @@ export default function DatacenterPlayground() {
                     +
                   </button>
                 </div>
+                <button aria-pressed={motionPaused} onClick={() => setMotionPaused((paused) => !paused)}>{motionPaused ? 'Resume animation' : 'Pause animation'}</button>
                 <span>Drag to orbit · Click a server to inspect</span>
               </div>
               <p className={styles.sceneNote}>
                 {layer === 'traffic'
                   ? 'Paths illustrate client routing, not measured packets. Select a server to see its leaders and hosted partitions.'
-                  : 'Links connect nodes sharing committed replicas. Placement and leadership come from the engines.'}
+                  : 'Links connect nodes sharing committed replicas. Placement and leadership come from the servers.'}
               </p>
             </section>
           </div>
@@ -336,7 +352,7 @@ export default function DatacenterPlayground() {
                       >
                         −
                       </button>
-                      <span>{count} engines</span>
+                      <span>{count} servers</span>
                       <button
                         aria-label="Add one node"
                         disabled={!canResize || count >= MAX}
@@ -346,7 +362,7 @@ export default function DatacenterPlayground() {
                       </button>
                     </div>
                     <p className={styles.note}>
-                      New engines join as learners and catch up. Removal asks
+                      New servers join as learners and catch up. Removal asks
                       CamusDB to drain the highest ordinal before stopping it.
                     </p>
                     <div className={styles.toggle}>
@@ -426,7 +442,7 @@ export default function DatacenterPlayground() {
                     {node?.role ?? (busy ? 'Starting' : 'Offline')}
                   </span>
                 </div>
-                <span className={styles.note}>ENGINE-REPORTED STATE</span>
+                <span className={styles.note}>SERVER-REPORTED STATE</span>
                 <dl>
                   <div>
                     <dt>Node / endpoint</dt>
@@ -475,7 +491,7 @@ export default function DatacenterPlayground() {
                 </p>
                 <button
                   className={
-                    failed.includes(inspect) ? styles.recover : styles.fault
+                    `${styles.primaryAction} ${failed.includes(inspect) ? styles.recover : styles.fault}`
                   }
                   disabled={
                     busy ||
@@ -490,7 +506,7 @@ export default function DatacenterPlayground() {
                 </button>
                 <p className={styles.note}>
                   Stop a node to exercise real failover. Restart brings back an
-                  empty engine to recover from peers. Keep a connected majority
+                  empty server to recover from peers. Keep a connected majority
                   online.
                 </p>
               </section>

@@ -35,8 +35,8 @@ dashboard endpoints then return 404.
 | Area | Content |
 | --- | --- |
 | Node | Endpoint, role, readiness, mode, auth state, version, uptime, and data directory. |
-| Load | In-flight requests, open transactions, prepared statements, retained bytes, and hosted partitions. |
-| Engine | Request and statement rates, commit duration, cache hit rates, Raft, WAL, and storage counters. |
+| Load | In-flight requests, open transactions, prepared statements, retained bytes, and the [partitions](/docs/concepts#partition) (slices of the data) that this node hosts. |
+| Engine | Request and statement rates, commit duration, cache hit rates, and counters for [Raft](/docs/concepts#raft) consensus, the write-ahead log, and storage. |
 | Cluster | Committed membership roster. |
 | Databases | Database ids, branch parents, and whether this node currently has each database loaded. |
 | Relations | Tables and views for the selected database. |
@@ -72,12 +72,9 @@ principal to check. Enable authentication to expose it from another machine.
 ## Browser security headers
 
 Dashboard pages and the error page include a content security policy,
-`X-Frame-Options: DENY`, and `X-Content-Type-Options: nosniff`. JSON endpoints
-do not carry the page policy.
-
-The content security policy allows inline scripts only with a per-request
-nonce. Add dashboard scripts and styles as static files under `wwwroot` instead
-of inlining them.
+`X-Frame-Options: DENY`, and `X-Content-Type-Options: nosniff`. The content
+security policy allows inline scripts only with a per-request nonce. JSON
+endpoints do not carry the page policy.
 
 ## Permissions
 
@@ -86,7 +83,8 @@ Non-superusers can open the dashboard, but four panels require a superuser:
 - Engine, because it runs `SHOW ENGINE STATS`.
 - Configuration, because it runs `SHOW VARIABLES` and `SHOW CLUSTER SETTINGS`.
 - Slow queries, because entries include SQL text submitted by other users.
-- Cluster, because it names peer endpoints, partitions, and leaders.
+- Cluster, because it names the addresses of other nodes, partitions, and
+  [leaders](/docs/concepts#leader).
 
 Other panels use the caller's ordinary grants. The database list is filtered to
 databases that the user may reach.

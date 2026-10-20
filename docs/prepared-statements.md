@@ -37,7 +37,7 @@ Here are the measurements of an `INSERT` with 5 columns and parameters. See
 | | Inline | Prepared |
 |---|---:|---:|
 | Bytes on the wire, for each execution | 198 B | 43 B |
-| The prologue of the transport, which is the parse of the message plus the parse for the route | 9,304 ns / 6152 B | 136 ns / 856 B |
+| The prologue of the transport, which is the parse of the message plus the parse for the route | 9,040.5 ns / 6152 B | 134.5 ns / 856 B |
 
 The execution after that point is identical. A prepared execution builds the
 same ticket. It takes the same path through the engine. The isolation, the
@@ -135,7 +135,7 @@ id that you closed already also succeeds.
 
 You can skip the close safely. The stream frees everything at its end. A long
 stream that prepares many different statements must nevertheless close what it
-no longer needs. It then stays under `GrpcMaxPreparedStatementsPerStream`.
+no longer needs. It then stays under `grpc_max_prepared_statements_per_stream`.
 
 ### The .NET client
 
@@ -262,6 +262,23 @@ execution one time. The error occurs in four cases:
 - The handle belongs to a different principal. CamusDB reports that case
   identically, by design. An error specific to the ownership would confirm to a
   caller that a handle exists, and that caller does not own it.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant N as CamusDB node
+    C->>N: POST /prepare-sql-statement (database, sql)
+    N-->>C: statementId, parameterNames
+    C->>N: POST /execute-sql-non-query (statementId, positionalParameters)
+    N-->>C: Result
+    Note over N: The handle idles out, the node restarts, or the request reaches another node
+    C->>N: Execute with the old statementId
+    N-->>C: 404 CADB0520
+    C->>N: Prepare the statement again
+    N-->>C: New statementId
+    C->>N: Replay the execution one time
+    C->>N: POST /close-sql-statement
+```
 
 Behind a load balancer, use a sticky session. You can also accept one new
 prepare for each node and each statement. The steady state after the warm-up is
