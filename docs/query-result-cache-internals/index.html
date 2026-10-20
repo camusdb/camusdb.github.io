@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en" dir="ltr" class="docs-wrapper plugin-docs plugin-id-default docs-version-current docs-doc-page docs-doc-id-query-result-cache-internals" data-has-hydrated="false">
+<head>
+<meta charset="UTF-8">
+<meta name="generator" content="Docusaurus v3.10.2">
+<title data-rh="true">Query result cache internals | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/query-result-cache-internals/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Query result cache internals | CamusDB"><meta data-rh="true" name="description" content="This page is for engineers who maintain or extend the result cache, or who want"><meta data-rh="true" property="og:description" content="This page is for engineers who maintain or extend the result cache, or who want"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/query-result-cache-internals/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-result-cache-internals/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/query-result-cache-internals/" hreflang="x-default"><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
+<link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed">
+
+
+
+
+
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.3a080c3e.css">
+<script src="/assets/js/runtime~main.fa0c1a52.js" defer="defer"></script>
+<script src="/assets/js/main.1cf8581f.js" defer="defer"></script>
+</head>
+<body>
+<svg style="display: none;"><defs>
+<symbol id="theme-svg-external-link" viewBox="0 0 24 24"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
+</defs></svg>
+<script>!function(){var t=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();document.documentElement.setAttribute("data-theme",t||"light"),document.documentElement.setAttribute("data-theme-choice",t||"light")}(),function(){try{const c=new URLSearchParams(window.location.search).entries();for(var[t,e]of c)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="theme-layout-navbar navbar navbar--fixed-top"><div class="navbar__inner"><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/"><div class="navbar__logo"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">CamusDB</b></a><a class="navbar__item navbar__link" href="/docs/why-camusdb/">Docs</a><a class="navbar__item navbar__link" href="/blog/">Blog</a><a class="navbar__item navbar__link" href="/playground/">Playground</a></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"></path></svg></button></div><div class="navbarSearchContainer_Bca1"></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class="docsWrapper_hBAB"><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type="button"></button><div class="docRoot_UBD9"><main class="docMainContainer_TBSr docMainContainerEnhanced_lQrH"><div class="container padding-top--md padding-bottom--lg"><div class="row"><div class="col docItemCol_VOVn"><div class="docItemContainer_Djhp"><article><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type="button" class="clean-btn tocCollapsibleButton_TO0P">On this page</button></div><div class="theme-doc-markdown markdown"><header><h1>Query result cache internals</h1></header>
+<p>This page is for engineers who maintain or extend the result cache, or who want
+to audit why it never serves stale data on the node that took a write. It
+describes the read path, how dependencies are captured, how a commit
+invalidates entries, the publish gate that orders a publish against a commit,
+the strict validation, and the fingerprint. To use or tune the cache, read
+<a class="" href="/docs/query-result-cache/">Query result cache</a> instead. This page assumes you
+know the terms defined there: family, fingerprint, dependency set, and bucket.</p>
+<p>Two more terms appear on this page:</p>
+<ul>
+<li class="">The publish gate is the small concurrency primitive that makes a commit and a
+publish safe together. It holds a generation counter for each
+<a class="" href="/docs/concepts/#key-space">key space</a> (all the keys that share one prefix),
+which only increases, and a set of marks for the writes in flight. See
+<a href="#the-publish-gate" class="">The publish gate</a>.</li>
+<li class=""><code>T_cache</code> is the <a class="" href="/docs/concepts/#hlc">HLC</a> snapshot timestamp at which
+CamusDB computed a strict entry. The strict validation compares the
+<code>LastModified</code> of each dependency against it.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-path-of-a-read">The path of a read<a href="#the-path-of-a-read" class="hash-link" aria-label="Direct link to The path of a read" title="Direct link to The path of a read" translate="no">​</a></h2>
+<p>For an eligible query, <code>QueryExecutor</code> runs this sequence. See
+<code>QueryWithCache</code>:</p>
+<ol>
+<li class="">It builds the fingerprint. The key of the entry comes from the id of the
+shape of the plan, the bound parameters, the dependencies of the schema, and
+the options of the cache.</li>
+<li class="">It probes the cache. It looks the fingerprint up. A live entry, which is an
+entry that did not expire, is a candidate for a hit.
+For a hit without the strict mode, CamusDB checks that the schema
+dependencies of the entry are still current. It then yields the stored rows.
+For a strict hit, CamusDB validates the entry against the live storage. See
+<a href="#the-ttl-and-the-strict-validation" class="">The TTL and the strict validation</a>. It
+yields the stored rows when the entry is valid. Otherwise it evicts the
+entry, records the revalidation, and continues to a live execution. The final
+status then becomes <code>stale-revalidated</code>.</li>
+<li class="">It guards a strict entry without a snapshot. A strict entry has a meaning
+only when <code>T_cache</code> is a real HLC snapshot. Two reads have one: an autocommit
+read under the serializable default, without
+<a class="" href="/docs/key-range-sharding/">key-range sharding</a>, and an <code>AS OF SYSTEM TIME</code>
+read. For any other read, CamusDB serves live rows, and it publishes nothing.</li>
+<li class="">It takes a snapshot of the generation. It records the current counter of the
+generation of the row bucket of the table, before the execution. A write can
+already be in flight for that bucket. CamusDB then serves live rows without a
+publish, with the reason <code>in-flight-write</code>. It therefore does not race a
+write that is about to commit.</li>
+<li class="">It executes the query, and it collects the dependencies. It runs the real
+plan through the collector of the dependencies. See
+<a href="#the-capture-of-a-dependency" class="">The capture of a dependency</a>. It materializes
+the rows as they stream to the client.</li>
+<li class="">It publishes the entry. After the stream drains completely, CamusDB tries to
+store the entry. It stores the entry through the publish gate only. That gate
+checks the generation again. It rejects the store when a write committed into
+the bucket during the execution. See <a href="#the-publish-gate" class="">The publish gate</a>.
+The caps of the rows, of the bytes, and of the dependencies also gate the
+store at that point.</li>
+</ol>
+<!-- -->
+<p>An enumeration that a caller cancels, and one that faults, never publishes. The
+runner marks the drain complete after the last row only. CamusDB skips the
+publish otherwise. That rule is the invariant of no partial publish.</p>
+<p>Between step 3 and step 4, several requests for the same fingerprint collapse
+onto one execution. This is the single-flight behavior. The first caller becomes
+the owner, and it runs the sequence above. The other callers wait.</p>
+<p>The slot of that wait carries a signal of the completion only. It never carries
+a row. The owner reports its publish. Each waiter then runs step 2 for itself.
+It serves the entry only when its own probe still finds that entry, and
+validates it. It executes live otherwise.</p>
+<p>That indirection has a purpose. A write can commit, and it can evict the entry,
+between the publish of the owner and the moment when a waiter wakes. A waiter is
+a query that began after that invalidation. A hand of the materialized rows of
+the owner to that waiter would serve a state older than a committed write. It
+would also skip the checks of the schema and of the strict mode that every other
+reader performs.</p>
+<p>A waiter that reaches its timeout executes on its own. A waiter whose owner
+failed also executes on its own.</p>
+<p>Why does CamusDB take a snapshot of the row bucket of the table only, even for a
+scan of an index? Every <code>INSERT</code>, <code>UPDATE</code>, and <code>DELETE</code> on a table writes the
+key of the row. The generation of the row bucket therefore increases on any
+write to that table. The fence of the row bucket covers a scan of an index as
+well.</p>
+<p>That is exactly the reason why a join must not take this path. A join touches
+the buckets of more than one table. The fence of one bucket would not cover the
+others.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-capture-of-a-dependency">The capture of a dependency<a href="#the-capture-of-a-dependency" class="hash-link" aria-label="Direct link to The capture of a dependency" title="Direct link to The capture of a dependency" translate="no">​</a></h2>
+<p>The operators of a scan and of a join feed a collector of each request, which is
+the <code>QueryDependencyCollector</code>, as they read. CamusDB attaches the collector on
+the path of the cache only. Every call that records a dependency has a guard. A
+query without a cache therefore pays nothing.</p>
+<p>The rules follow the shape of the scan:</p>
+<ul>
+<li class="">A full scan of a table records three things: the row bucket as a range
+dependency, the schema version of the table as a schema dependency, and the
+key of each fetched row as a point dependency.</li>
+<li class="">A scan of an index, a lookup, a range, and an <code>IN</code> list each record three
+things: the bucket of the index as a range dependency, the schema version, and
+the key of each fetched row as a point dependency. Both parts matter. The
+range of the index catches a phantom insert, and a change of the membership.
+The point of the row catches an update of a projected column that the index
+does not hold.</li>
+<li class="">CamusDB also records a row that a residual filter rejects later. A row that
+does not match today could match after an update. It is therefore a real
+dependency.</li>
+</ul>
+<p>Two caps apply, and they can truncate the set. CamusDB caps the point
+dependencies of each entry. It drops a point dependency past that cap, and the
+range dependency then gives the coverage. That behavior is safe for an entry
+without the strict mode, because an invalidation on the same node matches on the
+range.</p>
+<p>There is also a cap on the total number of the dependencies. CamusDB marks the
+collector when the set passes that cap. It then does not publish the entry at
+all. It bypasses the store, instead of a store of an incomplete set. A coverage
+that misses something is never acceptable. A coverage that is too wide is.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-invalidation-on-the-same-node">The invalidation on the same node<a href="#the-invalidation-on-the-same-node" class="hash-link" aria-label="Direct link to The invalidation on the same node" title="Direct link to The invalidation on the same node" translate="no">​</a></h2>
+<p>The boundary of a transaction drives the invalidation. The invalidation is not
+spread across the methods of the writes. A write of a batch and a write of one
+point therefore have the same coverage.</p>
+<p>For a write of a row and of an index, <code>KvTransactionsManager.CommitAsync</code>
+collects the modified keys of the transaction. It derives the buckets of the key
+space of those keys.</p>
+<p>After a successful commit through <a class="" href="/docs/concepts/#kahuna">Kahuna</a>, the
+transactional storage layer, it asks the cache to drop entries. It drops every
+entry whose set of dependencies overlaps a modified key, and every entry whose
+set overlaps a modified bucket.</p>
+<p>A modified key of a row matches two things: a range dependency of a row bucket,
+through its bucket, and a point dependency of a row, exactly.</p>
+<p>All of that happens through the publish gate. It is therefore atomic against a
+concurrent publish. See <a href="#the-publish-gate" class="">The publish gate</a>. A transaction
+that rolls back invalidates nothing.</p>
+<p>A change of the schema and of the catalog needs a separate mechanism. A DDL
+statement does not touch the keys of a row or of an index in the same way.</p>
+<p>After a successful commit of a DDL statement, the executor evicts every entry
+with a schema dependency on the affected table, through <code>InvalidateByTableId</code>. A
+drop of a table evicts by the id of the table. A drop of a whole database evicts
+by the database.</p>
+<p>The fingerprint already holds the schema versions. A query after a change of the
+schema therefore computes a different fingerprint. It cannot collide with an
+entry from before the change, in any case.</p>
+<p>The index of the dependencies, <code>DependencyIndex</code>, maps three things to the ids
+of the entries that depend on them: a bucket, a point key, and a schema key of a
+database and a table. The cost of an invalidation therefore follows the key
+spaces that a write touched, and the entries that overlap. It does not follow the
+total number of the cached entries.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-publish-gate">The publish gate<a href="#the-publish-gate" class="hash-link" aria-label="Direct link to The publish gate" title="Direct link to The publish gate" translate="no">​</a></h2>
+<p>The dangerous race is this. A query misses, executes, and publishes an entry, at
+the same moment when a write commits into the same key space. The stale entry
+would survive, if the publish landed after the invalidation of the write.</p>
+<p><code>CachePublishGate</code> closes that window. It holds two structures for each key
+space:</p>
+<ul>
+<li class="">A counter of the generation. Every committed write increases it. It never
+decreases.</li>
+<li class="">A count of the marks of the writes in flight. CamusDB raises the count before
+a commit. It clears the count after that commit.</li>
+</ul>
+<p>The protocol has two halves.</p>
+<p>On the path of a write, inside <code>CommitAsync</code>, CamusDB marks the modified key
+spaces as in flight, before the commit through Kahuna. It then resolves that
+mark by the result of the finalize. The question is not &quot;did this write commit?&quot;
+The question is &quot;could this write be visible?&quot;</p>
+<table><thead><tr><th>Result of the finalize</th><th>What it means</th><th>Action of the gate</th></tr></thead><tbody><tr><td><code>Committed</code></td><td>A final success</td><td>It increases the generations, invalidates inside the lock of the gate, and clears the marks.</td></tr><tr><td>A <code>MustRetry</code> past the bound of the retries, an <code>Errored</code>, or a cancellation or an exception after a request of a commit left the node</td><td>The outcome is unknown. The coordinator can apply a commit and still lose the response. The rows may therefore be readable here already.</td><td>The same as a <code>Committed</code>. It increases, invalidates, and clears.</td></tr><tr><td>An <code>Aborted</code>, a confirmed rollback, or any failure before the first request of a commit</td><td>A definite absence of a commit</td><td>It clears the marks only.</td></tr></tbody></table>
+<p>A fence around a write that never landed costs one execution again. A skipped
+fence around a write that did land serves rows older than a committed write.
+That result is the one thing that the
+<a class="" href="/docs/query-result-cache/#the-mental-model">mental model</a> promises cannot happen
+on this node.</p>
+<p>CamusDB therefore resolves the unknown case conservatively. The caller can later
+retry the same handle, and resolve it. The second fence then has no further
+effect. A generation only moves forward, and the entries are gone already.</p>
+<p>On the path of a read, CamusDB takes a snapshot of the generations of the key
+spaces before the execution. It bypasses the cache when a key space is in flight
+already.</p>
+<p>After the execution, CamusDB publishes through <code>TryPublishUnderGeneration</code> only.
+That method holds the same lock as the path of the commit. It checks the
+generation again. It inserts the entry only when the generation did not move.</p>
+<p>A publish therefore lands entirely before the invalidation of a write, and the
+invalidation then removes it. Or CamusDB rejects the publish, because the
+generation advanced. There is no interleaving between those two results.</p>
+<!-- -->
+<p>CamusDB holds the lock across the bookkeeping in memory only. It never holds the
+lock across a commit through Kahuna. The lock therefore stays cheap.</p>
+<p>A false rejection is acceptable. Such a rejection makes a query execute again,
+because an unrelated row of the same bucket changed. A stale entry that survives
+a committed write is not acceptable.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-ttl-and-the-strict-validation">The TTL and the strict validation<a href="#the-ttl-and-the-strict-validation" class="hash-link" aria-label="Direct link to The TTL and the strict validation" title="Direct link to The TTL and the strict validation" translate="no">​</a></h2>
+<p>The guarantees above say nothing about a write on a different node. The commit
+of that node never touches the index in the memory of this node. Two mechanisms
+bound the staleness that results.</p>
+<p>The first mechanism is the TTL. Every entry has an expiry, from the <code>ttl</code> of its
+hint, or from the configured default. CamusDB checks the expiry at a probe. An
+expired entry misses, and CamusDB removes it. A sweep in the background also
+drops an expired entry periodically. It therefore does not stay in the memory.</p>
+<p>The second mechanism is the strict validation. CamusDB validates a <code>strict</code>
+entry against the live storage at every hit, before it serves the rows. The
+<code>StrictValidator</code> performs three steps, in this order:</p>
+<ol>
+<li class="">It checks the schema dependencies. The entry is stale when a table that it
+depends on is gone, or when that table now holds a different schema version.</li>
+<li class="">It checks the point dependencies. It probes each key of a row, for the latest
+committed value. Two results mean that the entry is stale: an absent key,
+which is a delete, and a <code>LastModified</code> newer than <code>T_cache</code>, which is an
+update.</li>
+<li class="">It checks the range dependencies. It scans each bucket. A key with a
+<code>LastModified</code> newer than <code>T_cache</code> means a phantom insert, or a change that
+CamusDB did not track.</li>
+</ol>
+<p>Every read of the validation is outside a transaction. Each one reads the latest
+committed value.</p>
+<p>A limit on the keys of the probe bounds the validation. The validation fails
+closed. CamusDB treats the entry as stale when the validation would pass the
+limit. It executes the query again. It does not trust the entry.</p>
+<p>A failed validation evicts the entry. The next probe therefore does not validate
+an entry that CamusDB knows to be stale.</p>
+<p>Two details of the correctness are worth your attention:</p>
+<ul>
+<li class="">A physical delete needs a point dependency. The key of a deleted row is gone,
+and a scan of a range cannot see it. Only the point dependency of the row
+catches the delete. That is the reason for one rule: CamusDB does not store a
+strict entry whose point dependencies the cap truncated. Without complete
+point dependencies, that entry could not detect a delete. It therefore
+bypasses the publish.</li>
+<li class="">The strict mode needs a snapshot. Only two reads pin an HLC snapshot: an
+autocommit read under the serializable default, without key-range sharding,
+and an <code>AS OF SYSTEM TIME</code> read. For any other read, <code>T_cache</code> would have no
+meaning, and every comparison of a <code>LastModified</code> would fail. CamusDB does not
+publish such a strict entry. It serves live rows instead.</li>
+</ul>
+<p>A strict validation can cost as much as a scan of a range. It is an opt-in mode
+of the correctness, for a read across several nodes. It is not a general path of
+the performance.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-fingerprint">The fingerprint<a href="#the-fingerprint" class="hash-link" aria-label="Direct link to The fingerprint" title="Direct link to The fingerprint" translate="no">​</a></h2>
+<p>The fingerprint must never let two logically different queries share one entry.</p>
+<p>It is a hash of 128 bits, and that hash is not cryptographic. CamusDB uses
+XxHash128, over a canonical string that is injective. The fingerprint is not a
+boundary of the security. It only avoids an accidental collision. A fast hash
+over an unambiguous encoding is therefore the correct tool.</p>
+<p>Six parts go into the canonical form:</p>
+<ol>
+<li class="">The id of the database.</li>
+<li class="">The name of the family.</li>
+<li class="">The id of the shape of the query.</li>
+<li class="">Every bound parameter, in the order of its name.</li>
+<li class="">The schema dependencies, in the order of the name of the table, with their
+versions.</li>
+<li class="">The options of the cache.</li>
+</ol>
+<p>The encoding takes care in two ways that matter:</p>
+<ul>
+<li class="">Each value carries its type. The integer <code>1</code>, the string <code>&#x27;1&#x27;</code>, a <code>NULL</code>, and
+an object id therefore never encode in the same way.</li>
+<li class="">Every value of a variable length carries a prefix of its length. A value that
+holds a delimiter of the structure therefore cannot look like a different set
+of values. The format of a float is invariant of the culture. The locale of a
+node therefore cannot change a fingerprint.</li>
+</ul>
+<p>The id of the shape of the query is a separate hash, of 64 bits. It covers the
+structure of the query, with a placeholder in the position of each literal. The
+plan cache shares that id. It identifies a query that is the same except for its
+constants.</p>
+<p>The fingerprint of a result always folds the literal values back in. The plan
+cache ignores them by design. The result cache must not ignore them.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="related-pages">Related pages<a href="#related-pages" class="hash-link" aria-label="Direct link to Related pages" title="Direct link to Related pages" translate="no">​</a></h2>
+<ul>
+<li class=""><a class="" href="/docs/query-result-cache/">Query result cache</a></li>
+<li class=""><a class="" href="/docs/serializable-transactions/">Transactions and isolation</a></li>
+<li class=""><a class="" href="/docs/time-travel-reads/">Time travel reads</a></li>
+</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/query-result-cache-internals.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#the-path-of-a-read" class="table-of-contents__link toc-highlight">The path of a read</a></li><li><a href="#the-capture-of-a-dependency" class="table-of-contents__link toc-highlight">The capture of a dependency</a></li><li><a href="#the-invalidation-on-the-same-node" class="table-of-contents__link toc-highlight">The invalidation on the same node</a></li><li><a href="#the-publish-gate" class="table-of-contents__link toc-highlight">The publish gate</a></li><li><a href="#the-ttl-and-the-strict-validation" class="table-of-contents__link toc-highlight">The TTL and the strict validation</a></li><li><a href="#the-fingerprint" class="table-of-contents__link toc-highlight">The fingerprint</a></li><li><a href="#related-pages" class="table-of-contents__link toc-highlight">Related pages</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
+</body>
+</html>
