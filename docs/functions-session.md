@@ -4,30 +4,30 @@ sidebar_position: 4.15
 
 # Session functions
 
-A session function reports the session of a statement. It reports nothing about
-a row. It takes no argument.
+A session function describes the session running the statement, not any row.
+None of them take arguments.
 
-Use a session function when a statement must know who runs it, or where. Three
-examples are a filter that returns only the rows of the current user, a value in
-an `INSERT` that records who wrote a row, and a check in a script that it runs
-in the correct database.
+Use one when a statement needs to know who is running it, or where. For
+example, you can filter for the rows that belong to the current user, record who
+wrote a row in an `INSERT`, or have a script check that it is connected to the
+right database.
 
 ## The functions
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `current_database()` | `STRING` | The database of the statement. It is `NULL` for a statement at the level of the server, such as `CREATE DATABASE` or `CREATE USER`. Such a statement has no current database. |
-| `current_user()` | `STRING` | The name of the authenticated user. It is `NULL` while authentication is disabled. |
+| `current_database()` | `STRING` | The statement's database. It is `NULL` for server-level statements such as `CREATE DATABASE` or `CREATE USER`, which have no current database. |
+| `current_user()` | `STRING` | The authenticated user's name. It is `NULL` while authentication is disabled. |
 | `current_role()` | `STRING` | The same value as `current_user()`. |
-| `is_superuser()` | `BOOL` | Whether the session of the caller is a superuser. It is `NULL` while authentication is disabled. |
+| `is_superuser()` | `BOOL` | Whether the caller's session is a superuser. It is `NULL` while authentication is disabled. |
 
 ```camussql
 SELECT current_user(), current_database(), is_superuser();
 ```
 
-A session function works at any position that accepts a scalar function. That
-includes a [`SELECT` without a `FROM`](/docs/sql-fromless-select), a projection,
-a filter, and a key of a `GROUP BY`:
+You can call a session function anywhere a scalar function is accepted,
+including a [`SELECT` without a `FROM`](/docs/sql-fromless-select), a
+projection, a filter, and a `GROUP BY` key:
 
 ```camussql
 SELECT id, total
@@ -35,37 +35,36 @@ FROM orders
 WHERE owner = current_user();
 ```
 
-## A NULL means that there is no identity
+## NULL means no identity
 
-While authentication is disabled, there is no authenticated identity to report.
-`current_user()` therefore returns `NULL`. It does not return a name as a
-placeholder. A name would assert an identity that the server never verified. See
+While authentication is disabled, there is no authenticated identity to report,
+so `current_user()` returns `NULL` rather than a placeholder name. A name would
+assert an identity the server never verified. See
 [Authentication And Authorization](/docs/sql-authentication).
 
 ## current_role() and current_user() are the same
 
-CamusDB grants a privilege to a user directly. A session therefore has no
-identity of a role, separate from its user. `current_role()` exists so that SQL
-still runs. That SQL comes from an engine that separates the two ideas.
+CamusDB grants privileges directly to users, so a session has no role identity
+separate from its user. `current_role()` exists so that SQL written for engines
+that separate the two still runs.
 
-## A session function bypasses the result cache
+## Session functions bypass the result cache
 
-The value of a session function is fixed for one session. It differs between two
-sessions. The [query result cache](/docs/query-result-cache) belongs to one
+A session function's value is fixed within a session but differs between
+sessions. The [query result cache](/docs/query-result-cache) belongs to a single
 node, and every caller shares it.
 
-A cache of `SELECT current_user()` would serve the identity of one caller to the
-next caller. Any query with a session function therefore bypasses the cache
+Caching `SELECT current_user()` would serve one caller's identity to the next
+caller, so any query that calls a session function bypasses the cache
 completely.
 
-## Not in a DEFAULT, and not in a CHECK
+## Not allowed in DEFAULT or CHECK
 
-CamusDB stores a `DEFAULT` of a column and the condition of a `CHECK`. A later
-insert replays both of them. A replay carries no session for the function to
-report.
+CamusDB stores a column's `DEFAULT` and a `CHECK` condition, and replays them on
+later inserts. A replay carries no session for the function to report.
 
-The DDL therefore refuses both. It does not accept a schema element that could
-only fail later:
+So the DDL refuses both, rather than accept a schema element that could only
+fail later:
 
 ```camussql
 CREATE TABLE owners (
@@ -80,8 +79,8 @@ CREATE TABLE orders (
 );
 ```
 
-A `DEFAULT` is for a generator that runs for each row, such as `gen_id()` and
-`now()`. Write the value of the session from the statement instead:
+A `DEFAULT` is for generators that run once per row, such as `gen_id()` and
+`now()`. Write the session value in the statement instead:
 
 ```camussql
 INSERT INTO orders (id, owner) VALUES (gen_id(), current_user());
@@ -89,19 +88,18 @@ INSERT INTO orders (id, owner) VALUES (gen_id(), current_user());
 
 ## is_superuser() needs no privilege
 
-The function answers for the session of the caller only. It answers for no other
-session.
+The function answers only for the caller's own session.
 
-A caller can already learn the same fact in another way. That caller runs a
-statement that needs a superuser, and it reads whether CamusDB refuses the
-statement. A direct report therefore discloses nothing new. There is no form of
-the function that asks about another user.
+A caller could already learn the same fact another way: run a statement that
+requires a superuser and see whether CamusDB refuses it. So reporting it
+directly discloses nothing new. No form of the function asks about another
+user.
 
 ## Related pages
 
 - [Functions](/docs/functions) for the other categories.
-- [Authentication And Authorization](/docs/sql-authentication) for the users and
-  the grants.
-- [Views](/docs/views). The body of a view may call these functions. CamusDB
-  takes the snapshot of the session from the statement of the caller, at every
-  position where it expands the body.
+- [Authentication And Authorization](/docs/sql-authentication) for users and
+  grants.
+- [Views](/docs/views). A view's body may call these functions. Wherever
+  CamusDB expands the body, it takes the session snapshot from the caller's
+  statement.

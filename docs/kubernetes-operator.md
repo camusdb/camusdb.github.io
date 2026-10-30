@@ -8,19 +8,18 @@ The CamusDB Kubernetes Operator is the easiest way to run a self-managed CamusDB
 cluster.
 
 [Kubernetes](https://kubernetes.io/) is a platform that runs containers on a
-group of machines. It restarts a failed container, and it moves work off a
-failed machine. Many teams already use it to run their applications.
+group of machines. It restarts failed containers and moves work off failed
+machines. Many teams already use it to run their applications.
 
 An operator is a program that runs inside Kubernetes and manages one kind of
-application for you. You describe the cluster that you want in one short YAML
-file. The operator creates the Kubernetes objects for that cluster. It then
-keeps the cluster in that state, and it does the routine work that a person
-otherwise does by hand.
+application for you. You describe the cluster you want in one short YAML file.
+The operator creates the Kubernetes objects for that cluster, keeps the cluster
+in that state, and does the routine work a person would otherwise do by hand.
 
 The [CamusDB Kubernetes Operator](https://github.com/camusdb/camusdb-k8s-operator)
 creates and operates CamusDB clusters through the `CamusDBCluster` custom
-resource. A custom resource is a new kind of Kubernetes object. The operator
-adds it to your Kubernetes cluster.
+resource. A custom resource is a new kind of Kubernetes object, which the
+operator adds to your Kubernetes cluster.
 
 :::caution Alpha
 
@@ -33,8 +32,7 @@ data.
 ## Why use the operator
 
 A database cluster is harder to run than a stateless application. Kubernetes
-can start and stop containers, but it does not know the rules of a CamusDB
-cluster.
+can start and stop containers, but it does not know CamusDB's cluster rules.
 
 A CamusDB cluster keeps a membership roster. The roster is the list of nodes
 that the cluster agreed on through [Raft](/docs/concepts#raft), the protocol
@@ -45,10 +43,10 @@ the same time, the [partitions](/docs/concepts#partition) (the slices of data
 that each replicate on their own) lose their [majority](/docs/concepts#majority),
 and the cluster stops all commits.
 
-Adding or removing a node is therefore more than a change to a replica count in
-Kubernetes. The operator knows the rules of the roster. It compares the state in
-Kubernetes with the committed roster, and it makes one membership change at a
-time. You get these results:
+Adding or removing a node is therefore more than changing a replica count in
+Kubernetes. The operator knows the roster rules: it compares the state in
+Kubernetes with the committed roster and makes one membership change at a time.
+As a result:
 
 - One YAML resource creates a complete cluster: the storage, the network
   services, TLS, and the configuration.
@@ -57,8 +55,8 @@ time. You get these results:
 - An upgrade replaces one node at a time, so the cluster stays available.
 - Optional autoscaling adds and removes nodes as the traffic changes.
 
-Use the operator when you already run Kubernetes, and you want to run CamusDB on
-your own infrastructure. You do not need it in these cases:
+Use the operator when you already run Kubernetes and want to run CamusDB on
+your own infrastructure. You do not need it for:
 
 - Local development, a tutorial, or a quick test. Run a standalone node, or the
   Docker Compose cluster in [Cluster mode](/docs/cluster#run-a-local-cluster).
@@ -80,10 +78,9 @@ You need:
 
 ## What the operator manages
 
-These terms appear in the list below. A StatefulSet runs a set of pods with
-stable names, so each CamusDB node keeps the same identity after a restart. A
-PVC, or PersistentVolumeClaim, is a request for a disk that survives a pod
-restart.
+In the list below, a StatefulSet runs a set of pods with stable names, so each
+CamusDB node keeps the same identity after a restart. A PVC
+(PersistentVolumeClaim) is a request for a disk that survives a pod restart.
 
 The operator manages:
 
@@ -116,7 +113,7 @@ The chart installs the controller, RBAC, and the `CamusDBCluster` CRD. It does
 not create a database cluster.
 
 By default, one operator replica watches every namespace. Important chart
-settings are:
+settings:
 
 | Value | Default | Description |
 | --- | --- | --- |
@@ -165,10 +162,10 @@ kubectl -n databases get camusdbcluster camusdb -w
 
 Three [voters](/docs/concepts#learner-and-voter) (members that count toward
 the majority) tolerate one unavailable node. The API rejects two replicas,
-because a majority of two voters still requires both nodes. One replica is supported
-for development, but the operator does not convert a one-node cluster into a
-multi-node cluster, or the reverse. Create another `CamusDBCluster` and migrate
-the data instead.
+because a majority of two voters still requires both nodes. One replica is
+supported for development, but the operator does not convert a one-node cluster
+into a multi-node cluster, or the reverse. Create another `CamusDBCluster` and
+migrate the data instead.
 
 The client Service has the same name as the custom resource. Applications in
 the cluster can use these default endpoints:
@@ -199,13 +196,14 @@ flowchart TD
 TLS is mandatory. Set exactly one of `spec.tls.certManager` or
 `spec.tls.secretRef`. The operator uses that certificate for three listeners:
 the internal cluster port (Raft), client gRPC, and HTTPS. Nodes verify the
-certificate of the peer on internal cluster connections. Mutual TLS between nodes, where each node also presents its own
-certificate, is on only when you set `spec.auth`.
+peer's certificate on internal cluster connections. Mutual TLS between nodes,
+where each node also presents its own certificate, is on only when you set
+`spec.auth`.
 
 Node-to-node HTTP forwarding (schema changes, cluster settings, and query
-fragments) is plaintext. It goes to the HTTP port of the peer, because the
-operator does not set `peer_tls_enabled`. Keep pod-to-pod traffic inside a
-trusted network, or restrict it with a NetworkPolicy.
+fragments) is plaintext: it goes to the peer's HTTP port because the operator
+does not set `peer_tls_enabled`. Keep pod-to-pod traffic inside a trusted
+network, or restrict it with a NetworkPolicy.
 
 ### cert-manager
 
@@ -242,8 +240,8 @@ spec:
 
 For a self-signed keystore, `ca.crt` is the certificate itself. When
 authentication is enabled, nodes also present this keystore as a client
-certificate. It must then permit both server and client authentication. Updating
-the Secret causes the operator to roll the nodes onto the new keystore.
+certificate, so it must permit both server and client authentication. When you
+update the Secret, the operator rolls the nodes onto the new keystore.
 
 ## Authentication
 
@@ -288,7 +286,12 @@ to evict the member. Autoscaling requires authentication.
 The data PVC is mounted at `/storage`. CamusDB keeps the key/value store, the
 [write-ahead log (WAL)](/docs/concepts#wal), and temporary spill files below
 `/storage/data`. The example below keeps both in
-[RocksDB](/docs/concepts#rocksdb), the on-disk storage engine.
+[RocksDB](/docs/concepts#rocksdb), the default on-disk storage engine.
+
+The operator's `backend` and `walBackend` fields currently accept `rocksdb`,
+`sqlite`, and `memory`. [Solarium](https://solariumdb.github.io/) is available
+through [CamusDB server configuration](/docs/configuration#solarium-storage-engine)
+but is not yet accepted by these operator fields.
 
 ```yaml
 spec:
@@ -409,13 +412,14 @@ flowchart TD
 
 Without `spec.replication`, every node holds every data partition. Adding nodes
 then adds [replicas](/docs/concepts#replica-and-replication-factor) and voters,
-but does not add write capacity. Use partition
-placement when scaling is intended to distribute work.
+but not write capacity. Use partition placement when you scale to distribute
+work.
 
 ## Autoscale with traffic
 
 The built-in autoscaler can use the Raft log-entry rate, pending client
-proposals (writes waiting to enter the replication log), and process CPU. It requires both `spec.auth` and `spec.replication`:
+proposals (writes waiting to enter the replication log), and process CPU. It
+requires both `spec.auth` and `spec.replication`:
 
 ```yaml
 spec:

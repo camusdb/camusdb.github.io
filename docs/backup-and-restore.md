@@ -5,10 +5,10 @@ sidebar_position: 5.5
 # Backup and restore
 
 A backup is a copy of your data that you keep outside the running database. You
-use it to get the data back after an event that the database cannot repair by
-itself:
+use it to get your data back after an event the database cannot repair on its
+own:
 
-- A disk or a whole server is lost.
+- You lose a disk or a whole server.
 - Storage files become corrupt.
 - A bad migration, a wrong script, or a bug in an application changes or
   deletes a large amount of data.
@@ -36,19 +36,19 @@ tools.
 ## How a CamusDB backup works
 
 CamusDB takes a physical backup of its storage engine. The backup holds a base
-image, and the [write-ahead log (WAL)](/docs/concepts#wal): the record of
-changes that the engine wrote after that image. A restore can
-therefore target any moment inside the retention window. It is not limited to
-the instant of the backup.
+image plus the [write-ahead log (WAL)](/docs/concepts#wal), the record of
+changes the engine wrote after that image. A restore can therefore target any
+moment inside the retention window, not only the instant of the backup.
 
 A backup covers a whole node. Every database on a node shares one storage
-engine ([Kahuna](/docs/concepts#kahuna)), so one backup captures all of them together. There is no backup of one
-database, and no backup of one table. There is no `BACKUP` statement in SQL.
-These operations administer the server, and CamusDB exposes them over HTTP.
+engine ([Kahuna](/docs/concepts#kahuna)), so one backup captures all of them
+together. You cannot back up a single database or table, and there is no SQL
+`BACKUP` statement. Backups are server administration operations, and CamusDB
+exposes them over HTTP.
 
-A restore is offline. It builds the storage into a fresh directory. It never
-touches the server that runs. There is no hot restore in place. You restore
-first. You then start a server against the restored directory.
+A restore is offline. It builds the storage into a fresh directory and never
+touches the running server. There is no in-place hot restore: you restore
+first, then start a server against the restored directory.
 
 ## Why it works this way
 
@@ -75,10 +75,14 @@ The two constraints above follow from this design:
   server holds open and caches. A build into a fresh directory leaves the live
   node untouched, and lets you verify the restore first.
 
+PITR bootstrap with `pitr_bootstrap_from` requires RocksDB for both
+`kahuna.storage` and `kahuna.wal_storage`; [Solarium](https://solariumdb.github.io/) cannot be used for that
+bootstrap path. See [storage-engine choices](/docs/configuration#solarium-storage-engine).
+
 ## Enable backups
 
-Backups are off by default. Set a backup directory under `kahuna:`. Then restart
-the node:
+Backups are off by default. Set a backup directory under `kahuna:`, then
+restart the node:
 
 ```yaml
 kahuna:
@@ -90,15 +94,15 @@ kahuna:
 Every endpoint below answers `503` with `CADB0700 BackupNotConfigured` until you
 set `backup_dir`.
 
-`pitr_window_seconds` must be above `0`. Its maximum is `21600`, which is six
-hours. `base_snapshot_interval_seconds` must not exceed it.
+`pitr_window_seconds` must be greater than `0`, with a maximum of `21600` (six
+hours). `base_snapshot_interval_seconds` must not exceed it.
 
-A shorter interval between base images makes a restore faster, because CamusDB
-replays less WAL. The cost is more disk space.
+A shorter interval between base images makes restores faster, because CamusDB
+replays less WAL, at the cost of more disk space.
 
-A restore needs a second opt-in. `POST /v1/restore` refuses with `403 CADB070C
-RemoteRestoreDisabled` until you name a directory that the server owns. Every
-destination of a restore must be inside that directory:
+Restores need a second opt-in. `POST /v1/restore` refuses with `403 CADB070C
+RemoteRestoreDisabled` until you name a server-owned directory. Every restore
+destination must be inside that directory:
 
 ```yaml
 kahuna:
@@ -106,37 +110,35 @@ kahuna:
   allow_unconfined_remote_restore: false
 ```
 
-`allow_unconfined_remote_restore: true` removes the confinement. A remote caller
-can then write to any absolute path. Do not use that value in production.
+`allow_unconfined_remote_restore: true` removes that confinement, so a remote
+caller can write to any absolute path. Do not use it in production.
 
-The backup root and the restore root must belong to the owner only, in mode
-`0700`. Neither may be a symbolic link. CamusDB rejects a root that fails that
-check with `CADB070F BackupInsecureRoot`. The rejection happens before any
-write.
+The backup and restore roots must be owner-only (mode `0700`), and neither may
+be a symbolic link. CamusDB rejects a root that fails this check with
+`CADB070F BackupInsecureRoot` before writing anything.
 
 ## Authorization
 
-While authentication is enabled, every backup endpoint and restore endpoint
-needs a superuser bearer token. That is the same requirement as the
-administration of users:
+While authentication is enabled, every backup and restore endpoint needs a
+superuser bearer token, the same requirement as user administration:
 
-```
+```text
 Authorization: Bearer <token>
 ```
 
-Use HTTPS (port 7141 by default). CamusDB refuses a token over plaintext while
-TLS is required, except from loopback. The examples below use
+Use HTTPS (port 7141 by default). While TLS is required, CamusDB refuses tokens
+over plaintext except from loopback. The examples below use
 `http://localhost:5095`, which is loopback.
 
-While authentication is disabled, only a loopback caller can use these
-endpoints. A request from any other address fails with `CADB0517
-InsufficientPrivilege`, so a network peer cannot start a backup or a restore
+While authentication is disabled, only loopback callers can use these
+endpoints. Requests from any other address fail with `CADB0517
+InsufficientPrivilege`, so a network peer cannot start a backup or restore
 without credentials. See
 [Authentication And Authorization](/docs/sql-authentication).
 
-## The API
+## API
 
-Every endpoint is under `/v1`. Each one speaks JSON, with fields in camel case.
+Every endpoint is under `/v1` and speaks JSON with camelCase fields.
 
 | Method | Path | Body | Purpose |
 | --- | --- | --- | --- |
@@ -145,14 +147,14 @@ Every endpoint is under `/v1`. Each one speaks JSON, with fields in camel case.
 | `POST` | `/v1/backups/coordinated` | none | Take a consistent backup across the cluster. |
 | `GET` | `/v1/backups` | none | List the catalog. |
 | `GET` | `/v1/backups/{id}/chain` | none | Resolve and validate the chain that ends at `{id}`. |
-| `POST` | `/v1/backups/gc?dryRun=<bool>` | none | Preview or run the retention pass and the sweep for orphan files. |
+| `POST` | `/v1/backups/gc?dryRun=<bool>` | none | Preview or run the retention pass and the orphan file sweep. |
 | `POST` | `/v1/restore` | `{ "leafBackupId", "targetDir", "targetTimeMs" }` | Restore offline into a fresh data root. |
 
-Three operations are online, and they are safe while the server serves traffic:
-a backup, a list of the catalog, and a validation.
+Backups, catalog listings, and chain validation are online operations, safe
+while the server serves traffic.
 
-`camus-cli` wraps every operation except the restore, in a `backup` command
-family. That family is usually easier than curl for daily work. See
+`camus-cli` wraps every operation except restore in its `backup` commands,
+which are usually easier than curl for daily work. See
 [camus-cli](/docs/camus-cli#backups).
 
 ```sh
@@ -169,7 +171,7 @@ curl -s http://localhost:5095/v1/backups -H "Authorization: Bearer $TOKEN"
 curl -s http://localhost:5095/v1/backups/<leaf-guid>/chain -H "Authorization: Bearer $TOKEN"
 ```
 
-Every response is an envelope with a status. A failure carries a domain code:
+Every response is an envelope with a status. Failures carry a domain code:
 
 ```json
 { "status": "failed", "code": "CADB0701", "message": "..." }
@@ -177,9 +179,9 @@ Every response is an envelope with a status. A failure carries a domain code:
 
 ### Chains and recoverable coverage
 
-A restore replays one chain. A chain is a full backup at the root, plus the
-incremental backups on top of it. `GET /v1/backups/{id}/chain` returns that
-chain, with the root first, and validates it.
+A restore replays one chain: a full backup at the root plus the incremental
+backups on top of it. `GET /v1/backups/{id}/chain` validates that chain and
+returns it, root first.
 
 ```mermaid
 flowchart LR
@@ -187,39 +189,36 @@ flowchart LR
     I3 -->|restore| R[(Fresh data root)]
 ```
 
-CamusDB rejects a chain with `CADB0701 BackupChainInvalid` in four cases: the
-chain does not start at a full backup, the chain has a gap, a parent link is
-broken, or the chain has a cycle. CamusDB does not reconstruct a state that
-never existed.
+CamusDB rejects a chain with `CADB0701 BackupChainInvalid` when it does not
+start at a full backup, has a gap, has a broken parent link, or has a cycle.
+CamusDB does not reconstruct a state that never existed.
 
-The head of the chain reports `minRecoverablePhysicalMs` and
-`maxRecoverablePhysicalMs`. Those two numbers define your possible restore
-points. The clock does not define them.
+The chain head reports `minRecoverablePhysicalMs` and
+`maxRecoverablePhysicalMs`. Those two numbers, not the clock, define your
+possible restore points.
 
-That distinction matters. Recoverability is a property of the chain. It is not a
-property of the age of the backup. `pitr_window_seconds` bounds the live WAL
-that the running node keeps. A backup that CamusDB already wrote keeps its own
-coverage. An archived chain from last month is therefore still restorable, to
-any point inside its own range.
+That distinction matters: recoverability is a property of the chain, not of
+the backup's age. `pitr_window_seconds` bounds the live WAL the running node
+keeps, but a backup CamusDB has already written keeps its own coverage. An
+archived chain from last month is still restorable to any point inside its own
+range.
 
-`targetTimeMs` is in Unix epoch milliseconds. A value of `0` means the latest
-recoverable point in this chain. CamusDB rejects a value above zero that falls
-outside the coverage of the chain. The error is `CADB0703
-RestorePointOutOfWindow`, with HTTP 422.
+`targetTimeMs` is in Unix epoch milliseconds. `0` means the latest recoverable
+point in the chain. CamusDB rejects a nonzero value outside the chain's
+coverage with `CADB0703 RestorePointOutOfWindow` (HTTP 422).
 
-### Verification, and a fallback for an incremental backup
+### Verification and incremental fallback {#verification-and-a-fallback-for-an-incremental-backup}
 
-CamusDB verifies every artifact by size and by SHA-256. It does so before the
-publish, and again before the restore. A file that is absent, truncated,
-duplicated, extra, or corrupt fails the operation closed, with `CADB0706
-BackupCorruptArtifact`. The engine refuses the restore. It does not guess.
+CamusDB verifies every artifact by size and SHA-256, both before publishing and
+again before restoring. A missing, truncated, duplicated, extra, or corrupt file
+fails the operation closed with `CADB0706 BackupCorruptArtifact`. The engine
+refuses the restore instead of guessing.
 
-The parent of an incremental backup can age past the retention floor. A
-contiguous increment is then impossible. CamusDB does not fail in that case. It
-takes a full backup instead, and it says so. The response carries
-`requestedKind`, `actualKind`, and `substitutionReason`. The substitution is
-therefore visible in the catalog. It does not change the shape of your chain in
-silence.
+If the parent of an incremental backup has aged past the retention floor, a
+contiguous increment is impossible. Instead of failing, CamusDB takes a full
+backup and says so: the response carries `requestedKind`, `actualKind`, and
+`substitutionReason`. The substitution is visible in the catalog and never
+silently changes the shape of your chain.
 
 When the parent chain spans several nodes, the replacement must be a
 coordinated full backup. If the node that received the request is not the
@@ -227,15 +226,14 @@ backup coordinator (the node that currently [leads](/docs/concepts#leader) the
 cluster's backup metadata), the request fails with `CADB070E
 BackupNotCoordinator`. Retry it on the coordinator node.
 
-## The restore runbook
+## Restore runbook {#the-restore-runbook}
 
 A restore is offline. Follow this sequence:
 
-1. Restore into a fresh data root. Call `POST /v1/restore` with a `targetDir`
-   that is new or empty. It must not be the live `data_dir`. It must not be the
-   `kv` or the `wal` subdirectory of that root. It must not be the target of
-   another job. CamusDB rejects an overlap with `CADB0707
-   RestoreTargetConflict`. The running server is unaffected.
+1. Restore into a fresh data root. Call `POST /v1/restore` with a new or empty
+   `targetDir`. It must not be the live `data_dir`, that root's `kv` or `wal`
+   subdirectory, or another job's target. CamusDB rejects an overlap with
+   `CADB0707 RestoreTargetConflict`. The running server is unaffected.
 
    ```sh
    curl -sX POST http://localhost:5095/v1/restore \
@@ -243,17 +241,17 @@ A restore is offline. Follow this sequence:
      -d '{"leafBackupId":"<leaf-guid>","targetDir":"/data/restored","targetTimeMs":1750000000000}'
    ```
 
-   The response repeats the finished directory as `dataRoot`. It also carries
+   The response returns the finished directory as `dataRoot`, along with
    `partitionsRestored`, `entriesApplied`, `lastAppliedPhysicalMs`, the
    recoverable range, and the resolved chain.
 
 2. Stop the CamusDB server.
 
-3. Start a fresh server, with `data_dir` set to that `dataRoot`. CamusDB puts
-   the restored storage at `{targetDir}/kv`. It creates an empty
-   `{targetDir}/wal`. The target is therefore already a complete data directory,
-   and a server can boot from it. You need to move no file by hand. Keep the
-   same `kahuna.storage` value and the same revision settings as the backup.
+3. Start a fresh server with `data_dir` set to that `dataRoot`. CamusDB puts
+   the restored storage at `{targetDir}/kv` and creates an empty
+   `{targetDir}/wal`, so the target is already a complete data directory that
+   a server can boot from. You do not need to move any files by hand. Keep the
+   same `kahuna.storage` value and revision settings as the backup.
    A physical backup is bound to the storage revision that produced it. To move
    data across storage revisions, restore with the CamusDB version that took
    the backup, then use a
@@ -273,9 +271,9 @@ flowchart TD
     E --> F["Start a fresh server<br/>with data_dir set to dataRoot"]
 ```
 
-`kahuna.backup_restore_throttle_bytes_per_sec` limits the rate of the checkpoint
-copy of a restore. Use it when the restore shares a volume with something that
-matters to you.
+`kahuna.backup_restore_throttle_bytes_per_sec` limits the rate of a restore's
+checkpoint copy. Use it when the restore shares a volume with other important
+workloads.
 
 ## Seed a joining node from a backup
 
@@ -333,53 +331,51 @@ restored root before retrying after a partial seed attempt.
 
 ## Clusters
 
-On a single embedded node, a coordinated backup and a full backup are
-effectively the same operation.
+On a single embedded node, coordinated and full backups are effectively the
+same operation.
 
-A coordinated backup matters in a real cluster. It takes one consistent cut
-across every partition, at a single cluster timestamp
-([HLC](/docs/concepts#hlc)). A transaction across partitions therefore cannot
-break in half. The capture and the restore both cut on the shared commit
-timestamp, not on the WAL time of one partition.
+Coordinated backups matter in a real cluster. A coordinated backup takes one
+consistent cut across every partition at a single cluster timestamp
+([HLC](/docs/concepts#hlc)), so a cross-partition transaction cannot be split
+in half. Both capture and restore cut on the shared commit timestamp, not on one
+partition's WAL time.
 
-Two rules follow:
+As a result:
 
 - Issue a coordinated backup on the coordinator node. Any other node answers
   `421` with `CADB070E BackupNotCoordinator`.
-- The operation aborts if the topology changes during the backup. The code is
-  `CADB070D BackupTopologyChanged`, and CamusDB publishes nothing. Retry after
-  the membership becomes stable.
+- The operation aborts with `CADB070D BackupTopologyChanged` if the topology
+  changes during the backup, and CamusDB publishes nothing. Retry once
+  membership is stable.
 
-Set `kahuna.backup_cluster_id` to the same value on every node. A manifest
-carries that value, together with the name of the node that coordinated the
-backup. A listing shows both, as `clusterId` and `coordinatorNode`. A restore
-refuses to chain artifacts from a different cluster, or from a stale topology.
+Set `kahuna.backup_cluster_id` to the same value on every node. Each manifest
+records that value and the name of the node that coordinated the backup, and
+listings show both as `clusterId` and `coordinatorNode`. A restore refuses to
+chain artifacts from a different cluster or a stale topology.
 
-For authenticity, set `kahuna.backup_mac_key_file` to a key file for
-HMAC-SHA-256. Authenticity here means detection of a substituted manifest, not
-only of a damaged one. Use the same key on every node. Store the key outside
-`backup_dir`. A node with a key refuses a manifest that is unsigned or altered.
+For authenticity, set `kahuna.backup_mac_key_file` to an HMAC-SHA-256 key file.
+Authenticity here means detecting a substituted manifest, not only a damaged
+one. Use the same key on every node and store it outside `backup_dir`. A node
+with a key refuses unsigned or altered manifests.
 
-There is no encryption at rest. The artifacts are plaintext. Two mechanisms
-protect them: the permissions of the file system, and the MAC for integrity.
-Keep `backup_dir` on a volume with access control, and preferably on an
-encrypted volume.
+There is no encryption at rest; the artifacts are plaintext. File system
+permissions protect them, and the MAC protects their integrity. Keep
+`backup_dir` on an access-controlled volume, preferably an encrypted one.
 
 ## Retention
 
-Garbage collection is automatic. It runs after each backup, and again on a
-periodic tick. Four settings govern it:
+Garbage collection is automatic. It runs after each backup and on a periodic
+tick. These settings govern it:
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `kahuna.backup_retention_max_chains` | `0` | Keep at most N chains. `0` means no limit. |
 | `kahuna.backup_retention_max_age_seconds` | `0` | Delete a chain older than this age. `0` means no limit. |
-| `kahuna.backup_retention_max_bytes` | `0` | Cap the total bytes of the backups. `0` means no limit. |
-| `kahuna.backup_gc_interval_seconds` | `3600` | The period of the background reaper. `0` disables the tick. |
+| `kahuna.backup_retention_max_bytes` | `0` | Cap total backup bytes. `0` means no limit. |
+| `kahuna.backup_gc_interval_seconds` | `3600` | Background reaper period. `0` disables the tick. |
 
-Garbage collection deletes a whole chain only. It always leaves a valid full
-root behind, for every leaf that it keeps. It never strands a leaf that you
-cannot restore.
+Garbage collection deletes only whole chains. It always leaves a valid full root
+behind every leaf it keeps, so it never strands a leaf you cannot restore.
 
 Preview a pass before you trust it:
 
@@ -388,21 +384,19 @@ curl -sX POST 'http://localhost:5095/v1/backups/gc?dryRun=true' \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-The response reports `bytesReclaimed`. It also reports `retentionDeletions`,
-with a reason for each backup, and `orphanReclamations`. An orphan is a file in
-the backup directory that belongs to no manifest. `dryRun=false` applies the
-same pass.
+The response reports `bytesReclaimed`, `retentionDeletions` (with a reason for
+each backup), and `orphanReclamations`. An orphan is a file in the backup
+directory that belongs to no manifest. `dryRun=false` applies the same pass.
 
-Plan the disk space from two quantities. The first is `pitr_window_seconds`
-multiplied by your write throughput, which gives the retained WAL. The second is
-the base images that overlap that window.
+Plan disk space as the retained WAL (`pitr_window_seconds` multiplied by your
+write throughput) plus the base images that overlap that window.
 
-Choose the window from a realistic recovery need. Do not choose it from the
-furthest point that you can imagine.
+Choose the window from a realistic recovery need, not the furthest point you
+can imagine.
 
 ## Which recovery tool to use
 
-CamusDB has four recovery mechanisms. They answer four different questions.
+CamusDB has four recovery mechanisms, each for a different question.
 
 | Your goal | The tool |
 | --- | --- |
@@ -411,23 +405,23 @@ CamusDB has four recovery mechanisms. They answer four different questions.
 | Undo a `DROP DATABASE` or a `DROP TABLE` | [Recover Dropped Objects](/docs/recover-dropped-objects) |
 | Move data to another cluster, or keep a readable SQL export | [camus-dump](/docs/camus-dump) |
 
-The first three tools are physical. They stay inside the engine.
+The first three tools are physical and stay inside the engine.
 
 `camus-dump` is logical. It writes SQL that you can inspect, compare, and replay
-anywhere. It is therefore the correct tool for a migration. It is the wrong tool
-for disaster recovery, because a replay of a large dump is far slower than a
-restore of an image. See [Why it works this way](#why-it-works-this-way) for the
-position of that line.
+anywhere, which makes it the right tool for migrations. It is the wrong tool for
+disaster recovery, because replaying a large dump is far slower than restoring
+an image. See [Why it works this way](#why-it-works-this-way) for where that
+line falls.
 
 ## Error codes
 
 | Code | Name | HTTP | Meaning |
 | --- | --- | --- | --- |
 | `CADB0700` | `BackupNotConfigured` | 503 | `kahuna.backup_dir` is unset. Backups are opt-in. |
-| `CADB0701` | `BackupChainInvalid` | 422 | The chain has no full root, or a gap, or a broken link, or a cycle. |
+| `CADB0701` | `BackupChainInvalid` | 422 | The chain has no full root, a gap, a broken link, or a cycle. |
 | `CADB0702` | `BackupNeedsFullBackup` | 409 | Reserved. When an incremental backup is impossible, CamusDB takes a full backup instead (see [the fallback](#verification-and-a-fallback-for-an-incremental-backup)), so this code is effectively not returned. |
 | `CADB0703` | `RestorePointOutOfWindow` | 422 | `targetTimeMs` falls outside the recoverable coverage of the chain. |
-| `CADB0704` | `RestoreFailed` | 500 | The restore failed during the copy of the base image, or during the WAL replay. |
+| `CADB0704` | `RestoreFailed` | 500 | The restore failed while copying the base image or replaying the WAL. |
 | `CADB0705` | `BackupParentMissing` | 404 | The named `parentBackupId` does not exist. |
 | `CADB0706` | `BackupCorruptArtifact` | 422 | An artifact is absent, truncated, extra, or duplicated, or it fails its digest. |
 | `CADB0707` | `RestoreTargetConflict` | 409 | The destination exists, or it overlaps a protected path. |
@@ -438,22 +432,21 @@ position of that line.
 | `CADB070C` | `RemoteRestoreDisabled` | 403 | There is no `kahuna.restore_root`, and the unconfined opt-in is off. |
 | `CADB070D` | `BackupTopologyChanged` | 503 | The topology changed during a coordinated backup. CamusDB published nothing. Retry. |
 | `CADB070E` | `BackupNotCoordinator` | 421 | A caller requested a coordinated backup on a node that is not the coordinator. An incremental backup whose fallback must be a coordinated full backup fails the same way. Retry on the coordinator. |
-| `CADB070F` | `BackupInsecureRoot` | 500 | The backup root or the restore root is a symbolic link, or the group or the world can write to it. |
+| `CADB070F` | `BackupInsecureRoot` | 500 | The backup or restore root is a symbolic link, or is group- or world-writable. |
 | `CADB0710` | `PitrBootstrapFailed` | 500 | A joining node could not validate or seed its restored data root and WAL from the configured backup chain. |
 
-Three codes are retryable: `CADB070A`, `CADB070B`, and `CADB070D`. Each one
-leaves nothing published. The other codes need a decision from an operator
-first.
+Three codes are retryable: `CADB070A`, `CADB070B`, and `CADB070D`. Each leaves
+nothing published. The other codes need an operator decision first.
 
 ## Current limits
 
-- A backup targets the local file system only. There is no target in object
-  storage yet.
+- Backups target the local file system only. Object storage targets are not
+  available yet.
 - There is no encryption at rest.
-- There is no hot restore in place. There is no restore of one database, and no
-  restore of one table.
-- There is no surface in SQL. Backup and restore are HTTP administration
-  operations. `camus-cli` exposes every operation except the restore as a shell
+- There is no in-place hot restore, and you cannot restore a single database or
+  table.
+- There is no SQL interface. Backup and restore are HTTP administration
+  operations. `camus-cli` exposes every operation except restore as a shell
   command.
 
 ## Related pages

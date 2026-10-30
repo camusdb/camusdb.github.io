@@ -4,9 +4,9 @@ sidebar_position: 6.5
 
 # Query planner internals
 
-This page describes two steps. CamusDB turns SQL text into a physical plan. It
-then executes that plan against the KV layer, the ordered key/value store that
-holds every row and index entry.
+This page describes how CamusDB turns SQL text into a physical plan, then
+executes that plan against the KV layer, the ordered key/value store that holds
+every row and index entry.
 
 Start with [Query Planning](/docs/query-planning) for SQL examples and tuning,
 and [EXPLAIN](/docs/explain) for reading a plan. This page follows the same
@@ -15,46 +15,45 @@ costing, cache replay, and execution.
 
 ## The mental model
 
-The planner of CamusDB sits between the SQL layer and the ordered transactional
-KV store. [Kahuna](/docs/concepts#kahuna), the key/value layer embedded in
-every CamusDB node, provides that store.
+The CamusDB planner sits between the SQL layer and the ordered transactional KV
+store. [Kahuna](/docs/concepts#kahuna), the key/value layer embedded in every
+CamusDB node, provides that store.
 
-The planner turns a declarative SQL query into a concrete plan of execution. It
-answers five questions:
+The planner turns a declarative SQL query into a concrete execution plan by
+answering these questions:
 
 1. Which scan does the query use?
 2. Which predicates can become bounds of that scan?
-3. Can the plan omit a sort?
+3. Can the plan skip a sort?
 4. Which join algorithm suits the query?
-5. Where do the stages belong for the aggregation, the `HAVING`, the projection,
-   the `DISTINCT`, and the limit?
+5. Where do the aggregation, `HAVING`, projection, `DISTINCT`, and limit stages
+   belong?
 
-CamusDB has a planner with rules, and a stack of cost-based optimizers. The cost
-model annotates a plan. It drives some decisions at all times. It can also take
-over a broader search, of the access paths and of the join order. It does that
-while the matching flags in the configuration are on. Those broad cost-based
-flags are on by default.
+CamusDB has a rule-based planner and a stack of cost-based optimizers. The cost
+model annotates every plan and always drives some decisions. While the matching
+configuration flags are on, it also takes over the broader access-path and
+join-order searches. Those cost-based flags are on by default.
 
-The stack of the optimizer has four levels:
+The optimizer stack has these levels:
 
-1. The statistics of a table, from live DML and from `ANALYZE`.
-2. The estimate of the cardinality, from the row counts, the histograms, the
-   counts of distinct values, and the bounds of the minimum and the maximum.
-3. A weighted cost model. It covers a KV lookup, a range entry, a fetch of a
-   primary row, work in memory, and the cost of the network.
-4. A search of the plans, for the access paths and for the join order. The
-   cost-based flags control that search, and they are on by default.
+1. Table statistics, from live DML and from `ANALYZE`.
+2. Cardinality estimates, from row counts, histograms, distinct-value counts,
+   and minimum and maximum bounds.
+3. A weighted cost model covering KV lookups, range entries, primary-row
+   fetches, in-memory work, and network cost.
+4. A plan search over access paths and join order, controlled by the cost-based
+   flags, which are on by default.
 
 ## The pipeline
 
-Every `SELECT` follows this pipeline at a high level:
+At a high level, every `SELECT` follows this pipeline:
 
 1. CamusDB parses the SQL text into a `NodeAst`.
 2. It builds a typed logical model of the query.
-3. It binds the names, the sources, and the aliases against the catalog.
-4. It produces a tree for the physical plan.
-5. It executes the plan. It uses either the executor for one table, or the path
-   for a join.
+3. It binds names, sources, and aliases against the catalog.
+4. It produces a physical plan tree.
+5. It executes the plan, using either the single-table executor or the join
+   path.
 
 ```mermaid
 flowchart TD
@@ -72,40 +71,37 @@ These are the important data structures:
 
 | Stage | Main type | Purpose |
 | --- | --- | --- |
-| Parse | `NodeAst` | The raw tree of the syntax. |
-| Logical model | `SelectQuery` | A structured form of the source, the projections, the filters, the groups, the order, the limit, the offset, and the distinct flag. |
-| Bound model | `BoundSelectQuery` | The logical query, plus the resolved tables, the aliases, and the rules for the names. |
-| Physical plan | `QueryPlan` and `PhysicalPlanNode` | The selected tree of operators, plus a flat list of steps for the older path of one table. |
+| Parse | `NodeAst` | The raw syntax tree. |
+| Logical model | `SelectQuery` | A structured form of the source, projections, filters, grouping, ordering, limit, offset, and distinct flag. |
+| Bound model | `BoundSelectQuery` | The logical query, plus the resolved tables, aliases, and name resolution rules. |
+| Physical plan | `QueryPlan` and `PhysicalPlanNode` | The chosen operator tree, plus a flat list of steps for the older single-table path. |
 | Results | `QueryResultRow` | The output rows for the caller. |
 
 ## Logical plans and physical plans
 
-The logical model of a query records what the query asks for. The physical plan
-records how CamusDB obtains that result.
-
-Here are two examples:
+A query's logical model records what the query asks for. The physical plan
+records how CamusDB gets that result. For example:
 
 - The logical form is "the rows of `robots` where `year = 2024`".
 - The physical form is "a range scan of `year_idx`, from `2024` to the next
-  boundary of a key".
+  key boundary".
 
-CamusDB keeps an expression as a subtree of the AST, deep into the execution.
-That rule covers a predicate and a projection expression. The structured models
-mostly describe the shape of the query, and the relations between the sources.
+CamusDB keeps expressions, both predicates and projection expressions, as AST
+subtrees deep into execution. The structured models mostly describe the shape
+of the query and the relations between its sources.
 
-## Two paths of execution
+## Two execution paths
 
-CamusDB has two paths of execution today:
+CamusDB has two execution paths today:
 
 | Path | CamusDB uses it when | Main executor |
 | --- | --- | --- |
-| The linear path for one table | The query has exactly one source | `QueryExecutor` |
+| The linear single-table path | The query has exactly one source | `QueryExecutor` |
 | The tree path for several sources | The query has a join or a derived table | `QueryJoinExecutor` |
 
-The two paths must agree on every behavior that a user sees. The path for
-several sources walks a tree recursively. It then uses the shared pipeline after
-the scan, for the aggregation, the sort, the projection, the `DISTINCT`, and the
-limit.
+The two paths must agree on every user-visible behavior. The multi-source path
+walks a tree recursively, then uses the shared post-scan pipeline for
+aggregation, sorting, projection, `DISTINCT`, and the limit.
 
 ## Parse and build
 
@@ -117,14 +113,14 @@ The parser accepts these forms:
 - `HAVING`
 - `ORDER BY`
 - `LIMIT` and `OFFSET`
-- `JOIN`, and a join with a comma
-- A derived table
-- A scalar subquery, and an `IN`, `NOT IN`, or `EXISTS` subquery
-- Membership of a value list, with `IN (...)` and `NOT IN (...)`
+- `JOIN` and comma joins
+- Derived tables
+- Scalar subqueries, and `IN`, `NOT IN`, and `EXISTS` subqueries
+- Value-list membership, with `IN (...)` and `NOT IN (...)`
 - `EXPLAIN (LOGICAL|PHYSICAL|ANALYZE)`
 
-`SelectQueryCreator` turns the parsed tree into a `SelectQuery` record. That
-record holds nine fields:
+`SelectQueryCreator` turns the parsed tree into a `SelectQuery` record with
+these fields:
 
 - `Source`
 - `Projections`
@@ -138,28 +134,27 @@ record holds nine fields:
 
 ## Binding
 
-`QueryBinder` resolves the names of the sources. It opens the descriptors of the
-tables. It detects a collision between two aliases. It builds the resolver for
-the row names. That resolver decides whether a reference to a column is valid,
-ambiguous, or in need of a qualifier.
+`QueryBinder` resolves source names, opens the table descriptors, detects alias
+collisions, and builds the row-name resolver, which decides whether a column
+reference is valid, ambiguous, or needs a qualifier.
 
-The binder also validates four things:
+The binder also validates:
 
-- The references of the projections.
-- The agreement between the `GROUP BY` and the projections.
-- The references of the `ORDER BY`.
-- The `ON` predicates of a join.
+- Projection references.
+- Agreement between `GROUP BY` and the projections.
+- `ORDER BY` references.
+- Join `ON` predicates.
 
-The binder also prepares the support for `EXISTS`. It uses the registry of the
-subqueries, which the execution then uses.
+It also prepares `EXISTS` support through the subquery registry, which execution
+then uses.
 
-## The plan for one table
+## Single-table planning
 
-The planner for one table runs in broad phases.
+The single-table planner runs in broad phases.
 
-### 1. Selection of the scan
+### 1. Scan selection
 
-The planner analyzes the predicate. It then tries to select one of five scans:
+The planner analyzes the predicate, then tries to pick one of these scans:
 
 - A full table scan.
 - A forced index scan.
@@ -167,76 +162,68 @@ The planner analyzes the predicate. It then tries to select one of five scans:
 - A range scan on an index.
 - An index scan over an `IN` list, when repeated probes beat a wider scan.
 
-`PredicateAnalyzer` divides the predicates into three groups:
+`PredicateAnalyzer` splits the predicates into comparisons an index can serve,
+column-to-column comparisons, and residual conjuncts.
 
-- The comparisons that an index can serve.
-- The comparisons between two columns.
-- The residual conjuncts.
-
-`IndexScanSelector` operates in two modes. The heuristic mode scores each usable
-index with rules such as these:
+`IndexScanSelector` has two modes. The heuristic mode scores each usable index
+with rules such as:
 
 - A full equality on a unique index beats every other candidate.
-- An equality on a non-unique index, and a match on a prefix of equalities, are
-  strong candidates.
-- A prefix of equalities, plus a range on the next column, can drive a composite
+- An equality on a non-unique index, or an equality-prefix match, is a strong
+  candidate.
+- An equality prefix plus a range on the next column can drive a composite
   range scan.
-- A match on the prefix of an `ORDER BY` can win, even without a predicate that
-  filters.
+- An `ORDER BY` prefix match can win, even without a filtering predicate.
 - An `IN (...)` list on an indexed column can compete with a range scan and with
   a full scan.
 
-`cost_based_access_path_enabled` defaults to `true`. The planner therefore uses
-the cost-based selection of predicate-driven access paths when the table has
-a positive row-count estimate and analyzed statistics. A DML-maintained count
+`cost_based_access_path_enabled` defaults to `true`, so the planner uses
+cost-based selection of predicate-driven access paths when the table has a
+positive row-count estimate and analyzed statistics. A DML-maintained count
 alone does not enable this single-table enumeration pass. It compares viable
 index candidates with a full-scan baseline and keeps the cheapest estimate.
 Ordering and DISTINCT rules can further affect the final scan.
 
-The scans that locate the rows of an `UPDATE` and of a `DELETE` keep the
-heuristic path. That rule prevents an unexpected growth of the ranges of the
-exclusive locks.
+The scans that locate rows for `UPDATE` and `DELETE` keep the heuristic path,
+which prevents exclusive lock ranges from growing unexpectedly.
 
-### 2. Absorption of the filters
+### 2. Filter absorption
 
-The planner selects the bounds of the scan first. It then removes from the
-runtime filter every comparison that those bounds already imply. The remaining
-predicate becomes the residual filter of the execution.
+The planner chooses the scan bounds first, then removes from the runtime filter
+every comparison those bounds already imply. What remains becomes the residual
+filter at execution.
 
-### 3. Elision of the sort
+### 3. Sort elision
 
-The selected scan can already produce the rows in the requested order. The
-planner then sets `OutputOrdering`. It omits the explicit `SortNode`.
+If the chosen scan already produces rows in the requested order, the planner
+sets `OutputOrdering` and leaves out the explicit `SortNode`.
 
-The order of an index has a direction. A scan over `(year ASC)` can satisfy
-`ORDER BY year ASC`. A scan over `(year DESC)` can satisfy `ORDER BY year DESC`.
-A difference in the direction keeps the `SortNode`. CamusDB does not invert a
-forward index scan into the opposite order.
+Index order has a direction. A scan over `(year ASC)` can satisfy
+`ORDER BY year ASC`, and a scan over `(year DESC)` can satisfy
+`ORDER BY year DESC`. A direction mismatch keeps the `SortNode`: CamusDB does
+not invert a forward index scan into the opposite order.
 
-### 4. The strategy for DISTINCT
+### 4. DISTINCT strategy
 
-For a `SELECT DISTINCT`, the planner selects between two forms:
+For `SELECT DISTINCT`, the planner chooses between:
 
-- A `DistinctNode` in streaming mode. It needs three conditions: the projected
-  columns are simple identifiers, every one of them is `NOT NULL`, and the order
-  of the scan covers them.
-- A `DistinctNode` in hash mode. The planner uses it when the streaming mode is
-  unsafe or impossible.
+- A streaming `DistinctNode`, which requires that the projected columns are
+  simple identifiers, all `NOT NULL`, and covered by the scan order.
+- A hash `DistinctNode`, used when streaming mode is unsafe or impossible.
 
-A distinct in streaming mode can also satisfy a matching `ORDER BY`. The plan
-then needs no separate `SortNode`.
+A streaming distinct can also satisfy a matching `ORDER BY`, so the plan needs
+no separate `SortNode`.
 
-### 5. Pushdown of the limit
+### 5. Limit pushdown
 
-The shape of the query can be simple enough. The planner then pushes the limit
-on the row count into the scan. The KV read can therefore stop early.
+When the query shape is simple enough, the planner pushes the row limit into the
+scan so the KV read can stop early.
 
-### 6. Construction of the chain of operators
+### 6. Building the operator chain
 
-The planner builds a chain of operators, from the leaf to the root. These
-patterns are typical:
+The planner builds a chain of operators from leaf to root. Typical patterns:
 
-| Shape of the query | Chain of operators |
+| Query shape | Operator chain |
 | --- | --- |
 | A plain select | `Scan -> [Filter] -> [Sort] -> [Aggregate] -> [Having] -> [Project] -> [Limit]` |
 | A grouped query | `Scan -> [Filter] -> Aggregate -> [Having] -> [Sort] -> [Project] -> [Limit]` |
@@ -254,35 +241,31 @@ row that was fetched, while a covering index can avoid fetching that primary
 row altogether. Both optimizations must retain columns needed by later stages,
 even if those columns never appear in the result.
 
-## The plan for a join
+## Join planning
 
-`JoinQueryPlanner` handles a query with several sources.
+`JoinQueryPlanner` handles queries with several sources. Its work includes:
 
-Its work includes six tasks:
+- Optionally changing the join order.
+- Pushing down predicates that belong to one source.
+- Separating post-join predicates from scan-local predicates.
+- Building a `NestedLoopJoinNode`, `IndexNestedLoopJoinNode`, `HashJoinNode`,
+  or `MergeJoinNode`.
+- Building a `SemiJoinNode` variant for an eligible indexed `IN` or `NOT IN`
+  subquery.
+- Representing a derived table as a `DerivedTableScanNode`.
 
-- An optional change of the join order.
-- A pushdown of a predicate that belongs to one source.
-- A separation of the predicates after the join from the predicates local to a
-  scan.
-- The construction of a `NestedLoopJoinNode`, an `IndexNestedLoopJoinNode`, a
-  `HashJoinNode`, or a `MergeJoinNode`.
-- The construction of a variant of `SemiJoinNode`, for an eligible indexed `IN`
-  or `NOT IN` subquery.
-- The representation of a derived table as a `DerivedTableScanNode`.
+For an inner equi-join, the planner extracts the join key pairs even when no
+index is available, so hash and merge joins become possible alongside indexed
+nested-loop joins.
 
-For an inner equi-join, the planner extracts the pairs of join keys. It does so
-even when no index is available. A hash join and a merge join therefore become
-possible, together with an indexed nested-loop join.
+The main selection rules are:
 
-The main rules of the selection are these:
-
-- Use an `IndexNestedLoopJoinNode` when the join key of the right side has a
-  good index, and when the estimate makes repeated probes cheaper.
-- Use a `MergeJoinNode` when CamusDB can read both sides in the order of the
-  join key, and when the outer side is large enough.
-- Use a `HashJoinNode` when a plan that builds and probes is cheaper for an
-  equi-join. Use it also when the right side has no usable index on the join
-  key.
+- Use an `IndexNestedLoopJoinNode` when the right side's join key has a good
+  index and the estimate makes repeated probes cheaper.
+- Use a `MergeJoinNode` when CamusDB can read both sides in join-key order and
+  the outer side is large enough.
+- Use a `HashJoinNode` when building and probing is cheaper for an equi-join,
+  or when the right side has no usable index on the join key.
 - Use a `NestedLoopJoinNode` when the join fits none of those shapes.
 
 An inner hash join builds a hash table from the side estimated to be smaller
@@ -567,23 +550,23 @@ cached index choice or join order can remain valid while being less efficient
 for another value. New analyzed statistics invalidate the entry, but different
 literals alone do not force a fresh search.
 
-## The nodes of a physical plan
+## Physical plan nodes
 
-These node types are the common ones:
+The common node types are:
 
 | Node | Meaning |
 | --- | --- |
 | `TableScanNode` | A full table scan, or a forced index scan. |
 | `IndexLookupNode` | A point lookup on a unique index. |
-| `IndexRangeScanNode` | A range on an index, with or without bounds. |
+| `IndexRangeScanNode` | An index range, with or without bounds. |
 | `IndexInListScanNode` | Multiple seeks for a literal IN list, with duplicate values removed. |
 | `FilterNode` | A residual predicate. |
-| `AggregateNode` | The stage of the aggregation and of the groups. |
-| `HavingFilterNode` | A filter after the aggregation. |
+| `AggregateNode` | The aggregation and grouping stage. |
+| `HavingFilterNode` | A filter after aggregation. |
 | `SortNode` | A sort, with eligible spill support; a bounded variant renders as `topk` and retains offset + limit candidates. |
-| `ProjectNode` | The projection, and the shape of the aliases. |
-| `DistinctNode` | The removal of the duplicates. |
-| `LimitNode` | The stage of the limit and of the offset. |
+| `ProjectNode` | The projection and alias shaping. |
+| `DistinctNode` | Duplicate removal. |
+| `LimitNode` | The limit and offset stage. |
 | `SemiJoinNode` | The rewrite of an indexed `IN` or `NOT IN` subquery. |
 | `NestedLoopJoinNode` | A join without an indexed probe on the right side. |
 | `IndexNestedLoopJoinNode` | A join with an indexed probe on the right side. |
@@ -591,20 +574,20 @@ These node types are the common ones:
 | `MergeJoinNode` | An inner or left outer equi-join over ordered inputs. |
 | `DerivedTableScanNode` | A scan of a derived table as a source. |
 
-`QueryPlan` also carries a flat `Steps` view, for the linear executor. The tree
-and the linear list reference the same instances of the nodes.
+`QueryPlan` also carries a flat `Steps` view for the linear executor. The tree
+and the linear list reference the same node instances.
 
 ## Execution
 
-### The path for one table
+### Single-table path
 
-`QueryExecutor` walks the flat list of steps. It chains the operators of type
-`IAsyncEnumerable<QueryResultRow>`.
+`QueryExecutor` walks the flat list of steps, chaining
+`IAsyncEnumerable<QueryResultRow>` operators.
 
-A scan operator reads from `KvTableStore`. It decodes a row with `RowEncoder`.
-It applies the inline filters. It respects the limits on the rows of a scan.
+A scan operator reads from `KvTableStore`, decodes each row with `RowEncoder`,
+applies the inline filters, and respects scan row limits.
 
-These are the other stages:
+The other stages are:
 
 - `QuerySorter`
 - `QueryAggregator`
@@ -613,24 +596,21 @@ These are the other stages:
 - `QueryDistincter`
 - `QueryLimiter`
 
-### The path for a join
+### Join path
 
-`QueryJoinExecutor` walks the tree of the plan recursively:
+`QueryJoinExecutor` walks the plan tree recursively:
 
-- A table scan reads a source, with any filter that the planner pushed down.
-- A derived table materializes the inner query one time.
-- A nested loop join merges the rows of the left side and of the right side. It
-  then evaluates the `ON` predicate.
-- An indexed nested loop probes the index of the right side, once for each outer
-  row.
-- A hash join materializes the build side into a hash table in memory. The keys
-  of that table are the columns of the equi-join. The executor then streams the
-  other side, and it probes the table. The build side can exceed
-  `HashJoinMaxBuildRows` while spill is enabled. `GraceHashJoinAsync` then
-  divides both inputs into spill files by key hash. It joins one pair of spill
-  files at a time. While
-  spill is disabled, the execution of that query falls back to the behavior of a
-  nested loop.
+- A table scan reads a source, with any filter the planner pushed down.
+- A derived table materializes the inner query once.
+- A nested loop join merges left and right rows, then evaluates the `ON`
+  predicate.
+- An indexed nested loop probes the right side's index once per outer row.
+- A hash join materializes the build side into an in-memory hash table keyed by
+  the equi-join columns, then streams the other side and probes the table. If
+  the build side exceeds `HashJoinMaxBuildRows` while spill is enabled,
+  `GraceHashJoinAsync` partitions both inputs into spill files by key hash and
+  joins one pair of spill files at a time. While spill is disabled, that query
+  falls back to nested-loop behavior.
 - A merge join advances the ordered left input and the ordered right input
   together. `MergeJoinNode` records `LeftIsOrdered` and `RightIsOrdered`. When
   both are true, the executor streams both sides and buffers only the current
@@ -638,25 +618,23 @@ These are the other stages:
   side and sorts it first. The planner always sets `LeftIsOrdered`, because the
   left input either has index order already or carries a `SortNode`.
 
-The merged result then passes through the shared pipeline after the scan.
+The merged result then passes through the shared post-scan pipeline.
 
-## The internals of EXPLAIN
+## EXPLAIN internals
 
-`PlanRenderer` is the one canonical renderer for the diagnostics of the planner.
+`PlanRenderer` is the single canonical renderer for planner diagnostics. It
+supplies:
 
-It supplies four things:
+- Stable node names.
+- Each node's detail string.
+- A depth-first walk of the nodes, which the SQL `EXPLAIN` statement uses.
+- Optional distributed-plan metadata, such as `OutputOrdering` and whether a
+  node can be decomposed.
 
-- Stable names for the nodes.
-- The detail string of a node.
-- A depth-first walk of the nodes, which the SQL statement `EXPLAIN` uses.
-- Optional metadata for a distributed plan, such as `OutputOrdering` and the
-  ability to decompose a node.
+`ExplainExecutor` uses the planned tree and returns one row per plan node.
 
-`ExplainExecutor` uses the planned tree. It returns one row for each node of the
-plan.
-
-`EXPLAIN (ANALYZE)` also enables the collection of the runtime statistics. It
-executes the query, and it fills counters such as these:
+`EXPLAIN (ANALYZE)` also enables runtime statistics collection. It executes the
+query and fills counters such as:
 
 - `actual_rows`
 - `rows_read`
@@ -673,7 +651,7 @@ the search.
 ### Rendering distributed plan properties
 
 `PlanRenderer.Render(plan, includeDistributedProperties: true)` adds
-distributed-plan metadata to the line of each node:
+distributed-plan metadata to each node's line:
 
 ```text
 table-scan(table=robots) order=[year ASC] decomposable=true dist=partitioned(id)
@@ -681,65 +659,61 @@ table-scan(table=robots) order=[year ASC] decomposable=true dist=partitioned(id)
 
 | Suffix            | Meaning |
 |-------------------|---------|
-| `order=[...]`     | The order that this node guarantees on its output, such as an index scan that satisfies an `ORDER BY`. The suffix is absent when the order is undefined. |
-| `decomposable=true/false` | Whether CamusDB can split the node's work into a local computation for each [partition](/docs/concepts#partition) plus a merge on the coordinator. It is always `false` for a sort node and a limit node. An `aggregate` is `true` only for `COUNT`, `SUM`, `MIN`, and `MAX`. `AVG` is `false`. |
-| `dist=...`        | How the node's output rows are distributed across the cluster. The value is `gathered` on one node, for a point lookup, and while [key-range sharding](/docs/concepts#hash-and-key-range-routing) is off. It is `partitioned(col1,col2)` for a scan sharded by the range of those key columns. It can also be `replicated`. Only scan leaves carry this suffix. |
+| `order=[...]`     | The order this node guarantees on its output, such as an index scan that satisfies an `ORDER BY`. Absent when the order is undefined. |
+| `decomposable=true/false` | Whether CamusDB can split the node's work into a local computation per [partition](/docs/concepts#partition) plus a merge on the coordinator. Always `false` for sort and limit nodes. An `aggregate` is `true` only for `COUNT`, `SUM`, `MIN`, and `MAX`; `AVG` is `false`. |
+| `dist=...`        | How the node's output rows are distributed across the cluster: `gathered` on one node, for a point lookup, and while [key-range sharding](/docs/concepts#hash-and-key-range-routing) is off; `partitioned(col1,col2)` for a scan sharded by ranges of those key columns; or `replicated`. Only scan leaves carry this suffix. |
 
-Internal tools and tests use this mode. The SQL statement `EXPLAIN` does not
+Internal tools and tests use this mode. The SQL `EXPLAIN` statement does not
 expose it.
 
 ## Statistics and cost
 
-`StatisticsManager` keeps advisory statistics of a table in Kahuna:
+`StatisticsManager` keeps advisory table statistics in Kahuna:
 
-- The row count of each table.
-- The count of the entries of each index.
-- The running bounds of the minimum and the maximum, for an indexed column.
-- Equi-depth histograms. A manual `ANALYZE` builds them, and an automatic
-  `ANALYZE` builds them.
-- The counts of the distinct values, for a column and for the prefix of a
-  composite index. A manual `ANALYZE` builds them, and an automatic `ANALYZE`
-  builds them.
+- Each table's row count.
+- Each index's entry count.
+- Running minimum and maximum bounds for indexed columns.
+- Equi-depth histograms, built by manual and automatic `ANALYZE`.
+- Distinct-value counts for columns and composite index prefixes, built by
+  manual and automatic `ANALYZE`.
 
-`ANALYZE TABLE <name>` scans the table. For a larger table, it samples the
-configured number of rows instead. It then rebuilds the histograms and the
-counts of the distinct values, in one pass.
+`ANALYZE TABLE <name>` scans the table, or for a larger table samples the
+configured number of rows, then rebuilds the histograms and distinct-value
+counts in one pass.
 
-Three statistics that DML maintains stay advisory: the row count, the counts of
-the index entries, and the bounds of the minimum and the maximum. An absent
-statistic falls back to a default. It does not make a query fail.
+The statistics DML maintains (the row count, index entry counts, and minimum and
+maximum bounds) stay advisory. A missing statistic falls back to a default; it
+does not make a query fail.
 
-Automatic analyze uses the same path of publication. It nevertheless runs from a
-background scheduler, against a read-only snapshot that takes no lock. It
-detects a stale table from the count of the mutations since the last analyze. It
-bounds the memory with a reservoir sketch and a HyperLogLog sketch. It throttles
-the rate of the scan. It publishes the refreshed statistics atomically, after it
-confirms the ownership in the cluster.
+Automatic analyze uses the same publication path, but runs from a background
+scheduler against a read-only snapshot that takes no locks. It detects stale
+tables from the mutation count since the last analyze, bounds memory with a
+reservoir sketch and a HyperLogLog sketch, throttles the scan rate, and
+publishes the refreshed statistics atomically after confirming cluster
+ownership.
 
-`CostEstimator` annotates a node of a plan with an estimated cardinality and an
-estimated cost. `EXPLAIN` exposes those annotations. The planner uses them for
-five decisions:
+`CostEstimator` annotates each plan node with an estimated cardinality and an
+estimated cost, which `EXPLAIN` exposes. The planner uses them for:
 
 - A broad choice between an index range and a full scan.
-- A choice between a plan of seeks for an indexed `IN (...)` and a wider scan.
-- The selection of a join algorithm, among the indexed nested loop, the hash
-  join, and the merge join.
-- The enumeration of the access paths by cost, while
-  `cost_based_access_path_enabled` is on.
-- The enumeration of the join orders by cost, while
-  `cost_based_join_order_enabled` is on.
+- Choosing between seeks for an indexed `IN (...)` and a wider scan.
+- Choosing the join algorithm: indexed nested loop, hash join, or merge join.
+- Cost-based access-path enumeration, while `cost_based_access_path_enabled` is
+  on.
+- Cost-based join-order enumeration, while `cost_based_join_order_enabled` is
+  on.
 
-The cost is a weighted sum of five quantities:
+The cost is a weighted sum of:
 
-1. The point lookups in the KV layer.
-2. The range entries.
-3. The fetches of a row after an index hit.
-4. The rows in memory.
+1. KV point lookups.
+2. Range entries.
+3. Row fetches after an index hit.
+4. In-memory rows.
 5. The `NetworkFactor`.
 
-The `NetworkFactor` comes from three inputs: the estimate of the remote rows,
-the width of a row, and the configured count of the partitions in the cluster.
-It is zero for a plan on one node, and for a plan without shards.
+The `NetworkFactor` is computed from the estimated remote rows, the row width,
+and the configured number of partitions in the cluster. It is zero for a
+single-node plan and for a plan without shards.
 
 ### Skewed join keys {#skewed-join-keys}
 
@@ -794,6 +768,23 @@ A leaf qualifies when all of these hold:
 The lookup yields nothing for a leaf, and the search keeps its statistics,
 when the scan meets more than twice the row cap (a stale row count hid a larger
 table) or the filter keeps more than 64 rows.
+
+### Estimate traces and distinct lookup keys
+
+`EXPLAIN (ANALYZE)` exposes `estimate_trace`, a JSON explanation of each node's
+row estimate. It records contributing rules, factors, and statistics, helping
+you distinguish stale data statistics from an estimation assumption. Traces
+are collected for analyzed plans; ordinary execution and plain `EXPLAIN` do
+not collect them.
+
+The join search estimates index-lookup probes from expected distinct keys in
+the filtered left input, rather than treating every keyed row as a distinct
+probe. With row count `N`, distinct count `d`, and `r` retained keyed rows, the
+estimate is `d × (1 − (1 − r / N)^(N / d))`, bounded by `min(r, d)`. Without a
+row count it uses that bound; without a distinct count it assumes each keyed
+row probes. The formula assumes values are evenly spread, so skew can still
+change the actual number of probes. When results exceed the memo's capacity,
+the model charges probes per keyed row instead.
 
 ## Cost model boundaries
 
@@ -882,6 +873,6 @@ changing the planner.
 
 ## Related pages
 
-See [Query Planning](/docs/query-planning) for the capabilities that a user
-sees. See [EXPLAIN](/docs/explain) for the inspection of a plan. See
-[Architecture](/docs/architecture) for the wider layout of the system.
+See [Query Planning](/docs/query-planning) for user-visible capabilities,
+[EXPLAIN](/docs/explain) for inspecting a plan, and
+[Architecture](/docs/architecture) for the wider system layout.

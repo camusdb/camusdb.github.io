@@ -27,12 +27,11 @@ is different: it always covers every database on the node.
 
 ## Create a database before you use it
 
-You must create a database in CamusDB explicitly before you use it. Three
-operations against an unknown database return `DatabaseDoesntExist`: an open, a
-query, and a DDL statement of a table. With authentication enabled, CamusDB uses
-the same error for a database the caller holds no grant on, so callers cannot
-probe whether a hidden database exists. CamusDB does not create the storage
-implicitly.
+You must create a database explicitly before you use it. Opening, querying, or
+running table DDL against an unknown database returns `DatabaseDoesntExist`.
+With authentication enabled, CamusDB returns the same error for a database the
+caller has no grant on, so callers cannot probe whether a hidden database exists.
+CamusDB never creates storage implicitly.
 
 ## Create a database
 
@@ -40,17 +39,17 @@ implicitly.
 CREATE DATABASE app;
 ```
 
-Use `IF NOT EXISTS` when a script of a setup must be safe to repeat:
+Use `IF NOT EXISTS` when a setup script must be safe to repeat:
 
 ```camussql
 CREATE DATABASE IF NOT EXISTS app;
 ```
 
-After the creation, connect to that database in one of five ways:
+Then connect to it in any of these ways:
 
 - `camus-cli app`.
 - A `use app;` statement.
-- The connection string of a driver.
+- A driver connection string.
 - An HTTP request whose `databaseName` is `app`.
 - A gRPC request whose `database` is `app`.
 
@@ -64,23 +63,22 @@ A branch is an isolated copy of a database at a point in time, so you can test a
 feature or rehearse a migration on realistic data without touching the source.
 See [Database Branching](/docs/database-branching).
 
-## List the databases
+## List databases
 
 ```camussql
 SHOW DATABASES;
 ```
 
-`SHOW DATABASES` is a statement at the level of the server. It needs no open
-database.
+`SHOW DATABASES` is a server-level statement, so it needs no open database.
 
 When authentication is enabled, `SHOW DATABASES` lists only databases the caller
 can reach. A global grant, a grant on `db.*`, or any grant on one table inside a
-database makes that database visible. A database with no such grant is hidden in
-the same way as a name that does not exist.
+database makes that database visible. A database with no such grant is hidden,
+just like a name that does not exist.
 
-To list the branches of a database, or the parents of a branch, use
+To list a database's branches, or a branch's parents, use
 `SHOW BRANCHES FROM` and `SHOW ANCESTORS FROM`. See
-[Inspect the branches](/docs/database-branching#inspect-the-branches).
+[Inspect branches](/docs/database-branching#inspect-the-branches).
 
 ## Drop a database
 
@@ -101,25 +99,24 @@ RENAME DATABASE app TO app_prod;
 ALTER DATABASE app RENAME TO app_prod;
 ```
 
-The two forms are equivalent. `ALTER DATABASE ... RENAME TO` matches the order
-of the words of a rename of a table. `RENAME DATABASE ... TO ...` also stays
-supported.
+The two forms are equivalent. `ALTER DATABASE ... RENAME TO` matches the word
+order of a table rename, and `RENAME DATABASE ... TO ...` remains supported.
 
 A rename changes only the registry entry that maps the name to the database's
 internal storage id, so no data moves: the storage id, table ids, and row,
 index, and statistics keys all stay the same.
 
-Note this behavior:
+After a rename:
 
-- An open of the old name fails after the rename completes.
-- An open of the new name resolves to the same id of the storage.
-- Work in flight can continue. The readable name is not part of a storage key of
-  a row or of an index.
-- A rename to a name that exists fails.
-- You cannot use a reserved name as the target of a rename.
-- A comment from a `COMMENT ON DATABASE` survives the rename.
+- Opening the old name fails once the rename completes.
+- Opening the new name resolves to the same storage id.
+- In-flight work can continue, because the readable name is not part of any row
+  or index storage key.
+- Renaming to a name that already exists fails.
+- You cannot rename a database to a reserved name.
+- A `COMMENT ON DATABASE` comment survives the rename.
 
-## A stable identity in the storage
+## Stable storage identity
 
 Each database and table gets a short internal id that is never reused, and its
 stored keys use that id instead of the name. The id is not a SQL value or an
@@ -133,22 +130,22 @@ CamusDB reserves two names:
 
 | Name | Purpose |
 | --- | --- |
-| `_system` | The namespace of the internal registry of the databases, and of the metadata of the cluster. |
-| `information_schema` | Reserved for a future compatibility with SQL. |
+| `_system` | The namespace for the internal database registry and cluster metadata. |
+| `information_schema` | Reserved for future SQL compatibility. |
 
-A creation of a database with either name returns `DatabaseNameReserved`. A
-rename to either name returns the same code.
+Creating a database with either name, or renaming one to either name, returns
+`DatabaseNameReserved`.
 
 ## Error codes
 
 | Code | Name | Typical cause |
 | --- | --- | --- |
-| `CADB0010` | `DatabaseDoesntExist` | An open, a query, a drop, a rename, or a DDL statement of a table, against an unknown database. With authentication enabled, CamusDB returns the same error for a database the caller holds no grant on. |
-| `CADB0012` | `DatabaseAlreadyExists` | A `CREATE DATABASE` targets a name that exists. A rename of a database also targets a name that exists. |
-| `CADB0018` | `DatabaseNameReserved` | A `CREATE DATABASE`, or a rename of a database, uses `_system` or `information_schema`. |
-| `CADB0019` | `DatabaseCreationIncomplete` | Reserved for an incomplete recovery of the creation of a database, from an older layout of a standalone storage. CamusDB does not expect the code on the current path of a creation in the shared storage. |
+| `CADB0010` | `DatabaseDoesntExist` | An open, query, drop, rename, or table DDL statement targets an unknown database. With authentication enabled, CamusDB returns the same error for a database the caller has no grant on. |
+| `CADB0012` | `DatabaseAlreadyExists` | A `CREATE DATABASE` or a database rename targets a name that already exists. |
+| `CADB0018` | `DatabaseNameReserved` | A `CREATE DATABASE` or a database rename uses `_system` or `information_schema`. |
+| `CADB0019` | `DatabaseCreationIncomplete` | Reserved for recovering an incomplete database creation from an older standalone storage layout. CamusDB does not expect this code on the current shared-storage creation path. |
 | `CADB0508` | `DatabaseHasLiveDescendants` | A `DROP DATABASE` targets a database with a live descendant branch. Drop the descendant branches first. |
-| `CADB0510` | `OrphanNotFound` | A `CREATE DATABASE ... RELINK TO` references an id of an orphan that is unknown, recovered already, or reclaimed. |
+| `CADB0510` | `OrphanNotFound` | A `CREATE DATABASE ... RELINK TO` references an orphan id that is unknown, already recovered, or reclaimed. |
 
 ## Related pages
 

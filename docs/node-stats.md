@@ -12,8 +12,9 @@ whether its data volume is approaching the write-admission watermark.
 - REST: `GET /v1/admin/stats`
 - gRPC: `CamusSql.GetNodeStats`
 
-The call is node-local. Query every node separately when monitoring a cluster.
-It reads cached samples and does not scan the database on the request path.
+The call is node-local, so query every node separately when you monitor a
+cluster. It reads cached samples and does not scan the database on the request
+path.
 
 ## Authorization
 
@@ -114,7 +115,7 @@ configured watermark.
 
 A measurement that the node cannot read is `-1`, never `0`. The `errors`
 array identifies the field and explains why it was unavailable. One failed
-probe does not fail the complete response.
+probe does not fail the whole response.
 
 Disk capacity is at most two seconds old. CPU, load, and host memory samples are
 at most five seconds old. Engine size and mount layout are refreshed every 60

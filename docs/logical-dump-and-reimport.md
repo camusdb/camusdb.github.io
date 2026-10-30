@@ -25,7 +25,8 @@ untouched. Move data across revisions with [`camus-dump`](/docs/camus-dump) and
 
 ## What a dump carries
 
-`camus-dump` writes SQL for databases, tables, indexes, sequences, and rows. The
+`camus-dump` writes SQL for databases, installed extensions, tables, indexes,
+sequences, and rows. The
 table DDL comes from `SHOW CREATE TABLE`, so it carries defaults, check
 constraints, foreign keys, comments, covering-index included columns, and
 row-level TTL settings. Each sequence keeps its options, its comment, and its
@@ -34,6 +35,14 @@ position, which the dump restores with `setval` after the rows.
 With `--all-users`, the dump also exports every account and every grant. Use
 `--users name1,name2` instead against a server that has no `SHOW USERS`. The
 accounts are created without a password, and superuser status is not exported.
+
+Installed extensions are emitted as `CREATE EXTENSION name VERSION 'version'`
+before tables, so defaults, checks, and views can resolve their functions.
+The dump contains no extension DLLs. Deploy the same builds and dependencies
+on the destination nodes, configure their paths, and restart before reimporting.
+An unavailable version causes installation to fail. Reading installed
+extensions requires a superuser; a dump by another user omits them and reports
+that omission. See [C# extensions](/docs/csharp-extensions).
 
 Foreign keys affect load order. A `CREATE TABLE` with a foreign key needs its
 parent table to exist, and a child `INSERT` needs its parent row to be loaded.
@@ -55,6 +64,7 @@ Record and recreate these objects separately:
 | Views | `SHOW VIEWS` and `SHOW CREATE VIEW name` | Run the printed `CREATE VIEW`. |
 | Materialized views | `SHOW MATERIALIZED VIEWS` and `SHOW CREATE MATERIALIZED VIEW name` | Run the printed statement, then refresh it. |
 | Passwords and superuser status | Nothing to record | Set a password for each account with `ALTER USER`. Superuser status comes only from the bootstrap user. |
+| Triggers | Keep the original `CREATE TRIGGER` statements; the dump omits them. | Recreate after loading rows so the import does not fire triggers. |
 | Cluster settings | `SHOW VARIABLES`, keeping non-default values | Run `SET CLUSTER SETTING`. |
 | Table statistics | Nothing to record | Run `ANALYZE` after the load. |
 | Physical backups | Nothing to record | Take a fresh full backup after the load. |
@@ -72,9 +82,9 @@ A branch is dumped as the full database view that the branch can read. The
 reimported copy is an independent database, not a copy-on-write branch of the
 original parent.
 
-A storage revision move starts the new server with a fresh user catalog. Accounts,
-grants, and sessions live in the same storage revision as the rows, so export
-accounts and grants with `camus-dump --all-users` (or `--users`). Passwords
+A storage revision move starts the new server with a fresh user catalog.
+Accounts, grants, and sessions live in the same storage revision as the rows, so
+export accounts and grants with `camus-dump --all-users` (or `--users`). Passwords
 cannot be exported; plan to set a new password for each account after the
 reimport.
 
@@ -90,9 +100,9 @@ camus-dump -e http://db1.internal:5096 --all-databases --all-users -b 100 \
 
 `--all-databases` asks the server for every database. `--all-users` writes
 `users.sql` (the `CREATE USER` statements) and `grants.sql` (the `GRANT`
-statements) next to the database files. It needs a superuser. `-b` controls
-rows per `INSERT`. Start with `-b 100`; it avoids one round trip per row without making
-statements too large for wide tables.
+statements) next to the database files, and needs a superuser. `-b` controls
+rows per `INSERT`. Start with `-b 100`: it avoids one round trip per row without
+making statements too large for wide tables.
 
 With authentication enabled, pass credentials through the environment or an
 interactive prompt, not through shell history:

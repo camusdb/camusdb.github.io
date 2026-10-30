@@ -75,11 +75,11 @@ speed.
 The nightly workflow runs the larger retail and Join Order Benchmark suites. It
 can also be started manually for a selected Git ref.
 
-Each job uploads Markdown and JSON reports even when the gate fails. A failed
-run should be investigated through the work counters and changed plan
+Each job uploads Markdown and JSON reports even when the gate fails.
+Investigate a failed run through the work counters and changed plan
 fingerprints; wall-clock variation by itself does not make the job fail.
 
-The nightly suite helps answer three questions:
+The nightly suite helps answer these questions:
 
 1. Does every query still return the expected result?
 2. Did a planner change make any query read substantially more data?
@@ -153,6 +153,6 @@ moved. Separate baselines exist for each data suite and scale.
 
 The suite exercises a single CamusDB node. It does not grade
 [distributed queries](/docs/distributed-queries), such as gathering rows from
-other nodes and broadcast joins, or data placement decisions. Those paths require cluster
-and fault-injection tests. See [Caraxes](/docs/caraxes) for distributed
+other nodes and broadcast joins, or data placement decisions. Those paths
+require cluster and fault-injection tests. See [Caraxes](/docs/caraxes) for distributed
 reliability testing.

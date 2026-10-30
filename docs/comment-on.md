@@ -24,8 +24,7 @@ encoding, indexes, constraints, or transaction behavior.
 
 ## COMMENT ON
 
-Use `COMMENT ON` to set a comment after the object exists. Use it also to update
-a comment:
+Use `COMMENT ON` to set or update a comment on an existing object:
 
 ```camussql
 COMMENT ON DATABASE app IS 'Primary application database';
@@ -36,21 +35,20 @@ COMMENT ON SEQUENCE user_no IS 'Human-facing user number';
 ```
 
 `COMMENT ON TABLE`, `COMMENT ON COLUMN`, `COMMENT ON INDEX`, and `COMMENT ON
-SEQUENCE` run inside the context of a database.
+SEQUENCE` run in the current database.
 
-`COMMENT ON DATABASE` names the target database in the statement. The connection
-does not need to use that database already.
+`COMMENT ON DATABASE` names the target database in the statement, so the
+connection does not need to be using that database.
 
-`COMMENT ON COLUMN` and `COMMENT ON INDEX` need a name with the table as its
-qualifier:
+`COMMENT ON COLUMN` and `COMMENT ON INDEX` need a table-qualified name:
 
 ```camussql
 COMMENT ON COLUMN users.email IS 'Unique login email address';
 COMMENT ON INDEX users.email_idx IS 'Lookup by login email';
 ```
 
-CamusDB rejects a bare name of a column, and a bare name of an index. A column
-and an index both belong to one table.
+CamusDB rejects bare column and index names, because columns and indexes belong
+to a table.
 
 ## Remove a comment
 
@@ -60,19 +58,19 @@ and an index both belong to one table.
 COMMENT ON COLUMN users.email IS NULL;
 ```
 
-An empty string differs from a comment that you removed:
+An empty string is not the same as no comment:
 
 ```camussql
 COMMENT ON COLUMN users.email IS '';
 ```
 
-After `IS NULL`, `SHOW CREATE TABLE` omits the clause of the comment. After
-`IS ''`, the comment is present, and it renders as `COMMENT ''`.
+After `IS NULL`, `SHOW CREATE TABLE` omits the comment clause. After `IS ''`,
+the comment is present and renders as `COMMENT ''`.
 
-## An inline comment
+## Inline comments
 
-You can also declare a comment when you create a table. That rule covers a
-comment on the table, on a column, and on an inline secondary index:
+You can also declare comments when you create a table, on the table itself, its
+columns, and its inline secondary indexes:
 
 ```camussql
 CREATE TABLE users (
@@ -82,28 +80,27 @@ CREATE TABLE users (
 ) COMMENT 'Application users';
 ```
 
-`ALTER TABLE ... ADD COLUMN` accepts the same clause for a column:
+`ALTER TABLE ... ADD COLUMN` accepts the same clause:
 
 ```camussql
 ALTER TABLE users
 ADD COLUMN nickname STRING NULL COMMENT 'Display name';
 ```
 
-The syntax is `COMMENT '<text>'`. It uses no `=`.
+The syntax is `COMMENT '<text>'`, with no `=`.
 
-Set the comment of a database with `COMMENT ON DATABASE`. `CREATE DATABASE` has
-no inline clause for a comment.
+Set a database comment with `COMMENT ON DATABASE`. `CREATE DATABASE` has no
+inline comment clause.
 
-## Read a comment
+## Read comments
 
-`SHOW CREATE TABLE` includes the comment of the table, of a column, and of a
-secondary index:
+`SHOW CREATE TABLE` includes table, column, and secondary index comments:
 
 ```camussql
 SHOW CREATE TABLE users;
 ```
 
-Here is an example of the rendered DDL:
+The rendered DDL looks like this:
 
 ```camussql
 CREATE TABLE `users` (
@@ -114,9 +111,9 @@ CREATE TABLE `users` (
 ) COMMENT 'Application users';
 ```
 
-You can replay the emitted DDL. It creates the same comments again.
+Replaying the emitted DDL recreates the same comments.
 
-`SHOW DATABASE` returns the name of the current database, and its comment:
+`SHOW DATABASE` returns the current database's name and comment:
 
 ```camussql
 SHOW DATABASE;
@@ -130,33 +127,32 @@ SHOW DATABASE;
 └──────────┴──────────────────────────────┘
 ```
 
-`SHOW COLUMNS` keeps the shape of its result. It includes no comment. Use `SHOW
-CREATE TABLE` when you need the description of a table, of a column, or of an
-index.
+`SHOW COLUMNS` keeps its result shape and does not include comments. Use
+`SHOW CREATE TABLE` when you need a table, column, or index description.
 
-## The behavior after a rename
+## Renames
 
 A comment stays with its object through a rename:
 
-- The comment of a database survives `RENAME DATABASE` and
+- A database comment survives `RENAME DATABASE` and
   `ALTER DATABASE ... RENAME TO`.
-- The comment of a table survives `ALTER TABLE ... RENAME TO`.
-- The comment of a column survives `ALTER TABLE ... RENAME COLUMN ... TO ...`.
-- The comment of an index survives `ALTER TABLE ... RENAME INDEX ... TO ...`.
-- The comment of a sequence survives `ALTER SEQUENCE ... RENAME TO`.
+- A table comment survives `ALTER TABLE ... RENAME TO`.
+- A column comment survives `ALTER TABLE ... RENAME COLUMN ... TO ...`.
+- An index comment survives `ALTER TABLE ... RENAME INDEX ... TO ...`.
+- A sequence comment survives `ALTER SEQUENCE ... RENAME TO`.
 
-CamusDB attaches the comment to the schema object. It does not attach the
-comment to the display name alone.
+CamusDB attaches the comment to the schema object, not just to its display
+name.
 
 ## Limits
 
-A comment can hold `65,535` characters at most. A longer comment fails with
+A comment can hold at most `65,535` characters. A longer comment fails with
 `CADB0511 CommentTooLong`.
 
-A comment can hold a quotation mark, a backslash, a new line, a tab, a NUL, and
-other characters. CamusDB renders them back as SQL that the parser accepts, in
-`SHOW CREATE TABLE`. It uses a plain string literal where that is possible. It
-uses an `E'...'` escape string when a control character needs a spelling.
+A comment can contain quotation marks, backslashes, newlines, tabs, NULs, and
+other characters. `SHOW CREATE TABLE` renders them back as SQL the parser
+accepts: a plain string literal where possible, and an `E'...'` escape string
+when a control character needs escaping.
 
 Repeat a single quotation mark inside a comment to escape it:
 
@@ -177,13 +173,13 @@ the list of escapes that fail.
 
 ## Notes
 
-`COMMENT` is a reserved keyword. An existing schema can hold an object with the
-literal name `comment`. Quote that name with backticks:
+`COMMENT` is a reserved keyword. If an existing schema has an object literally
+named `comment`, quote the name with backticks:
 
 ```camussql
 SELECT `comment` FROM posts;
 ```
 
-CamusDB currently supports a comment on a database, a table, a column, a
-secondary index, and a sequence. Four other objects have no form of `COMMENT
-ON`: the index of a primary key, a constraint, a branch, and a function.
+CamusDB currently supports comments on databases, tables, columns, secondary
+indexes, and sequences. Primary key indexes, constraints, branches, and
+functions have no `COMMENT ON` form.

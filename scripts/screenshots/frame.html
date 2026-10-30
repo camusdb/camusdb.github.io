@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Screenshot frame</title>
+<style>
+  /*
+   * Wraps a raw capture in a window with a brand background, so that browser and terminal
+   * screenshots share the same padding, corners, shadow and chrome. capture.mjs calls render()
+   * and screenshots #canvas at a device scale factor of 2.
+   */
+  :root {
+    --bg: #0b1220;
+    --glow-a: rgba(45, 112, 240, 0.55);
+    --glow-b: rgba(124, 58, 237, 0.30);
+    --bar: #1f2430;
+    --bar-border: rgba(255, 255, 255, 0.06);
+    --pill: #141821;
+    --pill-text: #9aa4b2;
+    --title: #a9b1d6;
+    --edge: rgba(255, 255, 255, 0.10);
+    --shadow: 0 40px 90px rgba(0, 0, 0, 0.55), 0 12px 30px rgba(0, 0, 0, 0.35);
+  }
+
+  :root[data-theme="light"] {
+    --bg: #eef3fb;
+    --glow-a: rgba(78, 151, 249, 0.45);
+    --glow-b: rgba(151, 199, 251, 0.55);
+    --bar: #f4f5f7;
+    --bar-border: rgba(15, 23, 42, 0.08);
+    --pill: #e6e8ec;
+    --pill-text: #5b6472;
+    --title: #5b6472;
+    --edge: rgba(15, 23, 42, 0.12);
+    --shadow: 0 40px 90px rgba(15, 23, 42, 0.22), 0 12px 30px rgba(15, 23, 42, 0.12);
+  }
+
+  /* The terminal theme (TokyoNight) sets its own chrome so the bar blends into the window. */
+  :root[data-kind="terminal"] {
+    --bar: #16161e;
+    --bar-border: rgba(255, 255, 255, 0.04);
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+  }
+
+  #canvas {
+    display: inline-block;
+    padding: 72px 88px 96px;
+    background:
+      radial-gradient(1100px 620px at 12% -10%, var(--glow-a), transparent 65%),
+      radial-gradient(900px 560px at 105% 110%, var(--glow-b), transparent 65%),
+      var(--bg);
+  }
+
+  .window {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow), 0 0 0 1px var(--edge);
+  }
+
+  .bar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 44px;
+    padding: 0 16px;
+    background: var(--bar);
+    border-bottom: 1px solid var(--bar-border);
+    font: 500 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+  }
+
+  .lights {
+    display: flex;
+    gap: 8px;
+  }
+
+  .lights span {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+
+  .lights span:nth-child(1) { background: #ff5f57; }
+  .lights span:nth-child(2) { background: #febc2e; }
+  .lights span:nth-child(3) { background: #28c840; }
+
+  .center {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .pill {
+    min-width: 360px;
+    padding: 7px 16px;
+    border-radius: 8px;
+    background: var(--pill);
+    color: var(--pill-text);
+    text-align: center;
+  }
+
+  .title {
+    color: var(--title);
+    font-family: "JetBrains Mono", Menlo, monospace;
+    font-size: 13px;
+  }
+
+  .shot {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<div id="canvas">
+  <div class="window">
+    <div class="bar">
+      <div class="lights"><span></span><span></span><span></span></div>
+      <div class="center" id="label"></div>
+    </div>
+    <img class="shot" id="shot" alt="">
+  </div>
+</div>
+<script>
+  // spec: {src, kind: 'browser' | 'terminal', theme: 'dark' | 'light', label, scale}
+  // scale is the device scale factor of the raw capture; the image is shown at its CSS size.
+  window.render = async function (spec) {
+    document.documentElement.dataset.theme = spec.theme;
+    document.documentElement.dataset.kind = spec.kind;
+
+    const label = document.getElementById('label');
+    label.className = 'center ' + (spec.kind === 'browser' ? 'pill' : 'title');
+    label.textContent = spec.label;
+
+    const img = document.getElementById('shot');
+    img.src = spec.src;
+    await img.decode();
+    img.style.width = (img.naturalWidth / spec.scale) + 'px';
+    img.style.height = (img.naturalHeight / spec.scale) + 'px';
+    await document.fonts.ready;
+  };
+</script>
+</body>
+</html>

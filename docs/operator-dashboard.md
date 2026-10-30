@@ -2,6 +2,9 @@
 sidebar_position: 3.69
 ---
 
+import ThemedImage from '@theme/ThemedImage';
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
 # Operator dashboard
 
 Open a CamusDB node's HTTP port in a browser to see a read-only operator
@@ -11,7 +14,13 @@ backups, slow queries, and the resolved configuration of that node.
 The dashboard does not run DML or DDL. It opens no coordinated transaction and
 offers no action that changes the database.
 
-![CamusDB operator dashboard](/img/dashboard.png)
+<ThemedImage
+  alt="CamusDB operator dashboard"
+  sources={{
+    light: useBaseUrl('/img/screenshots/dashboard-light.webp'),
+    dark: useBaseUrl('/img/screenshots/dashboard-dark.webp'),
+  }}
+/>
 
 ## Enable or disable it
 
@@ -78,7 +87,7 @@ endpoints do not carry the page policy.
 
 ## Permissions
 
-Non-superusers can open the dashboard, but four panels require a superuser:
+Non-superusers can open the dashboard, but these panels require a superuser:
 
 - Engine, because it runs `SHOW ENGINE STATS`.
 - Configuration, because it runs `SHOW VARIABLES` and `SHOW CLUSTER SETTINGS`.

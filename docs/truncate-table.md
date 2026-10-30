@@ -4,38 +4,37 @@ sidebar_position: 2.35
 
 # TRUNCATE TABLE
 
-`TRUNCATE` empties a base table. It does not read a row, and it does not delete
-a row one at a time. It replaces the physical [key
-space](/docs/concepts#key-space) (the range of storage keys) that holds the rows
-and the index entries of the table.
-
-The work is therefore independent of the number of rows.
+`TRUNCATE` empties a base table without reading rows or deleting them one at a
+time. Instead, it replaces the physical [key
+space](/docs/concepts#key-space) (the range of storage keys) that holds the
+table's rows and index entries, so the work does not depend on the number of
+rows.
 
 Use `TRUNCATE` instead of `DELETE FROM orders` to empty a large table. A
-`DELETE` must remove each row and each index entry. On a large table it is
+`DELETE` must remove every row and every index entry: on a large table it is
 slow, and in one transaction it exceeds the
-[limit on mutations](/docs/transaction-limits). Typical uses are a staging table
-between two loads, a test table between two runs, and a table of temporary data.
+[mutation limit](/docs/transaction-limits). Typical uses are staging tables
+between loads, test tables between runs, and tables of temporary data.
 
 ```camussql
 TRUNCATE TABLE orders;
 TRUNCATE orders;             -- the TABLE keyword is optional
 ```
 
-The table itself survives the statement. It keeps its name, its id, its columns,
-its indexes, its constraints, its settings, its comment, its grants, and its
-schema version. Only its contents generation moves.
+The table itself survives. It keeps its name, id, columns, indexes,
+constraints, settings, comment, grants, and schema version. Only its contents
+generation moves.
 
-A contents generation is one physical key space that holds the rows of a table.
-This page uses that term throughout.
+A contents generation is one physical key space that holds a table's rows. This
+page uses that term throughout.
 
-## An example
+## Example
 
 ```camussql
 -- Empty a table of any size.
 TRUNCATE TABLE orders;
 
--- CamusDB retains the previous contents for the window of the retention.
+-- CamusDB retains the previous contents for the retention window.
 SHOW ORPHAN TABLES;
 ```
 
@@ -51,8 +50,6 @@ CREATE TABLE orders_before_truncate RELINK TO 'A0';
 
 ## What the statement accepts
 
-Three rules apply to the form of the statement:
-
 - The target is exactly one base table. CamusDB does not support several tables
   in one statement.
 - The `TABLE` keyword is optional.
@@ -60,13 +57,13 @@ Three rules apply to the form of the statement:
 
 `CONTINUE IDENTITY` is the default. `RESTART IDENTITY` restarts only the
 sequences owned by identity columns of the truncated table. It does not reset a
-free-standing sequence that a column merely defaults from, because that sequence
-may be shared by other tables.
+free-standing sequence that a column merely defaults from, because other tables
+may share that sequence.
 
-`CASCADE` is not supported. A table that another table's foreign key references
-cannot be truncated, even when the child table is empty. Drop the child table or
-the foreign key first. A foreign key from a table to itself does not block
-`TRUNCATE`.
+`CASCADE` is not supported. You cannot truncate a table that another table's
+foreign key references, even when the child table is empty. Drop the child
+table or the foreign key first. A foreign key from a table to itself does not
+block `TRUNCATE`.
 
 CamusDB refuses `TRUNCATE` on these targets:
 
@@ -79,43 +76,43 @@ CamusDB refuses `TRUNCATE` on these targets:
 
 ## Performance
 
-The statement is constant in the count of the rows, and in the count of the
-index entries. A table with one row and a table with a billion rows do the same
-amount of work on the rows, which is none. CamusDB reads no row, deletes no row,
-and touches no index entry.
+The statement's cost is constant in the number of rows and index entries. A
+table with one row and a table with a billion rows do the same amount of row
+work: none. CamusDB reads no rows, deletes no rows, and touches no index
+entries.
 
-That property is not the same as a constant time on the clock. The statement
-still waits for three things:
+Constant work is not the same as constant wall-clock time. The statement still
+waits for:
 
-1. The exclusive lock over the whole key space of the rows of the table. That
-   lock waits for a writer that conflicts.
-2. The commit of the schema change, which CamusDB copies to every node, and the
-   acknowledgement from every node.
-3. The checkpoint of the metadata. Its cost grows with the indexes of the table,
-   and with the layouts of the stored columns.
+1. The exclusive lock over the table's entire row key space. That lock waits
+   for conflicting writers.
+2. The schema change to commit, replicate to every node, and be acknowledged by
+   every node.
+3. The metadata checkpoint, whose cost grows with the table's indexes and
+   stored column layouts.
 
 CamusDB reclaims the retired rows in the background. That work is asynchronous,
-and its cost is proportional to the count of the rows. It happens long after the
-statement returns.
+proportional to the number of rows, and happens long after the statement
+returns.
 
-CamusDB does not use either of the two alternatives:
+Here is how this strategy compares with the two alternatives CamusDB does not
+use:
 
 | Strategy | Work on the data | Atomic | Why CamusDB does not use it |
 | --- | --- | --- | --- |
-| A swap of the contents generation | None | Yes | CamusDB uses this strategy. |
-| A `DELETE` in chunks | Proportional to the rows and the index entries | No | A partial failure leaves the table half empty. |
-| A `DELETE` in one transaction | Proportional to the rows and the index entries | Yes | It exceeds the limit on the mutations of one transaction, on any useful table. |
+| Swap the contents generation | None | Yes | CamusDB uses this strategy. |
+| `DELETE` in chunks | Proportional to the rows and index entries | No | A partial failure leaves the table half empty. |
+| `DELETE` in one transaction | Proportional to the rows and index entries | Yes | On any useful table, it exceeds the per-transaction mutation limit. |
 
 See [Transaction Limits](/docs/transaction-limits) for that limit.
 
 ## Privileges
 
-`TRUNCATE` needs both the `DELETE` privilege and the `DROP` privilege on the
-target table. The statement removes every row, which is an effect of a `DELETE`.
-It also retires a whole key space, which is an effect of a `DROP`. One privilege
-alone is therefore not enough.
+`TRUNCATE` needs both the `DELETE` and the `DROP` privilege on the target
+table. It removes every row, like a `DELETE`, and it retires a whole key space,
+like a `DROP`, so one privilege alone is not enough.
 
-CamusDB checks the two privileges one at a time. They can come from two separate
+CamusDB checks the two privileges separately, so they can come from separate
 grants:
 
 ```camussql
@@ -123,17 +120,16 @@ GRANT DELETE ON shop.orders TO alice;
 GRANT DROP   ON shop.orders TO alice;
 ```
 
-A superuser satisfies the check. A grant across a database, such as `shop.*`,
-also satisfies it. A global grant satisfies it too.
+A superuser, a database-wide grant such as `shop.*`, or a global grant also
+satisfies the check.
 
-A caller without the two privileges receives `CADB0517`
-`InsufficientPrivilege`. See [SQL Authentication](/docs/sql-authentication).
+A caller without both privileges receives `CADB0517` `InsufficientPrivilege`.
+See [SQL Authentication](/docs/sql-authentication).
 
 ## Transactions
 
-`TRUNCATE` runs in its own internal transaction. CamusDB refuses the statement
-inside an explicit transaction, with `CADB0538`
-`StatementNotAllowedInTransaction`:
+`TRUNCATE` runs in its own internal transaction. CamusDB refuses it inside an
+explicit transaction with `CADB0538` `StatementNotAllowedInTransaction`:
 
 ```camussql
 BEGIN;
@@ -141,15 +137,15 @@ TRUNCATE TABLE orders;   -- CADB0538
 ROLLBACK;
 ```
 
-The reason is honesty, and not caution. `TRUNCATE` commits a schema change that
-every node applies. A `ROLLBACK` of your own transaction cannot undo that entry.
-An accepted statement would therefore promise a rollback that the engine cannot
-deliver. Commit first, or roll back first. Then run the truncate.
+The refusal is about honesty, not caution. `TRUNCATE` commits a schema change
+that every node applies, and a `ROLLBACK` of your transaction cannot undo it.
+Accepting the statement would promise a rollback the engine cannot deliver.
+Commit or roll back first, then run the truncate.
 
-The truncate happens across the cluster as soon as the schema entry commits. A
-failure after that point does not change the outcome. CamusDB logs the failure,
-and the statement still reports success. A report of a rollback would tell you
-that the table still holds rows that it no longer holds.
+The truncate takes effect across the cluster as soon as the schema entry
+commits. A failure after that point does not change the outcome: CamusDB logs
+the failure and the statement still reports success. Reporting a rollback would
+tell you the table still holds rows that it no longer holds.
 
 ## Identity sequences
 
@@ -164,45 +160,56 @@ table, such as `SERIAL` or `GENERATED ... AS IDENTITY` columns. A sequence
 created with `CREATE SEQUENCE` and referenced by a column default is not owned
 by the table, so truncate leaves it alone.
 
-The table-emptying part of `TRUNCATE` is still a committed schema change. If the
-identity restart fails afterwards, CamusDB reports the sequences it could not
-restart; the table remains empty and those sequences keep climbing. Use
-`ALTER SEQUENCE ... RESTART` on the named sequences to finish the reset.
+Emptying the table is still a committed schema change. If the identity restart
+fails afterwards, CamusDB reports the sequences it could not restart; the table
+stays empty and those sequences keep climbing. Run `ALTER SEQUENCE ... RESTART`
+on the named sequences to finish the reset.
 
-## A concurrent reader and a concurrent writer
+## Concurrent readers and writers
 
-CamusDB takes an exclusive range lock over the whole key space of the rows of
-the table. It takes that lock before it proposes anything. The lock is what
-makes the swap atomic against a transaction on the data.
+Before it proposes anything, CamusDB takes an exclusive range lock over the
+table's entire row key space. This lock makes the swap atomic with respect to
+transactions on the data.
 
-Three cases follow:
+- A writer that staged a row in the old key space before CamusDB took the lock
+  is aborted at commit. It never receives a success for a row in a key space
+  that nothing reads. This applies to both optimistic and pessimistic writers.
+- A writer that arrives while CamusDB holds the lock waits, or CamusDB asks it
+  to retry. When it continues, it binds the new key space.
+- A reader that bound the old contents before the cut can finish against its
+  own snapshot. A statement that binds after the truncate is acknowledged sees
+  the new, empty contents.
 
-- A writer staged a row into the old key space before CamusDB took the lock.
-  CamusDB aborts that writer at its commit. The writer never receives a success
-  for a row in a key space that nothing reads. This applies to an optimistic
-  writer and to a pessimistic one.
-- A writer arrives while CamusDB holds the lock. That writer waits, or CamusDB
-  asks it to retry. It binds the new key space when it continues.
-- A reader bound the old contents before the cut. That reader can finish against
-  its own snapshot. A statement that binds after the acknowledgement of the
-  truncate sees the new contents, which are empty.
-
-Two concurrent truncates on one table serialize through the schema
+Two concurrent truncates on the same table serialize through the schema
 [leader](/docs/concepts#leader), the node that applies schema changes for the
-cluster. Each
-truncate that succeeds creates its own retired generation. One truncate can lose
-the race, and it then reports `CADB0534` `ConcurrentSchemaChange`. That code is
-retryable, because CamusDB applied nothing.
+cluster. Each successful truncate creates its own retired generation. A
+truncate that loses the race reports `CADB0534` `ConcurrentSchemaChange`, which
+is retryable because CamusDB applied nothing.
 
-See [Serializable Transactions](/docs/serializable-transactions) for the
-contract of a conflict that you retry.
+See [Serializable Transactions](/docs/serializable-transactions) for how to
+retry after a conflict.
 
-## Recovery of the previous contents
+## Recover the previous contents {#recovery-of-the-previous-contents}
 
-A truncate destroys nothing. CamusDB keeps the key space that the table stopped
-to read. It keeps that key space as retired contents.
+A truncate destroys nothing. CamusDB keeps the key space the table no longer
+reads as retired contents.
 
-This mechanism is the same one that makes `DROP TABLE` recoverable. See
+The diagram follows the old contents of `orders` after a truncate. The table
+itself moves on to a new, empty generation.
+
+```mermaid
+stateDiagram-v2
+    state "Contents of orders" as Live
+    state "Retired contents<br/>(in SHOW ORPHAN TABLES)" as Retired
+    state "Read by a new table" as Recovered
+    state "Reclaimed" as Gone
+    [*] --> Live
+    Live --> Retired : TRUNCATE orders
+    Retired --> Recovered : CREATE TABLE ... RELINK TO id
+    Retired --> Gone : background collector,<br/>after orphan_retention_ms
+```
+
+This is the same mechanism that makes `DROP TABLE` recoverable. See
 [Recover Dropped Objects](/docs/recover-dropped-objects).
 
 ```camussql
@@ -211,34 +218,34 @@ SHOW ORPHAN TABLES;
 
 | Column | Meaning |
 | --- | --- |
-| `id` | The id of the retired key space. `RELINK TO` takes this value. |
+| `id` | The retired key space's id. `RELINK TO` takes this value. |
 | `kind` | `retired contents` for a truncate. `dropped table` for a drop. |
 | `former_name` | The table that owned the contents. For retired contents, that table still exists. |
-| `dropped_at` | The time of the retirement of the contents. |
-| `expires_at` | The time when the background collector can reclaim them. |
+| `dropped_at` | When the contents were retired. |
+| `expires_at` | When the background collector can reclaim them. |
 
-A recovery publishes the retained rows as a separate new table:
+Recovery publishes the retained rows as a separate, new table:
 
 ```camussql
 CREATE TABLE orders_before_truncate RELINK TO 'A0';
 ```
 
-The recovered table receives a fresh id of a relation, and it reads the retired
-key space. It must receive a fresh id. On the first truncate of a table, the id
-of the still live table names the retired key space. A reuse of that id would
-create a second name for one live relation.
+The recovered table gets a fresh relation id and reads the retired key space.
+It must get a fresh id: after a table's first truncate, the id of the
+still-live table names the retired key space, so reusing that id would create a
+second name for one live relation.
 
-The recovery does not touch the original table. That table keeps its id and its
-name. It also keeps every row that somebody wrote into it after the truncate.
+Recovery does not touch the original table. That table keeps its id, its name,
+and every row written to it after the truncate.
 
-The background collector purges the retired rows, the index entries, and the
-metadata, after the window of the retention. That window is
-`orphan_retention_ms`. A recovery is not possible after the purge.
+After the retention window (`orphan_retention_ms`), the background collector
+purges the retired rows, index entries, and metadata. Recovery is not possible
+after the purge.
 
 ## Time travel
 
-CamusDB refuses a time travel read of a truncated table, for any snapshot before
-the start of the current contents:
+CamusDB refuses a time travel read of a truncated table at any snapshot before
+the current contents began:
 
 ```camussql
 TRUNCATE TABLE orders;
@@ -251,47 +258,43 @@ replaced at ..., and the rows it held before that point are no longer reachable
 through this table.
 ```
 
-That refusal is the honest answer. The old rows are still on the disk. They
-nevertheless live in a key space that the live table can no longer name. The
-read would therefore scan the new generation, which is empty, and it would
-answer "no rows". That answer is the same as a correct empty answer for a moment
-when the table was full.
+Refusing is the honest answer. The old rows are still on disk, but they live in
+a key space the live table can no longer name. The read would scan the new,
+empty generation and answer "no rows", which looks exactly like a correct empty
+answer for a moment when the table was full.
 
-Four rules apply:
-
-- A snapshot exactly at the cut is valid. It observes the new contents, which
-  are empty.
+- A snapshot exactly at the cut is valid. It sees the new, empty contents.
 - A snapshot after the cut behaves normally.
-- CamusDB knows the latest cut only. After several truncates, it therefore
-  refuses every snapshot before that cut.
-- A table without a truncate is not affected.
+- CamusDB knows only the latest cut, so after several truncates it refuses
+  every snapshot before that cut.
+- Tables that were never truncated are not affected.
 
-Recover the old rows with `RELINK`, and then query the recovered table. See
-[Time Travel Reads](/docs/time-travel-reads).
+To read the old rows, recover them with `RELINK` and query the recovered table.
+See [Time Travel Reads](/docs/time-travel-reads).
 
-## A branch database
+## Branch databases
 
-In a [branch database](/docs/database-branching), the rows of a table are the
-overlay of the branch merged with the rows of its ancestors. Each level uses the
-same id of the storage. A truncate therefore has a simple and total meaning.
+In a [branch database](/docs/database-branching), a table's rows are the
+branch's overlay merged with its ancestors' rows. Every level uses the same
+storage id, so a truncate has a simple, total meaning.
 
 | Action | Effect |
 | --- | --- |
-| A truncate in a branch | CamusDB gives the branch a new id of the storage. The view of the branch becomes empty. Its overlay disappears from that branch, and so do the rows that it inherits. |
-| A recovery in a branch | CamusDB reconstructs the whole merged view of the branch before the truncate. That view holds the overlay and the inherited rows, under a new name of a table. |
-| The reclamation | CamusDB scopes the reclamation to the id of the database of the branch. It never deletes a key of an ancestor. |
-| A truncate of the source | A truncate of the source after a fork does not rewrite the copied schema of the descendant. The descendant keeps its forked contents. |
+| Truncate in a branch | CamusDB gives the branch a new storage id, and the branch's view becomes empty. Both its overlay and the rows it inherits disappear from that branch. |
+| Recover in a branch | CamusDB reconstructs the branch's entire merged view from before the truncate, overlay and inherited rows together, under a new table name. |
+| Reclamation | CamusDB scopes reclamation to the branch's database id. It never deletes an ancestor's keys. |
+| Truncate the source | Truncating the source after a fork does not rewrite the descendant's copied schema. The descendant keeps its forked contents. |
 
-A truncate in a branch deletes nothing at once. The overlay becomes retired
-contents, and CamusDB never touches the rows of the ancestor.
+A truncate in a branch deletes nothing immediately. The overlay becomes retired
+contents, and CamusDB never touches the ancestor's rows.
 
-## A dependent view
+## Dependent views {#a-dependent-view}
 
-A plain view stores no row. It therefore reads the emptied table at once.
+A plain view stores no rows, so it reads the emptied table immediately.
 
-A materialized view keeps the rows of its last refresh, so it is stale after a
-truncate, just as it is after an `INSERT`, `UPDATE`, or `DELETE` on its base
-table. Run a refresh when you want the view to agree:
+A materialized view keeps the rows from its last refresh, so it is stale after
+a truncate, just as it is after an `INSERT`, `UPDATE`, or `DELETE` on its base
+table. Refresh it when you want it to match:
 
 ```camussql
 TRUNCATE TABLE orders;
@@ -302,30 +305,29 @@ See [Materialized Views](/docs/materialized-views).
 
 ## Statistics
 
-The statistics of the optimizer use the identity of the table, and a truncate
-preserves that identity. CamusDB stamps the statistics with the contents
-generation that they describe.
+Optimizer statistics are tied to the table's identity, which a truncate
+preserves. CamusDB stamps statistics with the contents generation they
+describe.
 
-After a truncate, CamusDB ignores the previous distribution. It does not believe
-it. `SHOW STATISTICS` and the planner both treat the new generation as a
-generation without a measurement.
+After a truncate, CamusDB ignores the previous distribution instead of trusting
+it. `SHOW STATISTICS` and the planner both treat the new generation as
+unmeasured.
 
-Run `ANALYZE` after you fill the table again. See
+Run `ANALYZE` after you refill the table. See
 [SHOW STATISTICS](/docs/show-statistics).
 
 ## Row-level TTL
 
-A run of the row-level TTL becomes inert at once when a truncate lands. TTL is
-the time to live of a row.
+A row-level TTL (time to live) run becomes inert as soon as a truncate lands.
 
-Every run records the contents generation of its plan. The scheduler checks that
-generation again, and each worker checks it again before each
-[span](/docs/concepts#ranges-and-spans) (slice of the table) it processes. No
-worker can therefore delete from the retired generation, which is recoverable.
-No worker can delete from the new generation either, because its plan never
-described that generation.
+Every run records the contents generation of its plan. The scheduler rechecks
+that generation, and each worker rechecks it before each
+[span](/docs/concepts#ranges-and-spans) (slice of the table) it processes. So no
+worker can delete from the retired generation, which is recoverable. No worker
+can delete from the new generation either, because its plan never described
+that generation.
 
-CamusDB cleans the records of the stale run in the background. See
+CamusDB cleans up the stale run's records in the background. See
 [Row-Level TTL](/docs/row-level-ttl).
 
 ## Error codes
@@ -334,21 +336,21 @@ CamusDB cleans the records of the stale run in the background. See
 | --- | --- | --- |
 | `CADB0011` | `TableDoesntExist` | The named table does not exist. |
 | `CADB0517` | `InsufficientPrivilege` | The caller lacks `DELETE` or `DROP` on the table. |
-| `CADB0525` | `ViewNotUpdatable` | The target is a view, or a materialized view. |
+| `CADB0525` | `ViewNotUpdatable` | The target is a view or a materialized view. |
 | `CADB0530` | `DependentObjectsExist` | Another table's foreign key references the table. |
-| `CADB0534` | `ConcurrentSchemaChange` | Another change of the contents won the race. Retryable. |
-| `CADB0537` | `SnapshotPrecedesContentsGeneration` | A time travel read named a point before the start of the current contents. |
+| `CADB0534` | `ConcurrentSchemaChange` | Another contents change won the race. Retryable. |
+| `CADB0537` | `SnapshotPrecedesContentsGeneration` | A time travel read named a point before the current contents began. |
 | `CADB0538` | `StatementNotAllowedInTransaction` | A caller issued `TRUNCATE` inside an explicit transaction. |
 
-`CADB0537` and `CADB0538` both map to HTTP 400. On gRPC, both map to
+`CADB0537` and `CADB0538` both map to HTTP 400 and, on gRPC, to
 `FAILED_PRECONDITION`. See [Error Codes](/docs/error-codes).
 
 ## Not supported
 
-CamusDB does not support these four things today:
+CamusDB does not currently support:
 
 - `TRUNCATE a, b, c`, which names several tables in one statement.
-- `CASCADE`; drop the child table or the foreign key first.
-- An automatic refresh of a dependent materialized view. CamusDB does not
+- `CASCADE`. Drop the child table or the foreign key first.
+- Automatically refreshing a dependent materialized view. CamusDB does not
   invalidate that view either.
-- A read of a snapshot before the current contents generation.
+- Reading a snapshot from before the current contents generation.

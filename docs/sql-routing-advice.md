@@ -6,14 +6,14 @@ sidebar_position: 3.8
 
 CamusDB can attach advisory routing metadata to successful SQL responses. A
 multi-endpoint client can learn which cluster node
-[leads](/docs/concepts#leader) the data behind a repeated statement and send later executions directly there. This removes a
-forwarding hop. It does not change the result, isolation, authorization, commit
-handling, or retry rules.
+[leads](/docs/concepts#leader) the data behind a repeated statement and send
+later executions directly there. This removes a forwarding hop. It does not
+change the result, isolation, authorization, commit handling, or retry rules.
 
 In a cluster, a node that receives a statement for data that another node
-leads forwards the statement to that node. That forwarding adds one network hop
-to each request. Routing advice lets a client skip the hop, so a repeated
-statement has a lower latency.
+leads forwards the statement to that node, which adds one network hop to each
+request. Routing advice lets a client skip the hop, so repeated statements have
+lower latency.
 
 ```mermaid
 sequenceDiagram
@@ -54,9 +54,11 @@ For gRPC, set `SqlRequest.routing_accept_version = 1`. For REST, set
 ## Eligible statements
 
 CamusDB advertises a preferred node only when the statement has a single,
-ordinary [hash-routed](/docs/concepts#hash-and-key-range-routing) table as its
-data footprint. Simple `SELECT`, `INSERT`,
-`UPDATE`, and `DELETE` statements over one table are the main case. Empty point
+ordinary table whose row, index, and large-value spaces all reside on one
+partition as its data footprint. Hash-routed tables satisfy this. A key-range
+table is also eligible while every space is one range on that same partition;
+the first split can end eligibility. Simple `SELECT`, `INSERT`, `UPDATE`, and `DELETE` statements
+over one table are the main case. Empty point
 lookups and zero-row writes can still be eligible because the route is a
 property of the table, not of returned rows.
 
@@ -78,7 +80,7 @@ exists. The dependency token is an opaque change detector, not a sortable value
 and not an authority for routing by itself.
 
 A `clear` advice tells a client to forget any route it learned for that
-statement context. Current reason values are `singleTableHash`, `ineligible`,
+statement context. Current reason values are `singleTableHash`, `singleRangeTable`, `ineligible`,
 `placementUnknown`, and `cacheAffinity`.
 
 Advice is best-effort. If advice construction fails after a statement succeeds,
@@ -96,6 +98,12 @@ statement when learned routing is enabled, so the transaction starts where the
 first statement is expected to run. See
 [.NET Driver](/docs/dotnet-driver#learned-routing) and
 [TypeScript](/docs/typescript-connector#transport-and-routing).
+
+With key-range routing, a deferred client transaction's coordinator session is
+pinned to the first table's row-range partition while that row space is one
+range. The pin requires Kahuna 1.13.4 or later on every node. A split during
+the transaction can add forwarding but does not change results. An already
+split row space gets an unpinned session; autocommit sessions are not anchored.
 
 ## Configuration
 

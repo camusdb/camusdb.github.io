@@ -144,3 +144,37 @@ test('partition blades track leadership and failed servers show fire until recov
   await expect(fire).toHaveCount(0);
   await expect(server.locator('[data-role="offline"]')).toHaveCount(0);
 });
+
+test('current SQL features run in the rebuilt engine with matching highlighting', async ({page}) => {
+  await page.goto('/playground/');
+  const editor = page.getByRole('textbox', {name: 'Data center SQL', exact: true});
+  const run = page.getByRole('button', {name: 'Run query', exact: true});
+  const results = page.getByRole('region', {name: 'Query results'});
+  await expect(run).toBeEnabled({timeout: 60000});
+  await editor.fill(`CREATE TABLE feature_probe (id INT64 PRIMARY KEY, amount INT64);
+INSERT INTO feature_probe (id, amount) VALUES (1, 10), (2, 20), (3, 30);
+INSERT INTO feature_probe (id, amount) VALUES (2, 25)
+ON CONFLICT (id) DO UPDATE SET amount = excluded.amount RETURNING id, amount;
+SELECT id FROM feature_probe WHERE id = 1 FOR UPDATE NOWAIT;
+SELECT id, row_number() OVER (ORDER BY id) AS position,
+       sum(amount) OVER (PARTITION BY 1 ORDER BY id
+         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total,
+       lag(amount, 1, 0) OVER (ORDER BY id) AS previous_amount
+FROM feature_probe ORDER BY id;`);
+  const highlighted = editor.locator('..').locator('pre');
+  for (const keyword of ['OVER', 'PARTITION', 'ROWS', 'UNBOUNDED', 'PRECEDING', 'CURRENT', 'NOWAIT']) {
+    await expect(highlighted.locator('span').filter({hasText: new RegExp(`^${keyword}$`)}).first())
+      .toHaveAttribute('class', /keyword/);
+  }
+  for (const name of ['row_number', 'lag']) {
+    await expect(highlighted.locator('span').filter({hasText: new RegExp(`^${name}$`)}).first())
+      .toHaveAttribute('class', /function/);
+  }
+  await run.click();
+  await expect(run).toBeEnabled();
+  await expect(results.locator('article')).toHaveCount(5);
+  await expect(results.locator('article[class*="failed"]')).toHaveCount(0);
+  const windowResult = results.locator('article').last();
+  await expect(windowResult.getByRole('cell', {name: '35', exact: true})).toBeVisible();
+  await expect(windowResult.getByRole('cell', {name: '65', exact: true})).toBeVisible();
+});

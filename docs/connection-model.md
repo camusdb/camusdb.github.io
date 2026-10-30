@@ -4,9 +4,9 @@ sidebar_position: 6
 
 # The connection model
 
-A client talks to CamusDB through two APIs: REST with JSON over HTTP, and gRPC
-over HTTP/2. Neither API gives a connection its own process or its own thread.
-A connection is only a socket. The server does work for a request, not for a
+Clients talk to CamusDB through two APIs: REST with JSON over HTTP, and gRPC
+over HTTP/2. Neither API gives a connection its own process or thread. A
+connection is just a socket, and the server does work per request, not per
 connection.
 
 This model matters when many clients connect at the same time. Thousands of
@@ -14,9 +14,8 @@ application instances, serverless functions, or small services can connect to
 CamusDB without an external connection pooler, because an idle connection costs
 only one open socket.
 
-This page compares that model with the model of PostgreSQL and the model of
-MySQL. It also states the costs of the CamusDB model, because the model has
-costs as well as advantages.
+This page compares that model with PostgreSQL's and MySQL's, and also covers
+what the CamusDB model costs, because it has trade-offs as well as advantages.
 
 ![CamusDB connection pool diagram](/img/connection-pool.png)
 
@@ -24,92 +23,87 @@ costs as well as advantages.
 
 | | PostgreSQL | MySQL | CamusDB |
 |---|---|---|---|
-| The unit of work on the server | One operating-system process for each connection | One thread for each connection, by default | One asynchronous request on a shared pool of threads |
-| The cost of an idle connection | A full process, with its own memory | A full thread, with its stack and its buffers | One open socket |
-| Where the state of a transaction lives | Inside the process of the connection | Inside the session of the thread | In memory on the node, under a handle that the client holds |
-| The usual answer to many clients | An external pooler, for example PgBouncer | A larger `max_connections`, or a thread pool plugin | Nothing extra: many requests share few connections |
+| Server unit of work | One operating-system process per connection | One thread per connection, by default | One asynchronous request on a shared thread pool |
+| Cost of an idle connection | A full process, with its own memory | A full thread, with its stack and buffers | One open socket |
+| Where transaction state lives | Inside the connection's process | Inside the thread's session | In memory on the node, under a handle the client holds |
+| Usual answer to many clients | An external pooler, such as PgBouncer | A larger `max_connections`, or a thread pool plugin | Nothing extra: many requests share few connections |
 | Concurrent statements on one connection | One at a time | One at a time | Many, through HTTP/2 multiplexing |
 
 ## How PostgreSQL handles a connection
 
-PostgreSQL uses one process for each connection. The `postmaster` process
-accepts the socket. It then forks a backend process. That backend serves the
-connection until the client disconnects.
+PostgreSQL uses one process per connection. The `postmaster` process accepts
+the socket and forks a backend process, which serves the connection until the
+client disconnects.
 
-This design is simple. A crash in one backend does not corrupt the
-memory of another backend. But each backend has a real cost:
+The design is simple, and a crash in one backend can't corrupt another
+backend's memory. But each backend has a real cost:
 
-- Each backend keeps private memory: the catalog caches, the plan caches, and
-  the memory for a sort or a hash, up to `work_mem` for each operation.
-- The start of a connection costs a fork, the authentication, and a warm-up of
-  the caches.
+- Each backend keeps private memory: catalog caches, plan caches, and sort or
+  hash memory, up to `work_mem` per operation.
+- Starting a connection costs a fork, authentication, and cache warm-up.
 - The operating system schedules each backend as a separate process. Many
   hundreds of active backends cause context switches and contention.
-- A connection that is idle inside a transaction keeps its backend. It also
-  keeps old row versions alive, because `VACUUM` cannot remove them.
+- A connection that sits idle inside a transaction keeps its backend, and keeps
+  old row versions alive because `VACUUM` cannot remove them.
 
-For these reasons, the default `max_connections` is 100. A large application
-puts a pooler, such as PgBouncer, in front of the database. A pooler in
-transaction mode shares a backend between clients, but it breaks the state of a
-session. A `SET`, an advisory lock, a temporary table, or `LISTEN` can then
-reach the wrong client.
+That is why the default `max_connections` is 100, and why large applications
+put a pooler such as PgBouncer in front of the database. A transaction-mode
+pooler shares backends between clients but breaks session state: a `SET`, an
+advisory lock, a temporary table, or `LISTEN` can reach the wrong client.
 
 ## How MySQL handles a connection
 
-MySQL uses one thread for each connection, by default. A thread is cheaper than
-a process, but the cost still grows with the number of connections:
+By default, MySQL uses one thread per connection. A thread is cheaper than a
+process, but the cost still grows with the number of connections:
 
 - Each thread has its own stack, set by `thread_stack`.
-- Each session can allocate its own buffers, for example `sort_buffer_size`,
+- Each session can allocate its own buffers, such as `sort_buffer_size`,
   `join_buffer_size`, and `read_buffer_size`.
-- Thousands of threads compete for the CPU. The cost of context switches and of
-  contention on locks then grows.
+- Thousands of threads compete for the CPU, so context switching and lock
+  contention grow.
 
-The default `max_connections` is 151. A thread pool exists in MySQL Enterprise,
-in Percona Server, and in MariaDB. It decouples the connections from the
-threads. But the session still owns its state, so a connection stays tied to
-one client.
+The default `max_connections` is 151. MySQL Enterprise, Percona Server, and
+MariaDB offer a thread pool that decouples connections from threads, but the
+session still owns its state, so a connection stays tied to one client.
 
 ## How CamusDB handles a request
 
-CamusDB runs on the Kestrel web server of ASP.NET Core. Kestrel uses
-asynchronous I/O. A request uses a thread only while it does CPU work. When a
-request waits for the disk, for the network, or for a lock, it releases its
-thread. Another request then uses that thread.
+CamusDB runs on ASP.NET Core's Kestrel web server, which uses asynchronous
+I/O. A request holds a thread only while it does CPU work. When it waits for
+disk, network, or a lock, it releases the thread for another request.
 
-The result is a small, shared pool of threads that serves many requests. The
-number of threads does not follow the number of clients.
+The result is a small shared thread pool that serves many requests. The thread
+count doesn't track the number of clients.
 
 ### REST
 
-A REST request is a complete unit. It names the database. It carries the SQL
-and the parameters. It can also carry the id of a transaction. The server
-needs nothing from an earlier request on the same socket.
+A REST request is self-contained. It names the database, carries the SQL and
+parameters, and can carry a transaction id. The server needs nothing from an
+earlier request on the same socket.
 
-The client can therefore send each request on any connection from its own HTTP
-pool. A connection that waits between two requests costs the server one open
-socket. See [HTTP API](/docs/http-api).
+The client can therefore send each request on any connection in its HTTP pool.
+A connection that waits between requests costs the server one open socket. See
+[HTTP API](/docs/http-api).
 
 ### gRPC
 
 A gRPC client opens one HTTP/2 connection, which gRPC calls a channel. HTTP/2
-multiplexing lets that one connection carry many calls at the same time. Each
-call is a separate stream inside the connection.
+multiplexing lets that connection carry many concurrent calls, each as a
+separate stream.
 
-The method `CamusSql.BatchExecute` goes further. One bidirectional stream
-carries many statements and their responses, in both directions. The responses
-can arrive out of order, and the client matches them by `request_id`. A batch
-frame can also put a full short transaction into one message. See
-[gRPC API](/docs/grpc-api).
+`CamusSql.BatchExecute` goes further: one bidirectional stream carries many
+statements and their responses. Responses can arrive out of order, and the
+client matches them by `request_id`. A batch frame can also fit a whole short
+transaction into one message. See [gRPC API](/docs/grpc-api).
 
-`SHOW CONNECTIONS` makes this visible. One gRPC channel usually appears as one
-row, while it carries many concurrent statements. See
+You can see this in `SHOW CONNECTIONS`: one gRPC channel usually appears as one
+row while it carries many concurrent statements. See
 [Query activity](/docs/query-activity).
 
 ## Where the state lives
 
-A model without sessions must keep the state somewhere. CamusDB keeps each kind
-of state at a place that the client can name.
+A sessionless model still has to keep state somewhere. CamusDB keeps each
+kind of state in a place the client can refer to by name.
 
 | State | Where it lives | How a client refers to it |
 |---|---|---|
@@ -117,13 +111,12 @@ of state at a place that the client can name.
 | A prepared statement in gRPC | The `BatchExecute` stream | A `statement_id` that belongs to that stream |
 | A prepared statement in REST | The node, under the principal that prepared it | An opaque string handle |
 | Read-your-writes in a cluster | The client | A causal token, which the client sends with the next request |
-| The identity of the user | A bearer token | The `authorization` header or metadata |
+| User identity | A bearer token | The `authorization` header or metadata |
 
-A transaction is therefore not part of a connection. A client can start a
-transaction with REST, or with the unary gRPC call `StartTransaction`. It can
-then commit that transaction on another socket. A failed socket does not end
-the transaction. The client opens a new socket and continues with the same
-handle.
+So a transaction is not tied to a connection. A client can start a transaction
+over REST or with the unary gRPC call `StartTransaction`, then commit it on
+another socket. A failed socket doesn't end the transaction: the client opens a
+new socket and continues with the same handle.
 
 ```mermaid
 sequenceDiagram
@@ -141,30 +134,32 @@ sequenceDiagram
     N1-->>C: Committed
 ```
 
-One exception applies. A transaction that a `START` opens inside a
+There is one exception. A transaction opened by a `START` inside a
 `BatchExecute` stream belongs to that stream. If the stream ends without a
-`COMMIT` or a `ROLLBACK`, CamusDB rolls the transaction back. A client crash
-therefore cannot leave that transaction open.
+`COMMIT` or `ROLLBACK`, CamusDB rolls the transaction back, so a client crash
+can't leave it open.
 
 ## What this gives an application
 
 ### No external pooler
 
-The number of open connections does not control the cost on the server. An
-application with a thousand workers can share a few HTTP/2 connections. There
-is no PgBouncer to deploy, to monitor, and to configure.
+The number of open connections doesn't drive server cost. An application with
+a thousand workers can share a few HTTP/2 connections, and there is no
+PgBouncer to deploy, monitor, and configure.
 
 ### Short-lived clients
 
-A serverless function, a script, or a test can send one HTTPS request. It does
-not need a pool that stays warm. The cost of a new connection is a TCP and TLS
-handshake. There is no fork and no new thread on the server.
+A serverless function, script, or test can send a single HTTPS request
+without keeping a warm pool. A new connection costs a TCP and TLS handshake,
+with no fork and no new thread on the server. See
+[Serverless functions](#serverless-functions) for the limits a burst of
+functions can still reach.
 
 ### Fewer round trips
 
-`BatchExecute` sends many statements without a wait for each response. Frame
+`BatchExecute` sends many statements without waiting for each response. Frame
 contract version 2 can send `START`, the statements, and `COMMIT_IF_OK` in one
-message. A short transaction then needs one exchange.
+message, so a short transaction needs a single exchange.
 
 ### Standard infrastructure
 
@@ -172,49 +167,108 @@ REST and gRPC are ordinary HTTP. Load balancers, proxies, TLS termination,
 service meshes, and tracing tools already understand them. A client needs no
 database-specific wire protocol.
 
-### No state that a pooler can break
+### No state for a pooler to break
 
-A pooler for PostgreSQL in transaction mode can mix the session state of two
-clients. CamusDB has no hidden session state to mix. A transaction, a prepared
-statement, and a causal token each have an explicit handle, and the request
-carries that handle.
+A transaction-mode PostgreSQL pooler can mix two clients' session state.
+CamusDB has no hidden session state to mix: transactions, prepared statements,
+and causal tokens each have an explicit handle that the request carries.
 
-### An idle client costs little
+### Idle clients cost little
 
-An idle socket holds no process, no thread, and no buffer for a sort. An open
-transaction that a client forgets still holds its locks. CamusDB rolls it back
-after `transaction_idle_timeout_ms`, which is 5 minutes by default.
+An idle socket holds no process, no thread, and no sort buffer. A forgotten
+open transaction still holds its locks, and CamusDB rolls it back after
+`transaction_idle_timeout_ms` (5 minutes by default).
 
-## The costs of this model
+## Costs of this model
 
-The model has trade-offs. Know them before you design a client.
+Know these trade-offs before you design a client.
 
 - **A transaction stays on its node.** The node that starts an explicit
-  transaction keeps it in memory. Send every statement of that transaction, and
-  its `COMMIT` or `ROLLBACK`, to that same node. Another node does not know the
-  handle and rejects it. An autocommit statement can go to any node.
-- **Each request repeats some context.** A REST request carries the name of the
-  database, the token, and the JSON body each time. Parsing costs CPU on every
-  request. gRPC with Protobuf and a prepared statement reduce that cost. See
+  transaction keeps it in memory. Send every statement in that transaction, and
+  its `COMMIT` or `ROLLBACK`, to the same node; another node doesn't know the
+  handle and rejects it. Autocommit statements can go to any node.
+- **Each request repeats some context.** Every REST request carries the
+  database name, the token, and a JSON body, and parsing costs CPU each time.
+  gRPC with Protobuf and prepared statements reduce that cost. See
   [Prepared statements](/docs/prepared-statements).
-- **A pause can end a transaction.** A pause longer than
-  `transaction_idle_timeout_ms` inside a transaction counts as abandonment.
-  CamusDB then rolls the transaction back.
+- **A pause can end a transaction.** CamusDB treats a pause longer than
+  `transaction_idle_timeout_ms` inside a transaction as abandonment and rolls
+  the transaction back.
 - **There is no session state.** CamusDB has no session-level `SET`, no
-  temporary tables for a session, and no `LISTEN` or `NOTIFY`.
-  `SET TRANSACTION` applies to one transaction only. Put other context in the
-  request.
+  session temporary tables, and no `LISTEN` or `NOTIFY`. `SET TRANSACTION`
+  applies to one transaction only. Put other context in the request.
 - **A gRPC prepared statement belongs to its stream.** A client that rebuilds
   the stream must prepare the statement again.
-- **Many cheap connections still need a limit on work.** The number of
-  connections no longer limits the load. Use admission control to put a
-  ceiling on concurrent work. See [Transaction priority](/docs/transaction-priority).
+- **Cheap connections still need a limit on work.** Connection count no longer
+  limits load, so use admission control to cap concurrent work. See
+  [Transaction priority](/docs/transaction-priority).
+
+## Serverless functions
+
+A serverless platform such as AWS Lambda can start hundreds of function
+instances in a few seconds. With PostgreSQL, each instance opens its own
+connection, and the burst can pass `max_connections`. The usual fix is a proxy
+such as RDS Proxy or PgBouncer.
+
+CamusDB needs no proxy for this. Each instance can keep its own connection or
+send a single HTTPS request, and an idle instance costs one socket. A burst can
+still reach three other limits.
+
+### Log in once per instance
+
+A login is expensive by design. The node checks the password with PBKDF2 at
+600,000 iterations and runs at most 8 checks at a time. It also allows 20
+logins per minute for each account and source address, and 200 per minute for
+each source address. Functions in a private network often share one NAT
+address, so a cold-start burst under one account can fail with
+`CADB0518 TooManyAuthAttempts`.
+
+- Create the client outside the function handler, so a warm instance reuses its
+  token. The TypeScript and Python drivers share managed tokens across clients
+  with the same nodes and credentials in the process, and renew before expiry.
+  Each Python thread still needs its own connection.
+- For large bursts, let one small service log in and put the token in your
+  secret store. Functions pass it as `accessToken` in TypeScript,
+  `AccessToken` in .NET, or `access_token` in Python. A token lasts 15 minutes by default and has no refresh
+  token, so the service must replace it before `expiresAtUnixMs`.
+
+See [Authentication and authorization](/docs/sql-authentication#runtime-defaults)
+for these limits.
+
+### Finish transactions in one invocation
+
+A platform can freeze or stop a function in the middle of its work. If that
+function holds an open REST transaction, or one from the unary gRPC
+`StartTransaction` call, the transaction keeps its locks until
+`transaction_idle_timeout_ms` passes, 5 minutes by default. Other transactions
+that need those rows wait or fail.
+
+- Prefer autocommit statements for single writes.
+- Send a short transaction in one gRPC `BatchExecute` frame with
+  `COMMIT_IF_OK`, so the client can't stop between its statements. See
+  [Batch stream frames](/docs/grpc-api#batch-stream-frames).
+- Otherwise, start and commit the transaction in the same invocation, with no
+  slow external calls in between.
+- Send every statement of a REST transaction to the node that started it. A
+  load balancer without node affinity can send a statement to another node,
+  which rejects the handle.
+- For functions with short timeouts, lower `transaction_idle_timeout_ms`. It
+  needs a restart and the same value on every node.
+
+### Limit concurrent work
+
+In PostgreSQL, `max_connections` limits load as a side effect. CamusDB has no
+such limit by default: if 1,000 functions run at once, the cluster starts all
+of their transactions. Set `kahuna.max_concurrent_sessions` to cap concurrent
+transactions on each node. Extra transactions then wait in a queue. Read
+[Turn the gate on](/docs/transaction-priority#turn-the-gate-on) before you set
+it.
 
 ## Settings
 
 | Setting | Default | Purpose |
 |---|---|---|
-| `grpc_batch_max_in_flight` | `64` | The number of operations that one `BatchExecute` stream runs at the same time. Past it, the server applies back-pressure. |
+| `grpc_batch_max_in_flight` | `64` | How many operations one `BatchExecute` stream runs concurrently. Beyond that, the server applies back-pressure. |
 | `transaction_idle_timeout_ms` | `300000` | The idle time after which CamusDB rolls back an explicit transaction. |
 | `transaction_reaper_interval_ms` | `30000` | How often CamusDB looks for idle transactions. |
 | `prepared_statement_idle_timeout_ms` | `600000` | The idle time after which CamusDB drops a REST prepared statement. |
@@ -227,6 +281,7 @@ See [Configuration](/docs/configuration) for the full list.
 - [HTTP API](/docs/http-api)
 - [gRPC API](/docs/grpc-api)
 - [Prepared statements](/docs/prepared-statements)
+- [Authentication and authorization](/docs/sql-authentication)
 - [Query activity](/docs/query-activity)
 - [Transaction priority](/docs/transaction-priority)
 - [Architecture](/docs/architecture)

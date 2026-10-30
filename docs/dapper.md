@@ -13,11 +13,11 @@ hand.
 To compare the three .NET packages (driver, Dapper, EF Core) and their target
 frameworks, see [Which .NET package to use](/docs/dotnet-driver#which-net-package-to-use).
 
-Use `CamusDB.Dapper` in these cases:
+Use `CamusDB.Dapper` when:
 
 - You want direct SQL with lightweight object mapping.
-- You use SQL features of CamusDB, but you do not want a full ORM model.
-- You already know the `QueryAsync` and `ExecuteAsync` APIs of Dapper.
+- You use CamusDB SQL features but don't want a full ORM model.
+- You already know Dapper's `QueryAsync` and `ExecuteAsync` APIs.
 - You need parameters of the native `OID`, `UUID`, `ARRAY(T)`, and vector
   types.
 
@@ -126,7 +126,7 @@ long count = await connection.ExecuteScalarAsync<long>(
 
 ## CamusDB values
 
-Dapper can infer the common scalar values from their .NET types. Use
+Dapper infers common scalar values from their .NET types. Use
 `CamusValue` when a value needs an explicit CamusDB column type:
 
 ```csharp

@@ -16,7 +16,7 @@ where that helps, and a link to the page with the details.
 
 ## The big picture
 
-A cluster of three nodes, with the default settings, looks like this:
+A three-node cluster with default settings looks like this:
 
 ```mermaid
 flowchart TB
@@ -202,8 +202,8 @@ Routing decides which partition serves a key.
   large or busy table can then use several leaders. The setting applies at
   restart and must match on every node.
 
-A query returns the same rows either way. Only the placement, the concurrency,
-and the network cost change. The `routing` column of
+A query returns the same rows either way; only placement, concurrency, and
+network cost change. The `routing` column of
 [`SHOW RANGES`](/docs/show-ranges) shows `hash` or `key_range`. See
 [Key-range sharding](/docs/key-range-sharding).
 
@@ -303,8 +303,9 @@ A write intent is the provisional value that a transaction places on a key it
 writes. It also works as an exclusive lock, much like the row lock PostgreSQL
 takes on an updated row. With the default pessimistic locking, a second
 transaction that writes the same key waits for at most `lock_wait_deadline_ms`,
-then fails with a retryable error (`CADB0502` or `CADB0504`). A write intent lives in the memory of the partition
-leader, and it expires, so an abandoned transaction cannot hold a key forever.
+then fails with a retryable error (`CADB0502` or `CADB0504`). A write intent
+lives in the partition leader's memory, and it expires, so an abandoned
+transaction cannot hold a key forever.
 
 A prepared intent is the durable form that the prepare phase of
 [2PC](#two-phase-commit) writes. It goes through the partition log, so a
@@ -357,8 +358,19 @@ snapshots to replicas that fall behind. It also runs inside the CamusDB process.
 each node keeps its data. It is the default for both the stored key/value state
 (`kahuna.storage`) and the WAL (`kahuna.wal_storage`), in standalone and cluster
 mode. RocksDB makes the data of one node durable. Replication and consensus come
-from Kahuna and Kommander. SQLite is an optional alternative backend. See
+from Kahuna and Kommander. SQLite and [Solarium](#solarium) are optional
+alternative backends. See
 [Storage](/docs/storage#the-rocksdb-backend).
+
+### Solarium {#solarium}
+
+[Solarium](https://solariumdb.github.io/) is an embedded key/value engine written
+in C#. You can use it instead of RocksDB or SQLite for the stored key/value
+state, the Raft WAL, or both. It runs inside the CamusDB process without a
+native RocksDB dependency. Its caches use the .NET managed heap, so include
+them when sizing the node's memory. See
+[Solarium storage](/docs/storage#solarium-backend) for configuration and
+migration considerations.
 
 ## Related topics
 

@@ -21,6 +21,9 @@ OpenTelemetry.
 The connector requires Node.js 20.19 or later, or Node.js 22.12 or later on the
 22 line. It ships as ECMAScript modules with TypeScript declarations.
 
+For a model-based API, the [Prisma adapter](/docs/prisma) builds on this
+connector and adds typed Prisma Client queries and a migration CLI.
+
 ## Install
 
 ```bash

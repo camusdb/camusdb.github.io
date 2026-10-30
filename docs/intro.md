@@ -21,7 +21,7 @@ later. To see what CamusDB adds over a single-node database, read
 
 You can run the tutorial commands here before installing anything. The embedded
 playground starts with a pre-created `playground` database, but you can also
-create your own database and switch with the database selector. Each step
+create your own and switch to it with the database selector. Each step
 explains what its SQL does. Click **Run** to execute a step, then click
 **Next**. **Next** unlocks only after the current step runs without an error,
 so the steps always run in order. **Prev** goes back to an earlier step. You
@@ -51,18 +51,18 @@ can also edit the SQL before running it.
 
 ## Start CamusDB
 
-CamusDB ships as a global tool of .NET. Install the
-[.NET runtime](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) first.
-Then install the server, and start a standalone node:
+CamusDB ships as a .NET global tool. Install the
+[.NET runtime](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) first,
+then install the server and start a standalone node:
 
 ```bash
 $ dotnet tool install --global CamusDB.Server
 $ camusdb
 ```
 
-The `camusdb` command starts with its built-in defaults when no file of a
-configuration exists. It stores the data under the data directory of the user.
-It listens on the HTTP port `5095`, and on the gRPC port `5096`:
+When no configuration file exists, `camusdb` starts with its built-in defaults.
+It stores data in your user data directory and listens on HTTP port `5095` and
+gRPC port `5096`:
 
 ```bash
    ____                          ____  ____
@@ -81,15 +81,14 @@ Update the installed server:
 $ dotnet tool update --global CamusDB.Server
 ```
 
-Run this command to create a configuration of a start, under your own
-ownership:
+To create a starter configuration file that you own, run:
 
 ```bash
 $ camusdb init
 ```
 
-That command writes `~/.camusdb/config.yml`. It also creates the default data
-directory. Edit the file. Then run `camusdb` again.
+This writes `~/.camusdb/config.yml` and creates the default data directory.
+Edit the file, then run `camusdb` again.
 
 You can also start CamusDB with Docker:
 
@@ -101,13 +100,13 @@ $ docker run --rm \
         --name camusdb camusdb/camusdb:latest
 ```
 
-Install the shell of SQL:
+Install the SQL shell:
 
 ```bash
 $ dotnet tool install --global CamusDB.SqlSh
 ```
 
-Then open the shell of SQL, in another terminal:
+Then open the SQL shell in another terminal:
 
 ```bash
 $ camus-cli
@@ -125,8 +124,8 @@ camus>
 
 ## Create a database
 
-You must create a database explicitly before you use it. Create a database.
-Then move the shell to it:
+You must create a database explicitly before you can use it. Create one, then
+switch the shell to it:
 
 ```camussql
 camus> CREATE DATABASE factory;
@@ -136,13 +135,12 @@ camus> use factory;
 Database changed to factory
 ```
 
-You can start the shell with `camus-cli factory`. You nevertheless still need
-the statement `CREATE DATABASE factory;`, at the first use of that name of a
-database.
+You can also start the shell with `camus-cli factory`, but the first time you
+use that database name you still need to run `CREATE DATABASE factory;`.
 
 ## Create a table
 
-Create a table for the records of a robot:
+Create a table to store robots:
 
 ```camussql
 CREATE TABLE robots (
@@ -153,7 +151,7 @@ CREATE TABLE robots (
 );
 ```
 
-The table holds four columns:
+The table has four columns:
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -162,13 +160,13 @@ The table holds four columns:
 | `kind` | `STRING` | Required category or model family. |
 | `year` | `INT64` | Optional year with a default value. |
 
-For an identifier of a UUID, use the native type `UUID`. Do not use a `STRING`.
-A `UUID` column stores a compact value of 128 bits. It also uses a smaller key of
-an index than the text of a UUID.
+For UUID identifiers, use the native `UUID` type instead of `STRING`. A `UUID`
+column stores a compact 128-bit value and produces smaller index keys than the
+UUID's text form.
 
 ## Inspect the schema
 
-Show the tables of the current database:
+Show the tables in the current database:
 
 ```camussql
 SHOW TABLES;
@@ -201,7 +199,7 @@ SHOW COLUMNS FROM robots;
 4 rows in set (00:00:00.0189059)
 ```
 
-Three other commands of an inspection are useful:
+These commands are also useful for inspecting a table:
 
 ```camussql
 DESCRIBE robots;
@@ -209,7 +207,7 @@ SHOW CREATE TABLE robots;
 SHOW INDEX FROM robots;
 ```
 
-Show the definition in SQL of the table:
+Show the table's SQL definition:
 
 ```camussql
 SHOW CREATE TABLE robots;
@@ -230,28 +228,28 @@ Insert one row:
 
 ```camussql
 INSERT INTO robots (id, name, kind, year)
-VALUES (GEN_ID(), "R2-D2", "utility", 1977);
+VALUES (GEN_ID(), 'R2-D2', 'utility', 1977);
 ```
 
-Insert more than one row, with one statement:
+Insert several rows with one statement:
 
 ```camussql
 INSERT INTO robots (id, name, kind, year)
 VALUES
-  (GEN_ID(), "C-3PO", "protocol", 1977),
-  (GEN_ID(), "T-800", "android", 1984);
+  (GEN_ID(), 'C-3PO', 'protocol', 1977),
+  (GEN_ID(), 'T-800', 'android', 1984);
 ```
 
-Use `DEFAULT` when CamusDB must apply the default of the column:
+Use `DEFAULT` to have CamusDB apply the column's default value:
 
 ```camussql
 INSERT INTO robots (id, name, kind, year)
-VALUES (GEN_ID(), "K-2SO", "security", DEFAULT);
+VALUES (GEN_ID(), 'K-2SO', 'security', DEFAULT);
 ```
 
 ## Query rows
 
-Select the rows of the table:
+Select the rows in the table:
 
 ```camussql
 SELECT id, name, kind, year FROM robots ORDER BY year ASC;
@@ -288,7 +286,7 @@ SELECT name, year FROM robots WHERE year >= 1980;
 `LIKE` and `ILIKE` match a pattern:
 
 ```camussql
-SELECT id, name FROM robots WHERE name ILIKE "r%";
+SELECT id, name FROM robots WHERE name ILIKE 'r%';
 ```
 
 ```text
@@ -309,8 +307,8 @@ SELECT MIN(year), MAX(year) FROM robots;
 
 ## Create an index
 
-An index helps CamusDB. It then does not scan every row to find the matching
-data.
+An index lets CamusDB find matching rows without scanning every row in the
+table.
 
 ```camussql
 CREATE INDEX robots_kind_idx ON robots (kind);
@@ -324,7 +322,7 @@ SHOW INDEXES FROM robots;
 
 ## Rename schema objects
 
-You can rename a table, and a column. CamusDB rewrites no data of a row:
+You can rename tables and columns. CamusDB does not rewrite any row data:
 
 ```camussql
 ALTER TABLE robots RENAME COLUMN kind TO category;
@@ -333,13 +331,13 @@ ALTER TABLE robots RENAME TO machines;
 
 ## Update rows
 
-CamusDB requires a `WHERE` clause on every `UPDATE`. PostgreSQL and MySQL do
-not. To update every row, write `WHERE true`.
+Unlike PostgreSQL and MySQL, CamusDB requires a `WHERE` clause on every
+`UPDATE`. To update every row, write `WHERE true`.
 
 ```camussql
 UPDATE machines
 SET year = 1982
-WHERE name = "T-800";
+WHERE name = 'T-800';
 ```
 
 Confirm the change:
@@ -347,7 +345,7 @@ Confirm the change:
 ```camussql
 SELECT name, year
 FROM machines
-WHERE name = "T-800";
+WHERE name = 'T-800';
 ```
 
 ## Delete rows
@@ -357,13 +355,26 @@ write `WHERE true`.
 
 ```camussql
 DELETE FROM machines
-WHERE name = "K-2SO";
+WHERE name = 'K-2SO';
 ```
 
-Continue with three pages: the [SQL overview](/docs/sql),
-[Data Types](/docs/data-types), and
+Next, read the [SQL overview](/docs/sql), [Data Types](/docs/data-types), and
 [Tables And Columns](/docs/sql-schema).
 
-Then read [SELECT](/docs/sql-queries) for a filter, a group, and an order. Read
-[Joins And Subqueries](/docs/joins-and-subqueries) for a join, a subquery, and a
-derived table.
+Then read [SELECT](/docs/sql-queries) to learn filtering, grouping, and
+ordering, and [Joins And Subqueries](/docs/joins-and-subqueries) for joins,
+subqueries, and derived tables.
+
+## Connect an application
+
+Use the [.NET driver](/docs/dotnet-driver),
+[TypeScript connector](/docs/typescript-connector), or
+[Python driver](/docs/python-driver). Python supports DB-API 2.0 and asyncio
+over REST; the .NET and TypeScript clients also support gRPC.
+
+## Ready for more?
+
+Explore the [advanced samples](/docs/advanced-samples) to see CamusDB in
+complete ecommerce, banking, and booking applications. They demonstrate
+transactions, retries, idempotency, concurrency, database branching, and
+failure handling through .NET, EF Core, and TypeScript.

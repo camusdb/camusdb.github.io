@@ -36,11 +36,15 @@ slow_query_log_max_sql_length: 4096
 `SHOW VARIABLES LIKE 'slow_query%'` shows the effective values on the node you
 are inspecting.
 
-Turning the log on needs a restart if the node started with it off. A node that
-started with it on can change `slow_query_log_enabled`,
+The log can be enabled at runtime, including on a node that started with it
+off. Change `slow_query_log_enabled`,
 `slow_query_log_threshold_ms`, and `slow_query_log_max_sql_length` with
 `SET CLUSTER SETTING`, effective at the next statement.
 `slow_query_log_max_entries` always needs a restart.
+
+For cumulative costs across repeated executions, including fast statements,
+use [statement statistics](/docs/statement-stats). The two features share
+execution counters, but can be enabled independently.
 
 ## What it records
 

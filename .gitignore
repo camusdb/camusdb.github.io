@@ -22,3 +22,6 @@ yarn-error.log*
 # Browser verification artifacts
 /test-results/
 /playwright-report/
+
+# Screenshot pipeline work files
+/.screenshots/

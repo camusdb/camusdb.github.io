@@ -4,15 +4,15 @@ sidebar_position: 2.6
 
 # Time-travel reads
 
-`AS OF SYSTEM TIME` reads the data of a past moment. The query is an ordinary
-read-only `SELECT`. CamusDB simply pins it to a historical committed snapshot,
-and not to the latest one.
+`AS OF SYSTEM TIME` reads your data as it was at a past moment. The query is an
+ordinary read-only `SELECT`; CamusDB simply pins it to a historical committed
+snapshot instead of the latest one.
 
-You usually need it after a change, to see the earlier state. Three examples are
-the diagnosis of an incident, a check of the data behind a report, and an
-analysis of what an accidental write overwrote.
+You usually reach for it after a change, to see the earlier state: diagnosing an
+incident, checking the data behind a report, or working out what an accidental
+write overwrote.
 
-## A quick example
+## Quick example
 
 ```camussql
 SELECT *
@@ -23,13 +23,13 @@ FROM accounts AS OF SYSTEM TIME '2026-07-19T20:00:00Z'
 WHERE id = 9910;
 ```
 
-The first query reads `leaderboard` as it was ten seconds ago. The second query
-reads `accounts` at an absolute timestamp in UTC.
+The first query reads `leaderboard` as it was ten seconds ago. The second reads
+`accounts` at an absolute UTC timestamp.
 
 ## Syntax
 
-Write `AS OF SYSTEM TIME` after the source of the `FROM` clause. Write it before
-a `WHERE`, a `GROUP BY`, an `ORDER BY`, a `LIMIT`, and an `OFFSET`:
+Write `AS OF SYSTEM TIME` after the `FROM` source and before any `WHERE`,
+`GROUP BY`, `ORDER BY`, `LIMIT`, or `OFFSET`:
 
 ```camussql
 SELECT *
@@ -43,8 +43,8 @@ ORDER BY score DESC
 LIMIT 10;
 ```
 
-For a query with a join, the clause still applies to the whole statement. Write
-it after the joined source of the `FROM` clause:
+In a query with a join, the clause still applies to the whole statement. Write
+it after the joined `FROM` source:
 
 ```camussql
 SELECT c.name, o.total
@@ -54,44 +54,44 @@ AS OF SYSTEM TIME '-5m'
 WHERE o.total > 100;
 ```
 
-Every table, every join, and every subquery of the statement observes the same
-historical snapshot.
+Every table, join, and subquery in the statement sees the same historical
+snapshot.
 
-A compressed or out-of-line large value is read at the same timestamp as its
+Compressed or out-of-line large values are read at the same timestamp as their
 row. `ALTER TABLE ... REWRITE STORAGE` writes new row versions and never
 modifies old ones, so a historical read before the rewrite returns the old
 physical form with the same logical value. See [Large Values](/docs/storage-layout).
 
-## The value of the timestamp
+## Timestamp values
 
-`AS OF SYSTEM TIME` accepts a string, an integer of epoch milliseconds, and a
+`AS OF SYSTEM TIME` accepts a string, an integer in epoch milliseconds, or a
 bound parameter.
 
 | Form | Example | Meaning |
 | --- | --- | --- |
-| A string with a relative offset | `'-10s'`, `'-500ms'`, `'-2m'`, `'-1h'`, `'-1d'` | It reads that far into the past, from the start of the query. |
-| A string with an absolute timestamp | `'2026-07-19 20:00:00+00:00'`, `'2026-07-19T20:00:00Z'` | It reads at that instant in UTC. |
-| An integer of epoch milliseconds | `1721420000000` | It reads at that Unix epoch millisecond. |
-| A parameter | `@ts` | It uses a bound string, an integer of epoch milliseconds, or a datetime value. |
+| Relative offset string | `'-10s'`, `'-500ms'`, `'-2m'`, `'-1h'`, `'-1d'` | Reads that far into the past, measured from the start of the query. |
+| Absolute timestamp string | `'2026-07-19 20:00:00+00:00'`, `'2026-07-19T20:00:00Z'` | Reads at that instant in UTC. |
+| Epoch milliseconds integer | `1721420000000` | Reads at that Unix epoch millisecond. |
+| Parameter | `@ts` | Uses a bound string, epoch milliseconds integer, or datetime value. |
 
-A string value can use a single quotation mark, or a double one:
+Strings can use single or double quotes:
 
 ```camussql
 SELECT * FROM accounts AS OF SYSTEM TIME "-10s";
 ```
 
-A relative offset supports `ms`, `s`, `m`, `h`, and `d`. It must point into the
+Relative offsets support `ms`, `s`, `m`, `h`, and `d`, and must point into the
 past. Use a negative value, such as `'-10s'`.
 
-CamusDB reads a timestamp string without an explicit time zone as UTC.
+CamusDB treats a timestamp string without an explicit time zone as UTC.
 
-## The guarantees of the consistency
+## Consistency guarantees
 
 CamusDB keeps several committed versions of each row, called
-[revisions](/docs/concepts#mvcc). A read with time travel sees the highest
-committed revision of each key at the resolved timestamp, or before it. A write
-that committed after that timestamp is invisible to the historical query. It is
-visible to a normal `SELECT`.
+[revisions](/docs/concepts#mvcc). A time-travel read sees, for each key, the
+highest committed revision at or before the resolved timestamp. A write that
+committed after that timestamp is invisible to the historical query, though a
+normal `SELECT` sees it.
 
 ```mermaid
 flowchart LR
@@ -103,33 +103,32 @@ flowchart LR
 The snapshot is fixed for the whole statement:
 
 - Every side of a join reads at the same timestamp.
-- A subquery reads at the same historical timestamp as the outer query.
-- The filter, the group, the order, and the pagination all run over the
-  historical result.
-- The historical read blocks no writer.
+- Subqueries read at the same historical timestamp as the outer query.
+- Filtering, grouping, ordering, and pagination all run over the historical
+  result.
+- The historical read blocks no writers.
 
-You therefore get a consistent view of the database, at one logical point in
-time. You restore no backup, and you pause no current traffic.
+So you get a consistent view of the database at one logical point in time,
+without restoring a backup or pausing current traffic.
 
 ## Common uses
 
 - Inspect the data just before an accidental update or delete.
 - Compare a current report with the same query from minutes or hours earlier.
-- Debug the behavior of production. Ask what a query would have returned at the
+- Debug production behavior by asking what a query would have returned at the
   time of an incident.
-- Audit whether a later write changed a row that matters to the business.
-- Rebuild a view at the level of the application, from a known historical point.
+- Audit whether a later write changed a business-critical row.
+- Rebuild an application-level view from a known historical point.
 
-For the recovery of a dropped object, use
-[Recover Dropped Objects](/docs/recover-dropped-objects). A read with time
-travel inspects the historical state of a row. A relink of a dropped database or
-a dropped table restores a whole object, while that object is inside the window
-of the recovery.
+To recover a dropped object, use
+[Recover Dropped Objects](/docs/recover-dropped-objects). A time-travel read
+inspects historical row state, while relinking a dropped database or table
+restores the whole object, as long as it is still inside the recovery window.
 
 ## Copy historical data
 
-`AS OF SYSTEM TIME` can also be the source of an `INSERT INTO ... SELECT`, and
-of a `CREATE TABLE ... AS SELECT`:
+`AS OF SYSTEM TIME` can also be the source of an `INSERT INTO ... SELECT` or a
+`CREATE TABLE ... AS SELECT`:
 
 ```camussql
 CREATE TABLE orders_before_incident AS
@@ -139,48 +138,48 @@ FROM orders AS OF SYSTEM TIME '-2h';
 INSERT INTO orders (id, customer, total)
 SELECT gen_id(), customer, total
 FROM orders AS OF SYSTEM TIME '-2h'
-WHERE customer = "acme";
+WHERE customer = 'acme';
 ```
 
-The source reads the historical snapshot. The destination writes into the
-current state of the database. That form helps you rebuild a row after an
-accidental update or delete. You restore no backup.
+The source reads the historical snapshot, and the destination writes into the
+database's current state. This lets you rebuild rows after an accidental update
+or delete without restoring a backup.
 
-See [Copying Query Results](/docs/insert-select-and-ctas) for CTAS, for the
-transaction, for the locks, and for the warning about zero rows.
+See [Copying Query Results](/docs/insert-select-and-ctas) for CTAS, transaction
+and locking behavior, and the zero-rows warning.
 
 ## Restrictions
 
-A read with `AS OF SYSTEM TIME` on its own is read-only by design:
+A standalone `AS OF SYSTEM TIME` read is read-only by design:
 
-- CamusDB supports it for a read-only `SELECT` in autocommit mode.
-- CamusDB rejects a historical `SELECT` on its own, inside an explicit
-  transaction of several statements.
-- An `INSERT INTO ... SELECT` and a `CREATE TABLE ... AS SELECT` may use a
-  historical `SELECT` as the source. The writes still target the current state
-  of the database.
-- CamusDB rejects the clause when the read already moved into a snapshot that
-  belongs to a transaction.
-- You cannot use the clause directly with an `UPDATE`, a `DELETE`, or an
+- CamusDB supports it for read-only `SELECT` statements in autocommit mode.
+- CamusDB rejects a standalone historical `SELECT` inside an explicit
+  multi-statement transaction.
+- `INSERT INTO ... SELECT` and `CREATE TABLE ... AS SELECT` may use a
+  historical `SELECT` as the source. The writes still target the database's
+  current state.
+- CamusDB rejects the clause when the read has already moved into a
+  transaction's snapshot.
+- You cannot use the clause directly with `UPDATE`, `DELETE`, or
   `INSERT ... VALUES`.
-- The clause accepts a past instant only. CamusDB rejects a future time. It also
-  rejects a time at or before the Unix epoch.
+- The clause accepts only past instants. CamusDB rejects future times, and
+  times at or before the Unix epoch.
 
-The retained history of the storage bounds a historical read. Two settings
-control how much history CamusDB keeps:
+A historical read can only go as far back as the storage's retained history.
+Two settings control how much history CamusDB keeps:
 
-- `kahuna.persistent_revision_retention_age_seconds` sets how long an old
-  revision survives. When you set neither retention key, it defaults to
+- `kahuna.persistent_revision_retention_age_seconds` sets how long old
+  revisions survive. When you set neither retention key, it defaults to
   `kahuna.pitr_window_seconds` (3,600 seconds by default). `0` turns off
-  pruning by age.
-- `kahuna.persistent_revision_retention_count` caps the revisions kept for each
-  key. The default, `0`, turns off pruning by count.
+  age-based pruning.
+- `kahuna.persistent_revision_retention_count` caps the revisions kept per key.
+  The default, `0`, turns off count-based pruning.
 
-The requested timestamp can be older than the retained revisions. There is no
-separate error for a snapshot that is too old. The query can return an
-empty result, because no retained revision is visible at that timestamp.
+If the requested timestamp is older than the retained revisions, there is no
+separate "snapshot too old" error. The query can return an empty result,
+because no retained revision is visible at that timestamp.
 
-## A truncated table
+## Truncated tables
 
 A historical read of a table that was truncated after the requested snapshot
 fails with `CADB0537` `SnapshotPrecedesContentsGeneration`, instead of returning
@@ -188,34 +187,34 @@ a misleading empty result. Recover the old rows with `RELINK` and read the
 recovered table. See [TRUNCATE TABLE](/docs/truncate-table#time-travel) for the
 exact rules.
 
-## The model of the storage
+## Storage model
 
-CamusDB stores a committed version through
-[Kahuna](/docs/concepts#kahuna), its built-in key/value storage layer, which
-holds several versions of each key. Each committed version carries a timestamp
-from the [hybrid logical clock](/docs/concepts#hlc) (HLC), the cluster-wide
-clock that orders commits.
+CamusDB stores committed versions in [Kahuna](/docs/concepts#kahuna), its
+built-in key/value storage layer, which keeps several versions of each key. Each
+committed version carries a timestamp from the
+[hybrid logical clock](/docs/concepts#hlc) (HLC), the cluster-wide clock that
+orders commits.
 
-A normal read uses the latest available timestamp. `AS OF SYSTEM TIME` supplies
-a past timestamp for the read. The statement then runs on a read-only snapshot,
-pinned to that timestamp.
+An autocommit `SELECT` pins a snapshot when the statement starts.
+`AS OF SYSTEM TIME` supplies a past timestamp instead, and the statement runs
+on a read-only snapshot pinned to it.
 
-For more background on an HLC timestamp and on the snapshot of a transaction,
-see [Distributed Transactions And HLC](/docs/distributed-transactions).
+For more background on HLC timestamps and transaction snapshots, see
+[Distributed Transactions And HLC](/docs/distributed-transactions).
 
 ## Errors
 
-An invalid request for time travel returns `CADB0409 InvalidAsOfSystemTime`. A
-snapshot before the current contents of a truncated table returns `CADB0537
+An invalid time-travel request returns `CADB0409 InvalidAsOfSystemTime`. A
+snapshot older than a truncated table's current contents returns `CADB0537
 SnapshotPrecedesContentsGeneration`.
 
-These causes are common:
+Common causes:
 
-- A duration string with a wrong form, such as `'-10x'`.
+- A malformed duration string, such as `'-10x'`.
 - A positive relative offset, such as `'+10s'`.
 - An absolute timestamp in the future.
-- A value of epoch milliseconds that is zero or negative.
-- A parameter value that is absent or incompatible.
-- Use of the clause inside an explicit transaction.
+- A zero or negative epoch milliseconds value.
+- A missing or incompatible parameter value.
+- Using the clause inside an explicit transaction.
 
-See [Error Codes](/docs/error-codes) for guidance on a retry.
+See [Error Codes](/docs/error-codes) for retry guidance.

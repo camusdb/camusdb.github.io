@@ -4,8 +4,8 @@ sidebar_position: 4.85
 
 # Hash functions
 
-CamusDB has four digest functions. Each one takes one `string` or `bytes` value and returns the
-digest as lowercase hexadecimal text.
+CamusDB has four digest functions. Each takes a `string` or `bytes` value and returns the digest as
+lowercase hexadecimal text.
 
 | Function | Digest | Result length |
 |----------|--------|---------------|
@@ -26,10 +26,10 @@ SELECT substring(md5('x'), 1, 12);      -- 9dd4e461268c
 |----------|--------|-------|
 | `digest(x, algorithm)` | `bytes` | The digest as raw bytes, from PostgreSQL's pgcrypto. |
 | `hmac(x, key, algorithm)` | `bytes` | The HMAC (RFC 2104) of `x` under `key`, from pgcrypto. |
-| `crc32(x)` | `int64` | The CRC-32 checksum, from MySQL. The value is from 0 to 4 294 967 295. |
+| `crc32(x)` | `int64` | The CRC-32 checksum, from MySQL. The value ranges from 0 to 4 294 967 295. |
 
-`algorithm` is `'md5'`, `'sha1'`, `'sha256'`, `'sha384'` or `'sha512'`, in any case. `x` and `key`
-are `string` or `bytes`, with the same rules as for the hex functions.
+`algorithm` is `'md5'`, `'sha1'`, `'sha256'`, `'sha384'`, or `'sha512'`, in any case. `x` and `key`
+are `string` or `bytes`, following the same rules as the hex functions.
 
 ```camussql
 SELECT digest('abc', 'sha256') = decode(sha256('abc'), 'hex');   -- true
@@ -39,7 +39,7 @@ SELECT crc32('abc');                                              -- 891568578
 ```
 
 `digest` and `hmac` do not change the hex functions: `sha256(x)` still returns text. pgcrypto also
-knows `sha224`. CamusDB does not support it.
+supports `sha224`; CamusDB does not.
 
 An HMAC with a secret key can authenticate a message. The digest functions alone cannot, and the
 warning in "Not for security" applies to them.
@@ -48,28 +48,28 @@ To convert `bytes` to text and back, see [Bytes Functions](/docs/functions-bytes
 
 ## Rules
 
-- A `string` is hashed as its UTF-8 bytes. The digest of a text is the same as in PostgreSQL and in
-  other tools that use UTF-8.
+- A `string` is hashed as its UTF-8 bytes, so text digests match PostgreSQL and other tools that
+  use UTF-8.
 - A `bytes` value is hashed as its raw bytes.
 - `NULL` gives `NULL`.
 - Any other type is an error (`InvalidInput`). To hash a number, cast it first: `md5(x::text)`.
-- The functions are deterministic. You can use them in `WHERE`, in a `CHECK` constraint, and in a
-  column `DEFAULT`, and the query-result cache can keep their results. This is also true for
-  `digest`, `hmac` and `crc32`.
+- The functions are deterministic. You can use them in `WHERE`, in `CHECK` constraints, and in
+  column defaults, and the query-result cache can keep their results. The same holds for `digest`,
+  `hmac`, and `crc32`.
 
 ## Difference from PostgreSQL
 
-`md5` is the same as in PostgreSQL. In PostgreSQL, `sha1`, `sha256` and `sha512` return `bytea`. In
-CamusDB they return hex text, which is the same as PostgreSQL's `encode(sha256(x), 'hex')`.
+`md5` matches PostgreSQL. In PostgreSQL, `sha1`, `sha256`, and `sha512` return `bytea`; in CamusDB
+they return hex text, equivalent to PostgreSQL's `encode(sha256(x), 'hex')`.
 
-The digest of `md5(random()::text)` is not the same as in PostgreSQL, because `random()` gives other
-values and the float-to-text format can be different. Only the digest of the same input is the same.
+`md5(random()::text)` does not match PostgreSQL, because `random()` returns different values and the
+float-to-text format can differ. Digests match only when the input is the same.
 
 ## Browser build
 
 .NET on WebAssembly has no MD5. The browser build of the engine (see
 [Browser Playground](/docs/browser-playground)) computes `md5`, `digest(x, 'md5')` and
-`hmac(x, key, 'md5')` with its own implementation, which gives the same result.
+`hmac(x, key, 'md5')` with its own implementation, which gives the same results.
 
 ## Not for security
 

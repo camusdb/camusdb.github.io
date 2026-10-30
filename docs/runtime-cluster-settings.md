@@ -4,8 +4,8 @@ sidebar_position: 8.5
 
 # Runtime cluster settings
 
-You can change a defined subset of the CamusDB configuration while the cluster
-runs. Use a SQL prompt. The change reaches every node, whichever node received
+You can change a defined subset of the CamusDB configuration from a SQL prompt
+while the cluster runs. The change reaches every node, whichever node received
 the statement.
 
 ```camussql
@@ -14,63 +14,63 @@ SHOW CLUSTER SETTINGS;
 RESET CLUSTER SETTING max_mutations_per_transaction;
 ```
 
-## Why you use one
+## Why use cluster settings
 
-You can still edit `config.yml` on each node and then restart the nodes. For a
-value that defines a node, that is the only method. For every other value, a
-cluster setting is the better tool, for five reasons:
+You can still edit `config.yml` on each node and restart it, and for values that
+define a node, that is the only way. For everything else, a cluster setting is
+the better tool:
 
-- There is no restart, and therefore no period of reduced capacity. Previously
-  you rolled a setting out node by node. Examples are a cap on mutations, a rate
-  limit for the TTL job, and the default isolation level. The new value now takes
-  effect at the next statement boundary, while the node still serves traffic.
+- No restart, so no period of reduced capacity. Settings such as a mutation
+  cap, the TTL job's rate limit, or the default isolation level used to be
+  rolled out node by node. Now the new value takes effect at the next statement
+  boundary while the node keeps serving traffic.
 - One change gives one value everywhere. CamusDB commits the change through
   [Raft](/docs/concepts#raft), the consensus protocol that replicates it to
-  every node. Every node therefore reaches the same value in the same order. There is
-  no partial rollout to repair, and no node that keeps an old value because
+  every node, so every node reaches the same value in the same order. There is
+  no partial rollout to repair, and no node left on an old value because
   somebody forgot a file.
-- The change survives the restart that it replaces. CamusDB persists the
-  overlay. A node that reboots, and a node that was down during the change, comes
-  back with the value of the cluster. It does not come back with its own stale
-  YAML.
-- One statement reverses the change. `RESET` drops the entry of the cluster.
-  Each node then falls back to its own local configuration. That path is much
-  shorter than a second edit of the files.
+- The change survives restarts. CamusDB persists the overlay, so a node that
+  reboots, or one that was down during the change, comes back with the
+  cluster's value instead of its own stale YAML.
+- One statement reverses the change. `RESET` drops the cluster entry, and each
+  node falls back to its own local configuration. That is much quicker than
+  editing the files again.
 - The database tells you what you can change. Every row of `SHOW VARIABLES`
-  carries the mutability and the scope of the setting. There is therefore no
-  hand-written list that can become stale.
+  shows the setting's mutability and scope, so there is no hand-written list to
+  go stale.
 
-## The two axes: mutability and scope
+## Mutability and scope
 
-CamusDB classifies every setting on two axes. Both axes are visible in
+CamusDB classifies every setting on two independent axes, both visible in
 [`SHOW VARIABLES`](/docs/show-variables).
 
-Mutability answers one question: can the setting change without a restart?
+Mutability says whether the setting can change without a restart:
 
 | Value | Meaning |
 | --- | --- |
-| `runtime` | A new value takes effect at the next boundary of the reader. That boundary is the next statement, the next start of a transaction, or the next pass of a background loop. Only these settings can change while the node runs. |
-| `restart` | The value is fixed inside something that CamusDB builds once for each process. Examples are the data directory, the node identity, the internal cluster ports and peers, and the whole `kahuna.*` section, which configures the embedded [Kahuna](/docs/concepts#kahuna) storage layer. To change one, edit the configuration and restart the node. |
+| `runtime` | A new value takes effect at the next point where the reader picks it up: the next statement, the next transaction start, or the next pass of a background loop. Only these settings can change while the node runs. |
+| `restart` | The value is baked into something CamusDB builds once per process, such as the data directory, the node identity, the internal cluster ports and peers, and the whole `kahuna.*` section (which configures the embedded [Kahuna](/docs/concepts#kahuna) storage layer). To change one, edit the configuration and restart the node. |
 
-Scope answers a second question: must the fleet agree on the value?
+Scope says whether the fleet must agree on the value:
 
 | Value | Meaning |
 | --- | --- |
-| `cluster` | Disagreement between nodes changes what a user transaction does, and the node that accepted it decides the result. Examples are the isolation defaults, the caps on mutations, and the TTL and [lease](/docs/concepts#lease) policy. |
-| `node` | The value may differ between nodes, through each node's `config.yml`. A cluster setting still applies to every node. Examples are the trace switches, the local cache sizes, and the decision whether this node runs a refresh of a materialized view. |
+| `cluster` | If nodes disagree, a user transaction behaves differently depending on which node accepted it. Examples: the isolation defaults, the mutation caps, and the TTL and [lease](/docs/concepts#lease) policy. |
+| `node` | The value may differ between nodes, through each node's `config.yml`. A cluster setting still applies to every node. Examples: the trace switches, local cache sizes, and whether this node runs materialized view refreshes. |
 
 The two axes are independent:
 
 - `data_dir` is `restart` and `node`.
 - `max_mutations_per_transaction` is `runtime` and `cluster`.
-- `query_tracing_enabled` is `runtime` and `node`. You can change it live.
-  `SET CLUSTER SETTING` applies the new value on every node and overrides each
+- `query_tracing_enabled` is `runtime` and `node`. You can change it live, and
+  `SET CLUSTER SETTING` applies the new value on every node, overriding each
   node's `config.yml`. Two nodes hold different values only through their own
-  `config.yml` files, while no cluster override exists for the key.
+  `config.yml` files, and only while no cluster override exists for the key.
 - `authentication_enabled` is `restart` and `cluster`. The fleet must agree on
   it, but not through a live change.
 
-Do not keep a list of the changeable settings by hand. Ask the database instead:
+Instead of keeping a hand-written list of changeable settings, ask the
+database:
 
 ```camussql
 SHOW VARIABLES;                     -- value, type, default, source, mutability, scope
@@ -85,30 +85,27 @@ SET CLUSTER SETTING default_isolation_level = read_committed;
 SET CLUSTER SETTING query_tracing_enabled = true;
 ```
 
-A value uses the same spelling as `config.yml`: a boolean in lowercase, a plain
-number, an enum member with underscores, and a duration as whole milliseconds.
-An enum value needs no quotation marks. A value that `SHOW VARIABLES` prints
-pastes back without a change. That property stops a file and a statement from
-two different meanings.
+Values use the same spelling as `config.yml`: lowercase booleans, plain
+numbers, enum members with underscores, and durations as whole milliseconds.
+Enum values need no quotes. Any value that `SHOW VARIABLES` prints can be pasted
+back unchanged, so a file and a statement never mean two different things.
 
 You can send the statement to any node. Cluster settings live in one settings
-[partition](/docs/concepts#partition). A node that is not the
-[leader](/docs/concepts#leader) of that partition, the node that coordinates
-its writes, forwards the change to the leader. It uses the authenticated
-internal route. CamusDB then commits the change through Raft, and it applies the
-change everywhere.
+[partition](/docs/concepts#partition). If the node is not that partition's
+[leader](/docs/concepts#leader) (the node that coordinates its writes), it
+forwards the change to the leader over the authenticated internal route.
+CamusDB then commits the change through Raft and applies it everywhere.
 
-Two conflicting `SET` statements therefore resolve to the same winner on every
-node. The commit order decides the winner. A wall clock never decides it. A node
+As a result, two conflicting `SET` statements resolve to the same winner on
+every node. The commit order decides the winner, never a wall clock. A node
 that is down during the change catches up by replaying the Raft log when it
 returns.
 
-CamusDB validates the change before it applies the change anywhere. It validates
-against the configuration that would result. The validation includes an
-invariant across two fields, such as the rule that a lease-renew interval must
-stay below its lease. CamusDB rejects a value that would break such a rule. The
-message of the validator names both sides of the check. CamusDB writes nothing
-in that case.
+CamusDB validates the change against the resulting configuration before
+applying it anywhere. Validation includes invariants across two fields, such as
+the rule that a lease-renew interval must stay below its lease. If a value
+would break such a rule, CamusDB rejects it and writes nothing, and the
+validator's message names both sides of the check.
 
 ```mermaid
 sequenceDiagram
@@ -132,18 +129,18 @@ sequenceDiagram
 RESET CLUSTER SETTING max_mutations_per_transaction;
 ```
 
-`RESET` removes the entry of the cluster for that key. It does not write the
-built-in default. A written default would leave the cluster with an override of
-every file, with a value that nobody chose.
+`RESET` removes the cluster entry for that key. It does not write the built-in
+default, because a written default would leave a cluster-wide override of every
+file, with a value nobody chose.
 
-Each node instead resolves the key through its own local chain again: the
-command line, the environment, the file, and the built-in default. A node whose
-`config.yml` names that key therefore returns to its file value.
+Instead, each node resolves the key through its own local chain again: command
+line, environment, file, and built-in default. A node whose `config.yml` names
+that key returns to its file value.
 
 ## Precedence: the cluster layer wins
 
-For a `runtime` key, the cluster value overrides the command line of the node,
-the environment, and `config.yml`:
+For a `runtime` key, the cluster value overrides the node's command line,
+environment, and `config.yml`:
 
 1. The cluster overlay.
 2. The command-line flags.
@@ -151,14 +148,14 @@ the environment, and `config.yml`:
 4. The selected YAML file.
 5. The built-in defaults.
 
-This order has a purpose. A fleet-wide change must not silently do nothing on
-the one node whose YAML names that key. That kind of drift is the hardest to
-diagnose. A `restart`-class key never accepts a cluster override. A value that
-truly defines a node therefore keeps its local origin.
+This order is intentional. A fleet-wide change must not silently do nothing on
+the one node whose YAML names that key, because that kind of drift is the
+hardest to diagnose. `restart`-class keys never accept a cluster override, so a
+value that truly defines a node keeps its local origin.
 
-A node whose behavior contradicts its own `config.yml` explains itself. The
-`source` column of `SHOW VARIABLES` reads `cluster` for a key that the cluster
-supplies. It does not read `config`, `env`, `cli`, or `default`.
+When a node's behavior contradicts its own `config.yml`, it explains itself:
+the `source` column of `SHOW VARIABLES` reads `cluster` for a key that the
+cluster supplies, instead of `config`, `env`, `cli`, or `default`.
 
 ## See what the cluster carries
 
@@ -170,91 +167,88 @@ SHOW CLUSTER SETTINGS LIKE 'ttl_%';
 | Column | Meaning |
 | --- | --- |
 | `setting` | The configuration key. |
-| `value` | The text of the stored value, in the spelling that `SET` and `config.yml` accept. |
+| `value` | The stored value as text, in the spelling that `SET` and `config.yml` accept. |
 
-This statement lists the overlay itself. The overlay holds every key that a `SET`
-put in force and that no `RESET` dropped. That is a different question from the
-question that `SHOW VARIABLES` answers.
+This statement lists the overlay itself: every key that a `SET` put in force
+and no `RESET` has dropped. That answers a different question from
+`SHOW VARIABLES`.
 
-The overlay is what the fleet agreed on. The variables are what this node runs,
-after the merge of that overlay over its local configuration. An empty result
-means that the cluster carries no override at all.
+The overlay is what the fleet agreed on. The variables are what this node
+actually runs, after merging that overlay over its local configuration. An
+empty result means the cluster carries no overrides at all.
 
 ## Confirm that a change reached every node
 
-`SHOW VARIABLES` is node-local by design. It describes the node that served the
-statement. An answer from the leader would hide exactly the drift that you look
-for. To confirm a fleet-wide change, ask each node:
+`SHOW VARIABLES` is node-local by design: it describes the node that served the
+statement. An answer from the leader would hide exactly the drift you are
+looking for. To confirm a fleet-wide change, ask each node:
 
 ```camussql
 -- run against every node:
 SHOW VARIABLES LIKE 'max_mutations_per_transaction';
 ```
 
-Every node must report the new value, with `source` equal to `cluster`.
+Every node should report the new value, with `source` equal to `cluster`.
 
-A node that still shows its file value has one of two problems. It has not
-applied the change yet, which is replication lag, and which clears on a retry.
-Or it cannot reach the cluster. If the value stays wrong, check two things:
-the connection from that node to the leader of the settings partition, and the
-logs of that node for a warning about a failed apply.
+A node that still shows its file value either has not applied the change yet
+(replication lag, which clears if you retry) or cannot reach the cluster. If
+the value stays wrong, check that node's connection to the settings partition
+leader, and look in its logs for a warning about a failed apply.
 
 ## What CamusDB rejects
 
-Four different mistakes produce four different messages. Three of them share the
-code `CADB0400`, so read the message to tell them apart. Each one sends you to a
-different place:
+Each of these mistakes produces its own message. Three of them share the code
+`CADB0400`, so read the message to tell them apart, because each points you
+somewhere different:
 
 | Statement | Error | Why |
 | --- | --- | --- |
-| `SET CLUSTER SETTING no_such_setting = 1` | `CADB0400`, unknown cluster setting | The key does not exist. Look for the spelling mistake. |
-| `SET CLUSTER SETTING data_dir = '/elsewhere'` | `CADB0400`, restart-bound | The key is real, but it is `restart`-class. Edit the configuration, then restart the node. |
-| `SET CLUSTER SETTING max_mutations_per_transaction = banana` | `CADB0400`, which names the key | The value does not convert to the type of the setting. |
-| `SET CLUSTER SETTING ttl_span_lease_renew_interval_ms = 999999999` | `CADB0600` `InvalidConfig` | The value has a valid form, but it breaks an invariant across two fields. The message names both settings. |
+| `SET CLUSTER SETTING no_such_setting = 1` | `CADB0400`, unknown cluster setting | The key does not exist. Check the spelling. |
+| `SET CLUSTER SETTING data_dir = '/elsewhere'` | `CADB0400`, restart-bound | The key exists but is `restart`-class. Edit the configuration, then restart the node. |
+| `SET CLUSTER SETTING max_mutations_per_transaction = banana` | `CADB0400`, which names the key | The value does not convert to the setting's type. |
+| `SET CLUSTER SETTING ttl_span_lease_renew_interval_ms = 999999999` | `CADB0600` `InvalidConfig` | The value is well formed but breaks an invariant across two fields. The message names both settings. |
 
-CamusDB reports a `kahuna.*` key as restart-bound, not as unknown. The section
-carries no classification for each key. A report of unknown would send an
-operator to look for a spelling mistake that is not there.
+CamusDB reports a `kahuna.*` key as restart-bound, not unknown. That section has
+no per-key classification, and reporting the key as unknown would send you
+looking for a spelling mistake that is not there.
 
-A rejected change leaves nothing behind. There is no overlay entry, and the
-effective configuration of the node does not change.
+A rejected change leaves nothing behind: no overlay entry, and no change to the
+node's effective configuration.
 
 ## Standalone mode
 
-The same three statements work in standalone mode. The validation, the apply,
-and the persistence are identical. Only the replication is absent, because there
-is no fleet to agree with. A single-node deployment therefore gets live
-configuration changes without cluster mode.
+The same three statements work in standalone mode, with identical validation,
+apply, and persistence. Only replication is missing, because there is no fleet
+to agree with. A single-node deployment therefore gets live configuration
+changes without cluster mode.
 
 ## Boot behavior
 
-A node must boot on its file configuration. It swaps to the merged cluster view
-as soon as its store is readable. That swap happens before the query engine
-serves traffic.
+A node boots on its file configuration and swaps to the merged cluster view as
+soon as its store is readable, before the query engine serves traffic.
 
-A component that CamusDB builds before that point does one of two things. It
-reacts to the swap, or it holds `restart`-class settings only. An ordinary
-restart therefore cannot produce a node that permanently disagrees with the
-cluster.
+Any component that CamusDB builds before that point either reacts to the swap
+or holds only `restart`-class settings. An ordinary restart therefore cannot
+produce a node that permanently disagrees with the cluster.
 
 ## Permissions
 
-All three statements need a superuser while authentication is enabled. Another
-user receives `CADB0517` `InsufficientPrivilege`.
+While authentication is enabled, all three statements require a superuser.
+Other users receive `CADB0517` `InsufficientPrivilege`.
 
-Several of these settings bound memory, concurrency, and background work. The
-ability to change one across the fleet is therefore a denial-of-service control.
+Several of these settings bound memory, concurrency, and background work, so
+the ability to change them across the fleet is a denial-of-service control.
 
-A read of the overlay needs the same privilege as
-[`SHOW VARIABLES`](/docs/show-variables). The whole configuration surface
-therefore answers consistently.
+Reading the overlay requires the same privilege as
+[`SHOW VARIABLES`](/docs/show-variables), so the whole configuration surface
+answers consistently.
 
-Any caller may run the three statements while authentication is disabled.
+While authentication is disabled, any caller may run the three statements.
 
 ## Related pages
 
 - [Configuration](/docs/configuration) for the full setting reference and the
   startup model.
-- [`SHOW VARIABLES`](/docs/show-variables) for the effective values of a node.
-- [Cluster Deployment](/docs/cluster) for the way that nodes find each other.
+- [`SHOW VARIABLES`](/docs/show-variables) for a node's effective values.
+- [Cluster Deployment](/docs/cluster) for how nodes find each other.
 - [Error Codes](/docs/error-codes) for the codes above.

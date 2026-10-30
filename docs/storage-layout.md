@@ -2,33 +2,33 @@
 sidebar_position: 6.1
 ---
 
-# Large Values
+# Large values
 
 CamusDB can store large `STRING`, `BYTES`/`BLOB`, and `ARRAY` values in a
-TOAST-style physical form: compressed, stored outside the row, or both. The
-query result is unchanged. The feature changes the physical bytes CamusDB keeps,
-the I/O a query performs, and the size of each stored row version.
+TOAST-style physical form: compressed, stored outside the row, or both. Query
+results do not change. What changes is the physical bytes CamusDB keeps, the
+I/O a query performs, and the size of each stored row version.
 
 Use it for document bodies, JSON text, images, archives, and other large cells
 that do not belong in every row read. Avoid it for values that a query must read
 for every row, such as embeddings scanned by an exact vector search.
 
-## Why It Exists
+## Why it exists
 
-CamusDB stores each row as a key/value entry. A row is also the unit of
-multi-version storage. When one row carries a large value, two costs show up:
+CamusDB stores each row as a key/value entry, and the row is also the unit of
+multi-version storage. When a row carries a large value, two costs show up:
 
 - A query that reads only small columns still pulls the large value from storage.
 - An update to a small column rewrites the whole row and stores another large
   version of the value.
 
-Out-of-line storage moves the large value under its own key. The row keeps a
-small pointer. A query that does not read the large column does not fetch the
+Out-of-line storage moves the large value under its own key, and the row keeps
+a small pointer. A query that does not read the large column does not fetch the
 value, and an update that does not change the large column does not rewrite it.
 Compression reduces the stored size when the value compresses enough to be worth
 the CPU.
 
-## Storage Strategies
+## Storage strategies
 
 Each `STRING`, `BYTES`/`BLOB`, and `ARRAY` column has a storage strategy.
 
@@ -61,20 +61,19 @@ ALTER TABLE docs ALTER COLUMN thumbnail SET STORAGE PLAIN;
 column without a variable-length value is rejected with `CADB0414`
 `ColumnStorageNotApplicable`.
 
-## How Values Are Stored
+## How values are stored
 
-When CamusDB writes a non-null `STRING`, `BYTES`/`BLOB`, or `ARRAY` value, it
-applies these steps:
+When CamusDB writes a non-null `STRING`, `BYTES`/`BLOB`, or `ARRAY` value, it:
 
-1. Encode the value to raw bytes.
+1. Encodes the value to raw bytes.
 2. If the strategy allows compression and the encoded value is at least 256
-   bytes, try LZ4 compression.
-3. Keep the compressed form only when it saves at least
+   bytes, tries LZ4 compression.
+3. Keeps the compressed form only when it saves at least
    `large_value_compression_min_saving_percent`, 12 percent by default.
-4. If the strategy allows out-of-line storage, compare the stored form with
+4. If the strategy allows out-of-line storage, compares the stored form with
    `large_value_threshold_bytes`, 2048 bytes by default.
-5. Store the value outside the row when it is at or above the threshold. Store a
-   pointer in the row. Otherwise keep the value inside the row.
+5. Stores the value outside the row, with a pointer in the row, when it is at
+   or above the threshold. Otherwise it keeps the value inside the row.
 
 ```mermaid
 flowchart TD
@@ -94,12 +93,11 @@ Compression runs before the out-of-line decision. A text value that compresses
 below the threshold stays inside the row, so reading that column costs no second
 key lookup.
 
-Reads do not consult the current setting values or the current column strategy.
-Each stored row records whether its variable-length cells are compressed or
-out-of-line. Changing settings or a column strategy therefore cannot make
-existing rows unreadable.
+Reads do not consult the current settings or column strategy. Each stored row
+records whether its variable-length cells are compressed or out-of-line, so
+changing settings or a column strategy cannot make existing rows unreadable.
 
-## Query And Write Cost
+## Query and write cost
 
 - A query that does not name an out-of-line column does not fetch its value.
 - `SELECT *` names every column, so it fetches every out-of-line value.
@@ -113,11 +111,11 @@ The first update of an old row may rewrite the row into the current layout. For
 example, a row written before an `ADD COLUMN`, `DROP COLUMN`, or storage-strategy
 change can be decoded and written once in the new physical form.
 
-## Transaction Limits
+## Transaction limits
 
-Each out-of-line value is one extra key and therefore one extra mutation. An
-insert or delete of a row with `k` out-of-line values costs `k` more mutations
-than the same row stored inline.
+Each out-of-line value is one extra key, and so one extra mutation. Inserting or
+deleting a row with `k` out-of-line values costs `k` more mutations than the
+same row stored inline.
 
 For a table with a primary key, no secondary index, and four large columns stored
 out of line, each inserted row costs:
@@ -142,19 +140,18 @@ batching of reads and rewrites.
 | `large_value_rewrite_batch_rows` | `200` | Rows per transaction for `ALTER TABLE ... REWRITE STORAGE`. At most half of `max_mutations_per_transaction`. |
 | `large_value_resolve_batch_bytes` | `67108864` | Decoded bytes of compressed and out-of-line values one read or rewrite batch resolves at a time. `<= 0` removes the bound. |
 
-A setting change does not rewrite existing data. It applies to rows written
+A setting change does not rewrite existing data; it applies to rows written
 after the change.
 
 `large_value_resolve_batch_bytes` changes memory use and the number of batched
-fetches. It does not change query results. A single row larger than the bound is
-read alone.
+fetches, not query results. A single row larger than the bound is read alone.
 
-## Existing Data
+## Existing data
 
 Rows written before this feature are inline and uncompressed. They stay readable
 without operator action. Migration is an optimization, not a requirement.
 
-Existing data reaches the new physical form in three ways:
+How existing data reaches the new physical form:
 
 - New inserts and updates write rows under the current rules.
 - `ALTER TABLE ... ALTER COLUMN ... SET STORAGE` changes future writes only.
@@ -188,7 +185,7 @@ To convert every value back to the old inline, uncompressed form, use:
 ALTER TABLE docs REWRITE STORAGE INLINE;
 ```
 
-## Downgrades And Rolling Upgrades
+## Downgrades and rolling upgrades
 
 A binary that predates this feature cannot read a row that is compressed or has
 an out-of-line value. If you must downgrade to an older binary:
@@ -202,7 +199,7 @@ During a rolling upgrade, avoid storing large values until every node runs a
 version that understands the new row form. An older node cannot read a new-form
 row, including a row sent to it by a distributed query.
 
-## Interaction With Other Features
+## Interaction with other features
 
 - **Branches.** A branch reads inherited out-of-line values from its ancestor at
   the fork timestamp. A branch write stores new values in the branch only.
@@ -219,7 +216,7 @@ row, including a row sent to it by a distributed query.
 - **`TRUNCATE TABLE` and `DROP TABLE`.** Retired or dropped contents include the
   out-of-line values. Reclamation removes them with the table contents.
 
-## Error Codes
+## Error codes
 
 | Code | Name | Meaning |
 | --- | --- | --- |

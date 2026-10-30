@@ -49,14 +49,14 @@ FROM robots
 WITH NO DATA;
 ```
 
-`CREATE TABLE ... AS SELECT` adds its own generated column for the primary key.
-It copies the shape of the result only. It inherits no index, no constraint, no
-default, no comment, and no setting from the source table. See
-[Copying Query Results](/docs/insert-select-and-ctas) for the rules of CTAS, for
-a copy with time travel, and for the limits.
+`CREATE TABLE ... AS SELECT` adds its own generated primary key column and
+copies only the shape of the result. It inherits no indexes, constraints,
+defaults, comments, or settings from the source table. See
+[Copying Query Results](/docs/insert-select-and-ctas) for CTAS rules, time
+travel copies, and limits.
 
-An inline constraint can define a primary key, and it can make a column unique.
-Write it in the list of the columns:
+Inline constraints in the column list can define a primary key or make a column
+unique:
 
 ```camussql
 CREATE TABLE app_users (
@@ -66,11 +66,11 @@ CREATE TABLE app_users (
 );
 ```
 
-Columns that belong to a primary key are always `NOT NULL`. CamusDB records that
-nullability even when the column definition omits the words `NOT NULL`.
+Primary key columns are always `NOT NULL`. CamusDB records them as `NOT NULL`
+even when the column definition omits it.
 
-Use a `CHECK` constraint when a column or a row must satisfy a predicate. The
-predicate applies before an insert, and before an update:
+Use a `CHECK` constraint when a column or row must satisfy a predicate. CamusDB
+applies the predicate before each insert and update:
 
 ```camussql
 CREATE TABLE products (
@@ -82,8 +82,8 @@ CREATE TABLE products (
 );
 ```
 
-See [Check Constraints](/docs/check-constraints) for the names, for `ALTER
-TABLE`, for the behavior of a `NULL`, and for the supported expressions.
+See [Check Constraints](/docs/check-constraints) for constraint names,
+`ALTER TABLE`, `NULL` behavior, and supported expressions.
 
 Use a `FOREIGN KEY` constraint when a child table must reference a parent key:
 
@@ -98,7 +98,7 @@ CREATE TABLE weather (
 );
 ```
 
-Foreign keys can also be added or dropped later:
+You can also add or drop foreign keys later:
 
 ```camussql
 ALTER TABLE weather
@@ -111,7 +111,7 @@ ALTER TABLE weather DROP CONSTRAINT weather_city_fk;
 See [Foreign Keys](/docs/foreign-keys) for enforcement, indexes, branches, and
 schema changes blocked by a constraint.
 
-Declare a composite primary key after the list of the columns:
+Declare a composite primary key after the column list:
 
 ```camussql
 CREATE TABLE readings (
@@ -121,8 +121,7 @@ CREATE TABLE readings (
 ) PRIMARY KEY (sensor_id ASC, ts DESC);
 ```
 
-CamusDB also accepts an inline constraint in the style of an index, inside
-`CREATE TABLE`:
+CamusDB also accepts index-style inline constraints inside `CREATE TABLE`:
 
 ```camussql
 CREATE TABLE robots (
@@ -137,15 +136,15 @@ CREATE TABLE robots (
 ```
 
 An inline `KEY ... INCLUDE (...)` creates a covering secondary index. See
-[Indexes](/docs/sql-indexes#covering-indexes). That page describes when an
-included column helps a query, because the query then fetches no primary row.
+[Indexes](/docs/sql-indexes#covering-indexes) for when included columns help a
+query by letting it skip the primary row fetch.
 
-## Comments in a schema
+## Schema comments
 
-A table, a column, and an inline secondary index accept an inline
+Tables, columns, and inline secondary indexes accept an inline
 `COMMENT '<text>'` clause, and `COMMENT ON` sets or removes a comment later. See
-[Schema Comments](/docs/comment-on) for the syntax, the limits, and where a
-comment appears.
+[Schema Comments](/docs/comment-on) for the syntax, limits, and where comments
+appear.
 
 ## Column storage strategies
 
@@ -182,8 +181,8 @@ behavior, downgrade steps, and transaction-limit impact.
 
 ## Column defaults
 
-Use `DEFAULT (...)` to define a value. CamusDB applies that value in two cases:
-an insert omits the column, and an insert uses the keyword `DEFAULT`.
+Use `DEFAULT (...)` to define a default value. CamusDB applies it when an
+insert omits the column or uses the `DEFAULT` keyword.
 
 ```camussql
 CREATE TABLE events (
@@ -193,17 +192,17 @@ CREATE TABLE events (
 );
 
 INSERT INTO events (event_name)
-VALUES ("robot-created");
+VALUES ('robot-created');
 
 INSERT INTO events (id, event_name, priority)
-VALUES (DEFAULT, "robot-updated", DEFAULT);
+VALUES (DEFAULT, 'robot-updated', DEFAULT);
 ```
 
 Most defaults are evaluated once, when the DDL runs, and CamusDB stores the
 value in the schema. That covers literals and deterministic expressions,
 including function calls with arguments such as `upper('new')`.
 
-Two kinds of default run again for each inserted row, including each row of a
+These defaults run again for each inserted row, including each row of a
 multi-row `INSERT`:
 
 - A zero-argument volatile function, such as `gen_id()`, `gen_uuid_v7()`,
@@ -212,21 +211,21 @@ multi-row `INSERT`:
 
 | Default expression | Column type | Use |
 | --- | --- | --- |
-| `DEFAULT (gen_id())` | `OID` | Generate an ObjectId at the insert of the row. |
-| `DEFAULT (gen_uuid_v4())` | `UUID` or `GUID` | Generate a random UUID at the insert of the row. |
-| `DEFAULT (gen_uuid_v7())` | `UUID` or `GUID` | Generate a UUID in time order, at the insert of the row. |
-| `DEFAULT (random())` | `FLOAT64` | Generate a random number at the insert of the row. |
+| `DEFAULT (gen_id())` | `OID` | Generate an ObjectId when the row is inserted. |
+| `DEFAULT (gen_uuid_v4())` | `UUID` or `GUID` | Generate a random UUID when the row is inserted. |
+| `DEFAULT (gen_uuid_v7())` | `UUID` or `GUID` | Generate a time-ordered UUID when the row is inserted. |
+| `DEFAULT (random())` | `FLOAT64` | Generate a random number when the row is inserted. |
 | `DEFAULT (now())` | `TIMESTAMP` | Record the transaction start time. |
-| `DEFAULT (clock_timestamp())` | `TIMESTAMP` | Record the time of the insert of the row. |
+| `DEFAULT (clock_timestamp())` | `TIMESTAMP` | Record the time the row is inserted. |
 | `DEFAULT (nextval('sequence_name'))` | `INT64` | Draw the next value from a sequence. |
 
 `now()`, `current_timestamp()`, and `current_date()` return the transaction
 start time, so every row of a transaction gets the same value. See
 [Functions](/docs/functions) for the full list of volatile functions.
 
-A volatile default must be a bare call with no argument. CamusDB rejects
+A volatile default must be a bare call with no arguments. CamusDB rejects
 `DEFAULT (random() * 10)` and session functions such as `current_user()`. It
-also rejects a default that does not match the column type, such as
+also rejects defaults that do not match the column type, such as
 `DEFAULT (gen_id())` on a `UUID` column.
 
 ## Identity columns
@@ -265,7 +264,7 @@ rules.
 
 ## Alter a table
 
-Add a column, or drop one:
+Add or drop a column:
 
 ```camussql
 ALTER TABLE robots ADD COLUMN model STRING NULL;
@@ -273,7 +272,7 @@ ALTER TABLE robots ADD COLUMN notes STRING NULL COMMENT 'Operator notes';
 ALTER TABLE robots DROP COLUMN model;
 ```
 
-Add a primary key, or drop one:
+Add or drop a primary key:
 
 ```camussql
 ALTER TABLE robots ADD PRIMARY KEY (id);
@@ -286,13 +285,12 @@ ALTER TABLE robots DROP PRIMARY KEY;
 ALTER TABLE robots RENAME TO machines;
 ```
 
-After the rename, the old name of the table is no longer valid. The new name
-resolves to the same data of the table. The rows and the indexes survive the
-rename, because the identity in the storage is not the display name of the
-table.
+After the rename, the old table name is no longer valid, and the new name
+resolves to the same table data. Rows and indexes survive the rename because
+the table's storage identity is not its display name.
 
-A rename to a name that exists fails with `TableAlreadyExists`. A rename of a
-table that does not exist fails with `TableDoesntExist`.
+Renaming to an existing name fails with `TableAlreadyExists`. Renaming a table
+that does not exist fails with `TableDoesntExist`.
 
 ## Rename a column
 
@@ -300,21 +298,21 @@ table that does not exist fails with `TableDoesntExist`.
 ALTER TABLE machines RENAME COLUMN name TO display_name;
 ```
 
-The rename of a column changes the metadata of the stored rows only. The values
-of an existing row stay available, under the new name of the column. The result
-of a query no longer includes the old name.
+Renaming a column changes only the stored rows' metadata. Existing values stay
+available under the new column name, including after the table is reopened
+or the server restarts. Query results no longer include the old name.
 
-A rename of a column that does not exist fails with `UnknownColumn`. A rename to
-a name that exists fails with `DuplicateColumn`.
+Renaming a column that does not exist fails with `UnknownColumn`. Renaming to an
+existing name fails with `DuplicateColumn`.
 
-## The case of an identifier
+## Identifier case
 
 CamusDB keeps the case you use when you create or rename an object, but name
 lookups ignore case. See [Identifiers and case](/docs/sql#identifiers-and-case).
 
-## Settings of a table
+## Table settings
 
-Use `ALTER TABLE ... SET (...)` to update a setting at the level of a table.
+Use `ALTER TABLE ... SET (...)` to update a table-level setting.
 
 ```camussql
 ALTER TABLE application_logs
@@ -324,12 +322,12 @@ ALTER TABLE application_logs
 SET (sql_stats_automatic_collection_enabled = true);
 ```
 
-`sql_stats_automatic_collection_enabled` controls one thing: whether automatic
-analyze may refresh the statistics of that table. It defaults to `true`. A value
-of `false` opts the table out of the collection of the statistics in the
-background. A manual `ANALYZE TABLE application_logs` still runs.
+`sql_stats_automatic_collection_enabled` controls whether automatic analyze may
+refresh the table's statistics. It defaults to `true`. Setting it to `false`
+opts the table out of background statistics collection; a manual
+`ANALYZE TABLE application_logs` still runs.
 
-A table can also enable a row-level TTL, through the settings of the table:
+Table settings can also enable row-level TTL:
 
 ```camussql
 ALTER TABLE sessions
@@ -339,12 +337,10 @@ ALTER TABLE sessions
 RESET (ttl);
 ```
 
-See [Row-Level TTL](/docs/row-level-ttl) for three subjects: the supported
-parameters of a TTL, the rules of the column of the expiry, and the behavior of
-the sweep.
+See [Row-Level TTL](/docs/row-level-ttl) for the supported TTL parameters,
+expiry column rules, and sweep behavior.
 
-The name of a setting is not case-sensitive. CamusDB rejects an unknown name of
-a setting.
+Setting names are not case-sensitive. CamusDB rejects unknown setting names.
 
 ## Drop a table
 
@@ -354,21 +350,20 @@ DROP TABLE IF EXISTS robots;
 DROP TABLE robots FORCE;
 ```
 
-`DROP TABLE` removes the table from the active schema immediately. CamusDB
-nevertheless keeps the data of the table as a recoverable orphan, for the
-configured window of the retention. `SHOW TABLES` no longer lists the table, and
-you can use the name again.
+`DROP TABLE` removes the table from the active schema immediately, but CamusDB
+keeps its data as a recoverable orphan for the configured retention window.
+`SHOW TABLES` no longer lists the table, and you can reuse the name.
 
-Use `SHOW ORPHAN TABLES` in the current database to inspect the recoverable
-tables. Then recover one under a new name:
+Use `SHOW ORPHAN TABLES` in the current database to inspect recoverable tables,
+then recover one under a new name:
 
 ```camussql
 SHOW ORPHAN TABLES;
-CREATE TABLE robots_recovered RELINK TO "A0";
+CREATE TABLE robots_recovered RELINK TO 'A0';
 ```
 
-The recovered table keeps the rows, the indexes, the constraints, and the
-definitions of the columns from the time of the drop.
+The recovered table keeps the rows, indexes, constraints, and column
+definitions it had when it was dropped.
 
 Use `FORCE` only when CamusDB must delete the table physically, immediately, and
 permanently:
@@ -377,9 +372,9 @@ permanently:
 DROP TABLE robots FORCE;
 ```
 
-A forced drop creates no orphan. You cannot recover the table after it. See
-[Recover Dropped Objects](/docs/recover-dropped-objects) for the settings of the
-retention, for examples of a recovery, and for the limits.
+A forced drop creates no orphan, so you cannot recover the table. See
+[Recover Dropped Objects](/docs/recover-dropped-objects) for retention settings,
+recovery examples, and limits.
 
 ## Related pages
 

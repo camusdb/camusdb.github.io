@@ -4,15 +4,14 @@ sidebar_position: 4.6
 
 # Object ID functions
 
-An object id function creates or converts an `OID` value of CamusDB. These
-functions are useful in a primary key, in an insert, in a filter, and in a query
-with a parameter.
+Object id functions create or convert CamusDB `OID` values. Use them in primary
+keys, inserts, filters, and parameterized queries.
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `gen_id()` | `OID` | It generates a new object id. The function is volatile. |
-| `to_id(value)` | `OID` | It converts an `OID` to an object id. It also converts a hexadecimal string of 24 lowercase characters. |
-| `str_id(value)` | `OID` | An alias of `to_id(value)`. |
+| `gen_id()` | `OID` | Generates a new object id. The function is volatile. |
+| `to_id(value)` | `OID` | Converts an `OID`, or a 24-character lowercase hexadecimal string, to an object id. |
+| `str_id(value)` | `OID` | Alias for `to_id(value)`. |
 
 ## Examples
 
@@ -23,27 +22,28 @@ CREATE TABLE robots (
 );
 
 INSERT INTO robots (name)
-VALUES ("R2-D2");
+VALUES ('R2-D2');
 
 INSERT INTO robots (id, name)
-VALUES (gen_id(), "BB-8");
+VALUES (gen_id(), 'BB-8');
 
 SELECT id, name
 FROM robots
-WHERE id = str_id("507f1f77bcf86cd799439011");
+WHERE id = str_id('507f1f77bcf86cd799439011');
 
 SELECT to_id(@id)
 FROM robots
 LIMIT 1;
 ```
 
-`gen_id()` returns an `OID` value. Its text form has 24 lowercase hexadecimal characters.
+`gen_id()` returns an `OID` value whose text form is 24 lowercase hexadecimal
+characters.
 
-`DEFAULT (gen_id())` on an `OID` column runs one time for each inserted row. An
-omitted id and a `DEFAULT` value therefore both receive their own ObjectId.
+`DEFAULT (gen_id())` on an `OID` column runs once per inserted row, so an omitted
+id and an explicit `DEFAULT` each receive their own ObjectId.
 
-`to_id` and `str_id` accept an existing `OID` value. They also accept a string
-of exactly 24 lowercase hexadecimal characters.
+`to_id` and `str_id` accept an existing `OID` value or a string of exactly 24
+lowercase hexadecimal characters.
 
-For the full rules of a conversion, see
+For the full conversion rules, see
 [Conversion Functions](/docs/functions-conversion).

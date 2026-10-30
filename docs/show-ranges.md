@@ -30,6 +30,25 @@ It answers operator questions that table statistics and engine metrics cannot:
 For the cost a query paid, use [EXPLAIN](/docs/explain). For process-level
 metrics, use [SHOW ENGINE STATS](/docs/engine-stats).
 
+## How a key space maps to nodes
+
+The diagram shows a key-range-routed table after one split at key `K`. Each
+span covers part of the key space, one partition serves it, and that partition
+has a leader node. `SHOW RANGES` returns one row per span.
+
+```mermaid
+flowchart TD
+    KS["users row key space"] -->|keys below K| S1["span 1<br/>start_key NULL<br/>end_key K"]
+    KS -->|keys from K up| S2["span 2<br/>start_key K<br/>end_key NULL"]
+    S1 --> P1["partition_id 4"]
+    S2 --> P2["partition_id 9"]
+    P1 --> L1["leader: node A"]
+    P2 --> L2["leader: node B"]
+```
+
+A hash-routed key space has no split keys, so it has a single span. A table's
+row key space and its index key spaces all hash to the same partition.
+
 ## Result columns
 
 | Column | Type | Meaning |

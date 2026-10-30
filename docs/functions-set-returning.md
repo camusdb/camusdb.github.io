@@ -51,8 +51,8 @@ SELECT n
 FROM generate_series(1 + 1, @last, abs(@step)) AS n;
 ```
 
-CamusDB evaluates each argument once before producing the first row. A column
-from another relation and a subquery are not accepted as arguments. Those forms
+CamusDB evaluates each argument once before producing the first row. Columns
+from other relations and subqueries are not accepted as arguments, because they
 would require a lateral table function, which is not supported yet.
 
 ## Aliases
@@ -79,9 +79,9 @@ A column alias list must contain exactly one name.
 - As the source of `INSERT ... SELECT` or `CREATE TABLE ... AS SELECT`.
 - With filtering, grouping, ordering, `DISTINCT`, `LIMIT`, and `OFFSET`.
 
-The rows are streamed. A `LIMIT 10` over a very large series can stop after ten
-rows without materializing the complete series. The function reads no table,
-takes no storage lock, and requires no privilege. Tables joined to it still
+The rows are streamed, so a `LIMIT 10` over a very large series can stop after
+ten rows without materializing the whole series. The function reads no table,
+takes no storage locks, and requires no privileges. Tables joined to it still
 require their normal privileges.
 
 `EXPLAIN` renders the source as a `function-scan`. Literal arguments give the

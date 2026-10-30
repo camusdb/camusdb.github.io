@@ -4,106 +4,103 @@ sidebar_position: 4.55
 
 # Null functions
 
-A null function selects a fallback value when an expression evaluates to `NULL`,
-or it turns a value into `NULL`. These functions are useful for four purposes: a
-default value in a display, a default for an aggregate, a nullable column inside
-a derived expression, and a guard against a division by zero.
+A null function picks a fallback when an expression evaluates to `NULL`, or
+turns a value into `NULL`. Use them for display defaults, aggregate defaults,
+nullable columns inside derived expressions, and guards against division by
+zero.
 
-Most scalar functions return `NULL` when one argument is `NULL`. These functions
+Most scalar functions return `NULL` when any argument is `NULL`. These functions
 do not.
 
 ## The functions
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `coalesce(value, ...)` | The type of the first compatible argument that is not null | It returns the first argument that is not `NULL`. It accepts one argument or more. It returns `NULL` when every argument is `NULL`. |
-| `ifnull(value, fallback)` | The type of the first compatible argument that is not null | A short form of `coalesce(value, fallback)`, with two arguments. |
-| `nvl(value, fallback)` | The type of the first compatible argument that is not null | An alias of `ifnull(value, fallback)`. |
-| `nullif(value, other)` | The type of `value` | It returns `NULL` when `value = other` is true. Otherwise it returns `value`. |
+| `coalesce(value, ...)` | The type of the first compatible argument that is not null | Returns the first non-`NULL` argument. Accepts one or more arguments. Returns `NULL` when every argument is `NULL`. |
+| `ifnull(value, fallback)` | The type of the first compatible argument that is not null | Two-argument shorthand for `coalesce(value, fallback)`. |
+| `nvl(value, fallback)` | The type of the first compatible argument that is not null | Alias for `ifnull(value, fallback)`. |
+| `nullif(value, other)` | The type of `value` | Returns `NULL` when `value = other` is true, otherwise `value`. |
 
-`IFNULL` is the supported name of the function with two arguments, in the
-current source of CamusDB. Use `IFNULL(value, fallback)` for this rule: if this
-value is null, use that fallback.
+`IFNULL` is the currently supported name for the two-argument form.
+`IFNULL(value, fallback)` means: if `value` is null, use `fallback`.
 
 ## NULLIF
 
-`nullif(value, other)` is the inverse of `ifnull`. It is the same as
-`CASE WHEN value = other THEN NULL ELSE value END`, but CamusDB evaluates
-`value` one time only.
+`nullif(value, other)` is the inverse of `ifnull`. It is equivalent to
+`CASE WHEN value = other THEN NULL ELSE value END`, except that CamusDB
+evaluates `value` only once.
 
-- The comparison follows the rules of the `=` operator. For example,
+- The comparison follows the `=` operator's rules. For example,
   `nullif(2, 2.0)` and `nullif(NUMERIC '2', 2)` return `NULL`.
 - When `value` is `NULL`, the result is `NULL`.
-- When `other` is `NULL`, the comparison is unknown, not true. The result is
-  then `value`.
-- The type of the result is the type of `value`. CamusDB does not widen it.
+- When `other` is `NULL`, the comparison is unknown, not true, so the result
+  is `value`.
+- The result has the type of `value`. CamusDB does not widen it.
 - The function takes exactly two arguments.
 
-## The rules of the type
+## Type rules
 
-The rules in this section apply to `coalesce`, `ifnull`, and `nvl`. CamusDB infers the type of the result from the types of the arguments that are
-not null:
+These rules apply to `coalesce`, `ifnull`, and `nvl`. CamusDB infers the result
+type from the non-null arguments' types:
 
-- The type of the result is `NULL` when every argument is `NULL`.
-- CamusDB widens a numeric argument where that is necessary. `FLOAT64` beats
-  `FLOAT32`, and `FLOAT32` beats `INT64`. `NUMERIC` with `INT64` stays
-  `NUMERIC`; `NUMERIC` with a float widens to `FLOAT64`.
-- CamusDB rejects a mix of a `STRING` with a type that is not a string.
-- Compatible arguments that are not numeric keep the first type that is not
-  null.
+- The result type is `NULL` when every argument is `NULL`.
+- CamusDB widens numeric arguments where necessary. `FLOAT64` beats `FLOAT32`,
+  and `FLOAT32` beats `INT64`. `NUMERIC` with `INT64` stays `NUMERIC`;
+  `NUMERIC` with a float widens to `FLOAT64`.
+- CamusDB rejects mixing `STRING` with a non-string type.
+- Compatible non-numeric arguments keep the first non-null type.
 
-For example, `coalesce(score, 3.5)` returns a `FLOAT64`. An `INT64` value of
-`score` that is not null widens to a `FLOAT64`. The value at runtime therefore
-matches the inferred type of the result.
+For example, `coalesce(score, 3.5)` returns `FLOAT64`. A non-null `INT64`
+`score` widens to `FLOAT64`, so the runtime value matches the inferred result
+type.
 
 ## Examples
 
-Return a label as a fallback when `tag` is `NULL`:
+Return a fallback label when `tag` is `NULL`:
 
 ```camussql
-SELECT name, COALESCE(tag, "untagged") AS tag
+SELECT name, COALESCE(tag, 'untagged') AS tag
 FROM items;
 ```
 
-Use the short form, with two arguments:
+Use the two-argument short form:
 
 ```camussql
-SELECT name, IFNULL(tag, "untagged") AS tag
+SELECT name, IFNULL(tag, 'untagged') AS tag
 FROM items;
 ```
 
 Use `COALESCE` with more than two choices:
 
 ```camussql
-SELECT COALESCE(preferred_name, display_name, username, "anonymous") AS label
+SELECT COALESCE(preferred_name, display_name, username, 'anonymous') AS label
 FROM users;
 ```
 
-Give a default to an aggregate. Without that default, an empty input returns a
-`NULL`:
+Give an aggregate a default. Without it, an empty input returns `NULL`:
 
 ```camussql
 SELECT COALESCE(SUM(amount), 0) AS total
 FROM sales
-WHERE category = "missing";
+WHERE category = 'missing';
 ```
 
-Prevent a division by zero. A row where `cnt` is `0` returns `NULL` and does not
-fail the query:
+Prevent division by zero. A row where `cnt` is `0` returns `NULL` instead of
+failing the query:
 
 ```camussql
 SELECT id, total / NULLIF(cnt, 0) AS ratio
 FROM counts;
 ```
 
-Turn an empty string into `NULL`, and then give a fallback:
+Turn an empty string into `NULL`, then apply a fallback:
 
 ```camussql
-SELECT COALESCE(NULLIF(tag, ""), "untagged") AS tag
+SELECT COALESCE(NULLIF(tag, ''), 'untagged') AS tag
 FROM items;
 ```
 
-Handle a null inside a `HAVING` clause:
+Handle nulls in a `HAVING` clause:
 
 ```camussql
 SELECT category, COALESCE(SUM(amount), 0) AS total
@@ -112,14 +109,14 @@ GROUP BY category
 HAVING COALESCE(SUM(amount), 0) > 10;
 ```
 
-## The cases of an error
+## Errors
 
-An incompatible type of an argument makes the query fail. Here is an example:
+Incompatible argument types make the query fail. For example:
 
 ```camussql
-SELECT COALESCE(score, "fallback")
+SELECT COALESCE(score, 'fallback')
 FROM items;
 ```
 
-`score` can be an `INT64`. The expression then mixes a numeric value with a
-string. CamusDB returns `InvalidInput`.
+If `score` is an `INT64`, the expression mixes a numeric value with a string,
+and CamusDB returns `InvalidInput`.

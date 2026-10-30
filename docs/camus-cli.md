@@ -4,28 +4,29 @@ sidebar_position: 1.5
 
 # camus-cli
 
-![camus-cli interactive shell](/img/cli.png)
+![camus-cli interactive shell](/img/screenshots/cli.webp)
 
 `camus-cli` is the command-line SQL shell for CamusDB. You type SQL in a
-terminal, and you see the results at once. It is the fastest way to talk to a
+terminal and see the results immediately. It is the fastest way to talk to a
 CamusDB node without an application or a graphical tool.
 
 ## When to use it
 
-Use `camus-cli` for these purposes:
+Use `camus-cli` for:
 
-- A quick interactive SQL session, to look at data or to test a query.
+- Quick interactive SQL sessions to look at data or test a query.
 - Local development against a CamusDB node.
-- Execution of `.sql` script files, interactively or with `-f`, for example a
-  schema setup in a CI job.
-- Manual tests of transactions.
-- Backups. You take and inspect them without HTTP calls by hand.
-- A small workload for a demo or an experiment.
+- Running `.sql` script files, interactively or with `-f`, such as schema setup
+  in a CI job.
+- Testing transactions by hand.
+- Taking and inspecting backups without making HTTP calls by hand.
+- Small workloads for demos or experiments.
 
 For a graphical workspace in a browser, see [Web Console](/docs/web-console).
-For an integration with an application, use a driver, such as the
-[.NET driver](/docs/dotnet-driver), the [EF Core provider](/docs/ef-core), or
-the [TypeScript connector](/docs/typescript-connector).
+To integrate with an application, use a driver, such as the
+[.NET driver](/docs/dotnet-driver), [EF Core provider](/docs/ef-core),
+[TypeScript connector](/docs/typescript-connector), or
+[Python driver](/docs/python-driver).
 
 ## Features
 
@@ -50,7 +51,7 @@ Update it:
 dotnet tool update --global CamusDB.SqlSh
 ```
 
-The tool installs an executable with this name:
+The tool installs this executable:
 
 ```bash
 camus-cli
@@ -64,59 +65,54 @@ Start the shell with defaults:
 camus-cli
 ```
 
-Without a connection string, the shell tries the local listener of gRPC first.
-It then falls back to the local listener of REST:
+Without a connection string, the shell tries the local gRPC listener first,
+then falls back to the local REST listener:
 
 ```text
 Endpoint=http://localhost:5096;Database=<database>;Protocol=grpc
 Endpoint=http://localhost:5095;Database=<database>;Protocol=rest
 ```
 
-You can pass no name of a database in the position of the first argument. The
-connection then starts with no selected database.
+If you do not pass a database name as the first argument, the connection
+starts with no selected database.
 
-You can create a database from the shell, and then select it:
+You can create a database from the shell and then select it:
 
 ```camussql
 CREATE DATABASE IF NOT EXISTS test;
 USE test;
 ```
 
-Open a different database. Use the argument of the database, in the first
-position:
+To open a different database, pass its name as the first argument:
 
 ```bash
 camus-cli northwind
 ```
 
-That command tries `http://localhost:5096` with a `Protocol=grpc` first. It then
-tries `http://localhost:5095` with a `Protocol=rest`.
+That command tries `http://localhost:5096` with `Protocol=grpc` first, then
+`http://localhost:5095` with `Protocol=rest`.
 
-Open your own endpoint, and your own database. Use an explicit connection
-string:
+To open your own endpoint and database, use an explicit connection string:
 
 ```bash
 camus-cli -c "Endpoint=http://localhost:5095;Database=northwind"
 ```
 
-The connection string must hold a valid absolute `Endpoint`, or a
+The connection string must contain a valid absolute `Endpoint` or a
 comma-separated pool of absolute endpoints:
 
 ```bash
 camus-cli -c "Endpoint=http://node1:5096,http://node2:5096;Database=northwind;Protocol=grpc"
 ```
 
-The driver can use the endpoint pool across requests. Add a `Database` when the
+The driver can use the endpoint pool across requests. Add `Database` when the
 shell must start with a selected database.
 
-The connection string can hold no `Protocol=...`. The shell then tries gRPC
-against the supplied endpoint, and then REST.
+If the connection string has no `Protocol=...`, the shell tries gRPC against
+the supplied endpoint, then REST. If it has `Protocol=grpc` or
+`Protocol=rest`, the shell honors that choice with no fallback.
 
-The string can hold a `Protocol=grpc`, or a `Protocol=rest`. The shell then
-honors that explicit choice. It uses no fallback.
-
-A command at the level of the server still works without a selected database.
-These commands belong to that group:
+Server-level commands work without a selected database:
 
 - `CREATE DATABASE`, `DROP DATABASE`, `RENAME DATABASE`, and
   `ALTER DATABASE ... RENAME TO`.
@@ -127,23 +123,22 @@ These commands belong to that group:
 - `SHOW DATABASES`, and `SHOW ORPHAN DATABASES`.
 - `SHOW BRANCHES FROM ...`, and `SHOW ANCESTORS FROM ...`.
 
-Four other kinds of work need a selected database: the DDL of a table, a DML
-statement, the recovery of an orphan table, and an ordinary query.
+Table DDL, DML statements, orphan table recovery, and ordinary queries need a
+selected database.
 
 ## Authentication
 
-The authentication of CamusDB is off by default. A shell without a credential
-therefore behaves as it always did.
+CamusDB authentication is off by default, so a shell without credentials
+behaves as it always did.
 
-Against a server with the authentication enabled, pass a user and a password:
+Against a server with authentication enabled, pass a user and password:
 
 ```bash
 camus-cli northwind -u app -p app-secret
 ```
 
-Prefer a prompt instead of putting the password on the command line. You can
-give a `-u` without `-p`, or give a bare `-p`; both forms ask for the password
-without echoing it:
+Prefer a prompt to putting the password on the command line. Give `-u` without
+`-p`, or give a bare `-p`; both forms ask for the password without echoing it:
 
 ```bash
 camus-cli northwind -u app
@@ -164,27 +159,26 @@ or from the connection string:
 camus-cli -c "Endpoint=https://db.example.com:7141;Database=northwind;User=app;Password=app-secret"
 ```
 
-A flag overrides the same key inside a `-c`.
+A flag overrides the same key inside `-c`.
 
-Another process can hold a bearer token already. Pass that token with a
-`--token`, or with a `CAMUS_ACCESS_TOKEN`. The shell uses the token directly. It
-does not renew that token.
+If another process already holds a bearer token, pass it with `--token` or
+`CAMUS_ACCESS_TOKEN`. The shell uses the token directly and does not renew it.
 
-The driver exchanges the password one time, for a bearer token with a short
-life. A later statement carries the token. It does not carry the password. The
-driver renews the token before its expiry, while it holds the password.
+The driver exchanges the password once for a short-lived bearer token. Later
+statements carry the token, not the password. While the driver holds the
+password, it renews the token before it expires.
 
-Prefer the prompt, or a `CAMUS_PASSWORD`, to `-p app-secret` on a shared host.
-Another local user can see the command line of a process, and the shell prints a
-warning when a password is passed that way.
+On a shared host, prefer the prompt or `CAMUS_PASSWORD` to `-p app-secret`.
+Other local users can see a process's command line, and the shell prints a
+warning when you pass a password that way.
 
 The shell refuses to send credentials to a non-local `http://` endpoint. Use
 `https://` for remote authenticated connections. If TLS terminates before
 CamusDB and the final hop is protected by your own network, pass
 `--allow-insecure-credentials`; the shell then connects and prints a warning.
 
-The administration of a user and of a grant works before a selected database.
-Those statements belong to the level of the server:
+User and grant administration works without a selected database, because
+those statements are server-level:
 
 ```camussql
 CREATE USER app IDENTIFIED BY 'app-secret';
@@ -196,9 +190,9 @@ SHOW GRANTS FOR app;
 DROP USER app;
 ```
 
-A statement can hold a password inline, with an `IDENTIFIED ... BY '...'`. Such
-a statement stays in the history in the memory, during the session. The shell
-nevertheless writes no such statement to the file of the history on the disk.
+A statement with an inline password (`IDENTIFIED ... BY '...'`) stays in the
+in-memory history for the session, but the shell never writes it to the history
+file on disk.
 
 Authentication failures use the codes `CADB0516` to `CADB0519`. See
 [Error codes](/docs/error-codes#common-user-facing-errors) for what each one
@@ -302,14 +296,13 @@ clear
 exit
 ```
 
-These commands belong to the shell. They are not SQL of the server. Two of them
-have no form as a statement of the server: `use` and `backup`.
+These are shell commands, not server SQL. `use` and `backup` have no server
+statement form.
 
-Important guards:
+While a transaction is active:
 
-- if a transaction is active, `exit` and `quit` are blocked until you `commit`
-  or `rollback`
-- if a transaction is active, `use <database>` is also blocked
+- `exit` and `quit` are blocked until you `commit` or `rollback`.
+- `use <database>` is also blocked.
 
 ### Export a result set
 
@@ -334,7 +327,7 @@ query does not leave a partial export.
 Use `--tui` when you want the catalog, editor, and results visible at the same
 time:
 
-![camus-cli full-screen TUI](/img/tui.png)
+![camus-cli full-screen TUI](/img/screenshots/tui.webp)
 
 ```bash
 camus-cli northwind --tui
@@ -409,15 +402,13 @@ the raw table representation.
 
 ## Multiline input
 
-The shell supports SQL over several lines. It continues to collect the input
-while the statement looks incomplete.
+The shell supports multiline SQL. It keeps collecting input while the statement
+looks incomplete, which currently means:
 
-Current incomplete cases include:
-
-- open single-quoted string
-- open double-quoted string
-- unmatched `(`
-- trailing comma
+- an open single-quoted string
+- an open double-quoted string
+- an unmatched `(`
+- a trailing comma
 
 Example:
 
@@ -429,23 +420,22 @@ from users
 where active = true;
 ```
 
-The shell also divides several statements at a semicolon. It leaves a semicolon
-inside a quoted string untouched.
+The shell also splits multiple statements at semicolons, ignoring semicolons
+inside quoted strings.
 
-A paste of SQL over several lines also works. The editor turns each pasted
-`Enter` key into a new line. It does not submit each line at its arrival.
+Pasting multiline SQL also works: the editor turns each pasted `Enter` into a
+new line instead of submitting each line as it arrives.
 
 ## Non-interactive execution
 
-Use a `-e`, or an `--execute`, to run some SQL and exit. The shell starts no
-prompt:
+Use `-e` or `--execute` to run SQL and exit without starting a prompt:
 
 ```bash
 camus-cli northwind -e "SELECT * FROM users"
 camus-cli -c "Endpoint=http://localhost:5096;Database=northwind;Protocol=grpc" -e "SHOW TABLES"
 ```
 
-Several statements can run in one call. Separate them with a semicolon:
+To run several statements in one call, separate them with semicolons:
 
 ```bash
 camus-cli demo -e "INSERT INTO users (id, name) VALUES (gen_id(), 'Ada'); SELECT * FROM users"
@@ -457,8 +447,7 @@ Vertical output also works:
 camus-cli demo -e "SELECT * FROM users\G"
 ```
 
-That mode helps in four places: a script, a job of a CI system, a job of cron,
-and a redirection of a shell:
+This mode is useful in scripts, CI jobs, cron jobs, and shell redirects:
 
 ```bash
 camus-cli demo -e "SELECT * FROM users" > users.txt
@@ -466,26 +455,24 @@ camus-cli demo -e "SELECT * FROM users" > users.txt
 
 ### Running a .sql file
 
-Use a `-f`, or a `--file`, to run every statement of a file and exit. You can
-therefore apply a schema, and a migration, without the interactive console:
+Use `-f` or `--file` to run every statement in a file and exit, so you can
+apply a schema or migration without the interactive console:
 
 ```bash
 camus-cli northwind -f schema.sql
 camus-cli -c "Endpoint=http://localhost:5095;Database=northwind" -f seed.sql
 ```
 
-A semicolon separates two statements. The statements run in order. The shell
-handles a `\G` and a comment exactly as a `source` handles them inside the
-shell.
+Semicolons separate statements, and the statements run in order. The shell
+handles `\G` and comments exactly as `source` does inside the shell.
 
-The shell streams the file. Its size therefore does not matter.
+The shell streams the file, so its size does not matter.
 
-The execution stops at the first statement that fails. The shell prints the
-error, with the statement of the problem, and with the line of its start. The
-other statements do not run. The process exits with the status `1`.
+Execution stops at the first failing statement. The shell prints the error, the
+failing statement, and the line where it starts. The remaining statements do
+not run, and the process exits with status `1`.
 
-Pass a `-` as the path. The shell then reads the script from the standard
-input:
+Pass `-` as the path to read the script from standard input:
 
 ```bash
 cat schema.sql | camus-cli northwind -f -
@@ -496,8 +483,8 @@ insert into users values (gen_id(), 'Ada');
 SQL
 ```
 
-A `-f` and a `-e` combine. The file runs first. A `-e` can therefore read back
-what the file wrote:
+You can combine `-f` and `-e`. The file runs first, so `-e` can read back what
+the file wrote:
 
 ```bash
 camus-cli demo -f seed.sql -e "select count(*) from users"
@@ -527,11 +514,11 @@ effect in JSON or YAML mode.
 
 ## Prepared statements
 
-The driver registers a statement with the server, after it sees the same text of
-SQL a few times. It runs that statement in its prepared form after that moment.
+After the driver sees the same SQL text a few times, it registers the statement
+with the server and runs it in prepared form from then on.
 
-You enable nothing. A prepared execution returns exactly the result of an inline
-one.
+There is nothing to enable. A prepared execution returns exactly the same
+result as an inline one.
 
 `show prepared` reports the current registrations:
 
@@ -542,8 +529,8 @@ Prepared statements: 1 (MaxAutoPrepare=128, AutoPrepareMinUsages=2)
 (the statement you ran last)
 ```
 
-Pass a statement to ask about that statement. The shell otherwise reports the
-last statement of your session:
+Pass a statement to ask about it. Otherwise, the shell reports the last
+statement of your session:
 
 ```camussql
 show prepared select id from robots where year = 1984
@@ -551,30 +538,29 @@ show prepared select id from robots where year = 1984
 
 `\prepared` is an alias of both forms.
 
-A statement from the prompt usually reports as `inline`. It carries its values
-inside the text of the SQL. Each execution is therefore a different text, and it
-never repeats often enough for a registration.
+A statement typed at the prompt usually reports as `inline`. It carries its
+values inside the SQL text, so each execution is different text that never
+repeats often enough to be registered.
 
-The statements that reach a prepared form come from another source. A file of a
-`source`, and an application, both repeat a statement verbatim.
+Statements that reach prepared form come from `source` files and applications,
+which repeat a statement verbatim.
 
-The connection string holds both thresholds:
+Set both thresholds in the connection string:
 
 ```bash
 camus-cli -c "Endpoint=http://localhost:5095;Database=demo;MaxAutoPrepare=512;AutoPrepareMinUsages=1"
 ```
 
-`MaxAutoPrepare` is the number of the statements that stay registered. A `0`
-turns the registration off.
+`MaxAutoPrepare` is how many statements stay registered. `0` turns
+registration off.
 
-`AutoPrepareMinUsages` is the number of the executions before a registration.
+`AutoPrepareMinUsages` is how many executions happen before registration.
 See [Parameters And Prepared Statements](/docs/prepared-statements).
 
 ## Backups
 
-The family of the `backup` commands drives two areas of the administration of
-the server: the online backup, and the recovery to a point in time. Every
-command of that family is safe while the server serves traffic.
+The `backup` commands drive online backups and point-in-time recovery on the
+server. Every `backup` command is safe while the server serves traffic.
 
 ```text
 backup full                            take a full backup
@@ -586,11 +572,10 @@ backup gc preview                      report what retention would reclaim
 backup gc                              run retention now
 ```
 
-A `backup` on its own prints that list. A `backup help` prints it as well.
+`backup` on its own, or `backup help`, prints that list.
 
-A typical session has three steps. It takes a full backup. It adds an
-incremental backup onto that chain. It then checks that the chain would truly
-restore:
+A typical session takes a full backup, chains an incremental backup onto it,
+and then checks that the chain would actually restore:
 
 ```text
 camus> backup full
@@ -605,14 +590,14 @@ camus> backup incremental 971a0a88-3d36-42c6-b36b-8d1e773f40c4
 camus> backup chain 719b7b6b-281d-4979-bf63-b495a7d1bdaf
 ```
 
-`backup chain` is the read that validates. CamusDB rejects a chain that it
-cannot assemble here, and not at the time of a restore. The command therefore
-answers one question: would this backup truly restore?
+`backup chain` is a validating read: CamusDB rejects a chain it cannot assemble
+now, rather than at restore time. It answers one question: would this backup
+actually restore?
 
-It prints the chain, with the root first. It prints the recoverable window below
-that chain. A restore to a point in time may target that window.
+It prints the chain, root first, followed by the recoverable window that a
+point-in-time restore may target.
 
-Things worth knowing:
+Keep in mind:
 
 - Backups are node-wide, not per-database. Every database on the server
   shares one storage node. Nothing here is scoped to the current database, and
@@ -621,29 +606,27 @@ Things worth knowing:
   until then every command fails with `CADB0700 BackupNotConfigured`.
 - The commands work at the prompt, in `source` files, with `-e`, and with `-f`.
   They do not run inside `--tui`.
-- A superuser only. While the authentication is enabled, connect as a superuser,
-  with a `-u` or a `--token`. While the authentication is disabled, the server
-  limits this surface to a caller on loopback. It therefore refuses a remote
-  shell. It does not permit a backup of a whole node without an identity.
+- Superuser only. With authentication enabled, connect as a superuser with `-u`
+  or `--token`. With authentication disabled, the server limits these commands
+  to loopback callers, so it refuses a remote shell instead of allowing a
+  whole-node backup without an identity.
 - An incremental can become a full. If the parent has aged past the
   retention floor, the server takes a full backup instead. The command still
   succeeds and reports the substitution and its reason.
 - `backup coordinated` must reach the backup coordinator, the node that
   currently [leads](/docs/concepts#leader) the cluster's backup metadata. Any
-  other node refuses
-  with `CADB070E BackupNotCoordinator`. Pin `BackupEndpoint=` to the coordinator
-  when `Endpoint=` names a multi-node pool.
-- The API uses REST only. It has no form in SQL, and it has no service of gRPC.
-  The shell points its default connection of gRPC at the known port of HTTP for
-  you. Against a `-c` connection string with an explicit `Protocol=grpc`, add a
-  `BackupEndpoint=`. That key names the endpoint of HTTP of the server.
-- Backup requests use their own timeout. `BackupTimeout=` in the connection
-  string, 300 seconds by default, rather than the statement timeout, because a
+  other node refuses with `CADB070E BackupNotCoordinator`. Pin
+  `BackupEndpoint=` to the coordinator when `Endpoint=` names a multi-node pool.
+- The API is REST only, with no SQL form and no gRPC service. For the default
+  gRPC connection, the shell points backups at the known HTTP port for you. With
+  a `-c` connection string that sets `Protocol=grpc`, add `BackupEndpoint=` with
+  the server's HTTP endpoint.
+- Backup requests use their own timeout, `BackupTimeout=` in the connection
+  string (300 seconds by default), rather than the statement timeout, because a
   full backup copies a whole node's base image.
 
-The retention runs automatically after each backup. It also runs on a periodic
-tick. You therefore need a `backup gc` for one purpose: an immediate reclamation
-of the space, after a change to a tighter limit.
+Retention runs automatically after each backup and on a periodic tick. You only
+need `backup gc` to reclaim space immediately after tightening a limit.
 
 Preview the pass first. A preview deletes nothing:
 
@@ -652,15 +635,14 @@ camus> backup gc preview
 Retention preview: 2 backups, 0 orphans, 1.41 GB would reclaim (00:00:00.041)
 ```
 
-Restore is not part of this family. There is no hot restore in place: a restore
+Restore is not a `backup` command. There is no in-place hot restore: a restore
 builds into a fresh data directory, and an operator then stops the server and
-starts a new one against that directory. The shell cannot drive that runbook to
-its end. See [Backup And Restore](/docs/backup-and-restore#the-restore-runbook).
+starts a new one against that directory. The shell cannot drive that runbook
+end to end. See [Backup And Restore](/docs/backup-and-restore#the-restore-runbook).
 
 ## History
 
-The shell loads the history of the commands automatically. It saves that history
-automatically as well.
+The shell loads and saves command history automatically.
 
 History file:
 
@@ -670,7 +652,7 @@ History file:
 | Linux and macOS | `~/.config/camusdb/history.json` |
 | Windows | `%LOCALAPPDATA%\camusdb\history.json` |
 
-The shell gives this behavior:
+Behavior:
 
 - history is loaded on startup
 - history is saved on normal exit
@@ -684,7 +666,7 @@ The shell gives this behavior:
 
 ## Keyboard shortcuts
 
-The rich editor supports these features:
+The rich editor supports these keys:
 
 | Key | Action |
 | --- | --- |
@@ -702,10 +684,10 @@ The rich editor supports these features:
 
 ## Statement handling
 
-`camus-cli` sends SQL to the server and formats the response. Query statements
-are shown as result tables, DDL prints `Query OK`, and writes print affected row
-counts. `INSERT ... RETURNING` is run through a reader so the shell can show the
-returned rows and still print the affected-row count.
+`camus-cli` sends SQL to the server and formats the response. Queries show
+result tables, DDL prints `Query OK`, and writes print affected row counts. The
+shell runs `INSERT ... RETURNING` through a reader so it can show the returned
+rows and still print the affected-row count.
 
 Most SQL syntax belongs to the server, not to the shell. Use the SQL reference
 pages for statement semantics:
@@ -716,14 +698,13 @@ pages for statement semantics:
 - [SQL inspection](/docs/sql-inspection)
 - [Query activity](/docs/query-activity)
 
-The shell only intercepts a small set of client-side commands, such as `use`,
+The shell intercepts only a small set of client-side commands, such as `use`,
 `source`, `show prepared`, `backup`, `clear`, `exit`, and `quit`.
 
 ## Vertical output
 
-End a query with a `\G` instead of a `;`. The shell then prints each row
-vertically. That form helps with a wide row, with a long value of JSON, and with
-a command of an inspection that has many columns.
+End a query with `\G` instead of `;` to print each row vertically. This helps
+with wide rows, long JSON values, and inspection commands with many columns.
 
 ```camussql
 select * from users\G
@@ -738,12 +719,11 @@ name: Ada
 1 rows in set (00:00:00.0123456)
 ```
 
-A `\G` also works inside a file of a `source`. It works inside a batch of
-several statements as well.
+`\G` also works inside `source` files and multi-statement batches.
 
 ## Transactions
 
-The shell holds explicit commands of a transaction:
+The shell supports explicit transaction commands:
 
 ```camussql
 begin;
@@ -751,13 +731,13 @@ commit;
 rollback;
 ```
 
-It also knows these forms:
+It also accepts:
 
 ```camussql
 start transaction;
 ```
 
-The current implementation gives these rules:
+Current rules:
 
 - only one active transaction is allowed at a time
 - `commit` with no active transaction shows an error
@@ -767,7 +747,7 @@ The current implementation gives these rules:
 
 ## Syntax highlighting
 
-The interactive editor highlights these parts:
+The interactive editor highlights:
 
 - SQL keywords
 - built-in shell commands
@@ -776,9 +756,8 @@ The interactive editor highlights these parts:
 - numeric literals
 - supported function names
 
-The shell holds the list of the keywords and of the functions inside itself.
-That list therefore follows the colors of the CLI. It does not affect the
-support of the SQL on the server.
+The keyword and function lists are built into the shell. They control CLI
+coloring only and do not affect which SQL the server supports.
 
 The current highlighter follows the newer CamusSQL vocabulary, including
 `NUMERIC`/`DECIMAL`, `SERIAL`/`BIGSERIAL`, arrays, UUIDs, blobs, temporal
@@ -799,11 +778,11 @@ select gen_uuid_v7(), now();
 Press `Tab` to complete the word under the cursor. Press `Tab` again to move
 forward through the matches. Press `Ctrl+Tab` to move backward.
 
-The completion knows its context. These positions expect the name of a relation:
-`from`, `into`, `update`, `join`, `table`, `view`, `desc`, `describe`,
-`truncate`, `references`, and the table position of `show statistics for`. After
-one of them, the shell offers the names of the tables, views, and materialized
-views of the current database.
+Completion is context-aware. These positions expect a relation name: `from`,
+`into`, `update`, `join`, `table`, `view`, `desc`, `describe`, `truncate`,
+`references`, and the table position of `show statistics for`. After one of
+them, the shell offers the current database's tables, views, and materialized
+views.
 
 The shell also offers:
 
@@ -813,8 +792,8 @@ The shell also offers:
 - runtime configuration keys after `set cluster setting` and `reset cluster
   setting`.
 
-At any other position, it offers a keyword of SQL, a function, a constant, and a
-command of the shell.
+Anywhere else, it offers SQL keywords, functions, constants, and shell
+commands.
 
 ```camussql
 select * from us<Tab>
@@ -830,15 +809,14 @@ The shell loads relation names with `SHOW TABLES`, `SHOW VIEWS`, and
 loads configuration keys with `SHOW VARIABLES` and omits restart-only keys from
 the completion list.
 
-It refreshes those names at its startup, and after a `use <database>`. It also
-refreshes them after any statement that changes the set of the relations. Such a
-statement is one of these:
+It refreshes those names at startup, after `use <database>`, and after any
+statement that changes the set of relations:
 
-- A `CREATE TABLE`, or a `DROP TABLE`.
-- A `CREATE VIEW`, a `CREATE OR REPLACE VIEW`, a `DROP VIEW`, or an `ALTER
+- `CREATE TABLE` or `DROP TABLE`.
+- `CREATE VIEW`, `CREATE OR REPLACE VIEW`, `DROP VIEW`, or `ALTER
   VIEW`.
-- The equivalent form of any of those, for a materialized view.
-- A sequence create, alter, drop, or rename.
+- The materialized view equivalents of those.
+- Sequence create, alter, drop, or rename.
 
 Index completions are loaded table by table with `SHOW INDEXES`. A statement
 that creates or drops an index clears that cache, and the next relevant `Tab`
@@ -846,78 +824,73 @@ loads fresh names.
 
 ## Database switching
 
-You can change the current database. You stay inside the shell:
+You can change the current database without leaving the shell:
 
 ```camussql
 use analytics;
 use `order details`;
 ```
 
-The command rewrites the active connection string. It replaces the part
-`Database=...`. It then opens a new connection to that database.
+The command replaces the `Database=...` part of the active connection string
+and opens a new connection to that database.
 
-The target database must exist already. A `use` creates no database.
+The target database must already exist; `use` does not create it.
 
-The name can be bare. It can also carry backticks, or quotation marks. Use a
-quoted form for two kinds of name: a name that is the same as a keyword, and a
-name that holds a space.
+The name can be bare, or wrapped in backticks or quotation marks. Quote names
+that match a keyword or contain a space.
 
-The shell handles a `use`. The server does not. The command works in a file of a
-script, with a `-e`, and at the prompt.
-
-A dump can therefore change its database in the middle of a file. A session
-without a database can also select one, from its first statement.
+The shell, not the server, handles `use`. It works in script files, with `-e`,
+and at the prompt. A dump can therefore switch databases partway through a
+file, and a session that starts without a database can select one in its first
+statement.
 
 ## Source files
 
-Execute a file of a script of SQL:
+Run a SQL script file:
 
 ```camussql
 source ./seed.sql
 ```
 
-The shell streams the file. It does not read the file into the memory. A dump
-larger than the RAM therefore works. The first statement also runs immediately.
-It does not wait for a parse of the whole file.
+The shell streams the file instead of reading it into memory, so a dump larger
+than RAM works, and the first statement runs immediately instead of waiting for
+the whole file to be parsed.
 
-The shell divides the statements at a semicolon. It ignores a semicolon inside
-any of these six forms:
+The shell splits statements at semicolons, ignoring semicolons inside:
 
-- A string with single quotation marks.
-- A string with double quotation marks.
-- An identifier with backticks.
-- A line comment of the form `--`.
-- A line comment of the form `#`.
-- A block comment.
+- Single-quoted strings.
+- Double-quoted strings.
+- Backtick-quoted identifiers.
+- `--` line comments.
+- `#` line comments.
+- Block comments.
 
-It knows a repeated quotation mark, as in `'it''s'`. It knows a backslash of an
-escape as well. It removes a comment before it sends a statement to the server.
+It understands doubled quotes, as in `'it''s'`, and backslash escapes. It
+strips comments before sending a statement to the server.
 
-A statement with a `\G` at its end, inside a file of a `source`, uses the
-vertical output.
+A statement ending in `\G` inside a `source` file uses vertical output.
 
-The execution stops at the first statement that fails. The shell reports the
-file, and the line of the start of that statement.
+Execution stops at the first failing statement. The shell reports the file and
+the line where that statement starts.
 
-Pass a `--force` to continue instead. The shell then prints a summary at the
-end:
+Pass `--force` to continue instead. The shell then prints a summary at the end:
 
 ```camussql
 source ./seed.sql --force
 ```
 
-An open transaction stops the file in both cases. The server aborted that
-transaction already. Every other statement would therefore fail as well.
+A failure inside an open transaction stops the file even with `--force`. The
+server has already aborted that transaction, so every later statement would
+fail too.
 
-A file may hold a `use` statement, and it can therefore change its database
-during its run.
+A file can contain `use` statements to change databases as it runs.
 
-The shell refuses a `use` inside an open transaction. It stops the file. The
-rest of that file would otherwise run against the wrong database.
+The shell refuses `use` inside an open transaction and stops the file, because
+the rest of the file would otherwise run against the wrong database.
 
 ## Workload subcommand
 
-The CLI also holds a helper for a workload:
+The CLI also includes a workload helper:
 
 ```bash
 camus-cli workload <init|run> <bank|northwind|factory|tpcc|tpcb> [options]
@@ -960,35 +933,34 @@ camus-cli workload init tpcb --database tpcb --rows 10000
 camus-cli workload run tpcb --concurrency 8 --duration 120
 ```
 
-Without a connection string, the command of the workload uses these defaults:
+Without a connection string, the workload command uses these defaults:
 
 ```text
 Endpoint=http://localhost:5096;Database=demo;Protocol=grpc
 Endpoint=http://localhost:5095;Database=demo;Protocol=rest
 ```
 
-A `-c`, or a `--connection-source`, can hold no `Database=...`. The command of
-the workload then adds the value of the `--database`.
+If `-c` or `--connection-source` has no `Database=...`, the workload command
+adds the `--database` value.
 
-A workload tries gRPC first, and REST second, like the interactive shell. A
-`Protocol=...` in the connection string stops that behavior.
+Like the interactive shell, a workload tries gRPC first and REST second. A
+`Protocol=...` in the connection string turns off that fallback.
 
-A workload also sets a wider default timeout of a command. A commit of a batch
-needs that time.
+A workload also sets a longer default command timeout, because batch commits
+need the extra time.
 
 ## Terminal detection
 
-The rich editor turns on under three conditions. The terminal reports a support
-of ANSI. The input is interactive. The output goes to a terminal.
+The rich editor turns on when the terminal reports ANSI support, the input is
+interactive, and the output goes to a terminal.
 
-The shell can fail to detect a capable terminal. Use the flag of the diagnosis
-in that case:
+If the shell fails to detect a capable terminal, run the diagnostic:
 
 ```bash
 camus-cli --diagnose-terminal
 ```
 
-Force the rich editor, when you know that your terminal supports it:
+If you know your terminal supports it, force the rich editor:
 
 ```bash
 camus-cli --force-rich
@@ -1002,6 +974,6 @@ export CAMUS_FORCE_RICH=1
 
 ## Connection validation
 
-Before it opens a connection, the shell checks that the connection string holds
+Before it opens a connection, the shell checks that the connection string has
 a valid `Endpoint` (see [Basic usage](#basic-usage)). It then sends a first
 ping, so startup fails early when it cannot reach the target node.

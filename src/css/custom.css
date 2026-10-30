@@ -127,6 +127,23 @@ h1 {
   width: 100%;
 }
 
+/* Inline code: a light orange chip that stands apart from links and body text. */
+.markdown :not(pre) > code {
+  background-color: #fffaf3;
+  border-color: #ffe8cc;
+  color: #9a3412;
+}
+
+.markdown a > code {
+  color: inherit;
+}
+
+[data-theme='dark'] .markdown :not(pre) > code {
+  background-color: rgba(251, 146, 60, 0.14);
+  border-color: rgba(251, 146, 60, 0.32);
+  color: #fdba74;
+}
+
 /* Code blocks: the dark editor surface and type of the front page SQL examples. */
 .theme-code-block {
   --docusaurus-highlighted-code-line-bg: rgba(96, 165, 250, 0.14);

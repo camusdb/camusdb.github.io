@@ -4,12 +4,12 @@ sidebar_position: 2.42
 
 # Joins and subqueries
 
-This page covers a query that reads from more than one source. Three forms do
-that: a join, a subquery in a `WHERE` clause, and a subquery in a `FROM` clause.
+This page covers queries that read from more than one source: joins, subqueries
+in a `WHERE` clause, and subqueries in a `FROM` clause.
 
-Everything on this page composes with the clauses in
-[SELECT](/docs/sql-queries). The filter, the group, the sort, and the pagination
-behave the same way after CamusDB combines the sources.
+Everything here composes with the clauses in [SELECT](/docs/sql-queries).
+Filtering, grouping, sorting, and pagination behave the same way after CamusDB
+combines the sources.
 
 ## Join forms
 
@@ -42,21 +42,21 @@ JOIN posts p ON p.user_id = u.id
 ORDER BY u.email, p.title;
 ```
 
-Keep the condition of the join in the `ON` clause. Keep a condition on one table
-in the `WHERE` clause:
+Put the join condition in the `ON` clause, and single-table conditions in the
+`WHERE` clause:
 
 ```camussql
 SELECT u.email, p.title
 FROM app_users u
 JOIN posts p ON p.user_id = u.id
-WHERE u.role = "admin" AND p.published = true
+WHERE u.role = 'admin' AND p.published = true
 ORDER BY u.email, p.title;
 ```
 
-Give every source an alias. Qualify every reference to a column. With more than
+Give every source an alias and qualify every column reference. With more than
 one table in scope, a bare `name` is ambiguous when both sides define it.
 
-A join composes freely with a group:
+Joins compose freely with grouping:
 
 ```camussql
 SELECT u.role, COUNT(*) AS cnt
@@ -103,13 +103,13 @@ A `NULL` join key does not match another `NULL` join key. The comparison
 `NULL = NULL` is unknown, so a row with a `NULL` join key is padded unless
 another condition in `ON` matches it.
 
-`RIGHT JOIN` is executed as a left join with the operands swapped. Prefer an
-explicit column list when you use `RIGHT JOIN`; `SELECT *` follows the executed
-order, so the preserved table's columns come first.
+`RIGHT JOIN` runs as a left join with the operands swapped. Prefer an explicit
+column list with `RIGHT JOIN`: `SELECT *` follows the executed order, so the
+preserved table's columns come first.
 
-One `RIGHT JOIN` limit is worth knowing: a `RIGHT JOIN` whose left operand is
-itself a join is not supported. Rewrite the query with the preserved table on
-the left side, often through a derived table.
+A `RIGHT JOIN` whose left operand is itself a join is not supported. Rewrite the
+query with the preserved table on the left side, often through a derived
+table.
 
 ## Cross joins
 
@@ -125,48 +125,46 @@ It is equivalent to the comma form without an equality predicate. When every
 source is a cross join, CamusDB can still lift an equality from the `WHERE`
 clause and plan it as a join predicate.
 
-### How a join executes
+### How joins execute
 
-For an inner join or a left outer join with an equality key, the planner selects
-one of three strategies:
+For an inner or left outer join with an equality key, the planner picks one of
+three strategies:
 
-| Strategy | CamusDB selects it when | Shape of the cost |
+| Strategy | CamusDB picks it when | Cost |
 | --- | --- | --- |
-| An indexed lookup | The right side has an index on the column of the equality, and the outer side is small. | One probe for each outer row. |
-| A hash join | The right side has no usable index, or the outer side is large compared with the indexed side. | It builds a hash table from the side that the estimate calls smaller (the build side), then looks up each row of the other side (the probe side) in it. |
-| A merge join | Two compatible indexes already give both sides in the order of the join key, and the outer side is large. | It streams both sides. There is no phase for a build. |
+| Indexed lookup | The right side has an index on the equality column, and the outer side is small. | One probe per outer row. |
+| Hash join | The right side has no usable index, or the outer side is large compared with the indexed side. | Builds a hash table from the side estimated to be smaller (the build side), then looks up each row of the other side (the probe side) in it. |
+| Merge join | Two compatible indexes already return both sides in join-key order, and the outer side is large. | Streams both sides, with no build phase. |
 
-An equality join without an index uses a hash join. It does not scan the inner
-table once for each outer row. CamusDB plans a nested loop only when the join
-has no usable equality key, for example `ON o.total > c.credit_limit`. An equality
-between columns of different declared types, or on an array column, is not a
-usable key.
+An equality join without an index uses a hash join rather than scanning the
+inner table once per outer row. CamusDB plans a nested loop only when the join
+has no usable equality key, for example `ON o.total > c.credit_limit`. An
+equality between columns of different declared types, or on an array column, is
+not a usable key.
 
-An index on the join column of the right side helps most when the outer side is
+An index on the right side's join column helps most when the outer side is
 small, because each outer row becomes one index probe.
 
-A hash join can become too large. It can then divide the intermediate rows onto
-the disk, instead of a growth of the memory without a bound. That behavior needs
+When a hash join grows too large, it can spill intermediate rows to disk instead
+of growing memory without bound. That requires
 [spill to disk](/docs/spill-to-disk). With spill to disk off, a hash join whose
-build side passes `hash_join_max_build_rows` falls back to a nested loop.
+build side exceeds `hash_join_max_build_rows` falls back to a nested loop.
 
 In a cluster with [distributed queries](/docs/distributed-queries) enabled,
-CamusDB can broadcast a small build side of a hash join. It sends that side to
-the nodes that own the [partitions](/docs/concepts#partition) (the units into
-which the cluster divides its data) of the probe table. Those nodes probe
-locally. They return only the rows that matched. The output is the same in both
-cases.
+CamusDB can broadcast a small hash join build side to the nodes that own the
+probe table's [partitions](/docs/concepts#partition) (the units the cluster
+divides its data into). Those nodes probe locally and return only the matching
+rows. The output is the same either way.
 
-For a left outer join, the preserved side must remain the probe side. A
-broadcast hash join is therefore not used for a left outer join, because a
-remote probe can return matches but cannot produce the padded rows for the
-preserved side.
+For a left outer join, the preserved side must remain the probe side. So
+CamusDB does not use a broadcast hash join for left outer joins: a remote probe
+can return matches but cannot produce the padded rows for the preserved side.
 
-### A join with a comma
+### Comma joins
 
-CamusDB supports a join with a comma, for compatibility. It lifts a predicate of
-an equality out of the `WHERE` clause, and it treats that predicate as a
-condition of the join. A predicate on one source stays a filter:
+For compatibility, CamusDB supports comma joins. It lifts equality predicates out
+of the `WHERE` clause and treats them as join conditions. Predicates on a single
+source stay filters:
 
 ```camussql
 SELECT r.name, u.amount
@@ -175,8 +173,8 @@ WHERE r.id = u.robots_id AND r.enabled = true
 ORDER BY u.amount;
 ```
 
-Prefer an explicit `JOIN ... ON` in new code. It separates the condition of the
-join from the filters. Both parts are then easier to read, and easier to change.
+Prefer an explicit `JOIN ... ON` in new code. It separates the join condition
+from the filters, which makes both easier to read and change.
 
 ## Current join limits
 
@@ -184,15 +182,15 @@ CamusDB does not support `FULL JOIN`, `FULL OUTER JOIN`, `NATURAL JOIN`, or
 `JOIN ... USING (...)` yet. `FULL JOIN` is rejected as not supported; the other
 forms are syntax errors.
 
-A query with an outer join keeps the join order that the statement declares.
-The heuristic planner and the cost-based join-order search do not reorder a
-tree that contains an outer join.
+A query with an outer join keeps the join order the statement declares. Neither
+the heuristic planner nor the cost-based join-order search reorders a tree that
+contains an outer join.
 
-## A subquery in a WHERE clause
+## Subqueries in WHERE
 
-### A scalar subquery
+### Scalar subqueries
 
-A scalar subquery returns one column. It takes the place of one value:
+A scalar subquery returns one column and stands in for a single value:
 
 ```camussql
 SELECT id, name
@@ -201,12 +199,12 @@ WHERE year = (SELECT MAX(year) FROM robots)
 ORDER BY name;
 ```
 
-Zero rows give a `NULL`. More than one row is an error.
+Zero rows give `NULL`. More than one row is an error.
 
 ### IN and NOT IN
 
-`IN` and `NOT IN` accept a subquery without a correlation. That subquery must
-return exactly one column:
+`IN` and `NOT IN` accept an uncorrelated subquery that returns exactly one
+column:
 
 ```camussql
 SELECT email
@@ -219,24 +217,22 @@ WHERE id IN (
 ORDER BY email;
 ```
 
-The inner query can be indexed and eligible. CamusDB then runs a semi-join for
-an `IN` (it keeps each outer row that has at least one match), and an anti-join
-for a `NOT IN` (it keeps each outer row that has no match). It does not
-materialize the full inner result first.
+When the inner query is indexed and eligible, CamusDB runs a semi-join for `IN`
+(keeping each outer row with at least one match) and an anti-join for `NOT IN`
+(keeping each outer row with no match), instead of materializing the full inner
+result first.
 
-`NOT IN` follows the null semantics of SQL. One `NULL` in the inner result makes
-every row that does not match evaluate to unknown. CamusDB drops those rows, and
-the query commonly returns zero rows. Use `NOT EXISTS` when the inner column
-accepts a `NULL`.
+`NOT IN` follows SQL null semantics. A single `NULL` in the inner result makes
+every non-matching row evaluate to unknown. CamusDB drops those rows, and the
+query commonly returns zero rows. Use `NOT EXISTS` when the inner column accepts
+`NULL`.
 
-CamusDB rejects an `IN` or a `NOT IN` subquery over several columns. It also
-rejects a correlated one.
+CamusDB rejects multi-column and correlated `IN` or `NOT IN` subqueries.
 
 ### EXISTS
 
-`EXISTS` works with a correlation, and without one. Only the existence of a row
-matters. The inner projection can therefore be a `*`, one column, or several
-columns:
+`EXISTS` works with or without correlation. Only whether a row exists matters, so
+the inner projection can be `*`, one column, or several columns:
 
 ```camussql
 SELECT email
@@ -249,10 +245,9 @@ WHERE EXISTS (
 ORDER BY email;
 ```
 
-For a correlated `EXISTS`, CamusDB uses an index on the inner table under one
-condition. The inner `WHERE` clause must pin the leading columns of that index
-with an equality. The other side of the equality can be a value of the outer
-row, a literal, or a parameter:
+For a correlated `EXISTS`, CamusDB uses an index on the inner table when the
+inner `WHERE` clause pins the index's leading columns with equalities. The other
+side of each equality can be an outer-row value, a literal, or a parameter:
 
 ```camussql
 CREATE INDEX posts_user_idx ON posts (user_id);
@@ -267,14 +262,14 @@ WHERE EXISTS (
 );
 ```
 
-The index only narrows the candidate rows. The full inner predicate still runs
-after the seek. Without a suitable index, the result is identical. CamusDB then
-scans the inner table one time for each outer row.
+The index only narrows the candidate rows; the full inner predicate still runs
+after the seek. Without a suitable index, the result is identical, but CamusDB
+scans the inner table once per outer row.
 
-## A derived table
+## Derived tables
 
-A derived table is a `SELECT` in parentheses, inside the `FROM` clause. It needs
-an alias:
+A derived table is a parenthesized `SELECT` inside the `FROM` clause. It needs an
+alias:
 
 ```camussql
 SELECT post_count
@@ -288,7 +283,7 @@ ORDER BY post_count;
 ```
 
 A derived table joins like any other source. That is the usual way to filter a
-table against an aggregate of each group:
+table against per-group aggregates:
 
 ```camussql
 SELECT u.email, d.post_count
@@ -302,15 +297,30 @@ WHERE d.post_count >= 1
 ORDER BY u.email;
 ```
 
-The columns of a derived table take their names from the inner projection. Give
-every computed column an alias, as in `COUNT(*) AS post_count`. Otherwise the
-outer query has no usable name to reference.
+The inner query can use `IN`, `NOT IN`, scalar subqueries in its `WHERE`, and
+correlated or uncorrelated `EXISTS`/`NOT EXISTS`, including under an outer
+aggregate:
+
+```camussql
+SELECT COUNT(*)
+FROM (
+  SELECT u.id FROM app_users u
+  WHERE EXISTS (SELECT 1 FROM posts p WHERE p.user_id = u.id)
+) AS authors;
+```
+
+These subqueries also work inside set-operation operands. They use the
+caller's privileges in a direct query, or the view owner's privileges inside
+a stored view body.
+
+A derived table's columns take their names from the inner projection. Give
+every computed column an alias, as in `COUNT(*) AS post_count`, or the outer
+query has no usable name to reference.
 
 ## Check the plan
 
-The choice of a plan matters most for a query with several sources. `EXPLAIN`
-shows the selected strategy of the join. It also shows whether CamusDB used an
-index:
+Plan choice matters most for queries with several sources. `EXPLAIN` shows the
+chosen join strategy and whether CamusDB used an index:
 
 ```camussql
 EXPLAIN SELECT u.email, p.title
@@ -318,5 +328,5 @@ FROM app_users u
 JOIN posts p ON p.user_id = u.id;
 ```
 
-See [EXPLAIN](/docs/explain) for the reference of the output. See
+See [EXPLAIN](/docs/explain) for the output reference and
 [Query Planning](/docs/query-planning) for the rules behind the choice.

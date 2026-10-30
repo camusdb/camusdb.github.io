@@ -18,20 +18,20 @@ table's rows and each secondary index live under one key prefix that maps to
 one partition. Different tables can live on different partitions, but one table
 never spreads across them.
 
-That default is simple, and it suits most tables. It has a limit for a table
-that is very large or very busy:
+That default is simple and suits most tables, but it has limits for a very
+large or very busy table:
 
 - Every write to the table goes through the same partition leader. When that
   leader is saturated, more nodes in the cluster do not help that table.
-- All rows of the table are on the same partition. A large scan of the table
-  reads all of its data from that one partition.
+- All of the table's rows are on the same partition, so a large scan reads all
+  of its data from that one partition.
 
-Key-range sharding routes those spaces by key order. A space starts as one
-[range](/docs/concepts#ranges-and-spans), a contiguous slice of keys. It can
-then split into child ranges, and different partitions serve the
-child ranges. Writes to different ranges can then be coordinated by different
-leaders. CamusDB can split a range automatically when it grows too large or
-receives too much load. See [Automatic splits](#automatic-splits).
+Key-range sharding routes those spaces by key order instead. A space starts as
+one [range](/docs/concepts#ranges-and-spans), a contiguous slice of keys, and
+can then split into child ranges that different partitions serve. Different
+leaders can then coordinate writes to different ranges. CamusDB can split a
+range automatically when it grows too large or receives too much load. See
+[Automatic splits](#automatic-splits).
 
 ```mermaid
 flowchart TB
@@ -49,18 +49,17 @@ flowchart TB
     end
 ```
 
-Turn it on when one of these conditions applies:
+Turn it on when:
 
-- One table, or one index, receives more writes than one partition leader can
+- One table or index receives more writes than one partition leader can
   coordinate.
 - One table is too large to keep on one partition.
 - A scan over a large table must run on several nodes. Use it together with
   [distributed queries](/docs/distributed-queries).
 
-You do not need it for a standalone node, for a small data set, or for a
-workload that spreads its writes across many tables. A query returns the same
-rows with either routing mode. Only the placement, the concurrency, and the
-network cost change. Read [Best practices](/docs/best-practices) before you
+You do not need it for a standalone node, a small data set, or a workload that
+spreads its writes across many tables. A query returns the same rows with
+either routing mode; only placement, concurrency, and network cost change. Read [Best practices](/docs/best-practices) before you
 design keys for a key-range table.
 
 ## Turn it on
@@ -75,22 +74,44 @@ initial_partitions: 4
 `CAMUS_KEY_RANGE_SHARDING=1` or `CAMUS_KEY_RANGE_SHARDING=true` overrides the
 YAML value.
 
-The setting is restart-scoped and cluster-wide. Nodes that disagree route the
-same key differently, so change it everywhere and restart.
+### The mode is fixed when the cluster is created
+
+A cluster records its routing mode on first boot. An unset
+`key_range_sharding` follows that record, reported by `SHOW VARIABLES` with
+source `cluster`. An explicitly matching value starts normally; an explicitly
+different value refuses startup with exit code 1.
+
+Restarting cannot switch existing data between hash and key-range placement.
+To change modes, create a new cluster and
+[dump and reimport](/docs/logical-dump-and-reimport).
+
+For clusters predating the stored mode, the first upgraded node infers it from
+its local range map and database catalog. Start an existing node first, so it
+can restore that map before a new node with an empty data directory joins.
 
 ## What changes
 
 | Area | Hash routing | Key-range routing |
 | --- | --- | --- |
-| Table rows | One partition | One or more ranges |
+| Table rows | One partition | One or more ranges; the first starts on the hash-routed partition |
 | Secondary indexes | The same partition as the table's rows | Independent ranges per eligible index |
-| Range locks | Cover the whole key space | Clipped to the ranges touched |
+| Serializable read-write scan locks | Cover the whole key space | Clipped to the ranges touched |
 | Scans | One partition answers | All intersecting ranges answer and merge in key order |
 | Splitting | Not applicable | Ranges can split on size or load |
 
-Scans stay ordered and complete. A query returns the same rows whether the space
-has one range or many. The difference is placement, concurrency, and network
-cost.
+Scans stay ordered and complete: a query returns the same rows whether the
+space has one range or many. Only Serializable read-write transactions take
+scan range locks. Read Committed scans and ordinary autocommit `SELECT` statements take
+none. Under either isolation default, autocommit reads keep one pinned snapshot in
+either routing mode.
+
+With Kahuna 1.14.7 and later, a table's first range uses the partition that
+hash routing gives its placement group. New index and large-value spaces join
+that table's existing spaces, keeping it on one partition until a split.
+Older seeded ranges keep their recorded placements; an upgrade does not move
+them. A few tables can still hash to the same partition, leaving another empty.
+The leader balancer moves leaders, not ranges; splitting or moving a range
+changes its partition. The cluster routing mode remains fixed at creation.
 
 ## Partition count
 
@@ -100,9 +121,9 @@ range splits to move work across partitions.
 
 ## Eligible indexes
 
-Every indexable column type has a key encoding that preserves the order. That
-includes `STRING`. A secondary index is therefore key-range routed when
-key-range sharding is on, whatever the types of its key columns.
+Every indexable column type, including `STRING`, has an order-preserving key
+encoding. So when key-range sharding is on, a secondary index is key-range
+routed, whatever its key column types.
 
 An index stays hash-routed only when CamusDB cannot resolve one of its key
 columns in the schema. Mixed tables are valid: some key spaces can be ranged
@@ -155,9 +176,16 @@ The load branch needs:
   hot node
 
 `range_move_settle_timeout_ms` is what one split or merge attempt can cost the
-workload. Writes to the moving half are refused retryably while CamusDB waits
-for that range to drain. `0` means no wait; under sustained writes that usually
+workload. Writes to the moving half are refused with a retryable error while CamusDB
+waits for that range to drain. `0` means no wait; under sustained writes that usually
 makes every attempt fail. The value is clamped by the server.
+
+### Version requirement for splits under writes
+
+Use a CamusDB build with Kahuna 1.14.6 or later before running range splits
+under write load. Kahuna 1.14.3 and 1.14.5 could lose acknowledged writes if a
+range move's write-quiesce TTL expired before cutover. Version 1.14.6 refuses
+that expired move instead of switching routing away from those writes.
 
 ## Reading split activity
 
@@ -184,8 +212,8 @@ of being routed to the wrong owner:
 - `CADB0502` means the transaction conflicted with a lock, including the
   exclusive lock used while part of a range moves.
 
-Autocommit work retries boundedly. A multi-statement explicit transaction must
-restart from `BEGIN`.
+Autocommit work retries a bounded number of times. A multi-statement explicit
+transaction must restart from `BEGIN`.
 
 ## Remote query fragments
 

@@ -4,32 +4,33 @@ sidebar_position: 2.2
 
 # Indexes
 
-An index is a sorted copy of one or more columns of a table, with a pointer back
-to each row. With an index, CamusDB finds the rows that match a value without a
-read of the whole table.
+An index is a sorted copy of one or more table columns, with a pointer back to
+each row. With an index, CamusDB can find the rows that match a value without
+reading the whole table.
 
 ## Why add an index
 
-Without a matching index, a query that filters on a column reads every row of
-the table. That cost grows with the table. An index makes these operations fast:
+Without a matching index, a query that filters on a column reads every row in
+the table, and that cost grows with the table. An index makes these operations
+fast:
 
-- A lookup of the rows with one value, such as `WHERE email = @email`.
-- A range of values, such as `WHERE created_at >= @since`.
+- Looking up the rows with one value, such as `WHERE email = @email`.
+- Reading a range of values, such as `WHERE created_at >= @since`.
 - An `ORDER BY` with a `LIMIT`, such as the 20 newest rows. CamusDB reads the
-  index in its order, and it can stop after 20 rows.
-- A rule that a value must be unique. A unique index rejects a duplicate.
+  index in order and can stop after 20 rows.
+- Enforcing that a value is unique. A unique index rejects duplicates.
 
-An index has a cost. Each `INSERT`, `UPDATE`, and `DELETE` must also change each
-index of the table, so writes become slower, and the table uses more storage.
-Add an index for a query that runs often, or for a query that must be fast. Do
-not add an index for each column.
+Indexes have a cost. Every `INSERT`, `UPDATE`, and `DELETE` must also update
+each of the table's indexes, so writes get slower and the table uses more
+storage. Add indexes for queries that run often or must be fast. Do not index
+every column.
 
 Use [`EXPLAIN`](/docs/explain) to see whether a query uses an index.
 
 ## Indexes that CamusDB creates for you
 
-A primary key creates an index. A unique column also creates one. You can add
-another index with `CREATE INDEX`, or with `ALTER TABLE`.
+A primary key creates an index, and so does a unique column. You can add more
+indexes with `CREATE INDEX` or `ALTER TABLE`.
 
 ## Create an index
 
@@ -38,7 +39,7 @@ CREATE INDEX robots_year_idx ON robots (year DESC);
 CREATE UNIQUE INDEX robots_name_idx ON robots (name);
 ```
 
-CamusDB supports a unique index over several columns:
+A unique index can span several columns:
 
 ```camussql
 CREATE UNIQUE INDEX robots_kind_year_uq ON robots (kind, year);
@@ -49,18 +50,18 @@ To store extra columns in the index with `INCLUDE (...)`, see
 
 ## Covering indexes
 
-A covering index lets a secondary index store more columns with each entry.
-Those columns are not part of the key.
+A covering index stores extra columns with each entry of a secondary index.
+Those columns are not part of the index key.
 
-A query can need only the key of the index and those included columns. CamusDB
-can then return the result without a fetch of the primary row.
+When a query needs only the index key and the included columns, CamusDB can
+return the result without fetching the primary row.
 
-Use a covering index for a hot path of reads. Such a path filters by one set of
-columns, and it returns a small stable set of other columns.
+Use a covering index for a hot read path that filters by one set of columns and
+returns a small, stable set of other columns.
 
 ### Create a covering index
 
-Add `INCLUDE (...)` after the key columns of the index:
+Add `INCLUDE (...)` after the index key columns:
 
 ```camussql
 CREATE INDEX orders_customer_idx
@@ -68,13 +69,13 @@ ON orders (customer_id)
 INCLUDE (status, total, created_at);
 ```
 
-`customer_id` is the key of the index. It controls the order, the scans of a
-range, and the bounds of a lookup.
+`customer_id` is the index key. It controls the index order, range scans, and
+lookup bounds.
 
-`status`, `total`, and `created_at` are stored columns of the payload. They do
-not affect the order of the index. You cannot search them as a key column.
+`status`, `total`, and `created_at` are stored payload columns. They do not
+affect the index order, and you cannot search them as key columns.
 
-A unique index can also include a column of the payload:
+A unique index can also include payload columns:
 
 ```camussql
 CREATE UNIQUE INDEX users_email_idx
@@ -83,10 +84,10 @@ INCLUDE (display_name, status);
 ```
 
 `UNIQUE` applies to the key columns only. In the example above, CamusDB enforces
-the uniqueness on `email`. `display_name` and `status` take no part in the
-constraint of the uniqueness.
+uniqueness on `email`. `display_name` and `status` are not part of the unique
+constraint.
 
-### The inline syntax
+### Inline syntax
 
 You can declare a covering index inside `CREATE TABLE`:
 
@@ -101,16 +102,15 @@ CREATE TABLE orders (
 ```
 
 You can also add one with `ALTER TABLE ... ADD INDEX`. See
-[The DDL of an index in ALTER TABLE](#the-ddl-of-an-index-in-alter-table).
+[Index DDL in ALTER TABLE](#index-ddl-in-alter-table).
 
-To change the included columns of an existing index, drop that index. Then
-create it again, with the `INCLUDE` list that you want.
+To change the included columns of an existing index, drop the index and create
+it again with the `INCLUDE` list you want.
 
-### A covered query
+### Covered queries
 
-A query is covered when the index gives every column that the query needs. Those
-columns come from the key of the index, or from the included columns of the
-payload.
+A query is covered when the index provides every column the query needs, either
+from the index key or from the included payload columns.
 
 ```camussql
 CREATE INDEX orders_customer_idx
@@ -122,10 +122,10 @@ FROM orders
 WHERE customer_id = 42;
 ```
 
-`orders_customer_idx` can answer the query above. `customer_id` is the key.
-`status` and `total` are included columns of the payload.
+`orders_customer_idx` can answer the query above: `customer_id` is the key, and
+`status` and `total` are included payload columns.
 
-The next query is not covered. `note` is not a key column, and it is not an
+The next query is not covered, because `note` is neither a key column nor an
 included column:
 
 ```camussql
@@ -134,8 +134,8 @@ FROM orders
 WHERE customer_id = 42;
 ```
 
-CamusDB can still use the index to find the matching rows. It must nevertheless
-fetch the primary row, to read `note`.
+CamusDB can still use the index to find the matching rows, but it must fetch
+the primary row to read `note`.
 
 ### Read the plan with EXPLAIN
 
@@ -148,55 +148,53 @@ FROM orders
 WHERE customer_id = 42;
 ```
 
-For a covered lookup, and for a covered scan of a range, the node of the scan
-reports `rows_read = 0`. CamusDB fetched no primary row after the read of the
-index entry.
+For a covered lookup or a covered range scan, the scan node reports
+`rows_read = 0`: CamusDB fetched no primary rows after reading the index
+entries.
 
-### The rules and the limits of a covering index
+### Rules and limits
 
 - An included column must exist on the table.
 - An included column cannot also be a key column of the same index.
-- An included column cannot state `ASC` or `DESC`. It is payload without an
-  order.
-- An included column can hold a `NULL`.
-- An included column can use any column type that CamusDB can store. That
-  includes `BYTES` and `ARRAY(T)`, because CamusDB stores the column in the
-  value of the index, not in the ordered key.
-- A predicate on an included column is a filter. It is not a bound of the index.
-  Put a column in the key of the index to search by that column.
-- A primary key does not support `INCLUDE`. The primary row already holds the
-  full row.
-- CamusDB rejects a drop of a column that an index uses. That rule covers a key
-  column, and a column of an `INCLUDE` list. Drop the index first, or create it
-  again.
-- One index can span 32 columns at most. That total counts the key columns and
-  the included columns together.
-- The encoded payload of the included columns is limited to 4 KiB, for each
-  entry of the index.
+- An included column cannot specify `ASC` or `DESC`. It is unordered payload.
+- An included column can hold `NULL`.
+- An included column can use any column type CamusDB can store, including
+  `BYTES` and `ARRAY(T)`, because CamusDB stores it in the index value, not in
+  the ordered key.
+- A predicate on an included column is a filter, not an index bound. To search
+  by a column, put it in the index key.
+- A primary key does not support `INCLUDE`, because the primary row already
+  holds the full row.
+- CamusDB rejects dropping a column that an index uses, whether it is a key
+  column or in an `INCLUDE` list. Drop or recreate the index first.
+- An index can span at most 32 columns, counting key columns and included
+  columns together.
+- The encoded payload of the included columns is limited to 4 KiB per index
+  entry.
 
-Two settings control these limits: `max_index_columns` and
-`max_index_include_tuple_bytes`. See [Configuration](/docs/configuration). A
-value of `0` or below disables the matching limit.
+The `max_index_columns` and `max_index_include_tuple_bytes` settings control
+these limits. See [Configuration](/docs/configuration). A value of `0` or below
+disables the matching limit.
 
-### Inspection of the schema
+### Inspect the schema
 
-`SHOW INDEXES` includes the columns of the payload:
+`SHOW INDEXES` includes the payload columns:
 
 ```camussql
 SHOW INDEXES FROM orders;
 ```
 
-`SHOW CREATE TABLE` renders `INCLUDE (...)`. You can therefore replay the
-definition of the table:
+`SHOW CREATE TABLE` renders `INCLUDE (...)`, so you can replay the table
+definition:
 
 ```camussql
 SHOW CREATE TABLE orders;
 ```
 
-## The order of the columns of an index
+## Index column order
 
-Each indexed column can state `ASC` or `DESC`. CamusDB uses `ASC` when you write
-no direction.
+Each indexed column can specify `ASC` or `DESC`. If you omit the direction,
+CamusDB uses `ASC`.
 
 ```camussql
 CREATE INDEX robots_year_asc_idx ON robots (year ASC);
@@ -204,9 +202,9 @@ CREATE INDEX robots_year_desc_idx ON robots (year DESC);
 CREATE INDEX robots_kind_year_idx ON robots (kind ASC, year DESC);
 ```
 
-The order of an index matters for an `ORDER BY`. CamusDB scans an index forward
-only. The direction of the query must therefore agree with the direction of the
-index. The planner can then omit a separate sort:
+Index order matters for `ORDER BY`. CamusDB scans indexes forward only, so the
+query's direction must match the index direction for the planner to skip a
+separate sort:
 
 ```camussql
 CREATE INDEX robots_year_desc_idx ON robots (year DESC);
@@ -216,21 +214,20 @@ FROM robots
 ORDER BY year DESC;
 ```
 
-The index above can satisfy `ORDER BY year DESC`. It does not satisfy `ORDER BY
-year ASC`. That query needs an ascending index, or a separate sort.
+The index above can satisfy `ORDER BY year DESC`, but not `ORDER BY year ASC`.
+That query needs an ascending index or a separate sort.
 
-For a composite index, the columns and the directions of the `ORDER BY` must
-match a prefix of the index, from left to right. One example is `(kind ASC, year
-DESC)` for `ORDER BY kind ASC, year DESC`.
+For a composite index, the `ORDER BY` columns and directions must match a
+prefix of the index, from left to right. For example, `(kind ASC, year DESC)`
+serves `ORDER BY kind ASC, year DESC`.
 
-CamusDB supports a descending index column for a scalar type of a fixed width.
-Those types are `OID`, `UUID`, `INT64`, `FLOAT64`, `FLOAT32`, `BOOL`, `DATE`,
-and `DATETIME`.
+CamusDB supports descending index columns for fixed-width scalar types: `OID`,
+`UUID`, `INT64`, `FLOAT64`, `FLOAT32`, `BOOL`, `DATE`, and `DATETIME`.
 
-CamusDB currently rejects a descending `STRING` column and a descending `BYTES`
-column in an index, with `InvalidInput`. You cannot index an `ARRAY(T)` column.
+CamusDB currently rejects descending `STRING` and `BYTES` index columns with
+`InvalidInput`. You cannot index an `ARRAY(T)` column.
 
-## The DDL of an index in ALTER TABLE
+## Index DDL in ALTER TABLE
 
 ```camussql
 ALTER TABLE robots ADD INDEX robots_kind_year_idx (kind, year DESC);
@@ -246,25 +243,23 @@ ALTER TABLE robots DROP INDEX robots_kind_year_idx;
 ALTER TABLE robots RENAME INDEX robots_name_idx TO robots_display_name_idx;
 ```
 
-A rename changes the name of the index in the schema. It preserves the data of
-the index. After the rename, an inspection of the schema no longer shows the old
-name.
+A rename changes the index name in the schema and keeps the index data. After
+the rename, schema inspection no longer shows the old name.
 
-Two operations currently fail with `InvalidInput`: a rename of an index that
-does not exist, and a rename to a name that exists.
+Renaming an index that does not exist, or renaming to a name that already
+exists, currently fails with `InvalidInput`.
 
-## The plan of a query
+## Query plans
 
-An index can drive six things:
+An index can drive:
 
-- A point lookup.
-- A scan of a range.
-- A probe of an indexed `IN (...)`.
-- An ordered scan.
-- An indexed join.
-- A read from the index alone, through the `INCLUDE` columns.
+- Point lookups.
+- Range scans.
+- Indexed `IN (...)` probes.
+- Ordered scans.
+- Indexed joins.
+- Index-only reads through `INCLUDE` columns.
 
-For the behavior of the planner, see [Query Planning](/docs/query-planning). For
-examples of the syntax of a query that uses an index, see
-[SELECT](/docs/sql-queries) and
+For planner behavior, see [Query Planning](/docs/query-planning). For query
+syntax examples that use indexes, see [SELECT](/docs/sql-queries) and
 [Joins And Subqueries](/docs/joins-and-subqueries).

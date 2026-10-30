@@ -5,13 +5,12 @@ sidebar_position: 7.1
 # .NET driver
 
 `CamusDB.Client` connects a .NET application to CamusDB. It is an ADO.NET
-provider. ADO.NET is the standard database interface of .NET: a connection, a
-command, a data reader, and a transaction work the same way for every database.
-Code that uses ADO.NET with another database therefore reads the same with
-CamusDB.
+provider. ADO.NET is the standard .NET database interface: connections,
+commands, data readers, and transactions work the same way for every database,
+so ADO.NET code you wrote for another database reads the same with CamusDB.
 
-The driver is the base of the other .NET packages. It also gives you direct
-access to CamusDB features, such as the gRPC transport, learned routing,
+The driver is the foundation of the other .NET packages. It also gives you
+direct access to CamusDB features such as the gRPC transport, learned routing,
 prepared statements, serializable retries, and backups.
 
 ## Which .NET package to use
@@ -22,14 +21,19 @@ prepared statements, serializable retries, and backups.
 | [`CamusDB.Dapper`](/docs/dapper) | Dapper on the same connection: you write the SQL, and Dapper maps each row to a C# object. | You write SQL yourself, but you do not want to read each column by hand. | `net8.0`, `net9.0`, `net10.0` |
 | [`CamusDB.EntityFrameworkCore`](/docs/ef-core) | The EF Core provider: LINQ queries, change tracking, and migrations. | Your application uses C# classes as its data model, and EF Core writes the SQL. | `net10.0` |
 
-All three packages use the same driver below them. You can use more than one in
-the same application.
+All three packages share the same driver underneath, and you can use more than
+one in the same application.
 
-Use the driver directly in these cases:
+For integration tests, [Testcontainers](/docs/testcontainers) starts a temporary
+CamusDB server in Docker and supplies connection strings for these packages.
+For local application orchestration, the [.NET Aspire integrations](/docs/aspire)
+connect your AppHost and services with database resources and client registration.
+
+Use the driver directly when:
 
 - You want full control of the SQL text.
-- You use SQL features of CamusDB that an ORM does not expose.
-- You want a small dependency, without EF Core.
+- You use CamusDB SQL features that an ORM doesn't expose.
+- You want a small dependency without EF Core.
 - You want to control each transaction explicitly.
 
 ## Install
@@ -50,7 +54,7 @@ await using CamusConnection connection =
 await connection.OpenAsync();
 ```
 
-`ChangeDatabase("otherdb")` changes the target database of the connection.
+`ChangeDatabase("otherdb")` changes the connection's target database.
 The target database must already exist; see [Database administration](#database-administration)
 when the application is responsible for provisioning it.
 
@@ -73,20 +77,18 @@ await using CamusCommand ddl = connection.CreateCamusCommand("""
 bool created = await ddl.ExecuteDDLAsync();
 ```
 
-`ExecuteDDLAsync()` is also the direct path for a DDL statement of CamusDB. Six
-examples follow:
+`ExecuteDDLAsync()` is also the direct path for other CamusDB DDL, such as:
 
-- A `CHECK` constraint.
-- A named `NOT NULL`.
-- An operation on an index.
-- A rename of a table.
-- A `TRUNCATE TABLE`.
-- A change of a schema without a helper method.
+- `CHECK` constraints.
+- Named `NOT NULL` constraints.
+- Index operations.
+- Table renames.
+- `TRUNCATE TABLE`.
+- Schema changes that have no helper method.
 
 ## Insert rows
 
-For an insert, use the helper of the insert. You can also use SQL with a
-parameter.
+To insert rows, use the insert helper or parameterized SQL.
 
 ### Insert helper
 
@@ -202,7 +204,7 @@ and it cannot transparently replay a serializable conflict after rows have
 already been delivered. Use the buffered reader when you need automatic retry
 around a single statement.
 
-The reader exposes the standard typed methods of a get, such as these:
+The reader exposes the standard typed getters, such as:
 
 - `GetString`
 - `GetBoolean`
@@ -249,9 +251,8 @@ command.Parameters.Add("@happened", ColumnType.DateTime, DateTimeOffset.UtcNow);
 command.Parameters.Add("@note", ColumnType.Null, null);
 ```
 
-For an array, pass an `isArray: true`. Set the scalar type of the elements
-explicitly in two cases: an empty array, and an array whose every current value
-is a `NULL`.
+For an array, pass `isArray: true`. Set the element scalar type explicitly
+when the array is empty or every current value is `NULL`.
 
 ```csharp
 command.Parameters.Add(
@@ -267,14 +268,13 @@ command.Parameters.Add(
     isArray: true);
 ```
 
-The driver normalizes a date and a datetime to UTC before it sends them. It
-stores a `DATE` value at midnight in UTC. It reads a `DATETIME` value back with
-a `DateTimeKind.Utc`.
+The driver normalizes dates and datetimes to UTC before sending them. It
+stores `DATE` values at midnight UTC and reads `DATETIME` values back with
+`DateTimeKind.Utc`.
 
 ## Data types
 
-The driver of ADO.NET covers the current scalar types of CamusDB, and its type
-of an array:
+The ADO.NET driver covers CamusDB's current scalar types and its array type:
 
 | SQL DDL type | Driver type | Typical read/write type |
 | --- | --- | --- |
@@ -291,9 +291,9 @@ of an array:
 | `DATETIME`, `TIMESTAMP` | `ColumnType.DateTime` | `DateTime`, `DateTimeOffset` |
 | `ARRAY(T)` | `ColumnType.Array` | `object?[]` on read, `IEnumerable` on write |
 
-Use a native `UUID` column for a value of a UUID. Do not store the text of a
-UUID in a `STRING`. The native type is more efficient in the memory, and on the
-disk. It also compares as a value of a fixed width.
+Store UUIDs in a native `UUID` column, not as text in a `STRING`. The native
+type is more compact in memory and on disk, and it compares as a fixed-width
+value.
 
 `NUMERIC` is an exact decimal type with fixed precision and scale. A `decimal`
 parameter binds as `NUMERIC`; use `ColumnType.Numeric` with a `string` when the
@@ -375,13 +375,12 @@ distinguish a deferred transaction from one that already has a server handle.
 
 ## Serializable retries
 
-Serializable is the default level of the isolation in CamusDB. Two serializable
-read-write transactions can conflict. CamusDB then aborts one of them. Your
-application must replay that whole unit of work, from its start.
+Serializable is CamusDB's default isolation level. When two serializable
+read-write transactions conflict, CamusDB aborts one of them, and your
+application must replay that whole unit of work from the start.
 
-The package of the client holds a `SerializableRetryHelper`, for that contract of
-a retry. It treats these codes of an error of CamusDB as retryable, and no
-other:
+The client package includes a `SerializableRetryHelper` for this retry
+contract. It treats these CamusDB error codes as retryable, and no others:
 
 | Code | Name | Meaning |
 | --- | --- | --- |
@@ -389,15 +388,12 @@ other:
 | `CADB0504` | `TransactionMustRetry` | A transient routing, [leader](/docs/concepts#leader) change, lock-wait, storage conflict, or temporarily unservable read-range condition exhausted internal retries. |
 | `CADB0505` | `TransactionLifetimeExceeded` | A serializable read-write transaction exceeded the server lifetime cap. |
 
-`CADB0509` `TransactionFinalizeUnresolved` is not part of this helper of a
-replay. That absence is intentional.
+The helper intentionally leaves out `CADB0509`
+`TransactionFinalizeUnresolved`. That code means a commit or rollback has no
+final answer yet: retry the same finalize on the same transaction, and don't
+replay the operation from the start.
 
-The code means one thing: a commit or a rollback has no final answer yet. Retry
-the same finalize, on the same transaction. Do not replay the operation from its
-start.
-
-Use a `SerializableRetryHelper.IsRetryable(...)` when you own the loop of the
-retry:
+Use `SerializableRetryHelper.IsRetryable(...)` when you own the retry loop:
 
 ```csharp
 catch (CamusException ex) when (SerializableRetryHelper.IsRetryable(ex))
@@ -434,9 +430,8 @@ await SerializableRetryHelper.ExecuteAutocommitAsync(async ct =>
 }, maxAttempts: 5, cancellationToken);
 ```
 
-For an explicit transaction of several statements, do not retry the failed
-statement alone. Start a new transaction. Then run every read and every write of
-the unit again:
+For a multi-statement explicit transaction, don't retry the failed statement
+alone. Start a new transaction and run every read and write in the unit again:
 
 ```csharp
 const int MaxAttempts = 5;
@@ -470,15 +465,14 @@ for (int attempt = 1; ; attempt++)
 }
 ```
 
-The default backoff of the helper is a bounded exponential delay, with a random
-variation. The formula is `min(20 ms * 2^attempt, 400 ms)`, plus or minus 25
-percent.
+The helper's default backoff is a bounded exponential delay with random
+jitter: `min(20 ms * 2^attempt, 400 ms)`, plus or minus 25 percent.
 
 ## Prepared statements
 
-The driver prepares a repeated statement of SQL automatically. The same shape of
-SQL must execute enough times first. A later execution then runs as a prepared
-statement. You change no code of your application.
+The driver prepares repeated SQL automatically. Once the same SQL shape has
+run enough times, later executions run as a prepared statement, with no change
+to your application code.
 
 ```csharp
 for (int i = 0; i < 100; i++)
@@ -494,7 +488,7 @@ for (int i = 0; i < 100; i++)
 }
 ```
 
-By default, the first execution runs inline. The second execution prepares the
+By default, the first execution runs inline and the second prepares the
 statement. Tune that policy in the connection string:
 
 ```csharp
@@ -505,8 +499,7 @@ CamusConnectionStringBuilder off = new(
     "Endpoint=http://localhost:5095;Database=test;MaxAutoPrepare=0");
 ```
 
-Call a `Prepare()`, or a `PrepareAsync()`, when you know that a statement is hot
-already:
+Call `Prepare()` or `PrepareAsync()` when you already know a statement is hot:
 
 ```csharp
 await using CamusCommand insert = connection.CreateCamusCommand("""
@@ -526,25 +519,23 @@ foreach (Robot robot in robots)
 }
 ```
 
-A prepared execution keeps the behavior of an inline execution. That includes the
-transaction, the isolation, the locks, the count of the affected rows, and the
-result cache of a query.
+A prepared execution behaves like an inline one, including transactions,
+isolation, locks, affected-row counts, and the query result cache.
 
-The API of ADO.NET still binds a parameter by its name. The driver maps that name
-onto the order of the binding by position of the server.
+ADO.NET still binds parameters by name. The driver maps each name to the
+server's positional binding order.
 
-Five statements accept a prepare: a `SELECT`, an `INSERT`, an `UPDATE`, a
-`DELETE`, and a `SHOW`. The driver runs another statement inline.
+`SELECT`, `INSERT`, `UPDATE`, `DELETE`, and `SHOW` can be prepared. The driver
+runs other statements inline.
 
-The server can report an unknown handle. The driver then prepares the statement
-again, and it replays the execution one time. You see none of that work.
+If the server reports an unknown handle, the driver prepares the statement
+again and replays the execution once, transparently.
 
 `CamusConnectionStringBuilder.PreparedStatementCount` and `IsPrepared(sql)` are
 available for diagnostics.
 
-See [Prepared Statements](/docs/prepared-statements) for three subjects: the
-scope of a handle on the server, the life of a handle over REST and over gRPC,
-and the limits.
+See [Prepared Statements](/docs/prepared-statements) for server-side handle
+scope, handle lifetime over REST and gRPC, and limits.
 
 ## Vectors
 
@@ -598,9 +589,9 @@ query-planning behavior.
 
 ## Query result cache
 
-The result cache of a query of CamusDB is available from plain SQL. Put a
-`{cache=...}` hint after the reference to the table. You can also build that hint
-with a `CamusCacheHint`.
+The CamusDB query result cache is available from plain SQL: put a
+`{cache=...}` hint after the table reference. You can also build the hint with
+`CamusCacheHint`.
 
 ```csharp
 string hint = CamusCacheHint.Build(
@@ -619,9 +610,8 @@ CamusCacheMetadata? cache = reader.CacheMetadata;
 CamusCacheMetadata? lastCache = select.LastCacheMetadata;
 ```
 
-A `CamusCacheMetadata` reports the decision of the cache of the server. Its
-status is a `Hit`, a `Miss`, a `Bypass`, a `StaleRevalidated`, or an
-`EvictedBeforePublish`.
+`CamusCacheMetadata` reports the server cache's decision. Its status is `Hit`,
+`Miss`, `Bypass`, `StaleRevalidated`, or `EvictedBeforePublish`.
 
 Evict cache families through the connection:
 
@@ -630,35 +620,33 @@ await connection.EvictCacheAsync("recent_orders");
 await connection.EvictAllCacheAsync();
 ```
 
-An entry of the cache belongs to the current database. See
-[Query Result Cache](/docs/query-result-cache) for the rules of the shape of a
-query.
+Cache entries belong to the current database. See
+[Query Result Cache](/docs/query-result-cache) for the query shape rules.
 
 ## Authentication
 
-The authentication of CamusDB is off by default. A connection string without a
-credential sends no `Authorization` header.
+CamusDB authentication is off by default. A connection string without
+credentials sends no `Authorization` header.
 
-Against a server with the authentication enabled, add a `User` and a
-`Password`:
+Against a server with authentication enabled, add `User` and `Password`:
 
 ```csharp
 CamusConnectionStringBuilder builder = new(
     "Endpoint=https://db.example.com:7141;Database=app;User=myapp;Password=app-secret");
 ```
 
-The driver exchanges the password one time, for a bearer token with a short
-life. It uses the REST endpoint `/login` on a connection of REST. It uses the
-service `CamusAuth` on a connection of gRPC.
+The driver exchanges the password once for a short-lived bearer token, using
+the REST `/login` endpoint on REST connections and the `CamusAuth` service on
+gRPC connections.
 
-A statement then sends the token. It does not send the password. The driver
-caches the token for that set of credentials. It renews the token from the expiry
-that the server reports. If a cached token is rejected because it expired or was
-rotated out, the driver discards it, logs in again, and replays the statement
-one time. Permission errors are not retried.
+Statements then send the token, not the password. The driver caches the token
+per set of credentials and renews it based on the expiry the server reports. If
+a cached token is rejected because it expired or was rotated out, the driver
+discards it, logs in again, and replays the statement once. Permission errors
+are not retried.
 
-You can also log in explicitly, when the password comes from a manager of
-secrets:
+You can also log in explicitly, for example when the password comes from a
+secrets manager:
 
 ```csharp
 await using CamusConnection connection = new(
@@ -669,20 +657,19 @@ string token = await connection.LoginAsync("myapp", passwordFromSecretManager);
 await connection.LogoutAsync();
 ```
 
-An `AccessToken=...` uses a token from another source. The driver does not renew
-that token. The server returns a `CADB0516` after the token expires, and after
-somebody revokes it.
+`AccessToken=...` uses a token obtained elsewhere. The driver doesn't renew it,
+so the server returns `CADB0516` once the token expires or is revoked.
 
-Use an `https://` address for a deployment with authentication, outside
-loopback. The driver refuses to send `Password` or `AccessToken` credentials to
-a remote plaintext endpoint unless the connection string sets
+For authenticated deployments beyond loopback, use an `https://` address. The
+driver refuses to send `Password` or `AccessToken` credentials to a remote
+plaintext endpoint unless the connection string sets
 `AllowInsecureCredentials=true`. See
-[Authentication And Authorization](/docs/sql-authentication) for the setup of
-the server, for the grants, and for the behavior of TLS.
+[Authentication And Authorization](/docs/sql-authentication) for server
+setup, grants, and TLS behavior.
 
 ## Connection string
 
-Create a `CamusConnection`. Its connection string must hold these parts:
+A `CamusConnection` connection string must include:
 
 - `Endpoint`: the base CamusDB endpoint
 - `Database`: the database name to use
@@ -866,8 +853,8 @@ IReadOnlyList<CamusBranchRow> ancestors =
     await connection.ShowAncestorsAsync("factory_test");
 ```
 
-See [Database Branching](/docs/database-branching) for the behavior of the SQL
-behind these helpers.
+See [Database Branching](/docs/database-branching) for how the SQL behind
+these helpers behaves.
 
 ## Backups
 

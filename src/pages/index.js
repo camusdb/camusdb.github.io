@@ -2,10 +2,11 @@ import clsx from 'clsx';
 import {useRef, useState} from 'react';
 import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
-import useBaseUrl from '@docusaurus/useBaseUrl';
+import useBaseUrl, {useBaseUrlUtils} from '@docusaurus/useBaseUrl';
 import Layout from '@theme/Layout';
 import CodeBlock from '@theme/CodeBlock';
 import Heading from '@theme/Heading';
+import ThemedImage from '@theme/ThemedImage';
 import PyramidEntrance from '../components/PyramidEntrance';
 import styles from './index.module.css';
 
@@ -206,6 +207,65 @@ EVICT CACHE 'recent_orders';`,
   },
 ];
 
+// Captured by `npm run screenshots` (scripts/screenshots). The terminal shots have one theme only.
+const screenshots = [
+  {
+    id: 'web-console',
+    label: 'Web Console',
+    title: 'Query from the browser',
+    detail:
+      'Browse schemas, run SQL, and inspect results in the Web Console, without a SQL client on each machine.',
+    light: '/img/screenshots/webconsole-query-light.webp',
+    dark: '/img/screenshots/webconsole-query-dark.webp',
+    link: '/docs/web-console',
+    linkLabel: 'Read the Web Console guide',
+  },
+  {
+    id: 'query-plan',
+    label: 'Query plans',
+    title: 'Read a plan as a flow',
+    detail:
+      'Run EXPLAIN in the Web Console and see each operator as a diagram, from the source tables to the result.',
+    light: '/img/screenshots/webconsole-plan-light.webp',
+    dark: '/img/screenshots/webconsole-plan-dark.webp',
+    link: '/docs/web-console#query-plan-flow',
+    linkLabel: 'Read about plan flows',
+  },
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    title: 'Check a node at a glance',
+    detail:
+      'Open the HTTP port of a node to see its health, load, engine metrics, and slow queries. The dashboard is read-only.',
+    light: '/img/screenshots/dashboard-light.webp',
+    dark: '/img/screenshots/dashboard-dark.webp',
+    link: '/docs/operator-dashboard',
+    linkLabel: 'Read the dashboard guide',
+  },
+  {
+    id: 'cli',
+    label: 'camus-cli',
+    title: 'Work from the terminal',
+    detail:
+      'camus-cli runs SQL with syntax highlighting, autocompletion, and multiline statements.',
+    light: '/img/screenshots/cli.webp',
+    dark: '/img/screenshots/cli.webp',
+    link: '/docs/camus-cli',
+    linkLabel: 'Read the camus-cli guide',
+  },
+  {
+    id: 'tui',
+    label: 'Full-screen mode',
+    title: 'Keep the catalog, editor, and results in view',
+    detail:
+      'camus-cli --tui shows the catalog, the SQL editor, and the results on one screen.',
+    light: '/img/screenshots/tui.webp',
+    dark: '/img/screenshots/tui.webp',
+    link: '/docs/camus-cli#full-screen-mode',
+    linkLabel: 'Read about full-screen mode',
+  },
+];
+
 function DataBeam({className}) {
   return (
     <div className={clsx(styles.dataBeam, className)} aria-hidden="true">
@@ -397,6 +457,65 @@ function FamiliarSqlSection() {
   );
 }
 
+function ScreenshotGallery() {
+  const [activeShotId, setActiveShotId] = useState(screenshots[0].id);
+  const {withBaseUrl} = useBaseUrlUtils();
+
+  return (
+    <section className={styles.gallerySection}>
+      <div className="container">
+        <div className={styles.sectionIntro}>
+          <p className={styles.sectionEyebrow}>See the tools</p>
+          <Heading as="h2">Query and operate from the browser or the terminal</Heading>
+        </div>
+        <div className={styles.galleryTabs} role="tablist" aria-label="Screenshots">
+          {screenshots.map((shot) => {
+            const isActive = shot.id === activeShotId;
+            return (
+              <button
+                className={clsx(styles.exampleTab, isActive && styles.exampleTabActive)}
+                id={`shot-tab-${shot.id}`}
+                key={shot.id}
+                type="button"
+                role="tab"
+                aria-controls={`shot-panel-${shot.id}`}
+                aria-selected={isActive}
+                onClick={() => setActiveShotId(shot.id)}>
+                {shot.label}
+              </button>
+            );
+          })}
+        </div>
+        {screenshots.map((shot, index) => (
+          <figure
+            className={styles.galleryPanel}
+            id={`shot-panel-${shot.id}`}
+            key={shot.id}
+            role="tabpanel"
+            aria-labelledby={`shot-tab-${shot.id}`}
+            hidden={shot.id !== activeShotId}>
+            <ThemedImage
+              className={styles.galleryImage}
+              alt={`${shot.label}: ${shot.title}`}
+              loading={index === 0 ? 'eager' : 'lazy'}
+              sources={{light: withBaseUrl(shot.light), dark: withBaseUrl(shot.dark)}}
+            />
+            <figcaption className={styles.galleryCaption}>
+              <div>
+                <strong>{shot.title}</strong>
+                <span>{shot.detail}</span>
+              </div>
+              <Link to={shot.link}>
+                {shot.linkLabel} <span aria-hidden="true">→</span>
+              </Link>
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function FinalCallToAction() {
   return (
     <section className={styles.finalCta}>
@@ -434,6 +553,7 @@ export default function Home() {
       <main>
         <OutcomeSection />
         <FamiliarSqlSection />
+        <ScreenshotGallery />
         <FinalCallToAction />
       </main>
     </Layout>

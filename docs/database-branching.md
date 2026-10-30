@@ -22,26 +22,24 @@ UPDATE orders SET status = 'refunded' WHERE status = 'paid';
 ```
 
 The branch starts with the same schema and the same view of the data as the
-source database, at the point of the fork.
+source database had at the fork.
 
-CamusDB uses a branch with a copy at the first write, over the existing layer of
-the storage. An inherited read comes from the snapshot of the source. A write
-and a change of the schema go into the private overlay of the branch.
+Branches are copy-on-write over the existing storage layer. Inherited reads come
+from the source snapshot, while writes and schema changes go into the branch's
+private overlay.
 
-Five uses are common:
+Common uses:
 
-- Create one database for each feature, for development and for CI.
-- Test a migration of a schema against data that is like the data of production.
-- Reproduce a defect that appears in production only. You write nothing to
-  production.
-- Run a destructive experiment. Then discard the branch.
-- Give an isolated clone of a database to each developer, and to each run of a
-  test.
+- One database per feature, for development and CI.
+- Testing a schema migration against production-like data.
+- Reproducing a production-only bug without writing anything to production.
+- Running a destructive experiment, then discarding the branch.
+- Giving each developer and each test run its own isolated database clone.
 
 ![CamusDB database branching diagram](/img/database_branching.png)
 
-CamusDB is in production use. A branch is nevertheless an alpha feature. The
-APIs and the storage formats can change between versions.
+CamusDB is in production use, but branching is still an alpha feature. Its APIs
+and storage formats can change between versions.
 
 ## Create a branch
 
@@ -65,31 +63,31 @@ CREATE DATABASE feature_checkout BRANCH FROM prod;
 USE feature_checkout;
 ```
 
-Use `IF NOT EXISTS` when a script of a setup must be safe to repeat:
+Use `IF NOT EXISTS` when a setup script must be safe to repeat:
 
 ```camussql
 CREATE DATABASE IF NOT EXISTS feature_checkout BRANCH FROM prod;
 ```
 
-The name of the target must not exist already, unless you use `IF NOT EXISTS`.
+Without `IF NOT EXISTS`, the target name must not already exist.
 
-The source database must exist. It must also hold no change of its schema in
-flight, at the moment of the creation of the branch.
+The source database must exist, and it must have no schema change in flight
+when you create the branch.
 
 ## What a branch sees
 
-A branch reads from a line of ancestors:
+A branch reads through a chain of ancestors:
 
 1. Its own private overlay.
-2. The source database, as of the timestamp of the fork.
+2. The source database, as of the fork timestamp.
 3. Every deeper ancestor, when the source was itself a branch.
 
 The nearest data wins:
 
-- A read sees the version of the branch, after a change of a row in the branch.
-- A delete in the branch hides the inherited row of the source.
-- A read falls through to the snapshot of the source, for a row that the branch
-  never touched.
+- After you change a row in the branch, reads see the branch's version.
+- A delete in the branch hides the inherited source row.
+- For a row the branch never touched, the read falls through to the source
+  snapshot.
 
 ```mermaid
 flowchart TD
@@ -102,7 +100,7 @@ flowchart TD
 
 ```camussql
 USE prod;
-INSERT INTO orders VALUES (GEN_ID(), "paid", 120.50);
+INSERT INTO orders VALUES (GEN_ID(), 'paid', 120.50);
 
 CREATE DATABASE bug_repro BRANCH FROM prod;
 USE bug_repro;
@@ -111,32 +109,41 @@ USE bug_repro;
 SELECT * FROM orders;
 
 -- This write is private to bug_repro.
-UPDATE orders SET status = "refunded" WHERE status = "paid";
+UPDATE orders SET status = 'refunded' WHERE status = 'paid';
 
 -- prod is unchanged.
 USE prod;
 SELECT * FROM orders;
 ```
 
-A change of the parent after the fork is invisible to the branch. A change of
-the branch is invisible to the parent, and to a branch beside it.
+The branch does not see changes made to the parent after the fork. The parent
+and sibling branches do not see changes made in the branch.
 
-## The isolation of the schema
+After the fork, both databases share the rows written before it, and CamusDB
+copies none of them. Each side keeps its later writes to itself:
 
-The creation of a branch copies the metadata of the schema of the source, at the
-point of the fork. After that moment, four rules apply:
+```mermaid
+flowchart TD
+    S["prod rows written<br/>before the fork"] --> F(("Fork at<br/>timestamp T"))
+    F --> P["prod writes after T<br/>only prod sees them"]
+    F --> B["bug_repro writes after T<br/>only bug_repro sees them"]
+    S -.->|"read in place,<br/>as of T"| B
+```
 
-- A DDL statement on the parent is invisible to the branch.
-- A DDL statement on the branch is invisible to the parent, and to a branch
-  beside it.
-- A `CREATE TABLE`, an `ALTER TABLE`, and a `CREATE INDEX` of the branch operate
-  in the namespace of the branch.
-- A `DROP TABLE` and a `DROP INDEX` of the branch remove the local metadata and
-  the data of the overlay. Neither one scans and deletes an inherited row of the
-  source.
+## Schema isolation
 
-A developer can therefore try a migration, and a table for one feature, against
-a realistic start:
+Creating a branch copies the source's schema metadata as of the fork. After
+that:
+
+- DDL on the parent is invisible to the branch.
+- DDL on the branch is invisible to the parent and to sibling branches.
+- `CREATE TABLE`, `ALTER TABLE`, and `CREATE INDEX` in the branch operate in the
+  branch's namespace.
+- `DROP TABLE` and `DROP INDEX` in the branch remove the local metadata and the
+  overlay data. Neither one scans for and deletes inherited source rows.
+
+So you can try a migration, or a table for a new feature, against a realistic
+starting point:
 
 ```camussql
 CREATE DATABASE migration_test BRANCH FROM prod;
@@ -146,24 +153,24 @@ ALTER TABLE orders ADD COLUMN audit_note STRING;
 CREATE INDEX orders_status_idx ON orders (status);
 ```
 
-Drop the branch when the migration is wrong. Then create a fresh branch.
+If the migration is wrong, drop the branch and create a fresh one.
 
-If the source is refreshing a materialized view when the branch is created, the
+If the source is refreshing a materialized view when you create the branch, the
 branch does not inherit that in-flight job. It sees the view contents that were
 published at the fork timestamp. The parent's refresh finishes or fails on the
 parent only.
 
-## Constraints, and a write
+## Constraints and writes
 
-A write in a branch affects that branch only. A check of the uniqueness
-nevertheless covers the branch, together with its inherited data.
+A write in a branch affects only that branch. Uniqueness checks, however, cover
+the branch together with its inherited data.
 
-The snapshot of the source can hold a value of a primary key, or of a unique
-index. An insert of the same value in the branch then conflicts. The branch must
-first delete that inherited row.
+If the source snapshot holds a primary key or unique index value, inserting the
+same value in the branch conflicts. The branch must delete that inherited row
+first.
 
-That behavior keeps a branch near a true clone of a database. CamusDB does not
-treat the source as loose data of a seed.
+This keeps a branch close to a true database clone. CamusDB does not treat the
+source as loose seed data.
 
 Foreign keys are inherited too. A check stays inside the branch: it reads the
 branch's own rows merged with its ancestors as of the fork point. A write in the
@@ -174,8 +181,8 @@ cannot reference a table in its source database.
 Creating a branch while a foreign key is still being added is refused, because
 the branch would inherit a constraint that has not finished validation.
 
-A transaction still runs inside one database. A transaction can operate on
-`prod`, or on `feature_checkout`. It cannot operate on both databases together.
+A transaction still runs inside one database. It can operate on `prod` or on
+`feature_checkout`, but not on both.
 
 ## Large values in a branch
 
@@ -185,40 +192,40 @@ follows the same copy-on-write rule as the row:
 - An inherited row reads its inherited out-of-line values from the parent at the
   fork timestamp.
 - A write in the branch stores new large values in the branch only.
-- An update of a small column can carry the inherited pointer without rewriting
-  the large value.
+- Updating a small column can keep the inherited pointer without rewriting the
+  large value.
 - A delete or a shrink writes the branch's own tombstone for the value key.
 
-An `ALTER TABLE ... REWRITE STORAGE` on the parent writes new row versions. A
+`ALTER TABLE ... REWRITE STORAGE` on the parent writes new row versions. A
 branch forked before that rewrite still reads the old versions at its fork
 timestamp. See [Large Values](/docs/storage-layout).
 
-## A truncate in a branch
+## Truncate in a branch
 
-The rows of a table in a branch are the overlay of the branch merged with the
-rows of its ancestors. Each level uses the same id of the storage. A
-[`TRUNCATE`](/docs/truncate-table) therefore has a total meaning in a branch.
+A table's rows in a branch are the branch overlay merged with its ancestors'
+rows, and every level uses the same storage id. So a
+[`TRUNCATE`](/docs/truncate-table) in a branch applies to the whole merged view.
 
 | Action | Effect |
 | --- | --- |
-| A truncate in a branch | CamusDB gives the branch a new id of the storage. The view of the branch becomes empty. Its overlay disappears from that branch, and so do the rows that it inherits. |
-| A recovery in a branch | CamusDB reconstructs the whole merged view of the branch before the truncate, under a new name of a table. |
-| The reclamation | CamusDB scopes the reclamation to the id of the database of the branch. It never deletes a key of an ancestor. |
-| A truncate of the source | A truncate of the source after a fork does not rewrite the copied schema of the descendant. The descendant keeps its forked contents. |
+| Truncate in a branch | CamusDB gives the branch a new storage id. The branch's view becomes empty: both its overlay and its inherited rows disappear from that branch. |
+| Recover in a branch | CamusDB rebuilds the branch's whole merged view from before the truncate, under a new table name. |
+| Reclamation | CamusDB scopes reclamation to the branch's database id. It never deletes an ancestor's key. |
+| Truncate the source | Truncating the source after a fork does not rewrite the descendant's copied schema. The descendant keeps its forked contents. |
 
-A truncate in a branch deletes nothing at once. The overlay becomes retired
-contents, and CamusDB never touches the rows of the ancestor.
+A truncate in a branch deletes nothing immediately. The overlay becomes retired
+contents, and CamusDB never touches the ancestor's rows.
 
 ## Drop a branch
 
-Drop a branch as you drop any database:
+Drop a branch like any other database:
 
 ```camussql
 DROP DATABASE feature_checkout;
 ```
 
-You cannot drop a database with a live descendant branch. Drop the descendants
-first, from the leaves back toward the root:
+You cannot drop a database that has a live descendant branch. Drop the
+descendants first, from the leaves back toward the root:
 
 ```camussql
 DROP DATABASE feature_checkout_repro;
@@ -226,19 +233,18 @@ DROP DATABASE feature_checkout;
 DROP DATABASE prod;
 ```
 
-The drop of a branch releases its retention hold: the pin that kept the
-source's older row versions ([MVCC](/docs/concepts#mvcc)) from being reclaimed,
-so the branch could still read the source as of the fork.
+Dropping a branch releases its retention hold: the pin that kept the source's
+older row versions ([MVCC](/docs/concepts#mvcc)) from being reclaimed, so the
+branch could still read the source as of the fork.
 
-A drop of a branch is immediate. `CREATE DATABASE ... RELINK TO` cannot recover
-it. A recoverable drop covers a root database, and a table of a root database.
+Dropping a branch is immediate, and `CREATE DATABASE ... RELINK TO` cannot
+recover it. Recoverable drops cover root databases and tables in root databases.
 See [Recover Dropped Objects](/docs/recover-dropped-objects).
 
-## Inspect the branches
+## Inspect branches {#inspect-the-branches}
 
-Use `SHOW BRANCHES` and `SHOW ANCESTORS` to inspect the relations of the
-branches, from SQL. Both are statements at the level of the server. Neither one
-needs a current database.
+Use `SHOW BRANCHES` and `SHOW ANCESTORS` to inspect branch relationships from
+SQL. Both are server-level statements, so neither needs a current database.
 
 ```camussql
 SHOW BRANCHES FROM prod;
@@ -246,30 +252,29 @@ SHOW ANCESTORS FROM feature_checkout;
 ```
 
 `SHOW BRANCHES FROM <database>` returns every descendant of the named database.
-A direct branch has the depth `1`. A branch of such a branch has the depth `2`,
-and so on. CamusDB orders the result by the depth, and then by the name of the
-database.
+A direct branch has depth `1`, a branch of that branch has depth `2`, and so
+on. CamusDB orders the result by depth, then by database name.
 
 | Column | Meaning |
 | --- | --- |
-| `database` | The name of the descendant database. |
-| `id` | The stable internal id of the descendant database. |
+| `database` | The descendant database's name. |
+| `id` | The descendant database's stable internal id. |
 | `depth` | The distance from the source database. |
-| `parent` | The name of the immediate parent database. |
-| `fork_timestamp` | The cluster timestamp ([HLC](/docs/concepts#hlc)) at the fork of the descendant from its parent. |
+| `parent` | The immediate parent database's name. |
+| `fork_timestamp` | The cluster timestamp ([HLC](/docs/concepts#hlc)) when the descendant forked from its parent. |
 
-`SHOW ANCESTORS FROM <database>` returns the chain of the ancestors of the named
-database. It starts with the immediate parent. It then walks back toward the
-root. A root database returns an empty result.
+`SHOW ANCESTORS FROM <database>` returns the named database's ancestor chain,
+starting with the immediate parent and walking back toward the root. A root
+database returns an empty result.
 
 | Column | Meaning |
 | --- | --- |
-| `database` | The name of the ancestor database. |
-| `id` | The stable internal id of the ancestor database. |
-| `depth` | The distance from the database of the query. |
-| `fork_timestamp` | The timestamp of the hybrid logical clock, for the fork below this ancestor. |
+| `database` | The ancestor database's name. |
+| `id` | The ancestor database's stable internal id. |
+| `depth` | The distance from the queried database. |
+| `fork_timestamp` | The hybrid logical clock timestamp of the fork below this ancestor. |
 
-Here is an example:
+For example:
 
 ```camussql
 CREATE DATABASE prod;
@@ -280,47 +285,45 @@ SHOW BRANCHES FROM prod;
 SHOW ANCESTORS FROM checkout_repro;
 ```
 
-Those two statements make three tasks easier. You find the leaf branches before
-a drop of a parent. You see the depth of a chain of branches. You confirm the
-snapshot of the source that a branch depends on.
+These statements help you find the leaf branches before you drop a parent, see
+how deep a branch chain is, and confirm which source snapshot a branch depends
+on.
 
 ## How it works
 
-Every database has a stable internal id in the storage. A root database has no
-ancestor. A branch records two values: the id of the source database, and the
-timestamp of the hybrid logical clock at its fork.
+Every database has a stable internal storage id. A root database has no
+ancestor. A branch records two values: the source database's id and the hybrid
+logical clock timestamp of its fork.
 
-At the creation of a branch, CamusDB does five things:
+When you create a branch, CamusDB:
 
-1. It creates a new id of a database, for the branch.
-2. It records the ancestors of the branch.
-3. It pins the snapshot of the source. An inherited read therefore stays valid.
-4. It copies the metadata of the schema, as of the timestamp of the fork.
-5. It publishes the branch as an ordinary name of a database.
+1. Creates a new database id for the branch.
+2. Records the branch's ancestors.
+3. Pins the source snapshot, so inherited reads stay valid.
+4. Copies the schema metadata as of the fork timestamp.
+5. Publishes the branch as an ordinary database name.
 
-CamusDB copies no row and no entry of an index during the creation of a branch.
-A read merges the overlay of the branch with the snapshots of its ancestors. A
-write, a delete, and a new object of a schema all go into the namespace of the
-branch only.
+Creating a branch copies no rows and no index entries. Reads merge the branch
+overlay with its ancestors' snapshots. Writes, deletes, and new schema objects
+all go into the branch's namespace only.
 
-## Notes for an operator
+## Operator notes
 
-The retention of a snapshot is the main cost of the operation. A live branch
-keeps the history of its source at the time of the fork readable. Many long
-branches over a busy source can therefore hold the reclamation of the storage
-back.
+Snapshot retention is the main operational cost. A live branch keeps its
+source's history readable from the fork onward, so many long-lived branches over
+a busy source can hold back storage reclamation.
 
-CamusDB renews the hold on the snapshot of the parent of each live branch, in
-the background. The renewer scans the persistent registry of the branches. One
-node can therefore renew a branch that another node created. That renewer is the
-node that owns the work of the registry at that moment.
+CamusDB renews each live branch's hold on its parent snapshot in the background.
+The renewer scans the persistent branch registry, so one node can renew a branch
+that another node created. The renewer is whichever node owns the registry work
+at that moment.
 
-A rename of a branch preserves the hold. A drop of the branch releases it.
+Renaming a branch preserves the hold. Dropping the branch releases it.
 
 `branch_snapshot_hold_lease_ms` controls how long the hold lasts between
 renewals (its [lease](/docs/concepts#lease)). See
-[Configuration](/docs/configuration). The default is 300,000 milliseconds, which
-is 5 minutes.
+[Configuration](/docs/configuration). The default is 300,000 milliseconds (5
+minutes).
 
 A temporary renewal lapse can recover while the hold remains registered. Once a
 hold is removed from the replicated registry, however, CamusDB treats the branch
@@ -329,10 +332,10 @@ reclaimed. Reads and writes that would consult the branch's ancestry fail closed
 with `CADB0539` `BranchSnapshotProtectionLost` (HTTP 410). Recreate the branch
 from the parent instead of trusting a partial inherited view.
 
-In cluster mode, CamusDB fences a drop of a parent against a concurrent creation
-of a branch. The fence can fail to acquire, and its state can be indeterminate.
-The drop then fails closed, with a retryable error. CamusDB does not purge a
-parent while another node may publish a branch.
+In cluster mode, CamusDB fences dropping a parent against concurrent branch
+creation. If the fence cannot be acquired, or its state is indeterminate, the
+drop fails closed with a retryable error. CamusDB does not purge a parent while
+another node may publish a branch.
 
 When your workload uses many branches, watch the snapshot floor metrics of
 [Kahuna](/docs/concepts#kahuna), the storage layer. The snapshot floor is the
@@ -340,36 +343,46 @@ oldest point in history that a hold still pins:
 
 | Metric | Meaning |
 | --- | --- |
-| `kahuna.snapshot_floor.live_holds` | The number of the live holds on a snapshot. A steady increase usually means that nobody drops the branches. |
-| `kahuna.snapshot_floor.effective_floor_ms` | The distance into the past that the oldest hold pins the history. |
-| `kahuna.snapshot_floor.missing_protected_version_total` | It must stay at `0`. A value above zero means that CamusDB reclaimed protected history. |
+| `kahuna.snapshot_floor.live_holds` | The number of live snapshot holds. A steady increase usually means nobody is dropping branches. |
+| `kahuna.snapshot_floor.effective_floor_ms` | How far into the past the oldest hold pins history. |
+| `kahuna.snapshot_floor.missing_protected_version_total` | Must stay at `0`. A value above zero means CamusDB reclaimed protected history. |
 
-A deep chain of branches also adds work to a read. CamusDB may probe one level
-for each ancestor. Prefer a short branch for development, for a test, and for a
-debug workflow. That advice holds until a feature of a compaction or of a rebase
-exists.
+A deep branch chain also adds work to reads, because CamusDB may probe one level
+per ancestor. Until compaction or rebase exists, prefer short-lived branches for
+development, testing, and debugging.
 
-## The current limits
+### Dropping a branch
 
-A branch of a database does not include five features today:
+`DROP DATABASE` purges the branch's private overlay in bounded batches and
+returns after the purge finishes. Each batch uses one delete-many call,
+sharing a Raft round instead of issuing a separate round trip per key. Larger
+overlays, including indexes built on inherited rows, therefore add drop work.
+This paged purge is not subject to the single-transaction mutation cap.
 
-- A merge back into the parent.
-- A transaction across two branches.
-- An automatic compaction of a branch, and an automatic rebase.
-- A new parent for a descendant, after a drop of its parent.
-- A hard maximum for the depth of a branch.
+A transient registry-scan failure is retried internally up to three times,
+then reported as retryable `CADB0504`. An incomplete purge retains its recovery
+markers so startup can resume it. Drop descendants before their parents.
 
-The feature serves four workflows: an isolated development, a test, a rehearsal
-of a migration, and the reproduction of a problem. You can drop a branch of any
-of those when you no longer need it.
+## Current limits
+
+Database branches do not support these features today:
+
+- Merging back into the parent.
+- Transactions across two branches.
+- Automatic branch compaction or rebase.
+- Reparenting a descendant after its parent is dropped.
+- A hard maximum branch depth.
+
+Branching serves isolated development, testing, migration rehearsal, and problem
+reproduction. You can drop any of these branches when you no longer need it.
 
 ## Error codes
 
 | Code | Name | Typical cause |
 | --- | --- | --- |
-| `CADB0010` | `DatabaseDoesntExist` | The source database does not exist. A user also dropped it during the creation of the branch. |
-| `CADB0012` | `DatabaseAlreadyExists` | The name of the target branch exists already, and the statement holds no `IF NOT EXISTS`. |
-| `CADB0400` | `InvalidInput` | The source holds a change of its schema in flight. CamusDB also cannot acquire the hold on the snapshot. Another precondition of a branch or of a drop also fails. |
+| `CADB0010` | `DatabaseDoesntExist` | The source database does not exist, or it was dropped while the branch was being created. |
+| `CADB0012` | `DatabaseAlreadyExists` | The target branch name already exists, and the statement has no `IF NOT EXISTS`. |
+| `CADB0400` | `InvalidInput` | The source has a schema change in flight, CamusDB cannot acquire the snapshot hold, or another branch or drop precondition fails. |
 | `CADB0508` | `DatabaseHasLiveDescendants` | A `DROP DATABASE` targets a database with a live descendant branch. |
 | `CADB0539` | `BranchSnapshotProtectionLost` | The snapshot hold that protected inherited branch data was removed, so CamusDB refuses ancestor reads instead of returning a possibly incomplete result. |
 

@@ -8,24 +8,24 @@ The HTTP API lets any program run SQL on CamusDB with a plain HTTP request and
 a JSON body. You need no driver and no special library. A shell script with
 `curl` is enough.
 
-CamusDB exposes endpoints of JSON. They serve an automation, and an integration
-with an application. Each property of a request, and each property of a
-response, uses camel case.
+The endpoints speak JSON and suit automation and application integrations.
+All request and response properties use camel case.
 
 ## When to use the HTTP API
 
-Use the HTTP API in these cases:
+Use the HTTP API when:
 
-- A script, a CI job, or an automation tool must run SQL or check the health of
-  a node.
+- A script, CI job, or automation tool needs to run SQL or check a node's
+  health.
 - Your language has no CamusDB driver.
 - You want to test a request quickly from a terminal.
-- A load balancer or a monitoring system must call a node.
+- A load balancer or monitoring system needs to call a node.
 
-For application code in .NET or in TypeScript, a driver is easier. The
-[.NET driver](/docs/dotnet-driver) and the
-[TypeScript connector](/docs/typescript-connector) use this API, and they add
-typed parameters, transactions, retries, and routing. For an interactive
+For application code, use the [.NET driver](/docs/dotnet-driver),
+[TypeScript connector](/docs/typescript-connector), or
+[Python driver](/docs/python-driver) for typed parameters, transactions, and
+retry helpers. Python provides DB-API and asyncio interfaces over REST;
+.NET and TypeScript also support gRPC and learned routing. For an interactive
 session, use [camus-cli](/docs/camus-cli).
 
 | | [HTTP API](/docs/http-api) | [gRPC API](/docs/grpc-api) |
@@ -61,11 +61,10 @@ Successful responses use:
 }
 ```
 
-A failed response holds a code of an error of CamusDB, where one is available.
+A failed response includes a CamusDB error code when one is available.
 
-Many errors of the domain map to the HTTP status 500. Six other groups use their
-matching status: an authentication, an authorization, a validation, an object
-that is absent, a conflict, and a limit of a rate:
+Many domain errors map to HTTP 500. Authentication, authorization, validation,
+not-found, conflict, and rate-limit errors use their matching status:
 
 ```json
 {
@@ -75,8 +74,23 @@ that is absent, a conflict, and a limit of a rate:
 }
 ```
 
-See [Error Codes](/docs/error-codes) for the list of the reference. That page
-also gives the cause of each code.
+See [Error Codes](/docs/error-codes) for the full list and the cause of each
+code.
+
+## Request limits
+
+Inline SQL defaults to an 8 MiB UTF-8 limit (`max_statement_bytes`); larger
+text fails before parsing with `CADB0557` and HTTP 413. Bound parameter values
+do not count toward that text limit. Buffered `/execute-sql-query` and `/query`
+responses default to 1,000,000 rows or 256 MiB of estimated memory. Exceeding
+either returns `CADB0556` before commit and rolls back the statement.
+
+For large ordinary reads, use `/execute-sql-query-stream` or pagination.
+Writes with RETURNING and other writable reads can still buffer before commit,
+so changing transport does not always remove the result cap. These limits,
+client-connection caps, and transaction caps are described in
+[configuration](/docs/configuration#request-resource-limits). They are node
+resource bounds, not per-client rate limits or statement timeouts.
 
 ## Cancellation
 
@@ -92,7 +106,7 @@ remaining work as abandoned and cleans up the query.
 
 ## Authentication
 
-While the authentication is enabled, use `/login`. It gives you a bearer token:
+When authentication is enabled, call `/login` to get a bearer token:
 
 ```http
 POST /login
@@ -118,17 +132,16 @@ Send the token on later requests:
 Authorization: Bearer camus_<id>.<secret>
 ```
 
-Use `/logout` with the same header. It revokes the current token.
+Call `/logout` with the same header to revoke the current token.
 
-`expiresAtUnixMs` is the absolute deadline of the token, in UTC.
+`expiresAtUnixMs` is the token's absolute deadline, in UTC.
 
-`expiresInSeconds` is the same deadline, as a duration that the server measured.
-That form helps a client that renews on a timer. Such a client does not trust
-its own wall clock.
+`expiresInSeconds` is the same deadline as a duration the server measured. It
+helps clients that renew on a timer without trusting their own wall clock.
 
-See [Authentication And Authorization](/docs/sql-authentication) for four
-subjects: the environment variables, the statements of SQL for a user and a
-grant, the requirements of TLS, and the enforcement of a privilege.
+See [Authentication And Authorization](/docs/sql-authentication) for the
+environment variables, the SQL statements for users and grants, TLS
+requirements, and privilege enforcement.
 
 ## Column values
 
@@ -170,15 +183,15 @@ CamusDB serializes a `ColumnType` as the numeric value of its enum:
 { "type": 12, "strValue": "12345678901234567890.123456789" }
 ```
 
-For a value of bytes, a literal of SQL uses the hexadecimal form `X'...'`. The
-JSON uses base64 instead, in a `bytesValue`.
+SQL literals write bytes in hexadecimal form, `X'...'`. JSON uses base64
+instead, in `bytesValue`.
 
-For a date and for a datetime, a response holds an `isoValue`. The stored value
-appears as UTC ticks, in a `longValue`.
+For dates and datetimes, responses include an `isoValue`, and `longValue`
+carries the stored value as UTC ticks.
 
-For a UUID in a request, pass the canonical text with hyphens, or a hexadecimal
-text of 32 characters. Put it in the `strValue`. A response also holds a
-`uuidValue`, for a reader.
+For a UUID in a request, pass the canonical hyphenated text or a 32-character
+hexadecimal string in `strValue`. Responses also include a `uuidValue` for
+human readers.
 
 For a numeric value in a request, pass decimal text in `strValue`. CamusDB parses
 it as `NUMERIC`, rounds to nine fractional digits when necessary, and rejects a
@@ -201,8 +214,8 @@ same response. Both answer without a credential.
 
 ## Databases
 
-You must create a database explicitly first. Only then can a DDL statement of a
-table, a DML statement, and a query use the name of that database.
+Create a database explicitly before table DDL, DML, or queries can use its
+name.
 
 ### `POST /create-db`
 
@@ -221,8 +234,8 @@ table, a DML statement, and a query use the name of that database.
 }
 ```
 
-The direct endpoint drops an existing database. Use SQL for a drop that you can
-repeat safely:
+This endpoint drops an existing database. For a drop you can safely repeat,
+use SQL:
 
 ```json
 {
@@ -230,7 +243,7 @@ repeat safely:
 }
 ```
 
-SQL also exposes a rename of a database:
+SQL can also rename a database:
 
 ```json
 {
@@ -295,14 +308,14 @@ CamusDB also accepts the equivalent form, `ALTER DATABASE ... RENAME TO`:
 }
 ```
 
-The model of a creation of a table over HTTP accepts these types: `id`,
+The HTTP create-table model accepts these types: `id`,
 `int64`, `float64`, `float32`, `bool`, `string`, `date`, `datetime`, `bytes`,
 `uuid`, `numeric`, and `array`. It also accepts the aliases `int`, `integer`,
 `char`, `varchar`, `text`, `real`, `timestamp`, `blob`, `guid`, and `decimal`.
 Type names are not case sensitive.
 
-Use a `maxLength` for the limit of a `string`, and for the limit of a `bytes`
-value. Use an `arrayElementType` for a column of an array.
+Use `maxLength` to limit `string` and `bytes` values, and `arrayElementType`
+for array columns.
 
 Use `foreignKeys` to declare table-level foreign keys. Each entry needs a
 `name`, the child `columns`, and a `referencedTable`. `referencedColumns` can be
@@ -310,33 +323,31 @@ empty to reference the parent primary key. `onDelete` and `onUpdate` accept
 `"no action"` and `"restrict"` today. See
 [Foreign Keys](/docs/foreign-keys).
 
-See [Data Types](/docs/data-types) for the names of SQL, the aliases, the
-formats of a literal, and the rules of a value of JSON.
+See [Data Types](/docs/data-types) for SQL type names, aliases, literal
+formats, and JSON value rules.
 
 ## SQL execution
 
-Use the endpoints of SQL where that is possible. They use the same parser and
-the same executor as the tests of the engine.
+Prefer the SQL endpoints when you can. They use the same parser and executor
+as the engine's tests.
 
-A request of SQL in autocommit mode uses the Serializable isolation, by
-default.
+Autocommit SQL requests use Serializable isolation by default.
 
-A request that starts a transaction in autocommit mode accepts two fields. Set
-the `isolationLevel` to `"Serializable"`, or to `"ReadCommitted"`. Set the
-`transactionMode` to `"ReadWrite"`, or to `"ReadOnly"`.
+An autocommit request that starts a transaction accepts `isolationLevel`
+(`"Serializable"` or `"ReadCommitted"`) and `transactionMode` (`"ReadWrite"` or
+`"ReadOnly"`).
 
-A request in autocommit mode that writes can also set the `locking`. Use
-`"Pessimistic"`, or `"Optimistic"`.
+An autocommit request that writes can also set `locking` to `"Pessimistic"` or
+`"Optimistic"`.
 
-A request that starts a transaction can set the `priority`. Use `"Background"`,
+A request that starts a transaction can set `priority` to `"Background"`,
 `"Low"`, `"Normal"`, `"High"`, or `"Critical"`.
 
-CamusDB ignores these fields when the request resumes an existing transaction,
-with a `txnIdPT` and a `txnIdCounter`.
+CamusDB ignores these fields when the request resumes an existing transaction
+through `txnIdPT` and `txnIdCounter`.
 
-A read-only request to `/execute-sql-query` also ignores the `locking`. Such a
-request runs no transaction that writes. It therefore acquires no write
-conflict, and it validates none.
+A read-only request to `/execute-sql-query` also ignores `locking`. It runs no
+write transaction, so it neither acquires nor validates write conflicts.
 
 ### `POST /execute-sql-ddl`
 
@@ -359,8 +370,8 @@ Server-level database statements can omit `databaseName`:
 }
 ```
 
-A query at the level of the server, for an operation, can also omit the
-`databaseName`. `SHOW ENGINE STATS` is one example.
+Server-level operational queries, such as `SHOW ENGINE STATS`, can also omit
+`databaseName`.
 
 ### `POST /execute-sql-query`
 
@@ -428,10 +439,12 @@ JSON, not `ColumnValue` objects:
 A SQL `NULL` is JSON `null`. The cache fields are `null` unless the query
 carries a cache hint. See [Query Result Cache](/docs/query-result-cache).
 
-`causalToken` is a cluster timestamp, made of the three parts `n`, `l`, and `c`
-of a [hybrid logical clock (HLC)](/docs/concepts#hlc) value. Send it back as
-`causalToken` on the next request of the same session, so that session reads
-its own writes on any node.
+`causalToken` is a cluster timestamp: the `n`, `l`, and `c` parts of a
+[hybrid logical clock (HLC)](/docs/concepts#hlc) value. Send it back as
+`causalToken` on the next autocommit query or `/start-transaction` request
+so the read observes your earlier writes on another node. An explicit
+transaction's floor is fixed at its start; tokens on later statements do not
+advance it.
 
 This endpoint also accepts `INSERT`, `UPDATE`, and `DELETE` statements with a
 `RETURNING` list. The response is the same query result shape: `columns`, then
@@ -441,8 +454,8 @@ Set `routingAcceptVersion: 1` on the request to opt in to advisory routing
 metadata. An eligible response then includes an optional `routing` object. See
 [SQL Routing Advice](/docs/sql-routing-advice).
 
-This endpoint supports a read with time travel, through an `AS OF SYSTEM TIME`.
-The statement must be a read-only `SELECT`, in autocommit mode:
+This endpoint supports time-travel reads with `AS OF SYSTEM TIME`. The
+statement must be a read-only `SELECT` in autocommit mode:
 
 ```json
 {
@@ -458,14 +471,13 @@ The statement must be a read-only `SELECT`, in autocommit mode:
 }
 ```
 
-The restrictions of the SQL also apply over HTTP. The clause cannot run inside
-an explicit transaction. An invalid value of a time travel returns `CADB0409`
+The SQL restrictions also apply over HTTP: the clause cannot run inside an
+explicit transaction, and an invalid time-travel value returns `CADB0409`
 `InvalidAsOfSystemTime`. See [Time-Travel Reads](/docs/time-travel-reads).
 
 ### `POST /execute-sql-query-stream`
 
-For a large result of a `SELECT`, and for a large result of a `SHOW`, use the
-endpoint that streams:
+For large `SELECT` or `SHOW` results, use the streaming endpoint:
 
 ```json
 {
@@ -477,9 +489,8 @@ endpoint that streams:
 }
 ```
 
-The body of the request has the same shape as the body of
-`/execute-sql-query`. The response uses JSON with one object on each line. Its
-type of the content is `application/x-ndjson`:
+The request body has the same shape as for `/execute-sql-query`. The response
+is one JSON value per line, with content type `application/x-ndjson`:
 
 ```json
 {"status":"ok","columns":[{"name":"id","type":1},{"name":"name","type":3}]}
@@ -488,30 +499,28 @@ type of the content is `application/x-ndjson`:
 {"status":"ok","total":2,"serverTimeMs":3.1}
 ```
 
-The first line is the header of the schema. Each row is a compact array by
-position. It follows the order of the columns of that header.
+The first line is the schema header. Each row is a compact positional array in
+the header's column order.
 
-The last line is a trailer. It holds four values: the final status, the total of
-the rows of the stream, an optional causal token, and the time of the server.
+The last line is a trailer with the final status, the total number of streamed
+rows, an optional causal token, and the server time.
 
-An error can happen before the first line. CamusDB then returns an ordinary body
-of an error in JSON, with the matching status of HTTP.
+If an error happens before the first line, CamusDB returns an ordinary JSON
+error body with the matching HTTP status.
 
-An error can also happen after the start of the stream. The status of HTTP can
-be `200` already. CamusDB therefore reports the failure in the last trailer:
+If an error happens after the stream starts, the HTTP status may already be
+`200`, so CamusDB reports the failure in the final trailer:
 
 ```json
 {"status":"failed","total":128,"code":"CADB0502","message":"transaction conflict","serverTimeMs":12.4}
 ```
 
-A stream in autocommit mode runs one attempt. A row can already be on the wire
-before the commit. The server therefore cannot replay a late conflict of the
-Serializable isolation without your knowledge. The endpoint that buffers can do
-that.
+An autocommit stream runs a single attempt. Rows can already be on the wire
+before the commit, so the server cannot silently replay a late Serializable
+conflict. The buffered endpoint can.
 
-Use `/execute-sql-query` when an automatic retry of an autocommit matters more
-than a delivery in parts. You can also use an explicit transaction, and retry
-from the client.
+Use `/execute-sql-query` when automatic autocommit retries matter more than
+incremental delivery, or use an explicit transaction and retry from the client.
 
 ### `POST /execute-sql-non-query`
 
@@ -558,14 +567,20 @@ Set `routingAcceptVersion: 1` on the request to opt in to advisory routing
 metadata. An eligible response then includes an optional `routing` object. See
 [SQL Routing Advice](/docs/sql-routing-advice).
 
+### Locking reads
+
+`SELECT ... FOR UPDATE` uses the query endpoints but needs a writable
+transaction. Autocommit locking reads commit and release their locks before
+sending rows; use an explicit transaction if a later UPDATE depends on the
+lock. Pass `"isolationLevel": "ReadCommitted"` for autocommit SKIP LOCKED.
+See [locking reads](/docs/sql-queries#for-update) for restrictions and error codes.
+
 ## Prepared statements
 
-A prepared statement lets a client register a statement of SQL one time. That
-client then executes the statement many times, by its handle, with different
-values by position.
-
-A prepared statement helps with a hot statement that has parameters. It covers a
-`SELECT`, an `INSERT`, an `UPDATE`, a `DELETE`, and a `SHOW`.
+A prepared statement lets a client register SQL once and then execute it many
+times by handle, with different positional values. It helps with hot
+parameterized statements and covers `SELECT`, `INSERT`, `UPDATE`, `DELETE`, and
+`SHOW`.
 
 Register a statement:
 
@@ -589,8 +604,8 @@ Response:
 }
 ```
 
-Execute the statement through one of three endpoints: `/execute-sql-query`,
-`/execute-sql-query-stream`, or `/execute-sql-non-query`:
+Execute it through `/execute-sql-query`, `/execute-sql-query-stream`, or
+`/execute-sql-non-query`:
 
 ```json
 {
@@ -602,11 +617,11 @@ Execute the statement through one of three endpoints: `/execute-sql-query`,
 }
 ```
 
-With a `statementId` present, omit three fields: the `sql`, the `databaseName`,
-and the named `parameters`.
+When you send `statementId`, omit `sql`, `databaseName`, and the named
+`parameters`.
 
-The `positionalParameters[i]` binds to the `parameterNames[i]` of the response of
-the prepare.
+`positionalParameters[i]` binds to `parameterNames[i]` from the prepare
+response.
 
 Close a handle:
 
@@ -617,21 +632,20 @@ Content-Type: application/json
 { "statementId": "opaque-node-local-handle" }
 ```
 
-A handle of REST belongs to the node that prepared it, and to the principal that
-prepared it.
+A REST handle belongs to the node and the principal that prepared it.
 
-An execution can return `CADB0520` `UnknownPreparedStatement`. Prepare the
-statement again. Then replay the execution one time.
+If an execution returns `CADB0520` `UnknownPreparedStatement`, prepare the
+statement again and replay the execution once.
 
-See [Prepared Statements](/docs/prepared-statements) for the scope of a handle,
-for the behavior of the authorization, and for the limits.
+See [Prepared Statements](/docs/prepared-statements) for handle scope,
+authorization behavior, and limits.
 
 ## Direct row operations
 
-A direct endpoint accepts a filter, instead of a string of SQL. A filter holds
-three parts: the name of a column, an operator, and a `ColumnValue`.
+Direct endpoints take filters instead of a SQL string. A filter has a column
+name, an operator, and a `ColumnValue`.
 
-An `OrderType` is also numeric. A `0` is ascending. A `1` is descending.
+`OrderType` is also numeric: `0` is ascending and `1` is descending.
 
 ```json
 {
@@ -741,33 +755,42 @@ Start a transaction:
 }
 ```
 
-Four fields are optional: the `isolationLevel`, the `transactionMode`, the
-`locking`, and the `priority`.
+`isolationLevel`, `transactionMode`, `locking`, and `priority` are all
+optional. Without them, the transaction starts with the server defaults:
 
-Without them, the transaction starts with the defaults of the server:
+- Isolation level: Serializable.
+- Transaction mode: read-write.
+- Locking: pessimistic.
+- Priority: normal.
 
-- The isolation level is Serializable.
-- The mode of the transaction is read-write.
-- The strategy of the locks is pessimistic.
-- The priority of the transaction is normal.
+The optional `causalToken` carries the last commit's timestamp into `BEGIN`:
 
-Use a `"ReadCommitted"` only for an intentional step down from the default
+```json
+{
+  "databaseName": "app",
+  "isolationLevel": "ReadCommitted",
+  "causalToken": { "n": 1, "l": 1792500000000, "c": 0 }
+}
+```
+
+Use the actual token returned by your last commit, including all three fields.
+Read Committed statement snapshots are at least that timestamp, preventing a
+read on a node with a slower clock from missing the earlier commit.
+
+Use `"ReadCommitted"` only when you intend to step down from the default
 Serializable behavior.
 
-Use a `"ReadOnly"` together with a `"Serializable"` for a stable transaction of a
-snapshot.
+Use `"ReadOnly"` with `"Serializable"` for a stable snapshot transaction.
 
-Use an `"Optimistic"` when CamusDB must detect a conflict at the commit. It then
-takes no explicit lock during the transaction.
+Use `"Optimistic"` when CamusDB should detect conflicts at commit instead of
+taking explicit locks during the transaction.
 
-Use a priority for the order of the admission only, under a configured gate of
-the concurrency.
+Use priority only to order admission under a configured concurrency gate.
 
-CamusDB rejects an unknown value of a locking, and an unknown value of a
-priority, with an `InvalidInput`.
+CamusDB rejects unknown locking or priority values with `InvalidInput`.
 
-See [Transaction Priority](/docs/transaction-priority) for the levels of a
-priority, and for the configuration of the gate.
+See [Transaction Priority](/docs/transaction-priority) for the priority levels
+and gate configuration.
 
 Response:
 
@@ -779,15 +802,15 @@ Response:
 }
 ```
 
-Pass the `txnIdPT` and the `txnIdCounter` to a later request. That request can be
-a request of SQL, or a direct request on a row. It then reuses the transaction:
+Pass `txnIdPT` and `txnIdCounter` on later SQL or direct row requests to reuse
+the transaction:
 
 ```json
 {
   "databaseName": "app",
   "txnIdPT": 123,
   "txnIdCounter": 1,
-  "sql": "INSERT INTO robots (id, name) VALUES (GEN_ID(), \"K-2SO\")"
+  "sql": "INSERT INTO robots (id, name) VALUES (GEN_ID(), 'K-2SO')"
 }
 ```
 
@@ -803,6 +826,20 @@ Commit or roll back:
 }
 ```
 
+A successful commit returns its causal token when it has a commit timestamp:
+
+```json
+{
+  "status": "ok",
+  "causalToken": { "n": 1, "l": 1792500000000, "c": 0 }
+}
+```
+
+The token can be null for a transaction that never opened a session. Carry the
+returned token into the next `/start-transaction` or autocommit
+`/execute-sql-query` request to observe the commit across nodes. An existing
+transaction's causal floor is fixed at its start.
+
 ### `POST /rollback-transaction`
 
 ```json
@@ -813,12 +850,11 @@ Commit or roll back:
 }
 ```
 
-A `COMMIT` or a `ROLLBACK` can return `CADB0509`
-`TransactionFinalizeUnresolved`. Retry the same request, with the same id of the
-transaction.
+If a `COMMIT` or `ROLLBACK` returns `CADB0509` `TransactionFinalizeUnresolved`,
+retry the same request with the same transaction id.
 
-Do not start a fresh transaction, and do not replay the statements. The original
-commit may have succeeded already, on the server.
+Do not start a fresh transaction or replay the statements. The original commit
+may already have succeeded on the server.
 
 ```mermaid
 sequenceDiagram

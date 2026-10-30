@@ -4,27 +4,27 @@ sidebar_position: 8
 
 # Configuration
 
-The configuration of a node controls how that node starts and runs: its ports,
-its data directory, standalone or cluster mode, TLS, the storage engine, the
-caches, and the background jobs. This page is the reference for every key.
+A node's configuration controls how it starts and runs: its ports, data
+directory, standalone or cluster mode, TLS, storage engine, caches, and
+background jobs. This page is the reference for every key.
 
-You do not need a configuration file to start a local node. The built-in
-defaults work for development and for the tutorial. Edit the configuration in
-these cases:
+You do not need a configuration file to start a local node; the built-in
+defaults work for development and for the tutorial. Edit the configuration
+when you:
 
-- You prepare a node for production, for example with a data directory on a
+- Prepare a node for production, for example with a data directory on a
   dedicated disk, TLS, and authentication.
-- You set up a [cluster](/docs/cluster). Each node needs its name, its peers,
-  and the [partition](/docs/concepts#partition) count.
-- You turn on a feature that is off by default, such as
+- Set up a [cluster](/docs/cluster). Each node needs its name, its peers, and
+  the [partition](/docs/concepts#partition) count.
+- Turn on a feature that is off by default, such as
   [spill to disk](/docs/spill-to-disk) or
   [performance diagnostics](/docs/performance-diagnostics).
-- You deploy [C# extensions](/docs/csharp-extensions) that add scalar functions,
+- Deploy [C# extensions](/docs/csharp-extensions) that add scalar functions,
   triggers, or procedures to a node.
 
-Some settings can change while the cluster runs, with no restart. See
-[Runtime cluster settings](/docs/runtime-cluster-settings). To see the values
-that a running node uses, run [`SHOW VARIABLES`](/docs/show-variables).
+Some settings can change while the cluster runs, without a restart. See
+[Runtime cluster settings](/docs/runtime-cluster-settings). To see the values a
+running node uses, run [`SHOW VARIABLES`](/docs/show-variables).
 
 ## The configuration file
 
@@ -61,27 +61,27 @@ CamusDB searches in this order:
 If `--config` or `CAMUS_CONFIG_PATH` names a missing file, startup fails instead
 of silently falling through to another location.
 
-Run [`SHOW VARIABLES`](/docs/show-variables) against a node to see what that node
-resolved. The output names the layer that supplied each value. Do not
-reconstruct the merge by hand.
+To see what a node resolved, run [`SHOW VARIABLES`](/docs/show-variables)
+against it instead of reconstructing the merge by hand. The output names the
+layer that supplied each value.
 
 ## Precedence
 
 The highest layer wins:
 
-1. A CLI flag. Only a flag that you pass explicitly overrides YAML. The options
-   are nullable, and they have no sentinel defaults.
+1. A CLI flag. Only flags you pass explicitly override YAML; the options are
+   nullable and have no sentinel defaults.
 2. An environment variable. `CAMUS_KEY_RANGE_SHARDING` overrides
    `key_range_sharding`. Authentication is switched on with
    `CAMUSDB_AUTH_ENABLED`, and its secrets are read only from the environment.
 3. `config.yml`.
 4. The built-in default, listed in the [settings reference](#settings-reference).
 
-Here is an example. YAML holds `mode: cluster`. The node starts in standalone
-mode if you pass `--mode standalone`. The node stays in cluster mode if you pass
-no `--mode` flag.
+For example, if YAML holds `mode: cluster`, passing `--mode standalone` starts
+the node in standalone mode. Without a `--mode` flag, the node stays in cluster
+mode.
 
-## Map of CLI flags to YAML fields
+## CLI flags and YAML fields
 
 These keys also have a CLI flag or an environment variable:
 
@@ -98,7 +98,7 @@ These keys also have a CLI flag or an environment variable:
 | `initial_partitions` | `--initial-cluster-partitions` | `1` in standalone mode, `3` in cluster mode |
 | `peers` | `--initial-cluster` | `[]` |
 | `http_peers` | `--http-peers` | `[]` |
-| `join_existing` | `--join-existing` | `false` |
+| `join_existing` | `--join-existing` | `false`. Join a running cluster using `peers` as seeds; see [growing a cluster](/docs/growing-a-one-node-cluster). |
 | `pitr_bootstrap_from` | `--pitr-bootstrap-from` | Unset. Backup id used to seed a joining node; see [Backup and restore](/docs/backup-and-restore#seed-a-joining-node-from-a-backup). |
 | `pitr_bootstrap_target_time_ms` | `--pitr-bootstrap-target-time-ms` | `0`, the latest point covered by the chain. |
 | `schema_ack_wait_timeout_ms` | `--schema-ack-wait-timeout-ms` | `30000` |
@@ -107,18 +107,25 @@ These keys also have a CLI flag or an environment variable:
 | `https_port` | `--https-port` | `7141` |
 | `https_certificate` | `--https-certificate` | `""` |
 | `raft_certificate` | `--raft-certificate` | `""` |
+| `grpc_port` | `--grpc-port` | `5096` |
 | `require_tls_when_auth_enabled` | `--require-tls-when-auth-enabled` | `true` |
 | `extension_assemblies` | `--extension-assemblies` | `[]`. Absolute paths of safe C# extension DLLs. |
 | `unsafe_extension_assemblies` | `--unsafe-extension-assemblies` | `[]`. Absolute paths of reviewed extension DLLs loaded without safe-assembly checks. |
+
 | `key_range_sharding` | (none. Use the `CAMUS_KEY_RANGE_SHARDING` variable.) | `false` |
 
+These lists make extensions available on each node after a restart. A superuser
+must also run `CREATE EXTENSION` in each database that uses them. Deploy the
+same builds on every node; see
+[C# extension deployment](/docs/csharp-extensions#deploy-extensions).
+
 Every other key is YAML only. The [settings reference](#settings-reference)
-lists all of them.
+lists them all.
 
 ## HTTP/3 on the HTTPS port
 
-The REST API can also serve HTTP/3 over QUIC. HTTP/3 is off by default. To turn
-it on, set `http3_enabled: true` and give the node an HTTPS certificate:
+The REST API can also serve HTTP/3 over QUIC. HTTP/3 is off by default; to
+turn it on, set `http3_enabled: true` and give the node an HTTPS certificate:
 
 ```yaml
 https_port: 7141
@@ -126,32 +133,33 @@ https_certificate: /etc/camusdb/api.pfx
 http3_enabled: true
 ```
 
-The HTTPS port then serves HTTP/1.1, HTTP/2, and HTTP/3. The setting takes
-effect when the node starts. A change needs a restart.
+The HTTPS port then serves HTTP/1.1, HTTP/2, and HTTP/3. The setting is read
+when the node starts, so changing it requires a restart.
 
-HTTP/3 has these requirements:
+HTTP/3 requires:
 
 - **TLS.** HTTP/3 always uses TLS, so the setting applies to the HTTPS port
   only. Without `https_certificate`, the node has no HTTPS port and the setting
   has no effect. The plain HTTP port, the [Raft](/docs/concepts#raft) port
   (node-to-node cluster traffic), and the gRPC port do not change.
-- **UDP.** QUIC uses UDP. Open `https_port` for UDP and for TCP. This includes
-  the firewall and any container port mapping, for example
+- **UDP.** QUIC uses UDP, so open `https_port` for both UDP and TCP, in the
+  firewall and in any container port mapping, for example
   `-p 7141:7141/tcp -p 7141:7141/udp`.
-- **A QUIC library.** Linux and macOS need `libmsquic`. Windows needs Windows 11
-  or Windows Server 2022, or a later version. Without the library, the port
-  serves HTTP/1.1 and HTTP/2 only. On macOS, .NET does not search the Homebrew
-  library folder by default; start the node with
-  `DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib`. macOS removes `DYLD_*`
+- **A QUIC library.** Linux and macOS need `libmsquic`. Windows needs Windows 11,
+  Windows Server 2022, or later. Without the library, the port serves HTTP/1.1
+  and HTTP/2 only. On macOS, .NET does not search the Homebrew library folder
+  by default, so start the node with
+  `DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib`. macOS strips `DYLD_*`
   variables for system binaries such as `nohup`, so set the variable in the
-  environment of the node process itself.
+  node process's own environment.
 
-A client that connects over TCP receives an `Alt-Svc` header on each response.
-This header tells the client that the same port serves HTTP/3. Browsers and
-other clients that support HTTP/3 then use it for the next requests.
+Clients that connect over TCP receive an `Alt-Svc` header on each response,
+telling them the same port serves HTTP/3. Browsers and other HTTP/3-capable
+clients then use it for later requests.
 
-If `http3_enabled` is on but HTTP/3 cannot start, the node still starts. It logs
-a warning that names the cause: no `https_certificate`, or no QUIC library.
+If `http3_enabled` is on but HTTP/3 cannot start, the node still starts and
+logs a warning that names the cause: no `https_certificate`, or no QUIC
+library.
 `SHOW CONNECTIONS` shows an HTTP/3 connection with the protocol `HTTP/3`.
 
 ## gRPC listener
@@ -173,15 +181,15 @@ private test networks.
 
 Set `grpc_tls_enabled: false` to force plaintext h2c (HTTP/2 without TLS) on
 the client-facing gRPC port even when `grpc_certificate` or `raft_certificate`
-is configured. This does not change the Raft port. Use it only on a trusted network or behind a proxy
-that terminates TLS for clients.
+is configured. This does not change the Raft port. Use it only on a trusted
+network or behind a proxy that terminates TLS for clients.
 
 Use `grpc_certificate` when the Raft port and the client-facing gRPC port serve
 different trust domains. A cluster-internal certificate is often right for Raft,
 while clients need a certificate that their own trust store accepts.
 
 `grpc_batch_max_in_flight` bounds how many operations one `BatchExecute` stream
-can have executing at the same time before the server applies backpressure.
+can run at once before the server applies backpressure.
 
 See [gRPC API](/docs/grpc-api).
 
@@ -195,11 +203,11 @@ cluster-settings forwarding, and query-fragment exchange. Set
 peer_tls_enabled: true
 ```
 
-An `http_peers` entry with an explicit `https://` scheme overrides this default
-for that peer. Without peer TLS, the shared node secret used by internal routes
-travels over plaintext peer HTTP. CamusDB logs startup warnings for exposed
-cluster configurations that leave peer HTTP, Raft gRPC, or client-facing gRPC
-traffic in plaintext.
+An `http_peers` entry with an explicit `https://` scheme overrides this
+default for that peer. Without peer TLS, the shared node secret that internal
+routes use travels over plaintext peer HTTP. CamusDB logs startup warnings for
+exposed cluster configurations that leave peer HTTP, Raft gRPC, or
+client-facing gRPC traffic in plaintext.
 
 ## Dashboard
 
@@ -229,23 +237,39 @@ slow_query_log_max_sql_length: 4096
 ```
 
 Turn it on when you are diagnosing a node. It records qualifying statements in
-a bounded in-memory ring and exposes them with `SHOW SLOW QUERIES`. The log is
-node-local and does not survive restart. If the node started with the log off,
-turning it on needs a restart.
+a bounded in-memory ring and exposes them through `SHOW SLOW QUERIES`. The log
+is node-local and does not survive a restart. If the node started with the log
+off, it can still be enabled at runtime.
 
 See [Slow Query Log](/docs/slow-query-log).
 
+## Statement statistics and index usage
+
+Use [statement statistics](/docs/statement-stats) to find expensive repeated
+query shapes and [index usage](/docs/index-usage) to assess indexes against
+their write cost:
+
+```yaml
+statement_stats_enabled: false
+statement_stats_max_shapes: 2000
+index_usage_enabled: true
+```
+
+The two enable flags can change at runtime. Shape capacity requires a restart.
+Both features keep in-memory, node-local totals that reset when the node restarts.
+
 ## Key-range sharding and range splits
 
-`key_range_sharding` is off by default and restart-scoped:
+`key_range_sharding` defaults to false for new clusters. The cluster records
+its routing mode at creation; a restart cannot change it on existing data:
 
 ```yaml
 key_range_sharding: false
 ```
 
-When enabled, eligible table and index key spaces can split by key range instead
-of staying on one hash-routed partition. Automatic splitting is controlled by
-the nested `kahuna:` settings:
+When it is on, eligible table and index key spaces can split by key range
+instead of staying on one hash-routed partition. The nested `kahuna:` settings
+control automatic splitting:
 
 ```yaml
 kahuna:
@@ -264,18 +288,19 @@ kahuna:
   enable_load_reports: false
 ```
 
-Both split branches are disabled unless a threshold asks for them. The count
-branch uses `range_split_threshold`; the load branch uses
-`range_split_load_threshold` with queue-depth and optional commit-wait gates.
+Both kinds of split stay off until you set a threshold for them. Count-based
+splits use `range_split_threshold`. Load-based splits use
+`range_split_load_threshold`, gated by queue depth and, optionally, commit
+wait.
 
 See [Key-Range Sharding](/docs/key-range-sharding) and
 [`SHOW RANGES`](/docs/show-ranges).
 
 ## Transaction outcome retention
 
-Kahuna can retain terminal transaction outcome records after a transaction
-finishes. CamusDB uses those records when a finalize path needs to resume or
-diagnose an uncertain commit outcome:
+Kahuna can keep a transaction's final outcome record after the transaction
+finishes. CamusDB uses these records when a finalize path needs to resume, or
+to diagnose an uncertain commit outcome:
 
 ```yaml
 kahuna:
@@ -283,17 +308,17 @@ kahuna:
   transaction_outcome_retention_max: 100000
 ```
 
-`transaction_outcome_retention_ttl_ms` controls the age window. `0` disables
-age pruning and leaves only the size cap. `transaction_outcome_retention_max`
-controls the maximum number of retained records. Raise both together for an
-investigation or a long fault-injection run; a large TTL is ineffective if the
-count cap evicts records first.
+`transaction_outcome_retention_ttl_ms` sets the age window; `0` disables age
+pruning and leaves only the size cap. `transaction_outcome_retention_max` sets
+the maximum number of retained records. For an investigation or a long
+fault-injection run, raise both together, because a large TTL does nothing if
+the count cap evicts records first.
 
 ## Settings reference
 
 The tables below list every top-level key. The nested sections have their own
 tables: [All kahuna keys](#all-kahuna-keys) and
-[The diagnostics section](#the-diagnostics-section).
+[Diagnostics section](#diagnostics-section).
 
 The **Change** column says when a new value takes effect:
 
@@ -301,13 +326,13 @@ The **Change** column says when a new value takes effect:
   [`SET CLUSTER SETTING`](/docs/runtime-cluster-settings), and the next
   statement or background pass uses it.
 - **restart**: edit `config.yml` and restart the node. `SET CLUSTER SETTING`
-  rejects the key. Six keys are an exception: it accepts them, but the node
+  rejects the key, with six exceptions: it accepts those keys, but the node
   applies the new value only after a restart. Their rows and notes say so.
 
 The **Scope** column says whether nodes must agree:
 
-- **cluster**: every node must use the same value. A runtime change reaches every
-  node.
+- **cluster**: every node must use the same value. A runtime change reaches
+  every node.
 - **node**: nodes may use different values, set in each node's `config.yml`. A
   `SET CLUSTER SETTING` value still applies to every node and overrides the file.
 
@@ -319,21 +344,21 @@ otherwise (`_seconds`, `_mb`).
 | Key | Default | Type | Change | Scope | Description |
 |-----|---------|------|--------|-------|-------------|
 | `data_dir` | `~/.camusdb/data`, or `$CAMUS_HOME/data` | path | restart | node | Where the node stores its data. |
-| `mode` | `standalone` | `standalone` or `cluster` | restart | node | Runs one node, or a node of a Raft [cluster](/docs/cluster). |
+| `mode` | `standalone` | `standalone` or `cluster` | restart | node | Runs a single node, or a node in a Raft [cluster](/docs/cluster). |
 | `memory_profile` | `prod` | `prod` or `dev` | restart | node | Sizes the storage caches that you leave unset. See [Memory profile](#memory-profile). |
-| `node_name` | `""`, then the machine name in cluster mode | string | restart | node | Name of this cluster node. |
+| `node_name` | `""`, then the machine name in cluster mode | string | restart | node | This node's name in the cluster. |
 | `raft_node_id` | `1` | int | restart | node | Numeric Raft node id. Must be above `0`. |
 | `raft_host` | `localhost` | string | restart | node | Host name of this node's Raft endpoint. |
 | `raft_port` | `7070` | port | restart | node | Port for node-to-node Raft traffic. |
-| `initial_partitions` | `1` standalone, `3` cluster | int | restart | cluster | Raft data partitions that a new cluster starts with. Standalone mode always uses `1`. Must be at least `1`. |
+| `initial_partitions` | `1` standalone, `3` cluster | int | restart | cluster | Initial hash-pool partition count, fixed at first boot. Later values are ignored with a warning. Standalone mode always uses `1`. Must be at least `1`. |
 | `peers` | `[]` | list of `host:port` | restart | node | Raft endpoints of the other nodes, or the seed nodes when `join_existing` is on. |
-| `http_peers` | `[]` | list of `host:port` | restart | node | HTTP address of each peer, in the same order as `peers`. The two lists must have the same length. |
+| `http_peers` | `[]` | list of `host:port` | restart | node | Each peer's HTTP address, in the same order as `peers`. The two lists must have the same length. |
 | `join_existing` | `false` | bool | restart | node | Joins a running cluster as a new member, with `peers` as the seed list. Cluster mode only. |
 | `pitr_bootstrap_from` | unset | backup id | restart | node | Seeds a joining node from this backup before it joins. Needs `join_existing` and `kahuna.backup_dir`. See [Backup and restore](/docs/backup-and-restore#seed-a-joining-node-from-a-backup). |
 | `pitr_bootstrap_target_time_ms` | `0` | Unix time, ms | restart | node | Point in time to seed to. `0` is the latest point that the chain covers. Needs `pitr_bootstrap_from`. |
 | `schema_ack_wait_timeout_ms` | `30000` | ms | restart | node | How long a DDL statement waits for every live node to acknowledge the previous schema version. See [Distributed schema](/docs/distributed-schema). |
-| `schema_ack_live_node_lease_ms` | `30000` | ms | restart | node | How long after the last contact a node still counts as live for that wait. `-1` always waits for every configured node. |
-| `schema_freshness_check_interval_ms` | `10000` | ms | restart | node | How often a cluster node compares each open database's schema with its durable checkpoint, and reloads it when it is behind. |
+| `schema_ack_live_node_lease_ms` | `30000` | ms | restart | node | How long after its last contact a node still counts as live for that wait. `-1` always waits for every configured node. |
+| `schema_freshness_check_interval_ms` | `10000` | ms | restart | node | How often a cluster node compares each open database's schema with its durable checkpoint, and reloads the schema when it is behind. |
 | `unhosted_control_log_probe_interval_ms` | `250` | ms | restart | node | How often a node probes the checkpoint of a control log (schema or cluster settings) whose Raft partition it does not host. This matters when `kahuna.replication_factor` is below the node count. `0` or less turns the probe off. |
 | `registry_generation_lease_ms` | `250` | ms | restart | cluster | How long a cluster node trusts its cached database names. `DROP DATABASE` and `RENAME DATABASE` wait out one lease before they return. `0` checks on every lookup. Ignored in standalone mode. |
 | `database_idle_eviction_ms` | `900000` | ms | restart | node | How long an unused database stays open on this node before the node frees its memory. `0` or less keeps it open. |
@@ -344,12 +369,12 @@ otherwise (`_seconds`, `_mb`).
 
 | Key | Default | Type | Change | Scope | Description |
 |-----|---------|------|--------|-------|-------------|
-| `http_port` | `5095` | port | restart | node | Port of the [HTTP API](/docs/http-api). |
+| `http_port` | `5095` | port | restart | node | [HTTP API](/docs/http-api) port. |
 | `https_port` | `7141` | port | restart | node | HTTPS port. It opens only when `https_certificate` is set. |
 | `https_certificate` | `""` | path | restart | node | PFX certificate for the HTTPS port. Empty means no HTTPS. |
 | `http3_enabled` | `false` | bool | restart | node | Also serves HTTP/3 on the HTTPS port. See [HTTP/3](#http3-on-the-https-port). |
 | `grpc_enabled` | `true` | bool | restart | node | Opens the client-facing [gRPC API](/docs/grpc-api). |
-| `grpc_port` | `5096` | port | restart | node | Port of the gRPC API. |
+| `grpc_port` | `5096` | port | restart | node | gRPC API port. |
 | `grpc_certificate` | `""` | path | restart | node | PFX certificate for the gRPC port. Empty falls back to `raft_certificate`. |
 | `grpc_tls_enabled` | `true` | bool | restart | node | `false` serves gRPC as plaintext h2c even when a certificate is set. |
 | `grpc_batch_max_in_flight` | `64` | int | runtime | node | Operations one `BatchExecute` stream may run at once before backpressure. |
@@ -375,7 +400,7 @@ only from the environment. See [SQL authentication](/docs/sql-authentication).
 | `login_rate_limit_max_entries` | `100000` | int | restart | node | Keys that each login rate limiter tracks. When the per-source map is full, logins fail. When the per-account map is full, it stops adding keys and the per-source limit still applies. |
 | `access_token_ttl` | `900000` | ms | restart | cluster | Absolute lifetime of an access token. |
 | `authentication_cache_ttl` | `1000` | ms | restart | node | How long a node trusts a cached token or privilege check. `0` checks the catalog on every request. |
-| `authentication_cache_max_entries` | `10000` | int | restart | node | Size limit of the per-node authentication cache. |
+| `authentication_cache_max_entries` | `10000` | int | restart | node | Per-node authentication cache size limit. |
 | `session_reaper_interval_ms` | `300000` | ms | restart | node | How often expired session records are deleted. `0` or less turns the sweep off. |
 | `expired_session_retention_ms` | `300000` | ms | restart | cluster | How long a session record is kept after it expires, so a long-lived stream can tell expiry from revocation. |
 
@@ -396,10 +421,42 @@ only from the environment. See [SQL authentication](/docs/sql-authentication).
 | `transaction_idle_timeout_ms` | `300000` | ms | restart | cluster | An explicit transaction idle this long is rolled back and its locks are released. `0` or less turns the idle check off. See [Transaction limits](/docs/transaction-limits). `SET CLUSTER SETTING` accepts a new value, but the node reads it only at startup. |
 | `transaction_reaper_interval_ms` | `30000` | ms | restart | node | How often the reaper looks for idle transactions. `SET CLUSTER SETTING` accepts a new value, but the node reads it only at startup. |
 | `abandoned_transaction_release_after_ms` | `0` | ms | runtime | cluster | Age after which a rollback of a transaction that the coordinator no longer knows releases its leftover locks and staged writes. `0` derives it: the larger of `kahuna.max_transaction_timeout_ms` and `max_serializable_transaction_lifetime_ms`, plus 30 seconds. A negative value turns the release off. A positive value must be at least `max_serializable_transaction_lifetime_ms`. |
-| `lock_escalation_threshold` | `50` | int | runtime | cluster | Shared point locks per table or index bucket before a serializable read-write transaction takes one shared lock on the whole bucket. |
+| `lock_escalation_threshold` | `50` | int | runtime | cluster | Number of shared point locks in one table or index bucket after which a serializable read-write transaction takes one shared lock on the whole bucket. |
 | `lock_wait_deadline_ms` | `500` | ms | runtime | cluster | Longest time one lock-acquire retry loop waits during a serializable conflict. |
-| `max_mutations_per_transaction` | `20000` | int | runtime | cluster | Row and index-entry writes one transaction may make. `0` or less turns the limit off. |
-| `key_range_sharding` | `false` | bool | restart | cluster | Routes eligible tables and indexes by key range instead of by hash. See [Key-range sharding](#key-range-sharding-and-range-splits). |
+| `max_mutations_per_transaction` | `20000` | int | runtime | cluster | Number of row and index-entry writes one transaction may make. `0` or less turns the limit off. |
+| `key_range_sharding` | `false` | bool | restart | cluster | Routing mode fixed at cluster creation. Unset nodes follow the stored mode; an explicit mismatch refuses startup. See [Key-range sharding](#key-range-sharding-and-range-splits). |
+
+### Request resource limits
+
+These runtime settings bound the work and state a node accepts. A value of
+`0` or below disables the corresponding cap.
+
+| Key | Default | Unit | Change | Scope | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| `max_statement_bytes` | `8388608` (8 MiB) | UTF-8 bytes | runtime | node | Maximum inline SQL before parsing; excess fails with `CADB0557`, HTTP 413. Bound parameter values are excluded. |
+| `max_buffered_result_rows` | `1000000` | rows | runtime | node | Rows held for one buffered response; excess fails with `CADB0556`. |
+| `max_buffered_result_bytes` | `268435456` (256 MiB) | estimated bytes | runtime | node | Memory estimate for one buffered response; excess fails with `CADB0556`. |
+| `max_open_explicit_transactions` | `10000` | transactions | runtime | node | Open explicit transactions per node; excess begins fail with `CADB0558`, HTTP 503. Autocommit is excluded. |
+| `max_client_connections` | `10000` | connections | runtime | node | Open HTTP, HTTPS, and gRPC client connections; excess connections are closed before reading a request. Raft is excluded. |
+| `max_databases` | `10000` | databases | runtime | cluster | Registry capacity for creates, branch creates, and relinks; excess fails with `CADB0408`. |
+| `cluster_activity_max_concurrent_fan_outs` | `8` | requests | runtime | node | Concurrent SHOW CLUSTER QUERIES/CONNECTIONS requests; excess fails with `CADB0558`. |
+
+Buffered results are checked before commit, so exceeding a cap rolls back the
+statement. The byte estimate includes in-memory overhead and counts strings
+at two bytes per character; it is not the JSON payload size. Ordinary streaming
+reads bypass these result caps. Writes with RETURNING, and locking reads that
+buffer before autocommit, can still hit them even on a streaming endpoint.
+
+Lowering the connection cap does not close existing connections. Transaction
+slots are released on commit, rollback, reaping, or a failed begin. Database
+capacity is checked against each node's registry view: concurrent creates on
+different nodes can briefly overshoot it, so it is not a strict global quota.
+
+These settings do not impose per-client request rates or a statement execution
+timeout. A small response can still require a large scan. Prepared statements
+also have the separate `max_prepared_statement_bytes` cap. See
+[transaction limits](/docs/transaction-limits) and
+[query activity](/docs/query-activity) for operational guidance.
 
 ### Prepared statements
 
@@ -434,8 +491,8 @@ See [Query planning](/docs/query-planning) and
 | `stats_analyze_max_columns` | `32` | int | runtime | cluster | Columns per table that `ANALYZE` collects. The leading column of each index is always collected. |
 | `stats_plan_time_lookup_max_rows` | `2000` | rows | runtime | node | Largest small table whose filtered rows the join planner reads while it plans. `0` turns the lookup off. |
 | `plan_cache_enabled` | `false` | bool | runtime | node | Caches access-path and join-order decisions per query shape. |
-| `plan_cache_max_entries` | `512` | int | runtime | node | Size limit of the plan cache. |
-| `bound_query_cache_enabled` | `true` | bool | runtime | node | Reuses the name resolution of a cached `SELECT` text across executions. |
+| `plan_cache_max_entries` | `512` | int | runtime | node | Plan cache size limit. |
+| `bound_query_cache_enabled` | `true` | bool | runtime | node | Reuses name resolution for cached `SELECT` text across executions. |
 
 ### Automatic ANALYZE
 
@@ -447,10 +504,10 @@ See [Automatic ANALYZE](/docs/automatic-analyze).
 | `auto_analyze_check_interval_ms` | `60000` | ms | runtime | cluster | How often the leader looks for stale tables. `0` or less turns the loop off. |
 | `auto_analyze_fraction_stale_rows` | `0.20` | double | runtime | cluster | A table is stale once its changes since the last `ANALYZE` reach this fraction of its rows, plus `auto_analyze_min_stale_rows`. |
 | `auto_analyze_min_stale_rows` | `500` | rows | runtime | cluster | Minimum changes before a table can be stale. |
-| `auto_analyze_max_concurrent` | `1` | int | runtime | node | Background analyses that run at once on this node. |
+| `auto_analyze_max_concurrent` | `1` | int | runtime | node | Number of background analyses that may run at once on this node. |
 | `auto_analyze_max_rows_per_second` | `50000` | rows/s | runtime | cluster | Scan rate limit. `0` or less removes the limit. |
 | `auto_analyze_histogram_sample_rows` | `10000` | rows | runtime | cluster | Sample size per column for background histograms. |
-| `auto_analyze_hll_precision` | `11` | int | runtime | cluster | Precision of the distinct-count sketch. `4` to `16`. |
+| `auto_analyze_hll_precision` | `11` | int | runtime | cluster | Distinct-count sketch precision. `4` to `16`. |
 | `auto_analyze_load_pause_threshold` | `16` | transactions | runtime | node | Pauses background analysis while more foreground transactions than this are running. `0` or less turns the pause off. |
 | `auto_analyze_ownership_check_rows` | `1000` | rows | runtime | cluster | Rows scanned between checks for lost leadership and foreground load. |
 
@@ -463,7 +520,7 @@ See [Automatic ANALYZE](/docs/automatic-analyze).
 | `distributed_query_execution` | `false` | bool | restart | cluster | Splits eligible scans of key-range-sharded tables into per-range fragments. See [Distributed queries](/docs/distributed-queries). |
 | `broadcast_join_max_build_rows` | `10000` | rows | runtime | node | Largest hash-join build side that may be sent to remote fragments. `0` turns broadcast joins off. |
 | `hash_join_max_build_rows` | `1000000` | rows | runtime | node | When spill is off, a hash-join build larger than this falls back to a nested-loop join. |
-| `regex_match_timeout_ms` | `250` | ms | runtime | node | Time limit of one [regex](/docs/functions-regex) match. |
+| `regex_match_timeout_ms` | `250` | ms | runtime | node | Time limit for one [regex](/docs/functions-regex) match. |
 | `slot_backed_decode` | `true` | bool | runtime | node | Internal row-decode mode. Keep the default. |
 | `borrowed_decode` | `adaptive` | `adaptive`, `force_eager`, `force_borrowed` | runtime | node | Internal zero-copy decode policy. Keep the default. |
 
@@ -485,12 +542,12 @@ See [Spill to disk](/docs/spill-to-disk).
 | Key | Default | Type | Change | Scope | Description |
 |-----|---------|------|--------|-------|-------------|
 | `sql_parser_cache_ttl_seconds` | `300` | seconds | runtime | node | How long a parsed statement stays cached after its last use. `0` turns the cache off. |
-| `sql_parser_cache_max_entries` | `2048` | int | runtime | node | Size limit of the parser cache. `0` means no limit. |
+| `sql_parser_cache_max_entries` | `2048` | int | runtime | node | Parser cache size limit. `0` means no limit. |
 | `sql_parser_cache_sweep_seconds` | `60` | seconds | runtime | node | How often expired parser-cache entries are removed. Must be above `0`. |
-| `sql_parser_cache_max_bytes` | `67108864` | bytes | runtime | node | Approximate memory limit of the parser cache. `0` means no limit. |
+| `sql_parser_cache_max_bytes` | `67108864` | bytes | runtime | node | Approximate parser cache memory limit. `0` means no limit. |
 | `regex_cache_max_entries` | `1024` | int | runtime | node | Compiled regex patterns kept in memory. `0` turns caching off. |
 | `point_read_row_id_cache_enabled` | `true` | bool | restart | node | Remembers which row a primary key points to, so a repeated point lookup needs one storage read instead of two. |
-| `point_read_row_id_cache_max_entries` | `1000000` | int | restart | node | Remembered keys per table. The cache is cleared when it is full. |
+| `point_read_row_id_cache_max_entries` | `1000000` | int | restart | node | Number of keys remembered per table. The cache is cleared when it fills up. |
 
 ### Query result cache
 
@@ -561,8 +618,8 @@ table that does not set its own value.
 | `ttl_default_delete_batch_size` | `100` | rows | runtime | cluster | Rows deleted per transaction. |
 | `ttl_default_select_rate_limit` | `0` | rows/s | runtime | cluster | Read rate limit. `0` means no limit. |
 | `ttl_default_delete_rate_limit` | `100` | rows/s | runtime | cluster | Delete rate limit. `0` means no limit. |
-| `ttl_spans_per_table` | `64` | int | runtime | cluster | Spans a table is divided into for each run. |
-| `ttl_max_concurrent_spans_per_node` | `1` | int | runtime | node | Spans one node processes at once. |
+| `ttl_spans_per_table` | `64` | int | runtime | cluster | Number of spans a table is divided into for each run. |
+| `ttl_max_concurrent_spans_per_node` | `1` | int | runtime | node | Number of spans one node processes at once. |
 | `ttl_load_pause_threshold` | `16` | transactions | runtime | node | Pauses the sweep while more foreground transactions than this are running. `0` or less turns the pause off. |
 | `ttl_span_lease_ms` | `30000` | ms | runtime | cluster | Lease on a claimed span. Another node takes over a span whose lease lapses. |
 | `ttl_span_lease_renew_interval_ms` | `10000` | ms | runtime | cluster | How often the owner renews its span lease. Must be below `ttl_span_lease_ms`. |
@@ -580,161 +637,227 @@ table that does not set its own value.
 | `orphan_reclaim_interval_ms` | `300000` | ms | runtime | cluster | How often one elected node reclaims expired dropped objects. `0` or less turns the sweep off. |
 | `fence_lease_ms` | `30000` | ms | runtime | cluster | Lease on the lock that `DROP`, `RELINK`, and the reclaim sweep take on a database or table. A crashed holder frees it after the lease. |
 | `fence_lease_renew_interval_ms` | `10000` | ms | runtime | cluster | How often the holder renews that lease. Must be below `fence_lease_ms`. |
-| `keyspace_purge_batch_size` | `512` | keys | runtime | node | Keys `DROP DATABASE` deletes per batch. |
+| `keyspace_purge_batch_size` | `512` | keys | runtime | node | Keys per `DROP DATABASE` purge batch. Each batch shares one delete-many round trip, bounding memory and amortizing Raft work. |
 
 ### Observability and the dashboard
 
 | Key | Default | Type | Change | Scope | Description |
 |-----|---------|------|--------|-------|-------------|
 | `engine_metrics_enabled` | `true` | bool | restart | node | Collects storage-engine metrics for [`SHOW ENGINE STATS`](/docs/engine-stats). |
-| `slow_query_log_enabled` | `false` | bool | runtime | node | Records slow statements. See [Slow query log](#slow-query-log). Turning it on needs a restart if the node started with it off. |
+| `slow_query_log_enabled` | `false` | bool | runtime | node | Records slow statements; enabling or disabling takes effect on the next statement. See [Slow query log](#slow-query-log). |
 | `slow_query_log_threshold_ms` | `1000` | ms | runtime | node | Statements at least this slow are recorded. `0` records every statement. |
 | `slow_query_log_max_entries` | `200` | int | restart | node | Entries the log keeps. |
-| `slow_query_log_max_sql_length` | `4096` | characters | runtime | node | SQL text stored per entry. |
+| `slow_query_log_max_sql_length` | `4096` | characters | runtime | node | SQL text stored per slow entry or statement-statistics sample. |
+| `statement_stats_enabled` | `false` | bool | runtime | node | Collects per-shape [statement statistics](/docs/statement-stats). Disabling preserves totals. |
+| `statement_stats_max_shapes` | `2000` | int | restart | node | Maximum recorded shapes. Existing shapes are retained; new admissions are refused at capacity. |
+| `index_usage_enabled` | `true` | bool | runtime | node | Collects [index usage](/docs/index-usage) reads, constraint reads, and writes. Disabling preserves counters. |
 | `query_activity_enabled` | `true` | bool | runtime | node | Lists running statements for [`SHOW QUERIES`](/docs/query-activity) and `CANCEL QUERY`. |
 | `query_activity_max_sql_length` | `1024` | characters | runtime | node | SQL text shown per `SHOW QUERIES` row. |
 | `cluster_activity_peer_timeout_ms` | `2000` | ms | runtime | node | How long `SHOW CLUSTER QUERIES`, `SHOW CLUSTER CONNECTIONS`, and a forwarded `CANCEL QUERY` wait for each peer. |
 | `dashboard_enabled` | `true` | bool | restart | node | Serves the [operator dashboard](/docs/operator-dashboard). |
-| `dashboard_refresh_seconds` | `2` | seconds | runtime | node | Refresh interval of the dashboard load panel. The server clamps it to `1` to `300`. |
+| `dashboard_refresh_seconds` | `2` | seconds | runtime | node | Dashboard load panel refresh interval. The server clamps it to `1` to `300`. |
 | `query_tracing_enabled` | `false` | bool | runtime | node | Logs one line per executed plan step. |
 | `lock_tracing_enabled` | `false` | bool | runtime | node | Logs one line per lock acquired. |
 
-## The Kahuna engine section
+## Kahuna engine section
 
 The nested `kahuna:` map tunes [Kahuna](/docs/concepts#kahuna), the
 transactional key/value layer embedded in each node, and through it
-[Kommander](/docs/concepts#kommander) (the Raft library) and RocksDB (the
-on-disk engine). See
+[Kommander](/docs/concepts#kommander) (the Raft library) and the on-disk
+engine: RocksDB by default, with SQLite and [Solarium](https://solariumdb.github.io/) as alternatives. See
 [Architecture: storage components](/docs/architecture#storage-components) for
-their roles. CamusDB applies the map in both standalone and cluster mode. An unset key keeps
-the CamusDB baseline for that mode. The node reads the map once at startup, so a
-change needs a restart.
+their roles. CamusDB applies the map in both standalone and cluster mode, and
+an unset key keeps the CamusDB baseline for that mode. The node reads the map
+once at startup, so a change requires a restart.
 
 [All kahuna keys](#all-kahuna-keys) lists every accepted key with its default.
 An unknown key fails validation at startup, and the error message lists every
 accepted key. The `kahuna:` block in `CamusDB/Config/config.yml` is commented
-out, and it documents each key inline.
+out and documents each key inline.
 
 `storage_revision` names the directory that Kahuna opens under
 `{data_dir}/kv`. The current CamusDB baseline pins it, together with the WAL
-revision, to the current key layout. Do not set it to an older revision to reach
-older data. A server that finds an older revision directory leaves it untouched;
-move data across revisions with a [logical dump and reimport](/docs/logical-dump-and-reimport).
+revision, to the current key layout. Do not set it to an older revision to
+reach older data. A server that finds an older revision directory leaves it
+untouched; to move data across revisions, use a
+[logical dump and reimport](/docs/logical-dump-and-reimport).
 
 Kahuna serves keys and locks through a fixed set of in-memory workers called
 actors (`key_value_workers` and `locks_workers`). Each key-value actor caches
-the entries it serves. Two mechanisms evict a cached entry. The first mechanism
-is a cap on size. `max_entries_per_actor` and `max_bytes_per_actor` bound what
-one actor holds in memory. The second mechanism is a collection sweep on a timer.
-`collection_interval_ms` sets the period. Each pass evicts up to
-`cache_entries_to_remove` entries that are older than `cache_entry_ttl_ms`.
+the entries it serves, and evicts them in two ways:
 
-Three keys together govern the compaction of the Raft log:
-`compact_every_operations` sets how often, `compact_number_entries` sets how many
-trailing entries stay, and `max_entries_per_compaction` caps the removals of one
-pass.
+- A size cap: `max_entries_per_actor` and `max_bytes_per_actor` bound what one
+  actor holds in memory.
+- A timed collection sweep: every `collection_interval_ms`, a pass evicts up to
+  `cache_entries_to_remove` entries older than `cache_entry_ttl_ms`.
+
+Three keys govern Raft log compaction: `compact_every_operations` sets how
+often it runs, `compact_number_entries` sets how many trailing entries stay,
+and `max_entries_per_compaction` caps how many entries one pass removes.
 
 `compact_every_operations` counts persisted WAL batches, not individual log
-entries. A busy batch can contain many entries, so this setting is a compaction
-cadence rather than a direct row count. `max_entries_per_compaction` limits how
-many entries one pass deletes. With the RocksDB Raft log, a pass also drops whole
-files that lie below the persisted compaction floor, so it can free more disk
-than that cap suggests. This holds for the Kahuna 1.12.8 release that CamusDB
-ships with.
+entries. A busy batch can hold many entries, so this setting is a compaction
+cadence rather than a direct row count. With the RocksDB Raft log, a pass also
+drops whole files that lie below the persisted compaction floor, so it can free
+more disk than `max_entries_per_compaction` suggests. This holds for the Kahuna
+1.12.8 release that CamusDB ships with.
 
-The storage backends are `memory`, `sqlite`, and `rocksdb`.
+The storage backends are `memory`, `sqlite`, `rocksdb`, and `solarium`.
 
-RocksDB buffers recent writes in memory, in memtables, and flushes them to
-sorted files on disk, called SST files. See
+RocksDB buffers recent writes in memory (memtables) and flushes them to sorted
+files on disk (SST files). See
 [The RocksDB backend](/docs/storage#the-rocksdb-backend).
 
 `kahuna.rocksdb_direct_reads` is off in CamusDB's baseline. With the default
 buffered reads, a read that misses the RocksDB block cache and goes to an SST
-file can be served by the operating system page cache,
-which helps when the same disk is also handling Raft WAL fsyncs. Set it to
-`true` when you need RocksDB reads to bypass the page cache and rely on the
-RocksDB block cache alone.
+file can be served from the operating system page cache, which helps when the
+same disk is also handling Raft WAL fsyncs. Set it to `true` when you need
+RocksDB reads to bypass the page cache and rely on the RocksDB block cache
+alone.
+
+### Solarium storage engine
+
+[Solarium](https://solariumdb.github.io/) is a managed key/value engine that can store the KV state, the Raft
+WAL, or both without a native RocksDB library. CamusDB includes and registers
+its providers; no extension DLL is needed:
+
+```yaml
+kahuna:
+  storage: solarium
+  wal_storage: solarium
+  solarium_environment: default
+```
+
+All nodes must agree on `storage` and `wal_storage`. Solarium and RocksDB files
+are incompatible; switch engines using a
+[logical dump and reimport](/docs/logical-dump-and-reimport), not by opening
+existing files with another engine. PITR bootstrap through
+`pitr_bootstrap_from` still requires RocksDB for both layers.
+
+`solarium_environment` selects file I/O for both Solarium layers. `default`
+uses the portable environment; `io_uring` needs a Linux kernel able to create
+a ring, otherwise startup fails. RocksDB tuning and WAL-shard settings do not
+apply to Solarium, except the two shared-budget keys below.
+
+#### Managed memory budgets
+
+[Solarium](https://solariumdb.github.io/)'s cache and memtables live inside the .NET managed heap. The
+`rocksdb_shared_memory_budget_mb` and `rocksdb_shared_memtable_budget_mb` names
+also configure Solarium's shared cache and memtable sub-budget. Positive
+budgets are shared regardless of `rocksdb_shared_memory`; that boolean controls
+RocksDB sharing only.
+
+When unset under the prod profile, these budgets are sized from the managed
+heap budget, rather than machine memory. Explicit values win. Leave room in
+`DOTNET_GCHeapHardLimit` or `DOTNET_GCHeapHardLimitPercent` for these budgets,
+actor caches, and the application's working heap. A heap limit sized for native
+RocksDB caches may be too small for Solarium.
+
+At startup, CamusDB logs Solarium's effective budgets and warns if the shared
+cache plus actor-cache budgets exceed one third of the managed heap budget.
+The warning is a configuration guard, not an allocation cap or a guarantee
+that smaller budgets fit every workload. Raise the heap limit or lower the
+cache budgets. [Node stats](/docs/node-stats) reports `gc_memory_limit_bytes`.
+
+The Solarium WAL's flush unit plus headroom is 256 MiB. The computed memtable
+budget tries to cover it, but stops at half the shared cache. With 10% cache
+sizing, that unit fits only at roughly 5 GiB of managed heap budget; smaller
+nodes can log budget-forced WAL flush warnings. To cover the unit explicitly,
+size both budgets together and reserve sufficient managed heap.
+
+#### Flush and compaction pacing
+
+For either RocksDB or [Solarium](https://solariumdb.github.io/), `storage_compaction_rate_mbps` limits KV-store
+flush and compaction writes in decimal MB/s; zero or unset leaves them unpaced.
+`storage_max_background_compactions` sets parallel compactions; zero or unset
+uses the engine default. Both are nonnegative, restart-time settings.
+
+Solarium defaults to one compaction at a time without pacing. Setting a rate
+also enables max(2, CPUs / 2) compactions unless an explicit concurrency wins.
+RocksDB defaults to max(2, CPUs / 2). Choose pacing for the disk and workload:
+too little bandwidth lets pending compactions accumulate and can slow writes.
 
 ### One-phase apply-time validation
 
-`kahuna.one_phase_apply_time_validation` is on by default. When it is on, an
-eligible read-modify-write transaction can commit in one durable Raft round
-instead of the normal two-phase path. The transaction must have one participant
-partition, its anchor on that partition, and a read set that can be validated
-there. Cross-partition transactions still use two-phase commit.
+`kahuna.one_phase_apply_time_validation` is on by default. It lets an eligible
+read-modify-write transaction commit in one durable Raft round instead of the
+normal two-phase path. To be eligible, the transaction must have one
+participant partition, its anchor on that partition, and a read set that can be
+validated there. Cross-partition transactions still use two-phase commit.
 
-`kahuna.staged_base_fence_retention_ms`, default `600000`, is the horizon that
-the validation fence and committed-head ledger remember for transactionally
-written keys. Set it above the longest transaction lifetime that the deployment
-allows, or long transactions can be refused because their validation base fell
+`kahuna.staged_base_fence_retention_ms` (default `600000`) is how far back the
+validation fence and committed-head ledger remember transactionally written
+keys. Set it above the longest transaction lifetime your deployment allows;
+otherwise long transactions can be refused because their validation base fell
 out of the retained window.
 
-Use the setting as a cluster-wide operational switch:
+Treat the setting as a cluster-wide operational switch:
 
 - Give every node the same values for both keys.
 - During a rolling upgrade across Kahuna versions, set
   `one_phase_apply_time_validation: false` until every node runs a version that
   supports the apply-time check.
-- When starting a data directory or snapshot that predates the committed-head
-  ledger, start once with it off and let a checkpoint run. After that checkpoint
-  rewrites the ledger, remove the override and restart.
+- When you start a data directory or snapshot that predates the committed-head
+  ledger, start once with the setting off and let a checkpoint run. After that
+  checkpoint rewrites the ledger, remove the override and restart.
 
 ### Persistent MVCC revision retention
 
-Kahuna keeps several versions of each row, so a reader can see a consistent
+Kahuna keeps several versions of each row so that readers see a consistent
 snapshot ([MVCC](/docs/concepts#mvcc)). Every version of every row is stored
-physically in the key-value layer. Without
-pruning, a hot table's retained history and disk usage grow for the life of the
-store.
+physically in the key-value layer, so without pruning, a hot table's retained
+history and disk usage grow for the life of the store.
 
 When both retention keys are unset, CamusDB keeps persisted history by age,
 aligned with the effective point-in-time recovery window
-(`kahuna.pitr_window_seconds`, default `3600`). That keeps in-window restores
-valid while allowing older revision rows to be reclaimed. Snapshot reads older
-than the retention age are not guaranteed. Branch forks pin their own snapshot
-floors, and reclamation honors those pins while they remain protected.
+(`kahuna.pitr_window_seconds`, default `3600`). In-window restores stay valid,
+and older revision rows can be reclaimed. Snapshot reads older than the
+retention age are not guaranteed. Branch forks pin their own snapshot floors,
+and reclamation honors those pins while they remain protected.
 
 - `kahuna.persistent_revision_retention_age_seconds` sets an explicit age bound.
   It must be at least the effective PITR window. `0` disables age pruning.
 - `kahuna.persistent_revision_retention_count` sets a hard per-key revision cap.
-  The default `0` disables the count cap. A count cap can trim history below the
-  PITR window on hot keys, so prefer the age bound unless a per-key cap is the
-  goal.
+  The default `0` disables it. A count cap can trim history below the PITR
+  window on hot keys, so prefer the age bound unless you specifically want a
+  per-key cap.
 
 ### Write aggregation
 
 Kahuna groups key-value writes into Raft batches before replication:
 
-- `kahuna.key_value_write_max_in_flight_batches_per_partition`, default `1`,
+- `kahuna.key_value_write_max_in_flight_batches_per_partition` (default `1`)
   controls how many write batches a partition may have waiting on Raft at once.
-  Higher values pipeline batches, but should be changed only after an A/B test on
-  the workload you are tuning.
-- `kahuna.key_value_write_linger_ms`, default `1`, is how long the oldest queued
-  write may wait before a batch is dispatched while nothing is in flight.
-- `kahuna.key_value_write_max_batch_items`, default `512`, caps the number of
+  Higher values pipeline batches, but change it only after an A/B test on the
+  workload you are tuning.
+- `kahuna.key_value_write_linger_ms` (default `1`) is how long the oldest queued
+  write may wait, while nothing is in flight, before a batch is dispatched.
+- `kahuna.key_value_write_max_batch_items` (default `512`) caps the number of
   items in one write batch.
-- `kahuna.key_value_write_post_completion_hold_ms`, default `1`, waits after a
+- `kahuna.key_value_write_post_completion_hold_ms` (default `1`) waits after a
   batch completes before dispatching the next one. CamusDB ships a nonzero
   default to increase batch density at full occupancy. Set it to `0` to restore
   Kahuna's dispatch-at-once behavior.
-- `kahuna.key_value_write_precise_wake`, default `false`, moves the write
-  aggregator's hold, linger, and queue-age wakeups onto a dedicated timer thread.
-  Use it when you are testing low-latency write aggregation, because it can wake
-  closer to the configured millisecond deadline than the shared timer queue.
-- `kahuna.key_value_write_fill_target_trigger`, default `false`, dispatches a
+- `kahuna.key_value_write_precise_wake` (default `false`) moves the write
+  aggregator's hold, linger, and queue-age wakeups onto a dedicated timer
+  thread. Use it when testing low-latency write aggregation, because it can
+  wake closer to the configured millisecond deadline than the shared timer
+  queue.
+- `kahuna.key_value_write_fill_target_trigger` (default `false`) dispatches a
   held or lingering partition buffer as soon as it reaches the learned fill
-  target instead of always waiting for the timer. Kahuna keeps probing the timer
-  path so the target can follow the current load.
+  target, instead of always waiting for the timer. Kahuna keeps probing the
+  timer path so the target can follow the current load.
 
-These settings affect write latency and throughput. Record them with benchmark
-results; runs with different batching settings are not directly comparable.
+These settings affect write latency and throughput. Record them alongside
+benchmark results, because runs with different batching settings are not
+directly comparable.
 
 ### Raft WAL shard column families
 
-Eight `kahuna.wal_shard_*` keys override the RocksDB column-family settings used
-for the Raft log. CamusDB leaves all of them unset by default, which lets
-Kommander's measured defaults apply field by field. They take effect only when
-`kahuna.wal_storage` is `rocksdb`.
+Eight `kahuna.wal_shard_*` keys override the RocksDB column-family settings for
+the Raft log. CamusDB leaves them all unset by default, so Kommander's measured
+defaults apply field by field. They take effect only when `kahuna.wal_storage`
+is `rocksdb`.
 
 | Key | Kommander default | Meaning |
 |-----|-------------------|---------|
@@ -750,128 +873,127 @@ Kommander's measured defaults apply field by field. They take effect only when
 Treat these as storage-engine tuning knobs. Larger flush units can reduce write
 amplification in the Raft log, but they also raise memory pressure and restart
 replay work. If `wal_shard_universal_compaction` is `true`,
-`wal_shard_max_bytes_for_level_base_mb` has no effect because RocksDB does not
-consult level sizing under universal compaction.
+`wal_shard_max_bytes_for_level_base_mb` has no effect, because RocksDB ignores
+level sizing under universal compaction.
 
 ### Memory profile
 
-`memory_profile`, or `--memory-profile`, selects the default of the four
-cache-size settings below. It changes nothing else. It does not change the
-number of workers, and it does not change durability. An application can observe
-one effect only: how often a read comes from the cache instead of the disk.
+`memory_profile` (or `--memory-profile`) selects the defaults for the four
+cache-size settings below, and nothing else. It does not change the number of
+workers or durability. The only effect an application can observe is how
+often a read comes from cache instead of disk.
 
 | Profile | Block cache | Memtable sub-budget | Actor caches | Total |
 |---------|-------------|---------------------|--------------|-------|
-| `prod`, the default | 10% of machine memory, up to 2 GiB | One quarter of the block cache, raised to the Raft-log flush unit when possible, up to 1 GiB | 6.25% of the managed heap budget, 64 MiB or more | About 16% of memory, or about 1.3 GiB on an 8 GiB machine |
+| `prod`, the default | 10% of machine memory (RocksDB) or managed heap budget ([Solarium](https://solariumdb.github.io/)), up to 2 GiB | One quarter of the block cache, raised to the Raft-log flush unit when possible, up to 1 GiB | 6.25% of the managed heap budget, 64 MiB or more | Depends on engine and heap limit; see cache sizing below |
 | `dev` | 64 MiB | 16 MiB | 32 MiB | About 96 MiB, on any machine |
 
-Use `dev` for a node that shares a developer machine with the application under
-construction. The budgets are fixed. The node is therefore the same size on a
-64 GiB workstation and in a 2 GiB container.
+Use `dev` for a node that shares a developer machine with the application you
+are building. Its budgets are fixed, so the node is the same size on a 64 GiB
+workstation and in a 2 GiB container.
 
-The cost of `dev` is throughput, once the working set becomes larger than the
-cache. The TPC-C run that motivated proportional sizes was about 5 times slower
-against a 320 MiB block cache. `dev` is therefore not a server setting.
+The cost of `dev` is throughput once the working set outgrows the cache (see
+the TPC-C measurement under
+[Cache defaults proportional to memory](#cache-defaults-proportional-to-memory)),
+so `dev` is not a server setting.
+
+An explicit `kahuna.*` budget always beats the profile, so `dev` with one raised
+budget is a valid combination, not a conflict.
 
 The caches are ceilings, and CamusDB fills them lazily. A burst of large writes
-can still push the resident memory of the process far above the cache total.
-Transient managed allocations and the .NET garbage collector dominate that peak.
-The server garbage collector is the default, and it uses one heap per core.
-`DOTNET_gcServer=0` in the environment is the control for that half of the
-memory footprint. It is a runtime setting, not a CamusDB setting.
+can still push the process's resident memory far above the cache total. That
+peak is dominated by transient managed allocations and the .NET garbage
+collector. The server garbage collector is the default and uses one heap per
+core. `DOTNET_gcServer=0` in the environment controls that half of the memory
+footprint; it is a runtime setting, not a CamusDB setting.
 
 `CAMUS_THREADPOOL_MIN_THREADS` overrides CamusDB's .NET worker-thread floor. The
 default floor is `1024` worker threads, with a completion-port floor of `512`.
 Use the override for controlled load tests or diagnostics when runtime metrics
-show queued work in the thread pool. It is an environment variable and takes
+show work queued in the thread pool. It is an environment variable and takes
 effect when the process starts.
-
-An explicit `kahuna.*` budget always beats the profile. `dev` together with one
-raised budget is therefore a valid combination. It is not a conflict.
 
 ### Cache defaults proportional to memory
 
 Under `memory_profile: prod`, most unset keys keep the Kahuna default. The four
-cache-size settings are the exception. When you leave them unset, CamusDB
-computes them at startup from the node's memory rather than from a fixed
+cache-size settings are the exception: when you leave them unset, CamusDB
+computes them at startup from the node's memory instead of using a fixed
 constant.
 
 Two memory sizes feed the computation:
 
 - Machine memory sizes the RocksDB block cache and memtable budget. It is the
   container cgroup limit when one is set, otherwise physical RAM.
-- Managed heap budget sizes the actor caches. It is the .NET GC heap hard limit
-  when one is set, otherwise the same machine-memory value.
+- The managed heap budget sizes the actor caches and, when either layer uses
+  [Solarium](https://solariumdb.github.io/), the shared cache and memtable budgets. It is the GC-reported limit:
+  an explicit hard limit, the runtime's container default (normally 75% of the
+  container limit), or machine memory when no heap limit applies.
 
-RocksDB uses native memory, so its budgets sit outside a .NET heap hard limit and
-still count against the container. Leave room for both when you set
+RocksDB uses native memory, so its budgets sit outside a .NET heap hard limit
+but still count against the container. Leave room for both when you set
 `DOTNET_GCHeapHardLimit`, `DOTNET_GCHeapHardLimitPercent`, or related runtime
 limits.
 
-A measurement motivated this behavior. A fixed block cache of 320 MB forced a
-TPC-C working set of 1.2 GB through a disk read on almost every statement. A
-cache sized to the machine took the same workload from 24.5 to 119.6
+A measurement motivated this behavior. A fixed 320 MB block cache forced a
+1.2 GB TPC-C working set through a disk read on almost every statement. Sizing
+the cache to the machine took the same workload from 24.5 to 119.6
 transactions per second, at 8 clients.
 
 | Key | Computed value when unset | Clamp |
 |-----|---------------------|-------|
-| `rocksdb_shared_memory_budget_mb` | 10% of machine memory | 64 MiB to 2 GiB; the 320 MiB floor yields on small nodes |
+| `rocksdb_shared_memory_budget_mb` | 10% of machine memory (RocksDB) or managed heap budget (Solarium) | 64 MiB to 2 GiB; the 320 MiB floor yields on small nodes |
 | `rocksdb_shared_memtable_budget_mb` | One quarter of the block cache, raised to the Raft-log flush unit when possible | 16 MiB to 1 GiB; the 128 MiB floor yields on small nodes |
 | `max_bytes_per_actor` | 6.25% of the managed heap budget, and at least 64 MiB for the layer, divided by `key_value_workers` | 1 MiB to 2 GiB for each actor; the 8 MiB floor yields on small nodes |
 | `max_entries_per_actor` | `max_bytes_per_actor` divided by about 512 B | 2k to 4M; the 10k floor yields on small nodes |
 
-The result is about 16% of memory across the two cache layers. The total never
-exceeds 4 GiB, however large the machine is.
+Across the two cache layers, the total never exceeds 4 GiB, however large the
+machine.
 
-When `rocksdb_shared_memory` is on and both the KV store and the Raft WAL use
-RocksDB, CamusDB tries to keep the computed memtable budget large enough for the
-Raft-log flush unit. At the default WAL shard settings that unit is 192 MiB. If a
-small container cannot fit that budget inside half of the block cache, CamusDB
-keeps the smaller percentage-based value and Kommander logs a startup warning.
-Raise both RocksDB budgets explicitly or reduce WAL shard sizing if that warning
-matters for the workload.
+The fractions and ceilings are conservative because an unconfigured node is
+more often a developer workstation, or a CI container sharing the machine with
+a compiler and an editor, than a dedicated database server.
 
-The fractions and the ceilings are conservative for a reason. An unconfigured
-node is more often a developer workstation, or a CI container that shares the
-machine with a compiler and an editor. It is less often a dedicated database
-server. An explicit value always wins over the computed one.
+For example, on an 8 GiB machine with 8 cores, no heap limit, and none of the
+four keys set, the block cache is 819 MiB and the memtable sub-budget is 204
+MiB. The 8 cores give 32 key-value workers, each with a 16 MiB actor cache, for
+512 MiB together. The total is about 1.3 GiB.
 
-Here is the result on an 8 GiB machine with 8 cores, no heap limit, and none of
-the four keys set. The block cache is 819 MiB. The memtable sub-budget is 204
-MiB, inside the block cache. The 8 cores give 32 key-value workers, and each
-gets an actor cache of 16 MiB, which is 512 MiB together. The total is about
-1.3 GiB.
+On a dedicated server, raise all four values explicitly. The computed sizes are
+a floor to build from, not a recommendation for a machine whose only job is
+CamusDB.
 
-Raise all four values explicitly on a dedicated server. The sizes above are a
-floor to build from. They are not a recommendation for a machine whose only job
-is CamusDB.
-
-The share of 6.25%, and its floor of 64 MiB, bound the actor-cache layer as a
-whole. CamusDB then divides that budget by `key_value_workers`. Only the minimum
-of 8 MiB applies to one actor. More cores therefore divide the same budget into
-more parts. They do not make the budget larger. A machine with many cores and
-little RAM therefore does not receive a multiple of the intended share.
+The 6.25% share and its 64 MiB floor bound the actor-cache layer as a whole.
+CamusDB divides that budget by `key_value_workers` (default
+max(32, 4 × CPU cores)), and only the 8 MiB minimum applies per actor. More
+cores divide the same budget into more parts rather than enlarging it, so a
+machine with many cores and little RAM does not get a multiple of the intended
+share. Because `max_bytes_per_actor` applies to one actor, multiply it by
+`key_value_workers` to get the total.
 
 The two RocksDB budgets are shared by the KV store and the Raft WAL. See
 [Shared RocksDB memory](/docs/storage#shared-rocksdb-memory) for how
 `rocksdb_shared_memory` works and when it applies.
 
-CamusDB charges the memtable sub-budget inside the total block-cache budget. It
-does not add the sub-budget to the total. The sub-budget must not exceed the
-total. CamusDB compares the two values after the merge of all layers. An
-override of only one of the two can therefore produce an inconsistent pair. One
-example is a total of 100 MiB against an explicit memtable budget of 512 MiB. The
-computed memtable default never exceeds the total, including the flush-unit
-floor. Set both values together.
+CamusDB charges the memtable sub-budget inside the block-cache budget rather
+than adding it on top, so the sub-budget must not exceed the total. CamusDB
+compares the two values after merging all layers, so overriding only one of
+them can produce an inconsistent pair, such as a 100 MiB total with an
+explicit 512 MiB memtable budget. Set both values together. The computed
+memtable default never exceeds the total, including the flush-unit floor.
 
-`max_bytes_per_actor` applies to one actor. Multiply it by `key_value_workers`
-to get the total. The default worker count is max(32, 4 × CPU cores).
+When `rocksdb_shared_memory` is on and both the KV store and the Raft WAL use
+RocksDB, CamusDB tries to keep the computed memtable budget large enough for
+the Raft-log flush unit, which is 192 MiB at the default WAL shard settings. If
+a small container cannot fit that budget inside half of the block cache,
+CamusDB keeps the smaller percentage-based value and Kommander logs a startup
+warning. If that warning matters for your workload, raise both RocksDB budgets
+explicitly or reduce WAL shard sizing.
 
 ### All kahuna keys
 
 Every key below goes under the `kahuna:` map. Each one is read once when the
-node starts, so a change needs a restart, and `SET CLUSTER SETTING` rejects it.
-Each node reads its own file. Where a row says so, give every node the same
+node starts, so a change requires a restart, and `SET CLUSTER SETTING` rejects
+it. Each node reads its own file; where a row says so, give every node the same
 value.
 
 "Kahuna default" means the value comes from the storage engine itself.
@@ -880,9 +1002,12 @@ value.
 
 | Key | Default | Type | Description |
 |-----|---------|------|-------------|
-| `kahuna.storage` | `rocksdb` | `memory`, `sqlite`, `rocksdb` | Key-value storage backend. |
-| `kahuna.storage_revision` | `v2` | string | On-disk layout revision of the store. See [above](#the-kahuna-engine-section) before you change it. |
-| `kahuna.wal_storage` | `rocksdb` | `memory`, `sqlite`, `rocksdb` | Raft log backend. |
+| `kahuna.storage` | `rocksdb` | `memory`, `sqlite`, `rocksdb`, `solarium` | Key-value storage backend. |
+| `kahuna.storage_revision` | `v2` | string | On-disk layout revision of the store. See [above](#kahuna-engine-section) before you change it. |
+| `kahuna.wal_storage` | `rocksdb` | `memory`, `sqlite`, `rocksdb`, `solarium` | Raft log backend. |
+| `kahuna.solarium_environment` | `default` | `default`, `io_uring` | File I/O for [Solarium](https://solariumdb.github.io/) layers; io_uring requires Linux support. |
+| `kahuna.storage_compaction_rate_mbps` | unset | integer MB/s | KV flush/compaction pacing for RocksDB or Solarium; 0 means unlimited. |
+| `kahuna.storage_max_background_compactions` | unset | int | KV compaction concurrency; 0 uses the engine default. |
 | `kahuna.wal_revision` | `v2` | string | On-disk layout revision of the Raft log. |
 | `kahuna.wal_sync_writes` | `true` (Kahuna default) | bool | Syncs each Raft log write to disk. With `false`, an operating system crash or power loss can lose recent log entries. |
 | `kahuna.wal_group_commit_linger_ms` | `0` (Kahuna default) | ms | How long a log writer waits to group more commits into one fsync. `0` turns the wait off. |
@@ -952,8 +1077,8 @@ All five must be above `0` when set.
 | `kahuna.compact_number_entries` | `50` (Kahuna default) | int | Trailing log entries each pass keeps. |
 | `kahuna.max_entries_per_compaction` | `5000` (Kahuna default) | int | Log entries one pass may delete. |
 | `kahuna.rocksdb_shared_memory` | `true` | bool | One RocksDB block cache and write-buffer budget for both the store and the Raft log. Only applies when both use `rocksdb`. |
-| `kahuna.rocksdb_shared_memory_budget_mb` | computed from memory | MiB | Shared block cache size. |
-| `kahuna.rocksdb_shared_memtable_budget_mb` | computed from memory | MiB | Memtable budget inside the block cache. Must not exceed `kahuna.rocksdb_shared_memory_budget_mb`. |
+| `kahuna.rocksdb_shared_memory_budget_mb` | computed from memory | MiB | Shared cache for RocksDB or [Solarium](https://solariumdb.github.io/); Solarium sizing uses managed heap. |
+| `kahuna.rocksdb_shared_memtable_budget_mb` | computed from memory | MiB | Shared memtable sub-budget for RocksDB or Solarium. Must not exceed `kahuna.rocksdb_shared_memory_budget_mb`. |
 | `kahuna.rocksdb_direct_reads` | `false` | bool | Reads SST files with direct I/O, past the operating system page cache. |
 
 The count and size keys above must be above `0` when set.
@@ -1042,7 +1167,7 @@ These apply only with [key-range sharding](/docs/key-range-sharding). See
 
 The interval, count, and timeout keys in this table must be above `0` when set.
 
-## The diagnostics section
+## Diagnostics section
 
 The `diagnostics:` map exports server metrics and traces. Everything is off by
 default. The node reads these keys at startup, so a change needs a restart. See
@@ -1075,6 +1200,7 @@ default. The node reads these keys at startup, so a change needs a restart. See
 | A parser-cache limit is below 0, or its sweep interval is below 1 | `InvalidConfig` |
 | Unknown `kahuna` key | `InvalidConfig` |
 | Unknown `kahuna.storage` or `kahuna.wal_storage` | `InvalidConfig` |
+| Invalid `kahuna.solarium_environment`, or negative compaction pacing/concurrency | `InvalidConfig` |
 | `kahuna.start_election_timeout_ms` is at or above `kahuna.end_election_timeout_ms` | `InvalidConfig` |
 | Effective `kahuna.recent_heartbeat_ms` is at or above effective `kahuna.heartbeat_interval_ms` | `InvalidConfig` |
 | `kahuna.staged_base_fence_retention_ms` is 0 or below | `InvalidConfig` |

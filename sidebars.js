@@ -248,6 +248,7 @@ const sidebars = {
           collapsed: false,
           items: [
             'cluster',
+            'growing-a-one-node-cluster',
             'kubernetes-operator',
             'key-range-sharding',
             'configuration',
@@ -296,6 +297,8 @@ const sidebars = {
               label: 'Node resource stats',
             },
             'slow-query-log',
+            'statement-stats',
+            'index-usage',
             {
               type: 'doc',
               id: 'show-variables',
@@ -350,13 +353,6 @@ const sidebars = {
         'web-console',
         'camus-cli',        
         'camus-dump',
-        'workload-utility',
-        'caraxes',
-        {
-          type: 'doc',
-          id: 'typescript-connector',
-          label: 'TypeScript',
-        },
         {
           type: 'category',
           label: '.NET',
@@ -367,6 +363,24 @@ const sidebars = {
             'ef-core',
           ],
         },
+        {
+          type: 'category',
+          label: 'TypeScript',
+          collapsed: false,
+          items: [
+            {
+              type: 'doc',
+              id: 'typescript-connector',
+              label: 'TypeScript driver',
+            },
+            'prisma',
+          ],
+        },
+        'python-driver',
+        'aspire',
+        'testcontainers',
+        'workload-utility',
+        'caraxes',
         'error-codes',
         'http-api',
         'grpc-api',

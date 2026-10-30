@@ -46,9 +46,9 @@ ORDER BY year DESC;
 
 ## Identifiers and case
 
-A keyword is not case-sensitive. CamusDB stores the name of a database, a table,
-a column, and an index in the case you use when you create or rename it. A later
-match on that name ignores the case:
+Keywords are not case-sensitive. CamusDB stores database, table, column, and
+index names in the case you use when you create or rename them, and later
+lookups ignore case:
 
 ```camussql
 CREATE TABLE Robots (
@@ -61,17 +61,17 @@ SELECT ROBOTNAME FROM ROBOTS;
 ```
 
 The result still shows the original names `Robots`, `Id`, and `RobotName`, and
-so do `SHOW TABLES`, `SHOW COLUMNS`, and `SHOW CREATE TABLE`. The three spellings
-`robots`, `ROBOTS`, and `Robots` all address the same table.
+so do `SHOW TABLES`, `SHOW COLUMNS`, and `SHOW CREATE TABLE`. `robots`,
+`ROBOTS`, and `Robots` all refer to the same table.
 
-A name is also unique without regard to its case. `Robots` and `robots`
-therefore cannot exist as two tables in one database, and one table cannot hold
-both `RobotName` and `robotname` as columns.
+Names are also unique regardless of case, so `Robots` and `robots` cannot be two
+tables in the same database, and one table cannot have both `RobotName` and
+`robotname` columns.
 
 ### Backticks
 
-Use a backtick when an identifier is the same as a reserved keyword, a type
-name, or a function name:
+Use backticks when an identifier matches a reserved keyword, a type name, or a
+function name:
 
 ```camussql
 CREATE TABLE `order` (
@@ -83,26 +83,25 @@ SELECT `select`, `from`
 FROM `order`;
 ```
 
-`CASE` and `END` are reserved. A column with the name `end` therefore needs
+`CASE` and `END` are reserved, so a column named `end` needs
 ``SELECT `end` FROM events``.
 
 ## Literals
 
-A backtick quotes an identifier only. A string literal takes a single quotation
-mark, or a double one. The two forms are equivalent:
+Backticks quote identifiers only. String literals use single or double
+quotation marks, and the two forms are equivalent:
 
 ```camussql
 SELECT "literal text", 'literal text';
 ```
 
-See [Data Types](/docs/data-types) for the literal format of every type. That
-page includes a temporal value, an array, and an object id.
+See [Data Types](/docs/data-types) for the literal format of every type,
+including temporal values, arrays, and object ids.
 
 ## Comments
 
-CamusDB accepts both forms of a comment. A comment is valid at any position
-where a space is valid: before a statement, between two clauses, or at the end
-of a line.
+CamusDB accepts both line and block comments. A comment is valid anywhere a
+space is: before a statement, between clauses, or at the end of a line.
 
 ```camussql
 -- Line comments run to the end of the line.
@@ -118,20 +117,20 @@ FROM robots /* or sit inline */
 WHERE active = true;
 ```
 
-A block comment does not nest. The first `*/` closes the comment. A comment
-without an end is an error of the parser.
+Block comments do not nest: the first `*/` closes the comment. An unterminated
+comment is a parser error.
 
-A comment marker inside a string literal is only text:
+A comment marker inside a string literal is just text:
 
 ```camussql
 SELECT "not -- a comment" AS value;
 ```
 
-One point is easy to miss. `--` always starts a comment. `SELECT 10 FROM t --5`
-therefore parses as `SELECT 10 FROM t`. Write `10 - -5`, with a space, to
-subtract a negative number.
+One point is easy to miss: `--` always starts a comment, so
+`SELECT 10 FROM t --5` parses as `SELECT 10 FROM t`. To subtract a negative
+number, write `10 - -5`, with a space.
 
-## Map of the statements
+## Statement map
 
 ### Schema
 
@@ -145,42 +144,45 @@ subtract a negative number.
 | PostgreSQL-style expression forms | [PostgreSQL Expression Syntax](/docs/sql-expression-syntax) |
 | `CHECK` and `NOT NULL` | [Check Constraints](/docs/check-constraints) |
 | Parent-child integrity | [Foreign Keys](/docs/foreign-keys) |
-| Indexes, and a covering index | [Indexes](/docs/sql-indexes) |
+| Indexes and covering indexes | [Indexes](/docs/sql-indexes) |
 | Sequences and identity columns | [Sequences](/docs/sequences) |
-| A description on a schema object | [Schema Comments](/docs/comment-on) |
+| Descriptions on schema objects | [Schema Comments](/docs/comment-on) |
 | A stored query | [Views](/docs/views) |
-| The stored result of a query | [Materialized Views](/docs/materialized-views) |
+| A stored query result | [Materialized Views](/docs/materialized-views) |
 
 ### Read and write
 
 | Task | Page |
 | --- | --- |
 | `INSERT`, `UPDATE`, `DELETE` | [Insert, Update, Delete](/docs/sql-writes) |
+| `ON CONFLICT`, `UPSERT` | [Skip or Update Conflicting Rows](/docs/sql-writes#on-conflict) |
 | `INSERT ... SELECT` and CTAS | [Copying Query Results](/docs/insert-select-and-ctas) |
 | `TRUNCATE`, which empties a table | [Emptying A Table](/docs/truncate-table) |
-| `SELECT`, a filter, a group, an order | [SELECT](/docs/sql-queries) |
-| A join, a subquery, a derived table | [Joins And Subqueries](/docs/joins-and-subqueries) |
+| `SELECT`, filtering, grouping, ordering | [SELECT](/docs/sql-queries) |
+| `FOR UPDATE`, `NOWAIT`, `SKIP LOCKED` | [Lock Rows Before Updating Them](/docs/sql-queries#for-update) |
+| Joins, subqueries, derived tables | [Joins And Subqueries](/docs/joins-and-subqueries) |
+| `UNION`, `INTERSECT`, `EXCEPT`, including `ALL` | [Combine Query Results](/docs/sql-queries#set-operations) |
 | A historical snapshot | [Time-Travel Reads](/docs/time-travel-reads) |
 | A `SELECT` with no table source | [SELECT Without FROM](/docs/sql-fromless-select) |
-| A scalar function | [Functions](/docs/functions) |
+| Scalar functions | [Functions](/docs/functions) |
 | Custom C# functions, row triggers, and procedures | [C# Extensions](/docs/csharp-extensions) |
-| A vector, and a nearest neighbor search | [Vector Search](/docs/vector-search) |
-| The expiry of a row | [Row-Level TTL](/docs/row-level-ttl) |
+| Vectors and nearest neighbor search | [Vector Search](/docs/vector-search) |
+| Row expiry | [Row-Level TTL](/docs/row-level-ttl) |
 
 ### Transactions, performance, and inspection
 
 | Task | Page |
 | --- | --- |
-| `BEGIN`, `COMMIT`, the isolation, the locks | [Transactions In SQL](/docs/sql-transactions) |
+| `BEGIN`, `COMMIT`, isolation, locks | [Transactions In SQL](/docs/sql-transactions) |
 | How CamusDB selects a plan | [Query Planning](/docs/query-planning) |
-| How you read a plan | [EXPLAIN](/docs/explain) |
+| How to read a plan | [EXPLAIN](/docs/explain) |
 | The estimates behind a plan | [SHOW STATISTICS](/docs/show-statistics) |
-| A cache for a repeated read | [Result Cache](/docs/query-result-cache) |
-| A scan across the cluster | [Distributed Queries](/docs/distributed-queries) |
+| Caching repeated reads | [Result Cache](/docs/query-result-cache) |
+| Scans across the cluster | [Distributed Queries](/docs/distributed-queries) |
 | The range placement of a table or index | [SHOW RANGES](/docs/show-ranges) |
 | Statements that crossed a slow-query threshold | [Slow Query Log](/docs/slow-query-log) |
-| A placeholder, and a prepared handle | [Parameters And Prepared Statements](/docs/prepared-statements) |
+| Placeholders and prepared handles | [Parameters And Prepared Statements](/docs/prepared-statements) |
 | A deeply nested generated statement | [Statement Nesting Limit](/docs/statement-nesting-limit) |
 | `SHOW`, `DESCRIBE`, `ANALYZE` | [Inspecting The Database](/docs/sql-inspection) |
-| A grant and a role | [Authentication And Authorization](/docs/sql-authentication) |
+| Grants and roles | [Authentication And Authorization](/docs/sql-authentication) |
 | `SET` and `RESET CLUSTER SETTING` | [Runtime Cluster Settings](/docs/runtime-cluster-settings) |

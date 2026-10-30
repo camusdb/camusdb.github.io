@@ -13,12 +13,12 @@ load through [`CamusDB.Workload`](/docs/workload-utility), injects process,
 network, disk, and topology faults, and turns the collected artifacts into a
 PASS or FAIL verdict.
 
-Use Caraxes when you want evidence about the behavior of a build. A passing run
-does not prove CamusDB correct for every possible history. It says that the
+Use Caraxes when you want evidence about how a build behaves. A passing run
+does not prove CamusDB correct for every possible history. It shows that the
 specific build, cluster shape, workload, faults, and checks in the scenario
 survived the measured window and left artifacts that explain the result.
 
-Caraxes has been used to catch, fix, and prevent user-facing failures in these areas:
+Caraxes has helped catch, fix, and prevent user-facing failures in these areas:
 
 - Atomicity regressions during contended bank transfers, where the conserved
   balance changed after a run.
@@ -38,9 +38,8 @@ Caraxes has been used to catch, fix, and prevent user-facing failures in these a
 - Lost diagnostic evidence after teardown, by preserving node logs and crash
   dumps before containers and volumes are removed.
 
-The harness lives in its own repository, beside a checkout of CamusDB. It builds
-the node image from `docker/Dockerfile` in the CamusDB checkout, so a run tests
-the code on your disk.
+Caraxes runs beside a CamusDB checkout and builds the node image from that
+checkout's `docker/Dockerfile`, so a run tests the code on your disk.
 
 ## Requirements
 
@@ -52,7 +51,7 @@ Run every command below from the root of the Caraxes repository.
 
 ## Cluster lifecycle
 
-Four commands manage a cluster without a workload:
+These commands manage a cluster without a workload:
 
 ```bash
 # build the image, generate artifacts, start the fleet, wait until every node is ready
@@ -151,10 +150,10 @@ Use `--tag <name>` when you repeat one scenario and want to keep every run side
 by side under `runs/scenarios/<scenario>-<tag>`. Use `--correctness-only` on CI
 or other variable-speed machines when recovery timing and throughput recovery
 should be reported but not used as pass/fail criteria. Reconciliation, Elle
-(an isolation checker, described [below](#elle-block)), node health, divergent-apply checks, and total-outage checks still grade the
-run.
+(an isolation checker, described [below](#elle-block)), node health,
+divergent-apply checks, and total-outage checks still grade the run.
 
-The verb `run` performs the whole cycle:
+`run` performs the whole cycle:
 
 1. Publish `CamusDB.Workload` from the CamusDB checkout.
 2. Bring the cluster up and wait until every node is ready.
@@ -217,8 +216,7 @@ teardown: true
 
 ### Workload block
 
-The keys of the `workload:` block map onto `CamusDB.Workload` flags. Defaults
-are lighter than the standalone workload utility because chaos scenarios run
+`workload:` keys map onto `CamusDB.Workload` flags. Defaults are lighter than the standalone workload utility because chaos scenarios run
 many workloads and care about behavior under fault, not just peak throughput.
 
 | Key | Default | Meaning |
@@ -267,9 +265,8 @@ means seconds.
 operations, which makes it useful for smoke tests, throughput ceilings, and
 general fault recovery without intentionally creating write/write contention.
 
-`bank` uses transfers between any two rows of the table, so a transfer can span
-partitions. Every
-transfer must preserve `SUM(balance)` and commit atomically. Caraxes checks that
+`bank` transfers between any two rows of the table, so a transfer can span
+partitions. Every transfer must preserve `SUM(balance)` and commit atomically. Caraxes checks that
 sum after the run and never waives it. Conflicts under fault can be expected; a
 changed balance is a correctness failure.
 
@@ -292,8 +289,8 @@ reconciliation can miss.
 
 ### Elle block
 
-The `elle:` block configures the checker for `workload.kind: append`. It is
-ignored by the other workload shapes.
+The `elle:` block configures the checker for `workload.kind: append`. Other
+workload shapes ignore it.
 
 ```yml
 workload:
@@ -354,9 +351,9 @@ nemesis:
 | `backup` | Take a full, incremental, or coordinated backup while load continues, so its latency and availability cost are measured. | No healing is required. |
 | `add-node` | Boot a replacement through `--join-existing`, optionally seeded from a verified backup chain. | The new node catches up and is promoted to a [voter](/docs/concepts#learner-and-voter). |
 
-Set `heal: false` on an event to hold it open for the rest of the run. A
-`kill` without healing becomes a crash without repair. A partition without
-healing leaves the cluster to continue without the isolated node.
+Set `heal: false` on an event to hold it open for the rest of the run. An
+unhealed `kill` becomes a crash without repair, and an unhealed partition leaves
+the cluster to continue without the isolated node.
 
 Targets can be a node name such as `camus2`, `random`, or `zone:<name>`.
 `random` is seeded and reproducible. A zone target expands to every node in that
@@ -480,7 +477,8 @@ health monitor samples `/ping` during the measured window and distinguishes a
 node process that died from a container that still says `Up`. The divergent
 apply check scans captured node logs for the message that
 [Kahuna](/docs/concepts#kahuna), the storage layer, logs when two nodes apply
-different data at the same revision, and writes matches to `divergent-applies.txt`.
+different data at the same revision, and writes matches to
+`divergent-applies.txt`.
 
 ## Measurement evidence
 
@@ -597,7 +595,7 @@ is the evidence behind the verdict.
 | `runs/leader-balance/<cluster>/` | `leader-balance.md` and `leaders.jsonl`. |
 
 `scenario.json` records the short hash of the CamusDB checkout that Caraxes
-built. You can trace a verdict back to the code it judged.
+built, so you can trace a verdict back to the code it judged.
 
 ## Exit codes
 

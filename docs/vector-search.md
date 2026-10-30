@@ -11,12 +11,12 @@ applications, where you fetch the most relevant passages to put in a prompt.
 Because the vectors live in ordinary CamusDB tables, a search can filter on
 regular columns, such as a tenant id, in the same query.
 
-A vector (also called an embedding) is a list of float32 numbers. A machine
-learning model produces one for each document, image, or sentence. The model
-puts related items close together, so the distance between two vectors measures
-how similar the items are.
+A vector (also called an embedding) is a list of float32 numbers that a machine
+learning model produces for each document, image, or sentence. The model places
+related items close together, so the distance between two vectors measures how
+similar the items are.
 
-CamusDB stores a vector in a `BYTES` column. It ranks vectors with distance
+CamusDB stores vectors in `BYTES` columns and ranks them with distance
 functions. A nearest neighbor query is an ordinary `SELECT` with an `ORDER BY`
 and a `LIMIT`:
 
@@ -28,29 +28,28 @@ ORDER BY l2_distance(embedding, @q)
 LIMIT 10;
 ```
 
-The search is exact. CamusDB reads every row that the `WHERE` clause admits. It
-returns the true nearest rows. There is no approximation, and there is no recall
-parameter to tune.
+The search is exact: CamusDB reads every row the `WHERE` clause admits and
+returns the true nearest rows. There is no approximation and no recall parameter
+to tune.
 
-The cost grows in a straight line with the number of rows. Read
-[Cost](#cost) before you run this against a very large table.
+The cost grows linearly with the number of rows. Read [Cost](#cost) before you
+run this against a very large table.
 
 ## How a vector is stored
 
 A vector is a `BYTES` value with this layout:
 
 1. The elements are IEEE-754 float32 numbers.
-2. The byte order of each element is little-endian.
-3. The elements are packed together. There is no header, and there is no
-   padding.
+2. Each element is little-endian.
+3. The elements are packed together, with no header and no padding.
 
-The dimension is the byte count divided by four. A 768-dimension embedding
+The dimension is the byte count divided by four, so a 768-dimension embedding
 occupies 3,072 bytes.
 
-This layout is the full contract. The schema does not record it. A value that
-one client writes and another client reads is readable only because both clients
-follow the same layout. The float32 value `1.0` is `0x3F800000`. On the wire it
-is the four bytes `00 00 80 3F`, with the low byte first.
+This layout is the full contract, and the schema does not record it. A value one
+client writes is readable by another only because both follow the same layout.
+For example, the float32 value `1.0` is `0x3F800000`, which goes on the wire as
+the four bytes `00 00 80 3F`, low byte first.
 
 ```camussql
 CREATE TABLE docs (
@@ -67,36 +66,36 @@ large-value strategy. See [Storage strategy for embeddings](#storage-strategy-fo
 
 ### BYTES(N) is a maximum, not a fixed width
 
-`BYTES(N)` declares that a value must not exceed `N` bytes. It does not declare
-that a value must be exactly `N` bytes. A 767-element embedding therefore fits a
-`BYTES(3072)` column without complaint.
+`BYTES(N)` means a value must not exceed `N` bytes, not that it must be exactly
+`N` bytes. So a 767-element embedding fits a `BYTES(3072)` column without
+complaint.
 
 A value that exceeds the bound fails with `CADB0302 ValueTooLong`. A bare
 `BYTES` column uses the default maximum of 10,485,760 bytes. See
 [Data types](/docs/data-types) for the full length rules.
 
-The `CHECK` constraint is what fixes the dimension. Without a `CHECK`, CamusDB
-stores a short vector, and it compares that vector against full-length vectors.
-The mismatch appears later, as an error in some query.
+The `CHECK` constraint is what fixes the dimension. Without it, CamusDB stores a
+short vector and compares it against full-length vectors, and the mismatch shows
+up later as an error in some query.
 
-Two functions support such a check:
+These functions support such a check:
 
 | Function | Returns |
 | --- | --- |
 | `octet_length(bytes or string)` | The byte count. For a string, this is the UTF-8 byte count. `octet_length('áé')` is 4, but `length('áé')` is 2. |
 | `vector_dims(bytes)` | The element count, which is `octet_length / 4`. |
 
-`vector_dims` rejects a byte count that is not a multiple of four. It does not
-round the value down. A 3,070-byte value would otherwise report 767 dimensions.
-That value would then satisfy a check written for 767 dimensions. The check
-exists to catch exactly this corruption.
+`vector_dims` rejects a byte count that is not a multiple of four rather than
+rounding down. Otherwise a 3,070-byte value would report 767 dimensions and
+satisfy a check written for 767 dimensions, which is exactly the corruption the
+check exists to catch.
 
-A `NULL` embedding passes `CHECK (vector_dims(embedding) = 768)`. SQL violates a
-check only when the condition is `false`, and `vector_dims(NULL)` is `NULL`. Use
-`NOT NULL` to forbid a missing vector. The check cannot do it. See
+A `NULL` embedding passes `CHECK (vector_dims(embedding) = 768)`, because SQL
+violates a check only when the condition is `false`, and `vector_dims(NULL)` is
+`NULL`. Use `NOT NULL` to forbid missing vectors; the check cannot do it. See
 [Check constraints](/docs/check-constraints).
 
-Both functions are deterministic, and neither is an aggregate. That is what
+Both functions are deterministic and neither is an aggregate, which is what
 makes them legal inside a `CHECK` condition.
 
 ### Storage strategy for embeddings
@@ -106,13 +105,13 @@ An embedding is a `BYTES` value, so the large-value rules in
 3,072 bytes, which is above the default out-of-line threshold of 2,048 bytes.
 Under the default strategy, `EXTENDED`, each embedding moves out of its row.
 
-That is good for large values most queries skip. It is bad for exact KNN scans
-(k-nearest-neighbor: find the k rows closest to a query vector), because the
-ranking expression reads the embedding for every candidate row. The scan then
-pays an extra batched fetch for every batch it ranks. Float32 vectors also do
-not usually compress enough for LZ4 to help.
+That is good for large values that most queries skip. It is bad for exact KNN
+scans (k-nearest-neighbor: find the k rows closest to a query vector), because
+the ranking expression reads the embedding for every candidate row, so the scan
+pays an extra batched fetch for every batch it ranks. Float32 vectors also
+rarely compress enough for LZ4 to help.
 
-Choose the strategy from the query that reads the column:
+Choose the strategy based on the queries that read the column:
 
 - Use `PLAIN` when KNN queries scan the embedding. The value stays inside the
   row and is never compressed.
@@ -129,7 +128,7 @@ ALTER TABLE docs REWRITE STORAGE;
 
 ## Distance functions
 
-All three functions take two vectors of equal dimension. All three return
+All three functions take two vectors of equal dimension and return
 `FLOAT64`.
 
 | Function | Meaning | Nearest is | Sort with |
@@ -138,9 +137,9 @@ All three functions take two vectors of equal dimension. All three return
 | `cosine_distance(a, b)` | `1 - cosine_similarity` | smaller | `ASC` |
 | `inner_product(a, b)` | Dot product | larger | `DESC` |
 
-`inner_product` runs in the opposite direction from the other two functions. An
-ascending sort over `inner_product` returns the least similar rows. CamusDB
-raises no error for this, so the mistake looks like a working query.
+`inner_product` runs in the opposite direction from the other two: an ascending
+sort over `inner_product` returns the least similar rows. CamusDB raises no
+error for this, so the mistake looks like a working query.
 
 ```camussql
 -- Cosine distance: nearest row first.
@@ -150,18 +149,18 @@ SELECT id FROM docs ORDER BY cosine_distance(embedding, @q) LIMIT 10;
 SELECT id FROM docs ORDER BY inner_product(embedding, @q) DESC LIMIT 10;
 ```
 
-`l2_distance` returns the true distance. It applies the square root. The squared
-form gives the same rank order, but it is not a distance. A projected column that
-shows 9.4 where the answer is 3.07 reads as a defect.
+`l2_distance` returns the true distance, with the square root applied. The
+squared form gives the same rank order, but it is not a distance, and a
+projected column showing 9.4 where the answer is 3.07 reads as a defect.
 
-`cosine_distance` returns 0 for two identical directions. It returns 2 for two
-opposite directions. It never returns a negative value. CamusDB clamps the
-similarity to the range `[-1, 1]` before the subtraction. Rounding therefore
-cannot push an exact match below zero and sort it in front of itself.
+`cosine_distance` returns 0 for identical directions and 2 for opposite
+directions, and never returns a negative value. CamusDB clamps the similarity to
+`[-1, 1]` before the subtraction, so rounding cannot push an exact match below
+zero and sort it in front of itself.
 
 CamusDB widens every element to `double` before any arithmetic. A `float`
-accumulator loses the order between two near neighbors at 768 dimensions. It can
-also overflow on values that a `double` handles.
+accumulator loses the order between two near neighbors at 768 dimensions, and
+can overflow on values that a `double` handles.
 
 ### SIMD execution
 
@@ -169,15 +168,15 @@ The three functions use SIMD instructions on hardware that accelerates them.
 SIMD is a processor feature that applies one operation to several numbers at
 once.
 
-The vectorized loop keeps the same behavior as the plain loop:
+The vectorized loop behaves the same as the plain loop:
 
 1. It widens each element to `double` before any arithmetic.
 2. It rejects `NaN` and infinity with the same error.
 3. It names the same element in the error message.
 
-Only the order of the summation differs. That order can change the last bits of
-a result. A big-endian host uses the plain loop. A vector shorter than one SIMD
-lane group also uses the plain loop.
+Only the summation order differs, which can change the last bits of a result.
+Big-endian hosts, and vectors shorter than one SIMD lane group, use the plain
+loop.
 
 ### Return the distance as a column
 
@@ -196,8 +195,8 @@ for how `ORDER BY` resolves an alias and which shapes it refuses.
 ## Send the query vector as a parameter
 
 Send the query vector as a bind parameter. A 768-dimension vector written as a
-hexadecimal literal adds about 6 KB of text to every statement. It also gives
-every query a different statement text, which prevents plan reuse.
+hexadecimal literal adds about 6 KB of text to every statement, and gives every
+query a different statement text, which prevents plan reuse.
 
 | Transport | Encoding |
 | --- | --- |
@@ -215,19 +214,19 @@ every query a different statement text, which prevents plan reuse.
 }
 ```
 
-The value above is the two-element vector `[0.0, 1.0]`. A real embedding is
-4,096 base64 characters at 768 dimensions.
+The value above is the two-element vector `[0.0, 1.0]`. A real 768-dimension
+embedding is 4,096 base64 characters.
 
 The statement text never changes, so a thousand different query vectors share
-one cached plan. Prepared statements work the same way. Prepare the statement
+one cached plan. Prepared statements work the same way: prepare the statement
 once, then execute it with a different vector each time. See
 [Parameters and prepared statements](/docs/prepared-statements).
 
-The server logs the statement text. It never logs the parameter values, so an
-embedding does not reach a log file.
+The server logs the statement text but never the parameter values, so embeddings
+do not reach log files.
 
-A 3,072-byte vector is far below both transport limits. The gRPC message default
-is 4 MB. The request body default is 30 MB. Neither limit is narrower for
+A 3,072-byte vector is far below both transport limits: the gRPC message default
+is 4 MB, and the request body default is 30 MB. Neither limit is narrower for
 vectors.
 
 `LIMIT` also accepts a parameter. CamusDB binds the value before it builds the
@@ -236,19 +235,19 @@ plan, so a parameterized limit still bounds the sort.
 ## What the plan shows
 
 Use `EXPLAIN` to see how CamusDB ranks the query. With a `LIMIT`, the sort is
-bounded, and the plan shows a `topk` node:
+bounded and the plan shows a `topk` node:
 
 ```text
 topk(k: 10, l2_distance(…) ASC)
 ```
 
-Without a `LIMIT`, the plan shows a `sort` node instead. That node ranks and
+Without a `LIMIT`, the plan shows a `sort` node instead, which ranks and
 materializes every matching row.
 
-The two names distinguish two different operators. A `sort` node holds the whole
-input, and it can spill to disk. A `topk` node holds at most `k` rows, and it
-never spills. This is what lets an exact nearest neighbor query over a large
-table finish at all.
+The names reflect two different operators. A `sort` node holds the whole input
+and can spill to disk. A `topk` node holds at most `k` rows and never spills.
+That is what lets an exact nearest neighbor query over a large table finish at
+all.
 
 ```mermaid
 flowchart LR
@@ -259,38 +258,38 @@ flowchart LR
     O --> R
 ```
 
-`EXPLAIN (ANALYZE)` reports the work of each node. The scan node reports every
-row that it examined. The `topk` node reports only the rows that it retained.
+`EXPLAIN (ANALYZE)` reports each node's work. The scan node reports every row
+it examined; the `topk` node reports only the rows it retained.
 
 ### When the bound applies
 
-CamusDB bounds the sort to `offset + limit` rows, not to `limit` rows. The rows
-that `OFFSET` skips must still be ranked before CamusDB can skip them.
+CamusDB bounds the sort to `offset + limit` rows, not `limit` rows, because the
+rows that `OFFSET` skips must still be ranked before CamusDB can skip them.
 
 CamusDB keeps the full sort in these cases:
 
 - The `LIMIT` value is unknown or negative.
 - The `OFFSET` value is negative.
-- The sum of `OFFSET` and `LIMIT` overflows, or it exceeds the maximum 32-bit
+- The sum of `OFFSET` and `LIMIT` overflows or exceeds the maximum 32-bit
   integer.
-- Spill to disk is enabled, and the bound exceeds the spill threshold. At that
-  size the external sort is the operator designed to hold the rows. See
+- Spill to disk is enabled and the bound exceeds the spill threshold. At that
+  size, the external sort is the operator designed to hold the rows. See
   [Spill to disk](/docs/spill-to-disk).
 - A node between the sort and the limit changes the row count. A projection
-  preserves rows, so a bound above it is safe. An aggregate does not.
-  `SELECT count(*) FROM t ORDER BY x LIMIT 1` must count every row. A bound of
-  one row would answer with a count of 1.
+  preserves rows, so a bound above it is safe, but an aggregate does not.
+  `SELECT count(*) FROM t ORDER BY x LIMIT 1` must count every row; a one-row
+  bound would answer with a count of 1.
 
 `LIMIT 0` returns no rows. CamusDB never reads the input, so it never evaluates
 the ordering expression.
 
 ### Order among equal keys
 
-The `topk` node and the full sort return the same rows. They place `NULL` values
+The `topk` node and the full sort return the same rows and place `NULL` values
 in the same position.
 
-They can disagree on the sequence of rows with equal keys. The `topk` node keeps
-the row that arrived first. SQL leaves this order unspecified. Add a
+They can disagree on the order of rows with equal keys: the `topk` node keeps
+the row that arrived first, and SQL leaves this order unspecified. Add a
 tie-breaking key to `ORDER BY` when you need a fixed order among equal rows.
 
 ## Errors
@@ -303,26 +302,26 @@ tie-breaking key to `ORDER BY` when you need a fixed order among equal rows.
 | An element is `NaN` or an infinity | `CADB0412` invalid vector value |
 | `cosine_distance` receives a zero-magnitude vector | `CADB0412` invalid vector value |
 
-All five conditions map to HTTP 400. See [Error codes](/docs/error-codes).
+All of these conditions map to HTTP 400. See [Error codes](/docs/error-codes).
 
-CamusDB refuses a dimension mismatch. It does not truncate the longer operand.
+CamusDB refuses a dimension mismatch rather than truncating the longer operand.
 Truncation would return a plausible rank order computed from mismatched data.
 
 CamusDB rejects a non-finite element when a vector function reads it, not when
 the row is written. The schema cannot tell an embedding from a file, so no write
 path may reject a `BYTES` value for a vector rule.
 
-A zero-element vector is a corrupt row, not a distance of zero. Every metric
+A zero-element vector is a corrupt row, not a distance of zero: every metric
 over zero elements is meaningless or degenerate.
 
 ## Transactions and time travel
 
-A nearest neighbor query is an ordinary read. It obeys the ordinary visibility
-rules:
+A nearest neighbor query is an ordinary read and follows the ordinary
+visibility rules:
 
-- It ranks the uncommitted rows of its own transaction.
-- It ignores the rows of a transaction that rolled back.
-- It ranks the rows of a past snapshot under `AS OF SYSTEM TIME`.
+- It ranks its own transaction's uncommitted rows.
+- It ignores rows from transactions that rolled back.
+- Under `AS OF SYSTEM TIME`, it ranks the rows of the past snapshot.
 
 See [Transactions and isolation](/docs/serializable-transactions) and
 [Time travel reads](/docs/time-travel-reads).
@@ -330,19 +329,18 @@ See [Transactions and isolation](/docs/serializable-transactions) and
 ## Cluster behavior
 
 Every node ranks the whole table, not only the
-[spans](/docs/concepts#ranges-and-spans) (key ranges) whose
-[leader](/docs/concepts#leader) it is. The answer
-is the same on every node.
+[spans](/docs/concepts#ranges-and-spans) (key ranges) it is
+[leader](/docs/concepts#leader) for, so the answer is the same on every node.
 
-The coordinator (the node that received the query) performs the rank. A query
-can therefore ship every qualifying row across the network to the node that runs
-it. There is no distributed top-k operator that bounds this traffic. See
+The coordinator (the node that received the query) does the ranking, so a query
+can ship every qualifying row across the network to that node. No distributed
+top-k operator bounds this traffic. See
 [Distributed queries](/docs/distributed-queries).
 
 ## Cost
 
-These figures come from an Apple M3, with 10,000 rows and 768 dimensions, and
-with the SIMD distance kernels active:
+These figures come from an Apple M3 with 10,000 rows, 768 dimensions, and the
+SIMD distance kernels active:
 
 | Query | Time |
 | --- | ---: |
@@ -350,11 +348,11 @@ with the SIMD distance kernels active:
 | `ORDER BY l2_distance(...)` with no limit | 50 ms |
 | `SELECT id FROM docs` with no sort | 6 ms |
 
-The `LIMIT` cuts the query to about one quarter of the full sort. The value of
-`k` itself changes little. A limit of 10 and a limit of 100 measure the same,
-because the cost comes from the read and the rank of every row.
+The `LIMIT` cuts the query to about a quarter of the full sort time. The value
+of `k` itself matters little: a limit of 10 and a limit of 100 measure the same,
+because the cost comes from reading and ranking every row.
 
-One distance evaluation costs this much on the same hardware:
+A single distance evaluation on the same hardware costs:
 
 | Dimensions | `l2_distance` | `inner_product` | `cosine_distance` |
 | ---: | ---: | ---: | ---: |
@@ -362,27 +360,26 @@ One distance evaluation costs this much on the same hardware:
 | 768 | 240 ns | 214 ns | 320 ns |
 | 1536 | 459 ns | 405 ns | 607 ns |
 
-The cost grows in a straight line with rows multiplied by dimensions. The
-figures above give about 1.2 s for the same query over one million rows on the
-same hardware.
+The cost grows linearly with rows times dimensions. From the figures above,
+the same query over one million rows takes about 1.2 s on the same hardware.
 
-Two rules follow:
+So:
 
 1. Always pair a vector `ORDER BY` with a `LIMIT`.
 2. Narrow the candidate rows with a `WHERE` clause where you can. The filter
-   runs before the rank, so a selective predicate reduces the rows that CamusDB
-   measures.
+   runs before ranking, so a selective predicate reduces the rows CamusDB has to
+   measure.
 
 ## Limits
 
 CamusDB does not support these features yet:
 
 - No approximate index. There is no HNSW index, no IVF index, and no
-  quantization. Every query is an exact scan.
+  quantization, so every query is an exact scan.
 - No vector index type. An ordinary index cannot help a distance sort, because
   distance is not an order-preserving function of the stored bytes.
 - No native vector type. The dimension lives in a `CHECK` constraint, not in the
-  catalog. The element type is a convention, not a fact that the schema records.
+  catalog, and the element type is a convention the schema does not record.
 - No distributed top-k. See [Cluster behavior](#cluster-behavior) above.
 
 ## Related

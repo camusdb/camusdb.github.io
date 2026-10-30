@@ -5,31 +5,34 @@ sidebar_position: 7.2
 # EF Core provider
 
 `CamusDB.EntityFrameworkCore` lets a .NET application use CamusDB through
-Entity Framework Core. Entity Framework Core, or EF Core, is the
-object-relational mapper (ORM) of .NET. You define your data as C# classes. You
-query it with LINQ. EF Core writes the SQL, tracks the changes to your objects,
-and saves them.
+Entity Framework Core. Entity Framework Core (EF Core) is the .NET
+object-relational mapper (ORM): you define your data as C# classes and query it
+with LINQ, and EF Core writes the SQL, tracks changes to your objects, and saves
+them.
 
 Use EF Core when your application already uses it, or when you want to work
-with objects instead of SQL text. The provider sits on the
-[.NET driver](/docs/dotnet-driver), so the transport, the authentication, and
-the routing are the same.
+with objects instead of SQL text. The provider sits on top of the
+[.NET driver](/docs/dotnet-driver), so transport, authentication, and routing
+work the same way.
 
 To compare the three .NET packages (driver, Dapper, EF Core) and their target
 frameworks, see [Which .NET package to use](/docs/dotnet-driver#which-net-package-to-use).
 
-Use the EF Core provider in these cases:
+Use the EF Core provider when:
 
 - You want LINQ over CamusDB tables.
 - You want EF Core change tracking.
 - You create the schema with `EnsureCreated()`, or with EF migrations for the
   supported DDL.
-- You want optimistic concurrency in the application, with version columns.
+- You want application-level optimistic concurrency with version columns.
 
 Use the [.NET driver](/docs/dotnet-driver) instead when you want to write SQL
-first, or when you need finer control of each command and each transaction.
+first, or need finer control over each command and transaction.
 
-The provider depends on the relational APIs of EF Core 10.
+The provider depends on the EF Core 10 relational APIs.
+
+For an Aspire application, use the [.NET Aspire integration](/docs/aspire#register-an-ef-core-context)
+to register a pooled context with health checks and telemetry.
 
 ## Install
 
@@ -50,20 +53,20 @@ var options = new DbContextOptionsBuilder<AppDbContext>()
     .Options;
 ```
 
-The connection string accepts the same keys as the driver of ADO.NET. Common
+The connection string accepts the same keys as the ADO.NET driver. Common
 examples are `Protocol=grpc`, `User`, `Password`, `AccessToken`,
 `MaxAutoPrepare`, `AutoPrepareMinUsages`, `IsolationLevel`, `Locking`,
 `TransactionMode`, `ChannelPoolSize`, `CoalescingThreshold`, and
 `CoalescingDelay`.
 
-See [.NET Driver](/docs/dotnet-driver#connection-string) for the full reference
-of a connection string. See
-[.NET Driver Authentication](/docs/dotnet-driver#authentication) for a connection
-with an authentication.
+See [.NET Driver](/docs/dotnet-driver#connection-string) for the full
+connection string reference, and
+[.NET Driver Authentication](/docs/dotnet-driver#authentication) for
+authenticated connections.
 
 EF Core commands also emit the driver's OpenTelemetry traces and metrics. See
 [.NET Driver OpenTelemetry](/docs/dotnet-driver#opentelemetry) for registration
-and for the interaction with EF Core's own instrumentation.
+and how it interacts with EF Core's own instrumentation.
 
 You can also configure it in `OnConfiguring`:
 
@@ -78,8 +81,8 @@ public sealed class AppDbContext : DbContext
 
 ## Reuse an existing connection
 
-Pass the connection directly in two cases: you want to share a
-`CamusConnection`, and you want to manage a transaction outside the context:
+Pass the connection directly when you want to share a `CamusConnection` or
+manage a transaction outside the context:
 
 ```csharp
 CamusConnection connection = new(
@@ -91,14 +94,13 @@ var options = new DbContextOptionsBuilder<AppDbContext>()
     .Options;
 ```
 
-You can pass an existing connection. The `DbContext` then does not own that
-connection. It also disposes nothing.
+When you pass an existing connection, the `DbContext` doesn't own it and
+disposes nothing.
 
 ## Define a model
 
-Map an object id of a primary key with the store type `"id"`, or `"oid"`. Mark
-that property as generated at an add, when the client must create the
-ObjectId:
+Map an ObjectId primary key with the `"id"` or `"oid"` store type. Mark the
+property as generated on add when the client should create the ObjectId:
 
 ```csharp
 public sealed class Robot
@@ -136,11 +138,11 @@ public sealed class AppDbContext : DbContext
 }
 ```
 
-For a primary key of a string, with a map to `"id"` or to `"oid"`, the provider
-creates a Camus ObjectId of 24 characters. It creates that id on the client.
+For a string primary key mapped to `"id"` or `"oid"`, the provider generates a
+24-character Camus ObjectId on the client.
 
-Use a `ToTable(t => t.HasCheckConstraint(...))` for a check constraint that the
-server enforces:
+Use `ToTable(t => t.HasCheckConstraint(...))` for a server-enforced check
+constraint:
 
 ```csharp
 modelBuilder.Entity<Robot>(b =>
@@ -150,8 +152,8 @@ modelBuilder.Entity<Robot>(b =>
 });
 ```
 
-A check constraint can reject a row. That rejection appears as a
-`DbUpdateException`. Its inner `CamusException` carries the code `CADB0303`.
+When a check constraint rejects a row, you get a `DbUpdateException` whose
+inner `CamusException` carries code `CADB0303`.
 
 ## Type mapping
 
@@ -184,14 +186,14 @@ for that type, so EF Core `HasPrecision(...)` does not change the generated
 column type. A `decimal` constant in a LINQ query is emitted as a typed
 `NUMERIC` literal.
 
-The provider normalizes a `DateTime` value, and a `DateTimeOffset` value, to
-UTC. A `DateOnly` maps to a calendar date.
+The provider normalizes `DateTime` and `DateTimeOffset` values to UTC.
+`DateOnly` maps to a calendar date.
 
 `long[]`, `string[]`, `double[]`, and `bool[]` properties map to native
 `ARRAY(T)` columns. Arrays are read and written as whole values. They are not
 indexable, have no inline SQL literal, and cannot be used in a LINQ predicate.
 
-A vector embedding is stored as a `byte[]` in a `bytes` column. Use
+Vector embeddings are stored as `byte[]` in a `bytes` column. Use
 `CamusVector.ToBytes(...)` from the ADO.NET package to pack a `float[]`, and use
 the vector functions described below to rank rows.
 
@@ -204,14 +206,13 @@ await using var ctx = new AppDbContext(options);
 await ctx.Database.EnsureCreatedAsync();
 ```
 
-An `EnsureCreated()` first checks whether the database exists. It sends
+`EnsureCreated()` first checks whether the database exists. It sends
 `CREATE DATABASE IF NOT EXISTS` only when the database is missing, then creates
-the tables of the model. It continues safely when the database exists already,
-and when the tables exist already. That means an account with DDL grants on an
-existing database can run `EnsureCreated()` or migrations without superuser
-rights.
+the model's tables. It continues safely when the database or the tables already
+exist, so an account with DDL grants on an existing database can run
+`EnsureCreated()` or migrations without superuser rights.
 
-An `EnsureDeleted()` drops the database of the connection string:
+`EnsureDeleted()` drops the connection string's database:
 
 ```csharp
 await ctx.Database.EnsureDeletedAsync();
@@ -427,8 +428,8 @@ await ctx.SaveChangesAsync();
 await tx.CommitAsync();
 ```
 
-With a pool of endpoints, a command inside a transaction stays on the same node.
-It stays there for the whole life of that transaction.
+With an endpoint pool, commands inside a transaction stay on the same node for
+the transaction's whole lifetime.
 
 ## Transaction defaults
 
@@ -466,9 +467,9 @@ left unset falls back to the connection string and then to the server default.
 
 ## Retry on serializable conflicts
 
-Serializable is the default level of the isolation of CamusDB. A
-`SaveChangesAsync()`, and a `CommitTransactionAsync()`, can therefore fail. A
-concurrent transaction wins a conflict of the serialization.
+Serializable is CamusDB's default isolation level, so `SaveChangesAsync()` and
+`CommitTransactionAsync()` can fail when a concurrent transaction wins a
+serialization conflict.
 
 Enable EF Core's execution strategy with `EnableRetryOnFailure()`:
 
@@ -481,16 +482,15 @@ var options = new DbContextOptionsBuilder<AppDbContext>()
     .Options;
 ```
 
-The strategy retries the retryable errors of a transaction of CamusDB only:
+The strategy retries only CamusDB's retryable transaction errors:
 
 - `CADB0502` `TransactionConflict`
 - `CADB0504` `TransactionMustRetry`
 - `CADB0505` `TransactionLifetimeExceeded`
 
-`CADB0509` `TransactionFinalizeUnresolved` is not a signal for a replay from the
-start. The code can appear during the finalize of a transaction. Retry the same
-commit, or the same rollback, for the same id of the transaction. Do not run the
-unit of work again.
+`CADB0509` `TransactionFinalizeUnresolved` is not a signal to replay from the
+start. It can appear while a transaction is finalizing: retry the same commit
+or rollback for the same transaction id, and don't run the unit of work again.
 
 Default retry settings:
 
@@ -511,28 +511,23 @@ camus.EnableRetryOnFailure(
     medianFirstRetryDelay: TimeSpan.FromMilliseconds(20));
 ```
 
-The strategy of the execution retries the whole operation of EF. You can manage
-an explicit transaction by hand. Replay that whole transaction from its start.
-Do not retry the failed statement alone.
+The execution strategy retries the whole EF operation. If you manage an
+explicit transaction by hand, replay the whole transaction from the start; don't
+retry the failed statement alone.
 
 ## Prepared statements
 
-The driver of ADO.NET below prepares a query of EF Core automatically. It also
-prepares a statement of a `SaveChangesAsync()`. The same shape of SQL must
-execute enough times first.
+The underlying ADO.NET driver automatically prepares EF Core queries and
+`SaveChangesAsync()` statements once the same SQL shape has run enough times.
+You need no EF-specific configuration and no manual `Prepare()` calls.
 
-You need no configuration specific to EF. You also need no call of a `Prepare()`
-by hand.
+This suits EF well: LINQ queries and change-tracking writes usually produce
+deterministic, parameterized SQL for each operation.
 
-That behavior suits EF. A query of LINQ, and a write from the tracking of the
-changes, both usually produce deterministic SQL with parameters, for one
-operation.
+A prepared execution behaves like an inline one, including transactions,
+Serializable isolation, retries, and the query result cache.
 
-A prepared execution keeps the behavior of an inline execution. That includes the
-transaction, the Serializable isolation, the retries, and the result cache of a
-query.
-
-Tune the policy with the ordinary keys of the connection string:
+Tune the policy with the ordinary connection string keys:
 
 ```csharp
 var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -548,8 +543,8 @@ See [.NET Driver](/docs/dotnet-driver#prepared-statements) and
 
 ## Query result cache
 
-Use a `WithCache(...)` to opt a query of LINQ into the result cache of a query of
-CamusDB. The provider then puts the `{cache=...}` hint into the generated SQL.
+Use `WithCache(...)` to opt a LINQ query into the CamusDB query result cache.
+The provider adds the `{cache=...}` hint to the generated SQL.
 
 ```csharp
 using CamusDB.EntityFrameworkCore;
@@ -562,17 +557,16 @@ List<Order> recent = await ctx.Orders
     .ToListAsync();
 ```
 
-The cache serves a read of one table, in autocommit mode, only. A query with a
-join reads the live storage. A query inside an explicit transaction also reads
-the live storage.
+The cache serves only single-table autocommit reads. Queries with joins, and
+queries inside an explicit transaction, read live storage.
 
-Evict an entry of the cache through the `CamusConnection` below. Use an
-`EvictCacheAsync(...)`, or an `EvictAllCacheAsync()`.
+Evict cache entries through the underlying `CamusConnection` with
+`EvictCacheAsync(...)` or `EvictAllCacheAsync()`.
 
 ## Migrations
 
-The provider holds the services of the design time. The standard tools of EF can
-therefore find it:
+The provider includes design-time services, so the standard EF tools can find
+it:
 
 ```bash
 dotnet ef migrations add InitialCreate
@@ -638,12 +632,11 @@ public partial class AddStockColumn : Migration
 }
 ```
 
-A change of the ability of a column to hold a null works, while the stored type
-stays the same. A change of the type of a column in place does not work.
+You can change a column's nullability as long as the stored type stays the
+same. Changing a column's type in place is not supported.
 
-A `DropCheckConstraint` emits a `DROP CONSTRAINT`. CamusDB resolves that
-statement against a named `CHECK` constraint, and against a named `NOT NULL`
-constraint.
+`DropCheckConstraint` emits `DROP CONSTRAINT`, which CamusDB resolves against
+named `CHECK` and named `NOT NULL` constraints.
 
 ## Comments
 
@@ -807,8 +800,7 @@ public sealed class Order
 }
 ```
 
-Increase the column of the version in the code of your application. Do that
-before a save:
+Increment the version column in your application code before saving:
 
 ```csharp
 order.Status = "shipped";
@@ -826,8 +818,8 @@ Important behavior:
 
 ## Current limitations
 
-The provider is useful today. It nevertheless does not imitate a feature of a
-database that CamusDB does not support.
+The provider is useful today, but it doesn't emulate database features that
+CamusDB doesn't support.
 
 Unsupported or restricted operations include:
 

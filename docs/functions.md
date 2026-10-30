@@ -21,11 +21,11 @@ FROM robots
 WHERE abs(year - 2000) <= 5;
 ```
 
-The name of a function is not case-sensitive.
+Function names are not case-sensitive.
 
 To add application-specific scalar functions written in C#, see
 [C# extensions](/docs/csharp-extensions). The same extension system also
-supports transactional row triggers and stored procedures.
+supports table functions, aggregates, transactional row triggers, and stored procedures.
 
 ## Categories
 
@@ -62,11 +62,11 @@ supports transactional row triggers and stored procedures.
 - [Vector Functions](/docs/vector-search) inspect vector dimensions and compare
   vectors with distance and similarity metrics.
 
-## Two rules worth your attention
+## Nulls and volatile functions
 
-A null propagates. Most functions return `NULL` when one argument is `NULL`.
+Nulls propagate: most functions return `NULL` when any argument is `NULL`.
 [Null Functions](/docs/functions-null) covers the exceptions, such as `coalesce`
-and `nullif`. Each page of a category marks any other exception.
+and `nullif`, and each category page marks any others.
 
 Some functions are volatile. Their result can change from one call, statement,
 or transaction to the next:
@@ -78,13 +78,12 @@ or transaction to the next:
   `current_date()`, `unix_timestamp()`, and `unix_timestamp_ms()`.
 - **Sequence functions:** `nextval`, `currval`, `lastval`, and `setval`.
 
-Volatile functions such as `gen_id()` and `now()` work as the default of a
-column. A per-call function is unsafe in a predicate that must stay stable across
-a scan.
+Volatile functions such as `gen_id()` and `now()` work as column defaults. A
+per-call function is unsafe in a predicate that must stay stable across a
+scan.
 
 The [session functions](/docs/functions-session) vary by caller, not by row. See
 that page for how they interact with the result cache, `DEFAULT`, and `CHECK`.
 
-CamusDB evaluates the arguments before the call. It validates the number of the
-arguments and their types at the execution. It does not validate them at the
-parse.
+CamusDB evaluates arguments before the call. It validates the argument count
+and types at execution time, not at parse time.

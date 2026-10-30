@@ -832,6 +832,62 @@
   50% { opacity: 0.56; }
 }
 
+.gallerySection {
+  padding: clamp(4rem, 7vw, 6rem) 0;
+}
+
+.galleryTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 1.5rem;
+}
+
+.galleryTabs .exampleTab {
+  text-align: center;
+}
+
+.galleryPanel {
+  margin: 0;
+}
+
+.galleryImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px -12px rgba(2, 6, 23, 0.35);
+}
+
+.galleryCaption {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-top: 1.25rem;
+}
+
+.galleryCaption strong {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 1.1rem;
+}
+
+.galleryCaption span {
+  color: var(--ifm-color-emphasis-700);
+}
+
+.galleryCaption a {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.galleryCaption a span {
+  color: inherit;
+}
+
 @media screen and (max-width: 996px) {
   .heroLayout {
     grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
@@ -929,6 +985,12 @@
   .finalCtaInner {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .galleryCaption {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.75rem;
   }
 
   .finalActions {

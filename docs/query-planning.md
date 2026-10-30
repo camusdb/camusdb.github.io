@@ -4,13 +4,12 @@ sidebar_position: 3.1
 
 # Query planning
 
-SQL states what you want. It does not state how CamusDB gets it. The planner
-decides the method. It selects between a scan of a table and a probe of an
-index. It selects between a sort in memory and a read in the order of an index.
-It selects the algorithm of a join.
+SQL says what you want, not how CamusDB should get it. The planner decides the
+how: whether to scan a table or probe an index, whether to sort in memory or
+read in index order, and which join algorithm to use.
 
-This page covers the abilities of the planner. It also covers your help toward a
-good choice. For the internal pipeline, see
+This page covers what the planner can do and how you can help it choose well.
+For the internal pipeline, see
 [Query Planner Internals](/docs/query-planner-internals). To see the choice for
 one query, use [EXPLAIN](/docs/explain).
 
@@ -33,7 +32,7 @@ order. Finally, it returns at most ten rows. A small result does not necessarily
 mean a small amount of work; the engine may need to inspect many candidates
 before it knows which ten to return.
 
-Three terms help when reading a plan:
+These terms help when reading a plan:
 
 | Term | Meaning |
 | --- | --- |
@@ -42,87 +41,84 @@ Three terms help when reading a plan:
 | Selectivity | The fraction of input rows expected to pass a condition. A filter that keeps 100 of 10,000 rows has selectivity 0.01. |
 
 The optimizer compares **estimated work**, not measured execution time. A lower
-cost is a prediction. Statistics, data skew, and the limits of the model can
+cost is a prediction: statistics, data skew, and the limits of the model can
 make another plan faster in practice.
 
 ## What the planner can do
 
 CamusDB can plan these shapes today:
 
-- A full scan of a table.
+- A full table scan.
 - A point lookup on a unique index, such as an equality on a primary key.
-- A scan of a range on a non-unique index, for an equality, an inequality, and a
+- A range scan on a non-unique index, for equalities, inequalities, and
   `BETWEEN`.
-- A scan of a covering secondary index. It can return the projected columns from
-  the index, and it fetches no primary row.
-- Repeated probes of an index, for an indexed `IN (...)` list of values.
+- A covering secondary index scan, which returns the projected columns from the
+  index without fetching the primary row.
+- Repeated index probes for an indexed `IN (...)` list of values.
 - A residual filter above a scan, when an index covers only part of the
   predicate.
-- The omission of a sort, when an index already produces the necessary order.
-- A pushdown of a `LIMIT` and an `OFFSET`, when a scan can stop early and stay
-  safe.
-- An aggregate, both grouped and global.
-- A streaming `DISTINCT`, on a compatible indexed projection of `NOT NULL`
+- Skipping the sort when an index already produces the needed order.
+- `LIMIT` and `OFFSET` pushdown, when a scan can safely stop early.
+- Grouped and global aggregates.
+- Streaming `DISTINCT` on a compatible indexed projection of `NOT NULL`
   columns.
-- An inner join, a left outer join, a right outer join, a cross join, and a join
-  with a comma.
-- A hash join for an equi-join. That includes an equi-join without a usable
-  index on the right side. A left outer join can use a hash join when the right
-  side is the build side, the input loaded into the in-memory hash table.
-- A merge join, when CamusDB can read both sides in the order of the join key.
-- An indexed nested-loop join, when an index covers the join key of the right
-  side.
-- A rewrite to a semi-join (keep each outer row that has a match) or an
-  anti-join (keep each outer row that has no match), for an eligible indexed
-  `IN` or `NOT IN` subquery.
-- An indexed seek, for an eligible correlated `EXISTS` subquery.
-- A derived table, a scalar subquery, an `IN`, a `NOT IN`, and an `EXISTS`.
-- An explicit force of an index, with `@{FORCE_INDEX=...}`.
-- An opt-in cache of a result, for an eligible repeated read of one table, with
+- Inner, left outer, right outer, cross, and comma joins.
+- Hash joins for equi-joins, including equi-joins with no usable index on the
+  right side. A left outer join can use a hash join when the right side is the
+  build side, the input loaded into the in-memory hash table.
+- Merge joins, when CamusDB can read both sides in join-key order.
+- Indexed nested-loop joins, when an index covers the right side's join key.
+- Rewriting an eligible indexed `IN` or `NOT IN` subquery into a semi-join (keep
+  each outer row that has a match) or an anti-join (keep each outer row that has
+  no match).
+- An indexed seek for an eligible correlated `EXISTS` subquery.
+- Derived tables, scalar subqueries, and `IN`, `NOT IN`, and `EXISTS`
+  subqueries.
+- Forcing an index with `@{FORCE_INDEX=...}`.
+- An opt-in result cache for eligible repeated single-table reads, with
   `{cache=...}`.
 
-CamusDB has a cost-based optimizer with statistics, on top of the planner with
-rules. `EXPLAIN` always exposes the estimates of the cost. Some choices use the
-cost automatically. Two of those are a broad veto of a scan of a range, and the
-selection of the algorithm of a join.
+On top of its rule-based planner, CamusDB has a cost-based optimizer that uses
+statistics. `EXPLAIN` always shows the cost estimates, and some choices use cost
+automatically, such as a broad veto of a range scan and the choice of join
+algorithm.
 
-Two broad passes of a search are on by default:
+Two broader searches are on by default:
 
-- `cost_based_access_path_enabled` enumerates the viable access paths of each
-  table, over an index and over the table. It then selects the cheapest one.
-- `cost_based_join_order_enabled` enumerates the orders of a join. It then
-  selects the cheapest connected plan. See
-  [The order of a join by cost](#the-order-of-a-join-by-cost).
+- `cost_based_access_path_enabled` enumerates each table's viable access paths,
+  over its indexes and over the table itself, and picks the cheapest one.
+- `cost_based_join_order_enabled` enumerates join orders and picks the cheapest
+  connected plan. See [Join order by cost](#the-order-of-a-join-by-cost).
 
-Both flags default to `true`. With the statistics available, one SQL statement
-can change its choice in four ways. It can select a different index, a full
-scan, a different algorithm of a join, or a different order of a join. The
-optimizer found a plan of a lower estimated cost.
+Both flags default to `true`. With statistics available, the same SQL statement
+can switch to a different index, a full scan, a different join algorithm, or a
+different join order when the optimizer finds a plan with a lower estimated
+cost.
 
-CamusDB keeps the matching heuristic choice when you turn either flag off.
+If you turn either flag off, CamusDB keeps the matching heuristic choice.
 
-## How CamusDB selects a scan
+## How CamusDB chooses a scan
 
-CamusDB tries to turn a predicate into an ordered read of the key/value
-storage layer, at every opportunity.
+Whenever it can, CamusDB turns a predicate into an ordered read of the key/value
+storage layer.
 
-### An equality on a unique index
+### Equality on a unique index
 
 An equality on a unique index becomes a point lookup:
 
 ```camussql
 SELECT *
 FROM robots
-WHERE id = "507f1f77bcf86cd799439011";
+WHERE id = '507f1f77bcf86cd799439011';
 ```
 
-That is the best shape of a lookup. A unique primary key, and a `UNIQUE` index,
-let the planner fetch at most one row directly.
+This is the best lookup shape. A unique primary key or a `UNIQUE` index lets the
+planner fetch at most one row directly.
 
-### An equality on a non-unique index
+### Equality on a non-unique index
 
-An equality on a non-unique index becomes a bounded scan of a range. It does not
-become one lookup:
+An equality on a non-unique index becomes a bounded range scan, not a single
+lookup:
 
 ```camussql
 SELECT *
@@ -130,12 +126,12 @@ FROM robots
 WHERE year = 2024;
 ```
 
-`year` can be non-unique. CamusDB then scans the range that holds every matching
+If `year` is non-unique, CamusDB scans the range that holds every matching
 entry for `2024`.
 
-### A predicate of a range
+### Range predicates
 
-A predicate of a range can also drive a scan of an index:
+A range predicate can also drive an index scan:
 
 ```camussql
 SELECT *
@@ -147,23 +143,22 @@ FROM robots
 WHERE year BETWEEN 2020 AND 2024;
 ```
 
-### A list of values in an IN clause
+### IN lists
 
-CamusDB can plan an indexed `IN (...)` predicate as repeated probes of the
-index:
+CamusDB can plan an indexed `IN (...)` predicate as repeated index probes:
 
 ```camussql
 SELECT *
 FROM robots
-WHERE id IN ("id1", "id2", "id3");
+WHERE id IN ('id1', 'id2', 'id3');
 
 SELECT *
 FROM robots
 WHERE year IN (2020, 2022, 2024);
 ```
 
-That plan helps most when an index covers the target column, and when the list
-of the values is small or of a moderate size.
+This plan helps most when an index covers the target column and the list is
+small or moderate in size.
 
 ### Type matching for index predicates
 
@@ -182,44 +177,43 @@ literal is valid text for that value.
 is `NULL` cannot drive a normal ordered seek, and the planner keeps the
 remaining condition as a filter when that is what SQL semantics require.
 
-### A residual filter
+### Residual filters
 
-An index can cover part of a predicate only. CamusDB then scans with the index.
-It applies the remaining filter after that:
-
-```camussql
-SELECT *
-FROM robots
-WHERE year >= 2020 AND name = "R2";
-```
-
-An index on `year` narrows the scan. `name = "R2"` stays a residual filter.
-
-A predicate of a pattern is also a residual filter. That set covers `LIKE`,
-`ILIKE`, and the operators `~`, `~*`, `!~`, and `!~*`. Such a predicate can
-still combine with an indexable predicate on another column:
+When an index covers only part of a predicate, CamusDB scans with the index and
+applies the rest as a filter afterward:
 
 ```camussql
 SELECT *
 FROM robots
-WHERE year >= 2020 AND name ~* "^r";
+WHERE year >= 2020 AND name = 'R2';
 ```
 
-A residual predicate still contributes to the cost estimate. After `ANALYZE`,
-CamusDB estimates `LIKE`, `ILIKE`, and their negated forms from the histogram of
-the column. A fixed prefix such as `name LIKE "Rob%"` is priced as a range. A
-pattern with a wildcard at the beginning is estimated from the sampled
-histogram bounds. An `OR` chain of patterns on the same column is considered
-together, rather than charging the same fixed fraction for every pattern.
+An index on `year` narrows the scan, and `name = 'R2'` stays a residual filter.
+
+Pattern predicates are also residual filters: `LIKE`, `ILIKE`, and the `~`,
+`~*`, `!~`, and `!~*` operators. They can still combine with an indexable
+predicate on another column:
+
+```camussql
+SELECT *
+FROM robots
+WHERE year >= 2020 AND name ~* '^r';
+```
+
+A residual predicate still counts toward the cost estimate. After `ANALYZE`,
+CamusDB estimates `LIKE`, `ILIKE`, and their negated forms from the column's
+histogram. A fixed prefix such as `name LIKE 'Rob%'` is priced as a range. A
+pattern that starts with a wildcard is estimated from the sampled histogram
+bounds. An `OR` chain of patterns on the same column is estimated as a whole,
+instead of charging the same fixed fraction for every pattern.
 
 Regular-expression predicates remain residual predicates, but they use the
 fallback selectivity rather than the histogram pattern estimate.
 
-### A covering index
+### Covering indexes
 
-An index with an `INCLUDE (...)` can answer a query without a fetch of the
-primary row. Every necessary column must be a key column, or an included
-column:
+An index with `INCLUDE (...)` can answer a query without fetching the primary
+row, as long as every needed column is a key column or an included column:
 
 ```camussql
 CREATE INDEX orders_customer_idx
@@ -232,30 +226,36 @@ WHERE customer_id = 42;
 ```
 
 The key column `customer_id` drives the lookup. CamusDB stores the included
-columns `status` and `total` in the entry of the index. It can return them
-directly.
+columns `status` and `total` in the index entry, so it can return them directly.
 
-A query can project or filter on a column that is neither a key column nor an
-included column. CamusDB can then still use the index. It must nevertheless
-fetch the primary row. See [Indexes](/docs/sql-indexes#covering-indexes).
+If a query projects or filters on a column that is neither a key column nor an
+included column, CamusDB can still use the index, but it must fetch the primary
+row. See [Indexes](/docs/sql-indexes#covering-indexes).
 
-## The behavior of a composite index
+## Composite indexes
 
-A composite index helps most when the predicates of a query follow the order of
-the columns of the index, from left to right.
+A composite index helps most when the query's predicates follow the index
+columns from left to right.
 
-Here is an index on `(kind, year)`:
+Given an index on `(kind, year)`:
 
 ```camussql
 SELECT *
 FROM robots
-WHERE kind = "service" AND year >= 2020;
+WHERE kind = 'service' AND year >= 2020;
 ```
 
-CamusDB can use the prefix of the equality on `kind`, and the range on `year`.
+CamusDB can use the equality prefix on `kind` and the range on `year`.
+The cost model prices the equality-bound columns using distinct-value counts,
+then estimates the following range from its histogram or fallback statistics.
+This keeps an equality-plus-range candidate comparable with indexes that bind
+only the same equality prefix.
 
-A query can skip the leftmost column of the index. The planner may then be
-unable to use that composite index well:
+Equal-cost candidates prefer covering access, then bounds covering more key
+columns, then index name for a deterministic tie-break.
+
+If a query skips the index's leftmost column, the planner may not be able to use
+that composite index well:
 
 ```camussql
 SELECT *
@@ -269,72 +269,67 @@ columns that are needed to guarantee one row. If trailing key columns can be
 chooses a bounded scan or a different path instead of making a one-row promise
 that nullable SQL values do not support.
 
-## The statistics, and the cost-based optimizer
+## Statistics and the cost-based optimizer {#the-statistics-and-the-cost-based-optimizer}
 
-CamusDB keeps light advisory statistics from a live write. It keeps richer
-statistics from an `ANALYZE`. The planner can use these values:
+CamusDB keeps light advisory statistics from live writes, and richer statistics
+from `ANALYZE`. The planner can use:
 
-- The row count of a table.
-- The count of the entries of each index.
-- The bounds of the minimum and the maximum of each indexed column.
-- The histogram of a column.
-- The count of the distinct values, for a column and for a prefix of a composite
-  index.
+- Each table's row count.
+- Each index's entry count.
+- The minimum and maximum bounds of each indexed column.
+- Column histograms.
+- Distinct-value counts, for columns and for composite index prefixes.
 - The most common values and their observed frequencies.
 - The fraction of each analyzed column that is `NULL`.
 
-You can read all of them from a SQL prompt, with
-[`SHOW STATISTICS FOR <table>`](/docs/show-statistics). That statement also
-reports the time of the last analyze of the table, and the amount of the change
-since then.
+You can read all of them from a SQL prompt with
+[`SHOW STATISTICS FOR <table>`](/docs/show-statistics), which also reports when
+the table was last analyzed and how much has changed since.
 
-Run `ANALYZE` after a bulk load or a major change in the distribution of the
-data, when you need fresh estimates of selectivity and join cardinality
-immediately:
+Run `ANALYZE` after a bulk load or a major change in data distribution, when you
+need fresh selectivity and join cardinality estimates right away:
 
 ```camussql
 ANALYZE TABLE robots;
 ```
 
-CamusDB also runs an automatic analyze by default. It refreshes a stale
-statistic of a table in the background. It counts the mutations of the
-rows since the last analyze. It can rebuild the statistics after enough rows
-change. See [Automatic Analyze](/docs/automatic-analyze) for the threshold of
-the staleness, for the limits on the resources, and for the settings.
+CamusDB also runs automatic analyze by default, refreshing stale table
+statistics in the background. It counts row mutations since the last analyze
+and can rebuild the statistics once enough rows change. See
+[Automatic Analyze](/docs/automatic-analyze) for the staleness threshold,
+resource limits, and settings.
 
 The cost model uses these estimates to fill `estimated_rows` and
-`estimated_cost` in an `EXPLAIN`. It also feeds these decisions:
+`estimated_cost` in `EXPLAIN`. They also feed these decisions:
 
-- The choice between a scan of a range and a full scan of a table.
-- The choice between a plan of probes for an indexed `IN (...)` and a wider
-  scan.
-- The selection of the algorithm of a join, among an indexed nested loop, a hash
-  join, and a merge join.
+- Range scan versus full table scan.
+- Probing an indexed `IN (...)` list versus a wider scan.
+- The join algorithm: indexed nested loop, hash join, or merge join.
 - The access-path and join-order searches, while their flags are on.
 
-The optimizer degrades safely. An absent statistic and a stale statistic do not
-make a query incorrect. CamusDB falls back to a default. It also falls back to
-the planner with rules, when it cannot cost a plan reliably.
+The optimizer degrades safely. Missing or stale statistics do not make a query
+incorrect. CamusDB falls back to a default, and it falls back to the rule-based
+planner when it cannot cost a plan reliably.
 
-### An access path by cost
+### Access path by cost
 
 With `cost_based_access_path_enabled: true`, the single-table planner compares
 viable predicate-driven index candidates against a full scan when the table has
 a positive row-count estimate and analyzed statistics. A table that has never
-been analyzed keeps the heuristic selection for this pass. The scans used to
-locate rows for `UPDATE` and `DELETE` also keep the heuristic path, to avoid
-widening exclusive lock ranges.
+been analyzed keeps the heuristic selection for this pass. The scans that locate
+rows for `UPDATE` and `DELETE` also keep the heuristic path, to avoid widening
+exclusive lock ranges.
 
 The flag also enables eligible filtered index leaves in join plans; that path
 has its own selection rules. It does not mean every input of a join gets an
 independently optimized index scan.
 
-That behavior matters when more than one index could satisfy a predicate. A
-planner with rules can prefer the longest prefix of an equality. The planner
-with a cost can prefer a different index. It can even prefer a full scan, when
-the statistics show a smaller amount of data in total.
+This matters when more than one index could satisfy a predicate. The rule-based
+planner can prefer the longest equality prefix. The cost-based planner can
+prefer a different index, or even a full scan when the statistics show less
+data to read in total.
 
-### The order of a join by cost
+### Join order by cost {#the-order-of-a-join-by-cost}
 
 For an eligible inner join, CamusDB searches connected **left-deep** orders:
 join two sources, add a third to their result, then add a fourth. Each step
@@ -392,10 +387,10 @@ See the planner internals for
 [skewed join keys](/docs/query-planner-internals#skewed-join-keys), and
 [plan-time lookups](/docs/query-planner-internals#plan-time-lookup).
 
-## The order of the rows, and the omission of a sort
+## Row order and skipping the sort
 
-An index can already yield the rows in the order that an `ORDER BY` needs.
-CamusDB can then omit a separate sort in memory.
+When an index already yields rows in the order an `ORDER BY` needs, CamusDB can
+skip the separate in-memory sort.
 
 ```camussql
 SELECT *
@@ -404,21 +399,20 @@ ORDER BY year;
 ```
 
 With a compatible index on `year`, CamusDB can scan directly in that order. The
-direction of the index must match the direction of the query. An index on
-`(year ASC)` can satisfy `ORDER BY year ASC`. An index on `(year DESC)` can
-satisfy `ORDER BY year DESC`.
+index direction must match the query's direction: an index on `(year ASC)` can
+satisfy `ORDER BY year ASC`, and an index on `(year DESC)` can satisfy
+`ORDER BY year DESC`.
 
-A composite index can also satisfy an order. The list of the `ORDER BY` must
-match a prefix of the index, from left to right, and it must match the
-direction. For example, `(kind ASC, year DESC)` can satisfy `ORDER BY kind ASC,
-year DESC`.
+A composite index can also satisfy an order, as long as the `ORDER BY` list
+matches a prefix of the index, left to right, in the same directions. For
+example, `(kind ASC, year DESC)` can satisfy `ORDER BY kind ASC, year DESC`.
 
 Three cases usually need a real sort:
 
 - An `ORDER BY` on a column without a compatible index.
-- An order that does not match the prefix of the index.
-- A difference of the direction, such as an `ORDER BY year ASC` when only
-  `(year DESC)` is available.
+- An order that does not match the index prefix.
+- A direction mismatch, such as `ORDER BY year ASC` when only `(year DESC)` is
+  available.
 
 ### A bounded sort with LIMIT
 
@@ -432,10 +426,10 @@ above the effective spill threshold keeps the ordinary sort so it can spill.
 A large offset increases the number of retained candidates even when the
 requested page is small.
 
-## The pushdown of a LIMIT
+## LIMIT pushdown
 
-The shape of a query can be simple enough. CamusDB can then stop the scan below
-it early. It does not read the whole input first.
+When a query is simple enough, CamusDB can stop the underlying scan early
+instead of reading the whole input first.
 
 ```camussql
 SELECT *
@@ -444,41 +438,41 @@ ORDER BY year
 LIMIT 10;
 ```
 
-That behavior works best under three conditions:
+This works best when:
 
-- The scan already satisfies the requested order.
-- No extra filter must run after the scan.
-- No group, no `HAVING`, and no `DISTINCT` prevents an early stop.
+- The scan already produces the requested order.
+- No extra filter has to run after the scan.
+- No grouping, `HAVING`, or `DISTINCT` prevents an early stop.
 
-## A parallel scan, and a distributed scan
+## Parallel and distributed scans
 
-A full scan of a table can use more than one thread, on one node. Set
-`max_query_parallelism` above `1`. The scan then streams one time, and the rows
-decode in chunks on the thread pool:
+A full table scan can use more than one thread on a single node when you set
+`max_query_parallelism` above `1`. The scan still streams once, and the rows are
+decoded in chunks on the thread pool:
 
 ```camussql
 SET CLUSTER SETTING max_query_parallelism = 4;
 ```
 
-The consumer takes the chunks in the order of their dispatch. A query therefore
-returns the same rows, in the same order, as it returns with the default of `1`.
+The consumer takes the chunks in the order they were dispatched, so a query
+returns the same rows, in the same order, as with the default of `1`.
 
-`SET CLUSTER SETTING` applies the value on every node, and it overrides
-`config.yml`. It takes effect at the next query. Nodes can run different values
-only through `config.yml`, while no cluster override exists. The setting buys
-throughput of the decode on a wide row. It costs one buffer for each worker, and
-more concurrent reads of the storage.
+`SET CLUSTER SETTING` applies the value on every node, overrides `config.yml`,
+and takes effect on the next query. Nodes can run different values only through
+`config.yml`, while no cluster override exists. The setting improves decode
+throughput on wide rows, at the cost of one buffer per worker and more
+concurrent storage reads.
 
-In a cluster, an eligible full scan can go further. It can run one fragment for
-each [partition](/docs/concepts#partition), a slice of the table's data, on the
-node that owns those rows. It then applies the filters and
-the aggregates before anything crosses the network. That behavior is off by
-default. See [Distributed Queries](/docs/distributed-queries).
+In a cluster, an eligible full scan can go further: it can run one fragment per
+[partition](/docs/concepts#partition) (a slice of the table's data) on the node
+that owns those rows, applying filters and aggregates before anything crosses
+the network. This is off by default. See
+[Distributed Queries](/docs/distributed-queries).
 
 ## Joins
 
 CamusDB supports `JOIN`, `INNER JOIN`, `LEFT JOIN`, `RIGHT JOIN`, `CROSS JOIN`,
-and a join with a comma. The planner first normalizes the syntax:
+and comma joins. The planner first normalizes the syntax:
 
 - `JOIN` and `INNER JOIN` are the same inner join.
 - `RIGHT JOIN` is executed as a left join with the operands swapped.
@@ -486,15 +480,15 @@ and a join with a comma. The planner first normalizes the syntax:
   the whole `FROM` clause is cross joins or comma joins, CamusDB can still lift
   an equality from the `WHERE` clause and plan it as a join predicate.
 
-For an inner equi-join, and for an eligible left outer equi-join, the planner can
-select among several physical algorithms:
+For inner equi-joins and eligible left outer equi-joins, the planner can choose
+among several physical algorithms:
 
-| Plan of a join | When it is useful |
+| Join plan | When it is useful |
 | --- | --- |
-| `index-nested-loop-join` | The right side has an index on the join key. The left side is also small enough for a probe of the index at each row. For a left outer join, the left side is the preserved side and unmatched rows are padded after the failed probe. |
-| `hash-join` | The join is an equality. A scan and a build of a hash table is cheaper than repeated probes of the right side. The right side can also have no usable index on the join key. For a left outer join, the build side must be the right side. |
-| `merge-join` | CamusDB can read both sides in the order of the join key, usually through two compatible indexes. It can therefore stream both sides together. For a left outer join, unmatched left runs are padded. |
-| `nested-loop-join` | The fallback, for a join that is eligible for none of the indexed, hash, and merge forms. |
+| `index-nested-loop-join` | The right side has an index on the join key, and the left side is small enough to probe the index once per row. For a left outer join, the left side is the preserved side and unmatched rows are padded after the failed probe. |
+| `hash-join` | The join is an equality, and scanning plus building a hash table is cheaper than repeatedly probing the right side, or the right side has no usable index on the join key. For a left outer join, the build side must be the right side. |
+| `merge-join` | CamusDB can read both sides in join-key order, usually through two compatible indexes, so it can stream both sides together. For a left outer join, unmatched left runs are padded. |
+| `nested-loop-join` | The fallback for a join that is not eligible for the indexed, hash, or merge forms. |
 
 ```camussql
 SELECT u.email, p.title
@@ -502,13 +496,13 @@ FROM app_users u
 JOIN posts p ON p.user_id = u.id;
 ```
 
-The right side can have an index on the join key. CamusDB can then use an
-indexed nested-loop join. It does not scan the whole right side for each left
-row. An index that suits the join therefore matters: here, an index on
+If the right side has an index on the join key, CamusDB can use an indexed
+nested-loop join instead of scanning the whole right side for each left row.
+That is why an index that suits the join matters: here, an index on
 `posts(user_id)` is far more useful than an unrelated index on `posts(title)`.
 
-For a larger join of an equality, the planner may select a hash join or a merge
-join instead. It does that when the estimates show a cheaper shape.
+For a larger equality join, the planner may choose a hash join or a merge join
+instead, when the estimates show a cheaper shape.
 
 When more than one equality in an `ON` clause could drive an indexed nested
 loop, CamusDB prefers a unique index over a non-unique index regardless of the
@@ -522,11 +516,11 @@ rows. A non-unique key whose matches exceed one probe page is streamed
 separately, page by page. Batching reduces calls to the storage layer without
 changing left-row order or outer-join padding.
 
-A hash join materializes one side into a hash table in memory. For an inner
-join, the planner usually builds the side that the estimate calls smaller. It
-then streams the other side, the probe side, and looks up each row in the hash
-table. For a left outer join, the preserved side
-must stay as the probe side, so the hash build side is always the right table.
+A hash join materializes one side into an in-memory hash table. For an inner
+join, the planner usually builds the side the estimate calls smaller, then
+streams the other side (the probe side) and looks up each row in the hash table.
+For a left outer join, the preserved side must stay the probe side, so the build
+side is always the right table.
 
 In a cluster with [distributed queries](/docs/distributed-queries) enabled, an
 inner hash join can broadcast a small build side to the
@@ -537,67 +531,62 @@ the same result as a local probe. A left outer join does not use that broadcast
 shape, because a remote probe can return matches but cannot emit padded rows for
 unmatched preserved rows.
 
-The build side can exceed the configured limit of a hash join. CamusDB can then
-use [spill to disk](/docs/spill-to-disk). It divides the join, and it keeps the
-memory bounded. With the spill disabled, the execution of that query falls back
-to the behavior of a nested loop.
+If the build side exceeds the configured hash join limit, CamusDB can
+[spill to disk](/docs/spill-to-disk), partitioning the join to keep memory
+bounded. With spill disabled, that query falls back to nested-loop behavior.
 
-A merge join needs join keys of an equality. CamusDB can produce both inputs in
-the order of the join key. It then advances both streams together, and it
-buffers only the current run of equal keys. That plan helps most in a larger
-join, where both tables have a compatible index on the columns of the join.
+A merge join needs equality join keys that CamusDB can produce in join-key order
+on both inputs. It advances both streams together and buffers only the current
+run of equal keys. It helps most in larger joins where both tables have a
+compatible index on the join columns.
 
 Outer joins also affect predicate placement. A filter on the preserved side can
 push down to that input. A filter on the null-extended side stays above the join,
 because pushing it below the join would filter before padding and change the
 meaning of the query.
 
-## The rewrite of an IN and of a NOT IN subquery
+## IN and NOT IN subquery rewrites
 
-For an eligible subquery without a correlation, CamusDB can perform two
-rewrites:
+For an eligible uncorrelated subquery, CamusDB can rewrite:
 
-- `x IN (SELECT key FROM t)` becomes a semi-join.
-- `x NOT IN (SELECT key FROM t)` becomes an anti-join.
+- `x IN (SELECT key FROM t)` into a semi-join.
+- `x NOT IN (SELECT key FROM t)` into an anti-join.
 
-Both rewrites need a usable index on the inner side. They also need a simple
-enough shape of the subquery. The rewrite avoids a scan of more data than
-necessary. It also avoids the materialization of that data.
+Both rewrites need a usable index on the inner side and a simple enough subquery
+shape. The rewrite avoids scanning and materializing more data than necessary.
 
-CamusDB falls back when the inner side does not suit a rewrite. It materializes
-the result of the subquery. It then applies the outer predicate normally.
+When the inner side does not suit a rewrite, CamusDB falls back: it materializes
+the subquery result and applies the outer predicate normally.
 
-`NOT IN` keeps the null semantics of SQL. An inner value that accepts a `NULL`
-can force a more conservative path, such as an anti-join that knows about a
-null. It can also force a fallback strategy.
+`NOT IN` keeps SQL null semantics. A nullable inner value can force a more
+conservative path, such as a null-aware anti-join, or a fallback strategy.
 
-## The plan of a DISTINCT
+## DISTINCT plans
 
-`SELECT DISTINCT` has two shapes of an execution:
+`SELECT DISTINCT` runs in one of two ways:
 
-- A streaming distinct. It needs two conditions: every projected column of the
-  distinct is `NOT NULL`, and the rows arrive in a compatible order of an index.
-- A hash distinct. CamusDB tracks the rows it has seen, with eligible
+- Streaming distinct, which needs every projected column to be `NOT NULL` and
+  the rows to arrive in a compatible index order.
+- Hash distinct, where CamusDB tracks the rows it has seen, with eligible
   [spill to disk](/docs/spill-to-disk) when the in-memory working set grows.
 
-A streaming distinct is the better path for a repeated read. It can use constant
-memory. It can also avoid a separate node of a `sort`, when the `ORDER BY`
-matches the order of the index.
+Streaming distinct is the better path for repeated reads. It can use constant
+memory, and it can avoid a separate `sort` node when the `ORDER BY` matches the
+index order.
 
-A `SELECT DISTINCT *` falls back to a hash distinct. A `SELECT DISTINCT` over a
-column without an index, and over a column that accepts a `NULL`, also falls
-back.
+`SELECT DISTINCT *` falls back to hash distinct, as does `SELECT DISTINCT` over
+an unindexed or nullable column.
 
-## A derived table, and a subquery
+## Derived tables and subqueries
 
-CamusDB can plan four forms:
+CamusDB can plan:
 
-- A derived table in a `FROM` clause.
-- A scalar subquery.
-- An `IN` and a `NOT IN` subquery.
-- An `EXISTS` subquery.
+- Derived tables in a `FROM` clause.
+- Scalar subqueries.
+- `IN` and `NOT IN` subqueries.
+- `EXISTS` subqueries.
 
-Here are two examples:
+For example:
 
 ```camussql
 SELECT u.email, d.post_count
@@ -613,17 +602,16 @@ FROM robots
 WHERE year = (SELECT MAX(year) FROM robots);
 ```
 
-For a subquery without a correlation, CamusDB can evaluate the inner query one
-time. It then plans the outer predicate around that result.
+For an uncorrelated subquery, CamusDB can evaluate the inner query once and plan
+the outer predicate around the result.
 
-For a correlated `EXISTS`, CamusDB can avoid a full scan of the inner table. The
-inner table needs an index whose leading key columns a predicate of an equality
-fixes. The key of the seek can come from a column of the outer row, from a
-literal, or from a parameter.
+For a correlated `EXISTS`, CamusDB can avoid a full scan of the inner table when
+the inner table has an index whose leading key columns are fixed by equality
+predicates. The seek key can come from an outer-row column, a literal, or a
+parameter.
 
-CamusDB still evaluates the full inner predicate on the rows that the seek
-returns. The optimization therefore changes the amount of the work. It does not
-change which rows match.
+CamusDB still evaluates the full inner predicate on the rows the seek returns,
+so the optimization changes how much work is done, not which rows match.
 
 ```camussql
 CREATE INDEX posts_user_idx ON posts (user_id);
@@ -641,12 +629,12 @@ WHERE EXISTS (
 The executor falls back to the full inner scan when no suitable index exists.
 
 Under a Serializable transaction, CamusDB protects the range of the indexed
-seek. A concurrent insert into that range therefore cannot create a phantom that
-the query misses.
+seek, so a concurrent insert into that range cannot create a phantom that the
+query misses.
 
 ## Force an index
 
-You can force a specific index when you know that CamusDB must use it:
+You can force a specific index when you know CamusDB must use it:
 
 ```camussql
 SELECT id, name
@@ -654,9 +642,14 @@ FROM robots@{FORCE_INDEX=robots_year_idx}
 WHERE year >= 1980;
 ```
 
-Use that hint with care. It is a tool for debugging and for tuning. It does not
-replace a good design of a schema. CamusDB honors the hint even when the forced
-index makes the query slower.
+If the named index can bound the predicate, CamusDB uses that bounded scan
+without cost competition or the range-versus-full-scan veto. If it cannot,
+automatic access-path selection still runs; a full scan of the named index is
+the fallback when no automatic scan is selected. A name that is not a readable
+index of the table is an error.
+
+Use this hint as a debugging and tuning tool, and inspect `EXPLAIN` to confirm
+the access path. Hinted and unhinted statements have different plan-cache shapes.
 
 ## Reusing a plan
 
@@ -681,77 +674,73 @@ can be correct for both while being less efficient for one. See
 cached and how it is replayed, and [Configuration](/docs/configuration) for
 settings.
 
-## A hint for the result cache
+## Result cache hint
 
-For a repeated read of one table, a `SELECT` can opt into the result cache of
-the node:
+A repeated single-table `SELECT` can opt into the node's result cache:
 
 ```camussql
 SELECT id, total
 FROM orders {cache=recent_orders, ttl=30s}
-WHERE status = "paid";
+WHERE status = 'paid';
 ```
 
-The result cache stores a fully materialized result in memory, after a
+The result cache stores a fully materialized result in memory after a
 successful read in autocommit mode.
 
-It is separate from the plan cache. The plan cache reuses a decision of the
-optimizer. The result cache skips a read of the storage, and it returns the
-cached rows.
+It is separate from the plan cache. The plan cache reuses an optimizer
+decision; the result cache skips the storage read and returns the cached rows.
 
-Four behaviors of the plan matter:
+How it interacts with planning:
 
-- Only a `SELECT` over one table, in autocommit mode, is eligible for the cache.
-- A join bypasses the result cache, even with a hint present.
-- An explicit transaction reads the live storage.
-- `EXPLAIN` adds an informational row `cache` when a hint of the cache is
-  present.
+- Only a single-table `SELECT` in autocommit mode is eligible for the cache.
+- A join bypasses the result cache, even when a hint is present.
+- An explicit transaction reads live storage.
+- `EXPLAIN` adds an informational `cache` row when a cache hint is present.
 
-See [Query Result Cache](/docs/query-result-cache) for the syntax, for the
-guarantees of the freshness, for the manual eviction, and for the settings.
+See [Query Result Cache](/docs/query-result-cache) for the syntax, freshness
+guarantees, manual eviction, and settings.
 
 ## What helps the planner
 
-Do these things for a consistently better plan:
+For consistently better plans:
 
-- Index the columns of an equality, the columns of a range, and the keys of a
-  join.
+- Index equality columns, range columns, and join keys.
 - Put the most selective column first in a composite index, when your queries
   follow that shape from left to right.
-- Index both keys of a join for a large equi-join, when you want a merge join to
-  be available.
-- Add an index that matches a common prefix of an `ORDER BY`. Match the
-  direction of `ASC` and `DESC` as well, when a sorted read matters.
-- Add an `INCLUDE` column for a hot lookup that returns a small set of columns
-  outside the key.
+- Index both join keys of a large equi-join if you want a merge join to be
+  available.
+- Add an index that matches a common `ORDER BY` prefix, including its `ASC` and
+  `DESC` directions, when a sorted read matters.
+- Add `INCLUDE` columns for a hot lookup that returns a few columns outside the
+  key.
 - Keep statistics fresh, as described in
-  [The statistics, and the cost-based optimizer](#the-statistics-and-the-cost-based-optimizer).
+  [Statistics and the cost-based optimizer](#the-statistics-and-the-cost-based-optimizer).
 - Leave both cost-based flags at their default of `true`.
-- Add a `{cache=...}` only to a repeated read of one table, with many reads, and
-  with a result small enough for the memory.
-- Add an index on the correlated inner columns of an `EXISTS` predicate.
-- Use a qualified name in a join. A predicate is then unambiguous.
-- Use `EXPLAIN` to confirm the choice of CamusDB: a scan of a table, a lookup on
-  an index, a scan of a range, a scan for a join, or an extra sort.
+- Add `{cache=...}` only to a frequently repeated single-table read whose result
+  is small enough to keep in memory.
+- Index the correlated inner columns of an `EXISTS` predicate.
+- Use qualified names in joins so predicates are unambiguous.
+- Use `EXPLAIN` to confirm what CamusDB chose: a table scan, an index lookup, a
+  range scan, a join scan, or an extra sort.
 
-## The current limits
+## Current limits
 
-The planner improves over time. Important limits nevertheless remain:
+The planner improves over time, but important limits remain:
 
-- Statistics are estimates. Skewed values, correlated columns, and missing
-  statistics can lead to a poor choice even with both cost-based passes enabled.
+- Skewed values, correlated columns, and missing statistics can lead to a poor
+  choice, even with both cost-based passes enabled.
 - `EXPLAIN (LOGICAL)` currently labels the same physical tree. It renders no
-  separate view of a logical plan.
+  separate logical plan view.
 - An index provides the `ORDER BY` order only when the keys match its columns
   left to right, each in the direction the index declares. A column fixed by
   an equality filter can be skipped. There is no backward scan, so
   `ORDER BY a DESC` cannot use an ascending index on `a`. A `DESC` index column
   is allowed only for fixed-width types, not for `STRING`, `BYTES`, or arrays.
 - Join-order search covers only the connected left-deep orders described in
-  [The order of a join by cost](#the-order-of-a-join-by-cost). It does not
-  search bushy plans, where both inputs of a join are themselves joins. It does
-  not compare the later value of a row order that a more expensive
-  intermediate plan supplies. A query with more sources than the search limit uses the heuristic order.
+  [Join order by cost](#the-order-of-a-join-by-cost). It does not search bushy
+  plans, where both inputs of a join are themselves joins. It does not weigh the
+  later value of a row order that a more expensive intermediate plan supplies.
+  A query with more sources than the search limit uses the heuristic order.
 - A query that contains an outer join keeps its declared join order. CamusDB
   does not reorder an outer-join tree by cost.
 - `FULL [OUTER] JOIN`, `NATURAL JOIN`, and `JOIN ... USING (...)` are not
@@ -759,8 +748,8 @@ The planner improves over time. Important limits nevertheless remain:
 - A `RIGHT JOIN` whose left operand is itself a join is not supported. Rewrite it
   as a left join with the preserved table on the left, often through a derived
   table.
-- A `NOT IN (...)` list of values stays driven by a filter. It uses no dedicated
-  shape of a plan with probes of an index.
+- A `NOT IN (...)` list of values stays filter-driven. It has no dedicated
+  index-probe plan.
 - CamusDB does not support `COUNT(DISTINCT ...)`.
 
 Unsupported SQL forms are rejected. For supported queries, an optimization
@@ -785,13 +774,13 @@ fallback changes the execution strategy while preserving the query's semantics.
 
 ## Inspect a plan
 
-Use `EXPLAIN` to see the choice of the planner:
+Use `EXPLAIN` to see what the planner chose:
 
 ```camussql
 EXPLAIN SELECT * FROM robots WHERE year = 2024;
 EXPLAIN (ANALYZE) SELECT * FROM robots WHERE year = 2024 LIMIT 5;
 ```
 
-See [EXPLAIN](/docs/explain) for the format of the output, and for some
-examples. See [Query Planner Internals](/docs/query-planner-internals) for the
-pipeline of the execution, and for the architecture of the planner.
+See [EXPLAIN](/docs/explain) for the output format and examples. See
+[Query Planner Internals](/docs/query-planner-internals) for the execution
+pipeline and the planner's architecture.

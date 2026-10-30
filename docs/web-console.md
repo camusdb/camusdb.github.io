@@ -2,13 +2,22 @@
 sidebar_position: 7.25
 ---
 
+import ThemedImage from '@theme/ThemedImage';
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
 # Web Console
 
 The CamusDB Web Console lets you browse, query, and administer a CamusDB node or
 cluster from a browser, so you do not need a SQL client on each machine. You run
-the console once, with Docker or from source, and open it in any browser.
+the console as a .NET tool, with Docker, or from source, and open it in a browser.
 
-![CamusDB Web Console](/img/webconsole.png)
+<ThemedImage
+  alt="CamusDB Web Console"
+  sources={{
+    light: useBaseUrl('/img/screenshots/webconsole-query-light.webp'),
+    dark: useBaseUrl('/img/screenshots/webconsole-query-dark.webp'),
+  }}
+/>
 
 In the console you can browse schemas, run SQL, inspect results, edit small
 result sets, export tables, view node configuration and engine metrics, read
@@ -16,18 +25,50 @@ result sets, export tables, view node configuration and engine metrics, read
 
 ## Requirements
 
-- A CamusDB server that runs.
-- Docker, or the .NET 10 SDK when running from source.
+- A running CamusDB server.
+- Docker, or .NET 10 for the tool. Building from source requires the .NET 10 SDK.
 
-CamusDB exposes REST on the port `5095` by default. It exposes the gRPC of a
-client on the port `5096`. The Web Console can use either protocol.
+By default, CamusDB serves REST on port `5095` and client gRPC on port `5096`.
+The Web Console can use either protocol.
+
+## Install as a .NET tool
+
+For a local workspace, install the console from NuGet:
+
+```bash
+dotnet tool install -g CamusDB.WebConsole
+camusdb-webconsole --endpoint http://localhost:5095 --database demo
+```
+
+The console listens on `http://127.0.0.1:5164` and opens your browser.
+
+| Option | Description |
+| --- | --- |
+| `--endpoint <url>` | CamusDB endpoint; defaults to `http://localhost:5095`. |
+| `--database <name>` | Database to open first. |
+| `--protocol <name>` | `rest` (default) or `grpc`. |
+| `--user <name>` | User to sign in as. Enter the password in Configure. |
+| `--port <number>` | Console port; defaults to `5164`. Use `0` for a free port. |
+| `--no-browser` | Start without opening a browser. |
+| `--version`, `--help` | Show version or usage information. |
+
+The environment variables below work for the tool too. There is no password
+option; use Configure or `CamusDB__Password`. Update with:
+
+```bash
+dotnet tool update -g CamusDB.WebConsole
+```
+
+The tool binds to loopback by default. ASP.NET Core host options such as
+`--urls` can override the address; an explicit address also disables automatic
+browser opening. See [Network deployment](#network-deployment) before exposing it.
 
 ## Run it with Docker
 
 The Docker image contains everything needed to run the console:
 
 ```bash
-docker run --rm -p 8080:8080 \
+docker run --rm -p 127.0.0.1:8080:8080 \
   -e CamusDB__Endpoint=http://host.docker.internal:5095 \
   -e CamusDB__Database=demo \
   camusdb/camusdb-webconsole:latest
@@ -39,42 +80,56 @@ Open this address:
 http://localhost:8080
 ```
 
-`host.docker.internal` reaches CamusDB on the host machine, with Docker Desktop.
-A host with Linux may not provide that name of the DNS. Use the LAN IP of the
-host in that case. You can also add this option:
+With Docker Desktop, `host.docker.internal` reaches CamusDB on the host machine.
+A Linux host may not provide that DNS name. In that case, use the host's LAN IP,
+or add this option:
 
 ```bash
 --add-host=host.docker.internal:host-gateway
 ```
 
-At the first load, the console uses its configured defaults. Use the Configure
-control of the app bar to change the endpoint, database, protocol, backup
+The published port is reachable only from the Docker host. See
+[Network deployment](#network-deployment) before publishing it to other machines.
+
+On first load, the console uses its configured defaults. Use the Configure
+control in the app bar to change the endpoint, database, protocol, backup
 endpoint, timeout, maximum rows, and credentials for the current browser
 session.
 
+## Run from source
+
+From a checkout of [camusdb-webconsole](https://github.com/camusdb/camusdb-webconsole):
+
+```bash
+cd src/CamusDB.WebConsole
+dotnet run
+```
+
+Open the address printed by the application.
+
 ## Configuration
 
-The Web Console reads the `CamusDB` section of the configuration. In a
-container, set the same keys as environment variables with two underscores.
+The Web Console reads the `CamusDB` configuration section. In a container, set
+the same keys as environment variables with two underscores.
 
 | Setting | Environment variable | Description |
 | --- | --- | --- |
-| `Endpoint` | `CamusDB__Endpoint` | The base URL of CamusDB. Use the port of REST for `rest`. Use the port of gRPC for `grpc`. |
-| `Database` | `CamusDB__Database` | The name of the database of the session. |
-| `Protocol` | `CamusDB__Protocol` | It is `rest` by default. It also accepts `grpc`. |
-| `TimeoutSeconds` | `CamusDB__TimeoutSeconds` | The timeout of a request. |
-| `MaxRows` | `CamusDB__MaxRows` | Rows per page for pageable queries, and the cap for other results and exports. |
-| `User` | `CamusDB__User` | The user of the authentication. An empty value means no authentication. |
-| `Password` | `CamusDB__Password` | The password of the `User`. |
+| `Endpoint` | `CamusDB__Endpoint` | CamusDB base URL. Use the REST port for `rest` and the gRPC port for `grpc`. |
+| `Database` | `CamusDB__Database` | Session database name. |
+| `Protocol` | `CamusDB__Protocol` | `rest` by default. Also accepts `grpc`. |
+| `TimeoutSeconds` | `CamusDB__TimeoutSeconds` | Request timeout in seconds; defaults to `30`, capped at `600`. |
+| `MaxRows` | `CamusDB__MaxRows` | Rows per page for pageable queries, and the cap for other results and exports. Defaults to `1000`, capped at `100000`. |
+| `User` | `CamusDB__User` | User to authenticate as. An empty value means no authentication. |
+| `Password` | `CamusDB__Password` | Password for `User`. |
 | `AccessToken` | `CamusDB__AccessToken` | A bearer token from another source. The console uses it instead of a login. |
 | `RequireAccessToken` | `CamusDB__RequireAccessToken` | Refuse user/password sign-in. The console then accepts access tokens only. |
 | `AllowInsecureCredentials` | `CamusDB__AllowInsecureCredentials` | Allow credentials to a non-loopback `http://` endpoint. Use only behind a trusted TLS terminator, private link, or tunnel. |
 | `LockEndpoint` | `CamusDB__LockEndpoint` | Prevent browser sessions and vendor launch payloads from changing the configured endpoint or protocol. |
-| `TokenLifetimeSeconds` | `CamusDB__TokenLifetimeSeconds` | The fallback window for the reuse of a token, when the server reports no expiry. |
+| `TokenLifetimeSeconds` | `CamusDB__TokenLifetimeSeconds` | Fallback token reuse window when the server reports no expiry. |
 | `BackupEndpoint` | `CamusDB__BackupEndpoint` | Optional REST endpoint for backup administration. Use it when the main protocol is gRPC, or when the main endpoint is a pool and backups must target one node. |
 | `BackupTimeoutSeconds` | `CamusDB__BackupTimeoutSeconds` | Optional timeout for backup administration calls. `0` uses the client default. |
 
-Here is an example:
+For example:
 
 ```json
 {
@@ -97,8 +152,8 @@ Here is an example:
 }
 ```
 
-A `Protocol=grpc` needs an `Endpoint` at the listener of gRPC. That address is
-usually `http://localhost:5096`.
+`Protocol=grpc` needs an `Endpoint` that points at the gRPC listener, usually
+`http://localhost:5096`.
 
 Set `LockEndpoint` to `true` when the console is reachable beyond localhost and
 users should not be able to repoint the server process at another CamusDB
@@ -111,11 +166,31 @@ specific node that should receive backup commands. A coordinated backup must
 reach the backup coordinator, the node that currently
 [leads](/docs/concepts#leader) the cluster's backup metadata.
 
+## Network deployment
+
+The console has no separate sign-in protecting its web interface. Anyone who
+can reach it can use its configured CamusDB connection. For shared deployments,
+put an authenticated reverse proxy or VPN in front, enable
+[CamusDB authentication](/docs/sql-authentication), and avoid shared default
+credentials when each visitor should use their own identity.
+
+Set `CamusDB__LockEndpoint=true` or configure
+[`ConsoleLaunch__AllowedEndpoints`](#endpoint-safety) to control which servers
+visitors can connect to. The allowlist applies to Configure as well as vendor
+launches, even when vendor launch is disabled.
+
+Keep Docker's loopback port binding when the proxy runs on the same host.
+Set total connection limits for the console process with
+`Kestrel__Limits__MaxConcurrentConnections` and
+`Kestrel__Limits__MaxConcurrentUpgradedConnections`. Each browser tab keeps a
+long-lived connection and session state in memory; the per-client cap below
+is separate from these process-wide limits.
+
 ## Security controls
 
-The Web Console has two local throttles in front of surfaces that an
-unauthenticated caller can reach: sign-in from the Configure dialog, and vendor
-launch endpoints. They are on by default under the `Security` section:
+The console throttles failed sign-ins and vendor launch requests, and caps
+open browser connections per client address. These controls are on by default
+under the `Security` section:
 
 ```json
 {
@@ -130,7 +205,8 @@ launch endpoints. They are on by default under the `Security` section:
     "MaxTrackedClients": 20000,
     "RateLimitEnabled": true,
     "LaunchPermitLimit": 30,
-    "LaunchWindowSeconds": 60
+    "LaunchWindowSeconds": 60,
+    "MaxConnectionsPerClient": 20
   }
 }
 ```
@@ -148,44 +224,47 @@ launch endpoints. They are on by default under the `Security` section:
 | `RateLimitEnabled` | `Security__RateLimitEnabled` | Rate-limit vendor launch endpoints per client address. |
 | `LaunchPermitLimit` | `Security__LaunchPermitLimit` | Requests one address may make to each launch endpoint per window. |
 | `LaunchWindowSeconds` | `Security__LaunchWindowSeconds` | Length of the vendor launch rate-limit window. |
+| `MaxConnectionsPerClient` | `Security__MaxConnectionsPerClient` | Open browser transport connections (`/_blazor`) per client address. Defaults to `20`; excess connections receive HTTP `429`. Set `0` to disable. |
 
 The client key is the socket peer address. The console does not trust
 `X-Forwarded-For` by default, because a caller can choose that header unless
-forwarded headers are configured carefully at the reverse proxy.
+forwarded headers are configured carefully at the reverse proxy. Behind a proxy,
+visitors share that proxy's address for these limits unless trusted forwarded
+headers are configured. Account for that shared limit when sizing the deployment.
 
 ## Authentication
 
-The authentication of CamusDB is off by default. Without a configured
-credential, the Web Console sends no `Authorization` header.
+CamusDB authentication is off by default. Without a configured credential, the
+Web Console sends no `Authorization` header.
 
-A server can start with `CAMUSDB_AUTH_ENABLED=true`. Sign in through the
-Configure control of the app bar, in one of two ways:
+When a server starts with `CAMUSDB_AUTH_ENABLED=true`, sign in through the
+Configure control in the app bar with either:
 
-- With a user and a password.
-- With an access token from another source.
+- A user and password.
+- An access token from another source.
 
-The console exchanges the password one time, for a bearer token with a short
-life. A later statement sends the token. It does not send the password.
+The console exchanges the password once for a short-lived bearer token. Later
+statements send the token, not the password.
 
-When the console has a password, it can renew a token before it expires. It can
-also sign in again if the server rejects a token early.
+When the console has a password, it can renew a token before it expires, and it
+can sign in again if the server rejects a token early.
 
-Note this behavior of a session:
+Session behavior:
 
-- A credential from the Configure control belongs to one browser session.
-- The console does not put the password of a session into the connection string.
-- The console remembers the name of the user in `localStorage`. It uses that
-  name to fill the dialog. It never stores passwords or access tokens there.
-- The identity chip of the app bar holds a control to sign out. That control
-  revokes a token that the console created. It then drops the connection.
-- The console forgets a token that you supplied, at the sign-out. It does not
-  revoke that token, because it did not create the token.
-- The console cannot renew a token that you supplied.
+- Credentials entered in the Configure control belong to one browser session.
+- The console does not put the session password into the connection string.
+- The console remembers the user name in `localStorage` to prefill the dialog.
+  It never stores passwords or access tokens there.
+- The identity chip in the app bar has a sign-out control. Signing out revokes a
+  token that the console created, then drops the connection.
+- When you sign out, the console forgets a token you supplied. It does not
+  revoke that token, because it did not create it.
+- The console cannot renew a token you supplied.
 
-You can also configure a `User`, a `Password`, or an `AccessToken`. Put the
-value in `appsettings.json`, or in a `CamusDB__*` environment variable. The
-console then signs in automatically. Prefer an environment variable, or a store
-of secrets, to a password inside a commit.
+You can also configure `User`, `Password`, or `AccessToken` in
+`appsettings.json` or in a `CamusDB__*` environment variable, and the console
+then signs in automatically. Use an environment variable or a secrets store
+rather than committing a password.
 
 ### Token-only consoles
 
@@ -202,7 +281,7 @@ without an identity because the server allows it.
 Startup fails instead of silently dropping those credentials. A supplied token
 is not renewable, so the browser session ends when the server expires it.
 
-Manage the users and the grants with SQL, from a session of a superuser:
+Manage users and grants with SQL from a superuser session:
 
 ```camussql
 CREATE USER app IDENTIFIED BY 'app-password';
@@ -210,21 +289,19 @@ GRANT SELECT, INSERT ON app_db.* TO app;
 SHOW GRANTS FOR app;
 ```
 
-A user without a `SELECT` on a table still sees the name of that table in the
-tree of the schema. The tree shows that the columns are unavailable, because
-that user lacks the privilege.
+A user without `SELECT` on a table still sees the table name in the schema
+tree, but the tree shows its columns as unavailable because the user lacks the
+privilege.
 
 ### TLS
 
-While authentication is enabled, CamusDB refuses a request with a credential
-over plaintext. A request from loopback is the exception.
+While authentication is enabled, CamusDB refuses credential-bearing requests
+over plaintext, except from loopback. Local development over
+`http://localhost` works without a certificate. For any deployment beyond
+loopback, point the console at an `https://` CamusDB endpoint.
 
-A local development over `http://localhost` therefore works without a
-certificate. For a deployment outside loopback, point the console at a CamusDB
-endpoint with `https://`.
-
-TLS can terminate before a request reaches CamusDB. Keep that plaintext hop
-inside the boundary of your trust. Then configure CamusDB with
+If TLS terminates before requests reach CamusDB, keep that plaintext hop inside
+your trust boundary and configure CamusDB with
 `--require-tls-when-auth-enabled false`.
 
 The driver also refuses credentials to a non-loopback `http://` endpoint before
@@ -238,7 +315,7 @@ Authentication failures use the codes `CADB0516` to `CADB0519`. See
 [Error codes](/docs/error-codes#common-user-facing-errors) for what each one
 means.
 
-## Vendor Launch
+## Vendor launch
 
 An external product can open the console with its own branding and a CamusDB
 access token that the user's browser never sees. This is useful when another
@@ -271,8 +348,8 @@ The launch surface is off by default:
 | `CodeLifetimeSeconds` | `ConsoleLaunch__CodeLifetimeSeconds` | Lifetime of the single-use redirect code. |
 | `SessionLifetimeMinutes` | `ConsoleLaunch__SessionLifetimeMinutes` | Lifetime of the launched browser session. |
 | `DefaultBrandName` | `ConsoleLaunch__DefaultBrandName` | Name shown when no vendor launch is active. |
-| `MaxLiveEntries` | `ConsoleLaunch__MaxLiveEntries` | Cap for live launch codes, sessions, and handoffs. At the cap, new launches fail closed. |
-| `AllowedEndpoints` | `ConsoleLaunch__AllowedEndpoints` | Optional allowlist for CamusDB endpoints accepted from launch payloads. |
+| `MaxLiveEntries` | `ConsoleLaunch__MaxLiveEntries` | Cap for live launch codes plus sessions. Handoffs have a separate cap of the same size, with at most eight unspent per session. New entries fail with HTTP `503` at the cap. |
+| `AllowedEndpoints` | `ConsoleLaunch__AllowedEndpoints` | Optional endpoint allowlist for Configure and vendor launch payloads. |
 | `PublicBaseUrl` | `ConsoleLaunch__PublicBaseUrl` | Absolute public console URL used to build returned launch links. |
 
 Generate `ConsoleLaunch__ApiKey` with a cryptographically secure source, for
@@ -319,16 +396,21 @@ spaces, and punctuation such as `-_.,&'()+`, up to 64 characters. Control
 characters, path separators, angle brackets, quotes, backticks, and emoji are
 rejected.
 
-### Endpoint Safety
+Launch codes and sessions live in the console process. Multiple instances need
+sticky sessions; a code issued by one instance cannot be redeemed by another.
+Launch requests accept at most 64 KB. Signing out clears the current console
+connection, but the launch cookie survives until its expiry, so a reload can
+restore the vendor session.
 
-A launch payload may include `endpoint` and `protocol`. The console process
-opens that endpoint, so allowing arbitrary values can let a caller make the
-console reach internal hosts. Use one of these controls for any deployed
-console:
+### Endpoint safety
+
+Configure and launch payloads can change the CamusDB endpoint. The console
+process opens that URL, so visitors could otherwise make it reach internal
+hosts. Use one of these controls for a network deployment:
 
 - Set `CamusDB__LockEndpoint=true` to reject endpoint overrides.
 - Set `ConsoleLaunch__AllowedEndpoints` to a comma-, semicolon-, or
-  whitespace-separated allowlist.
+  whitespace-separated allowlist. It also checks backup endpoint changes.
 
 Allowed endpoint entries can be full origins or host patterns without
 wildcards:
@@ -338,31 +420,30 @@ ConsoleLaunch__AllowedEndpoints="https://db.acme.example,db.internal.example:509
 ```
 
 There is no wildcard syntax. Invalid entries fail startup instead of being
-silently skipped.
+silently skipped. Endpoints explicitly set in the console configuration remain
+accepted even if absent from the allowlist.
 
 ## Features
 
-The Web Console provides these features:
+The Web Console provides:
 
-- A console layout with dark and light themes. It holds an app bar, a sidebar of
-  the schema, an editor of SQL, a grid of the results, and a footer of the
-  connection.
-- A dialog of the configuration. It covers the endpoint, the database, the
-  protocol, the backup endpoint, the timeout, the cap of the rows, and the
-  credentials.
-- A browser of the schema. It uses `SHOW DATABASES`, `SHOW TABLES`, `SHOW
+- A console layout with dark and light themes: an app bar, a schema sidebar, a
+  SQL editor, a results grid, and a connection footer.
+- A configuration dialog for the endpoint, database, protocol, backup endpoint,
+  timeout, row cap, and credentials.
+- A schema browser built on `SHOW DATABASES`, `SHOW TABLES`, `SHOW
   COLUMNS FROM`, `SHOW INDEXES FROM`, `SHOW CREATE TABLE`, `SHOW SEQUENCES`,
-  schema comments, foreign-key metadata, sequences, and the metadata of a branch.
-- The Monaco editor of SQL.
+  schema comments, foreign-key metadata, sequences, and branch metadata.
+- The Monaco SQL editor.
 - CamusDB SQL highlighting and completion for keywords, functions, tables, and
   columns in the current schema.
 - `Run statement` runs the statement at the cursor with Ctrl/Cmd+Enter, or only
   the selected SQL when there is a selection.
 - `Run script` runs each statement in order with Alt+X, stops at the first
   failure, and gives each statement its own result tab.
-- A workspace of queries, with several tabs.
-- A run of a query that you can cancel.
-- The times of the execution, and a bar of the status.
+- A multi-tab query workspace.
+- Cancellable query runs.
+- Execution times and a status bar.
 - Searchable query history with database, duration, row count, and errors.
 - A paged, sortable, and filterable result grid that knows the types, including
   exact `NUMERIC` text.
@@ -370,18 +451,17 @@ The Web Console provides these features:
   result table.
 - Context actions to rename databases, tables, columns, indexes, and sequences,
   and to edit data, export tables, change schema, or delete objects.
-- The actions of an edit and of a delete of a row, when a result set belongs to
-  the context of a table.
+- Row edit and delete actions when a result set comes from a table context.
 - CSV and JSON export for tables or the rows currently loaded in any result.
-- Administration pages for node-local engine metrics, effective variables, and
-  backup controls.
-- The preferences of the interface that the console remembers, in the
-  `localStorage` of the browser. Examples include open SQL tabs, editor text,
-  the active database, the user name, the schema drawer width, and the
-  editor/results split and query history. The theme choice is remembered in a
-  browser cookie so the correct theme is painted before the app connects.
+- Administration panels for engine metrics, statement statistics, index usage,
+  effective variables, and backup controls.
+- Interface preferences remembered in the browser's `localStorage`, such as
+  open SQL tabs, editor text, the active database, the user name, the schema
+  drawer width, the editor/results split, and query history. The theme choice
+  is remembered in a browser cookie so the correct theme is painted before the
+  app connects.
 
-Two clicks on a table of the tree of the schema insert this text:
+Double-click a table in the schema tree to insert:
 
 ```camussql
 SELECT * FROM table_name
@@ -405,9 +485,10 @@ the constraint.
 
 Sequences appear after tables. Double-click a sequence to insert
 `SHOW CREATE SEQUENCE ...`; right-click one to show, rename, or drop it.
-Dangerous actions require confirmation.
+Dangerous actions require confirmation. DDL run from the editor also refreshes
+the schema tree and schema-aware completion.
 
-## The behavior of a query
+## Query behavior
 
 The console routes SQL by statement shape:
 
@@ -422,7 +503,14 @@ The console routes SQL by statement shape:
 For a `SELECT` without its own `LIMIT` or `OFFSET`, `MaxRows` is the page size.
 Use `Fetch more` to append the next page. Add an `ORDER BY` when page order must
 be stable. Other row-returning statements are capped at `MaxRows` and report
-when the result was truncated.
+when the result was truncated. A single result can hold at most 100,000 rows;
+then `Fetch more` stops. Narrow the query or use explicit `LIMIT` and `OFFSET`
+to inspect more data.
+
+Ordinary `SELECT`, `WITH`, and parenthesized queries use the driver's streaming
+reader. `SHOW`, `EXPLAIN`, and writes with `RETURNING` use a buffered reader;
+`MaxRows` limits displayed rows but does not prevent those responses from
+being buffered in full.
 
 When part of the editor text is selected, `Run statement` executes only the
 selection. Otherwise it finds the statement at the cursor. `Run script` splits
@@ -448,12 +536,18 @@ When a statement returns an `EXPLAIN`, `EXPLAIN (LOGICAL)`, `EXPLAIN
 draws the plan as a diagram, with the source operator at the top and each
 operator below the one that feeds it.
 
-![CamusDB Web Console query plan flow](/img/webconsole-query-plan.png)
+<ThemedImage
+  alt="CamusDB Web Console query plan flow"
+  sources={{
+    light: useBaseUrl('/img/screenshots/webconsole-plan-light.webp'),
+    dark: useBaseUrl('/img/screenshots/webconsole-plan-dark.webp'),
+  }}
+/>
 
 Each operator card shows the operator family, the server's detail text, the
-table or index involved, and its share of the estimated cost. The highest-cost
-operator is marked so expensive parts of a plan are visible without scanning
-every row of the `EXPLAIN` table.
+table or index involved, and its share of the estimated cost. The console marks
+the highest-cost operator, so you can spot expensive parts of a plan without
+scanning every row of the `EXPLAIN` table.
 
 The edges show the estimated row flow between operators. With `EXPLAIN
 (ANALYZE)`, the flow also includes measured rows, rows read, KV lookups, KV scan
@@ -465,11 +559,15 @@ as a separate plan row. The flow renders that input as a dashed side box beside
 the join, using the alias, index, or subquery table that the detail text
 contains.
 
+`UNION`, `INTERSECT`, and `EXCEPT` show their left and right input plans as
+separate branches, including nested set operations. Per-span measurements for
+gathers and broadcast probes stay attached to their operator.
+
 Rows that describe the whole plan, such as `plan-info`, `distribution`, and
 `cache`, appear below the diagram as plan notes. The console remembers whether
 you last used `Table` or `Flow`, so the next plan opens in the same view.
 
-## Row Editing
+## Row editing
 
 `Edit/View Data` on a table opens a data tab. The tab runs `SELECT *` for that
 table and attaches the table schema to the result, which enables row actions.
@@ -496,6 +594,8 @@ The Administration page exposes node-local operational views:
 | Panel | What it shows or does |
 | --- | --- |
 | Engine stats | Runs `SHOW ENGINE STATS` and displays the metrics of the node that answered. |
+| Statements | Runs `SHOW STATEMENT STATS` to compare query frequency, execution time, errors, scans, spills, retries, and plan changes. |
+| Index usage | Runs `SHOW INDEX USAGE` for the current database to compare index reads, constraint checks, and writes. |
 | Variables | Runs `SHOW VARIABLES` and displays effective configuration values for the node that answered. |
 | Backups | Takes full, incremental, and coordinated backups; lists the backup catalog; validates a chain; previews or runs retention garbage collection. |
 
@@ -503,41 +603,63 @@ These views are node-local: they show only the node that answered, and do not
 forward to another node. To compare a cluster, point the console at each node.
 
 When authentication is enabled, Administration requires a superuser. Engine
-metrics describe node-level workload, variables describe the node's security
-and runtime posture, and backups cover every database on the node.
+metrics and index usage describe node-level workload, statement statistics can
+contain other users' SQL, variables describe the node's configuration, and
+backups cover every database on the node.
 
 Backups are available only when the server has backup configuration. See
 [Backup And Restore](/docs/backup-and-restore) for backup setup, retention,
 coordinated backups, and offline restore.
 
+### Find expensive statements
+
+Open **Statements** and take two readings to compare activity over an interval,
+or enable the ten-second auto-refresh. Filter by SQL text or database, and sort
+by total time, mean time, calls, variation, errors, or rows read. **Reset baseline**
+returns to cumulative totals. Maximum duration remains a lifetime value.
+
+[Statement statistics](/docs/statement-stats) are disabled by default. Enable
+them on the node you are inspecting:
+
+```camussql
+SET CLUSTER SETTING statement_stats_enabled = true;
+```
+
+### Review index usage
+
+Open **Index usage** to compare readings or filter to potential drop candidates:
+non-unique indexes that receive writes without query reads or constraint reads.
+These are candidates for review, not automatic removal. Check all nodes and a
+representative workload interval before dropping an index. Counters reset when
+the node restarts. See [Index usage](/docs/index-usage).
+
+Choosing a database in this panel also changes the console's current database.
+Switching administration tabs preserves each panel's readings.
+
 ## Export
 
-An export of a table runs a `SELECT * FROM <table>`. The `MaxRows` of the
-current session caps that statement. The result toolbar can also export the
-rows currently loaded by any query, after the grid's sort and filter. For a
-paged result, use `Fetch more` before export when more rows are needed. The
-console downloads one of two formats:
-
-- CSV.
-- JSON.
+A table export runs `SELECT * FROM <table>`, capped by the current session's
+`MaxRows`. The result toolbar can also export the rows currently loaded by any
+query, after the grid's sort and filter. For a paged result, use `Fetch more`
+before exporting if you need more rows. The console downloads CSV or JSON.
 
 CSV uses proper quoting and escaping. JSON downloads an array of objects with
 dates as ISO-8601 strings, blobs as hex, UUIDs in standard textual form, and
 `NUMERIC` values as strings so no digits are lost.
 
-The table can hold more rows than `MaxRows`. The export then reports that the
-result was truncated.
+If the table holds more rows than `MaxRows`, the export reports that the result
+was truncated.
 
-For a full logical backup, and for a dump of SQL that you can restore, use
+For a full logical backup or a restorable SQL dump, use
 [camus-dump](/docs/camus-dump) instead.
 
 ## Notes
 
-- The console uses the `SHOW` statements of SQL to browse a schema.
-- The console does not use the endpoints of a client for the metadata only.
-- The console is a user interface for an operation. It is not a boundary of the
-  authorization by itself. The authentication and the grants on the server of
-  CamusDB remain the durable boundary of a permission.
+- The console browses schemas with SQL `SHOW` statements.
+- The console does not use metadata-only client endpoints.
+- The console is an operations UI, not an authorization boundary by itself.
+  Authentication and grants on the CamusDB server remain the durable
+  permission boundary.
 - The console sends security headers that prevent framing, reduce MIME sniffing,
   and avoid leaking referrer details.
 
@@ -549,3 +671,4 @@ For a full logical backup, and for a dump of SQL that you can restore, use
 - [Backup And Restore](/docs/backup-and-restore)
 - [TypeScript](/docs/typescript-connector)
 - [.NET Driver](/docs/dotnet-driver)
+- [Python Driver](/docs/python-driver)

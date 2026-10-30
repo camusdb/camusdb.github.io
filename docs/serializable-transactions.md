@@ -4,46 +4,39 @@ sidebar_position: 3
 
 # Transactions and isolation
 
-Two requests withdraw 100 from an account that holds 150, at the same moment.
-Each one reads 150 and writes the new balance. If both succeed, the account pays
-out 200 from 150. PostgreSQL defaults to Read Committed and MySQL to Repeatable
-Read, and at those levels this can happen unless you add explicit locks.
-CamusDB runs transactions as serializable by default, so one withdrawal commits
-and the other gets a conflict that your application retries. You keep the data
-correct without extra locks or version checks in your code.
+Transactions let you update related data together and keep concurrent requests
+from breaking your application's rules. CamusDB uses Serializable isolation by
+default: committed transactions have the same effect as running them one at a
+time. This helps protect balances, inventory, and reservations when several
+clients act on the same data.
 
-Every statement that CamusDB runs is inside a transaction. If you do not open a
-transaction, the server opens one around your statement. The server then commits
-that transaction for you.
+Every statement runs in a transaction. Use an explicit transaction when several
+statements must succeed or fail together:
 
-CamusDB gives these guarantees at all times:
+```camussql
+BEGIN;
+UPDATE accounts SET balance = balance - 100 WHERE id = @from;
+UPDATE accounts SET balance = balance + 100 WHERE id = @to;
+COMMIT;
+```
 
-- Writes are atomic.
-- Commits are durable.
-- There are no dirty reads. A dirty read is a read of data that another
-  transaction has not committed yet.
-- CamusDB detects write-write conflicts.
-- Execution is serializable by default.
-- A write across more than one [partition](/docs/concepts#partition) (a slice
-  of the data that the cluster replicates as one unit) is atomic, through
-  [two-phase commit](/docs/concepts#two-phase-commit).
+Both updates commit together. Use `ROLLBACK` to discard them. Without `BEGIN`,
+each statement commits separately (autocommit). For more syntax, see
+[Transactions in SQL](/docs/sql-transactions).
 
-This page describes the guarantees. For the SQL syntax, see
-[Transactions In SQL](/docs/sql-transactions).
+## Isolation levels
 
-## What serializable protects you from
+Isolation controls what a transaction sees when other clients change data.
 
-Many clients change the same data at the same time. Without strong isolation,
-two correct transactions can produce a wrong result together. Here is an
-example. Two requests withdraw 100 from an account that holds 150. Each request
-reads the balance, sees 150, and writes the new balance. Both succeed, and the
-account pays out 200 from 150.
+| Level | When to use it | Behavior |
+| --- | --- | --- |
+| `SERIALIZABLE` (default) | Decisions that must stay correct across several reads and writes | Prevents read skew, phantoms, write skew, and lost updates. Conflicting transactions may need a retry. |
+| `READ COMMITTED` | Work that can tolerate changes between statements | Prevents dirty reads and detects conflicting writes, but does not protect a decision made by an earlier read. |
 
-Serializable isolation stops this class of error. The result is always the same
-as a run of the transactions one after the other. In the example, CamusDB
-commits one withdrawal. It aborts the other with a conflict. Your application
-then retries it, and the retry sees the new balance of 50. See
-[Retries and conflicts](/docs/serializable-retries).
+For example, two withdrawals might both read a balance of 150 and decide to
+withdraw 100. In a serializable transaction, both cannot commit based on that
+balance. One gets a conflict and must retry the entire transaction, including
+the funds check.
 
 ```mermaid
 sequenceDiagram
@@ -54,250 +47,145 @@ sequenceDiagram
     DB-->>A: 150
     B->>DB: Read balance
     DB-->>B: 150
-    A->>DB: Write balance 50
-    B->>DB: Write balance 50
-    Note over DB: Both cannot commit. One wins, one conflicts.
+    A->>DB: Withdraw 100 and commit
     DB-->>A: Committed
-    DB-->>B: Aborted with a conflict
-    Note over B: Retry from BEGIN
-    B->>DB: Read balance
-    DB-->>B: 50
+    B->>DB: Withdraw 100 and commit
+    DB-->>B: Conflict — retry from BEGIN
+    Note over B: Retry sees 50 and rejects the withdrawal
 ```
 
-You therefore do not need extra locks, version checks, or "check and then
-write" logic in the application to keep the data correct. This matters most for
-data where a wrong answer is expensive: money, inventory, reservations, and
-ownership.
-
-## Isolation levels
-
-There are two levels. Serializable is the default.
-
-| Level | Reads | Protects against |
-| --- | --- | --- |
-| `SERIALIZABLE` | Snapshot, or locking scans in read-write mode | Read skew, phantoms, write skew, lost updates |
-| `READ COMMITTED` | Committed [MVCC](/docs/concepts#mvcc) versions, skipping [write intents](/docs/concepts#write-intent) | Dirty reads and write-write conflicts only |
-
-Serializable means this: the result is the same as a run of the committed
-transactions one at a time, in some order. Read Committed is an explicit
-opt-out. Use it for a workload that must not pay the cost of Serializable.
-
-Set the level in the first statement of a transaction:
+Select a different level immediately after `BEGIN`, before any read or write:
 
 ```camussql
 BEGIN;
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 ```
 
-The statement must come before any read and before any write. An earlier
-statement would already have missed the locks and the snapshot setup that the
-level needs. CamusDB therefore rejects a late change of level. It does not
-pretend that the change applied.
-
-### What Read Committed gives up
-
-Read Committed keeps these properties:
-
-- A read returns committed versions only. It skips an uncommitted write intent.
-- A write still uses locks, write intents, and atomic commit.
-- A reader blocks no reader, and it blocks no writer.
-
-Read Committed gives up these properties:
-
-- One snapshot shared by every sub-read of a query.
-- Repeatable reads across a transaction of several statements.
-- Protection against phantoms on a range scan. A phantom is a row that appears
-  in a repeated scan because another transaction inserted it.
-- Protection against write skew. Write skew is a fault in application code that
-  reads a value, decides, and then writes.
-
-Under pessimistic Read Committed, a point read can record the row revision it saw
-when the same transaction later writes that key, but this is not a general
-repeatable-read guarantee. A range scan does not pin every scanned row. It
-returns each row's latest committed version as pages are read, which is the
-non-repeatable behavior this isolation level permits.
-
-One `UPDATE` or `DELETE` statement still protects itself from a lost update. The
-statement first finds candidate rows, then it takes the exclusive row locks,
-reads those rows again, evaluates the `WHERE` clause again, and computes the
-write from that locked read. In practice, `UPDATE accounts SET balance = balance
-+ 1 WHERE id = ...` adds to the latest committed balance. A row that a
-concurrent commit moved out of the predicate is skipped, and a row that was
-deleted is skipped. A read in one statement followed by a write in a later
-statement is different; use Serializable, or express the change as one
-`UPDATE`.
+CamusDB rejects isolation changes after a data statement has run.
 
 ## Read-only and read-write modes
 
-Serializable has two execution modes. Your choice between them matters more than
-any other decision on this page.
-
-A serializable read-only transaction fixes one snapshot timestamp at `BEGIN`.
-Every statement reads from that snapshot. A later commit stays invisible, and a
-repeated read is stable. None of this needs a lock. CamusDB can hold the
-snapshot across several requests when the client resumes the same transaction
-id. The mode therefore suits a report of several queries, not only one
-statement.
+Use a **serializable read-only transaction** for reports that need several
+queries to see the same data:
 
 ```camussql
 BEGIN;
 SET TRANSACTION ISOLATION LEVEL SERIALIZABLE READ ONLY;
+SELECT SUM(balance) FROM accounts;
+SELECT COUNT(*) FROM accounts;
+COMMIT;
 ```
 
-A serializable read-write transaction adds locks on top of MVCC. MVCC is
-multi-version concurrency control, in which a write creates a new version
-instead of an overwrite. A point read can hold a shared point lock. A scan can
-hold a shared range lock. A write takes exclusive protection at key level. No
-other transaction can change a key that this transaction read and still commit.
-The cost is a possible retry for a transaction that conflicts.
+All queries use one snapshot fixed at `BEGIN`. Later commits stay invisible,
+and the reads take no locks. You can keep that snapshot across requests by
+resuming the same transaction ID.
 
-Use read-write mode when correctness depends on a read-then-write invariant. Use
-read-only mode for a report, and for a read that needs consistency but must not
-block a writer.
+Use a **serializable read-write transaction** when a later write depends on an
+earlier read. CamusDB protects the rows and scanned ranges you read, including
+against new matching rows appearing (phantoms). Conflicting work may wait or
+fail with a retryable error.
 
-## Locking
+An ordinary autocommit `SELECT` uses one snapshot for the whole statement under
+either isolation level. It does not protect a write in a later request.
 
-Two kinds of lock matter to you as a user.
+### Read Committed snapshots and limits
 
-Every write takes a per-key lock and places a write intent, for each key that it
-modifies. A write intent is a provisional version that becomes final at commit.
-These two mechanisms enforce three things:
+In an explicit pessimistic Read Committed transaction, each ordinary `SELECT`
+uses a committed snapshot taken when that statement starts, plus the
+transaction's own writes. The snapshot covers the entire query, including
+joins and reads across partitions. The next statement gets a new snapshot and
+may see intervening commits.
 
-1. Detection of a write-write conflict on a row.
-2. Detection of a conflict on a unique index.
-3. An atomic update of a row together with its index entries.
+These reads do not lock scanned ranges or protect later read-then-write
+decisions. Use Serializable when correctness depends on several statements
+seeing compatible data.
 
-A point read lock and a range read lock protect what a serializable read-write
-transaction reads. A shared point lock covers the exact key that the transaction
-read. A concurrent writer cannot modify that key and still commit. CamusDB
-promotes the lock to write protection if the same transaction later writes the
-key. For a scan, a shared range lock covers the scanned span. Two overlapping
-scans therefore still run at the same time. A conflicting write into the range
-waits, or it retries.
+Read Committed write statements also use a snapshot to find candidate rows or
+read their source data. An `UPDATE` or `DELETE` then locks each candidate,
+reads its latest value, and checks `WHERE` again. Deleted rows and rows that
+no longer match are skipped. Uniqueness and foreign-key checks use latest
+values too.
 
-When two serializable transactions conflict, CamusDB resolves the conflict by
-age (the wait-die rule). An older requester waits for the younger holder. A
-younger requester that already holds a lock or a staged write aborts at once and
-must retry. CamusDB does not search for wait cycles: because only an older
-transaction ever waits, a cycle cannot form. A transaction that has not yet
-held a lock or staged a write can safely wait for a short in-flight writer,
-because it is not itself blocking anyone.
+For example, `UPDATE accounts SET balance = balance + 1 WHERE id = @id` adds to
+the latest locked balance. Reading the balance first and writing a computed
+value in a separate statement does not have the same protection.
 
-CamusDB escalates the point locks when a transaction holds
-`lock_escalation_threshold` (default `50`) shared point locks in one table
-bucket or one index bucket. It replaces them with one shared lock over that
-whole bucket. The bookkeeping stays bounded. The protected range becomes wider.
+Optimistic transactions and transactions with read validation use latest-value
+reads with commit-time validation instead of statement snapshots. See
+[Locking strategy](#pessimistic-and-optimistic-locking).
 
-### Pessimistic and optimistic locking
+## Explicit row-locking reads
 
-The default strategy is pessimistic. CamusDB takes a lock before any conflicting
-work continues.
+Use [SELECT FOR UPDATE](/docs/sql-queries#for-update) to lock rows before
+changing them in the same explicit transaction. It requires pessimistic
+read-write mode.
 
-Optimistic locking is an opt-in strategy. It skips the exclusive write lock. It
-validates at commit instead. It aborts the transaction in two cases: another
-transaction wrote a key that this transaction wrote, or a row that this
-transaction read changed. The application then retries from the start.
+- `NOWAIT` reports a held lock without an automatic retry.
+- `SKIP LOCKED` omits held rows and is available only at Read Committed,
+  making it useful for workers claiming jobs from a queue.
+
+Locks last until commit or rollback. An autocommit `FOR UPDATE` releases its
+locks when the statement commits, so it cannot protect a later request.
+
+## Locking strategy {#pessimistic-and-optimistic-locking}
+
+Pessimistic locking is the default. It acquires locks before changing data.
+Optimistic locking checks for conflicts at commit instead:
 
 ```camussql
 BEGIN;
 SET TRANSACTION LOCKING OPTIMISTIC;
 ```
 
-The locking strategy is a separate axis from the isolation level. The
-combination of the two decides the guarantee:
+Choose the strategy before any data statement. It is separate from isolation:
 
-| Combination | Behavior |
+| Combination | Conflict protection |
 | --- | --- |
-| `SERIALIZABLE` + pessimistic | Default. CamusDB takes the locks first. |
-| `SERIALIZABLE` + optimistic | Hybrid. A write validates at commit, but a read and a scan still take shared locks, so phantoms remain excluded. |
-| `READ COMMITTED` + optimistic | No locks at all. CamusDB validates the observed rows only. There is no protection against a phantom. |
+| Serializable + pessimistic | Locks protect reads, scanned ranges, and writes. |
+| Serializable + optimistic | Reads and scans still take shared locks; writes validate at commit. |
+| Read Committed + optimistic | Validates observed rows at commit, without locks or phantom protection. |
 
-`SET TRANSACTION LOCKING` must also run before any data statement. You can
-combine it with `SET TRANSACTION ISOLATION LEVEL` in either order. An HTTP
-client and a gRPC client select the strategy with the `locking` request field.
-An operator changes the server-wide default with `default_transaction_locking`.
+Keep the default unless you have a reason to change it. For lock escalation,
+conflict resolution, and configuration, see
+[Transactions and locking internals](/docs/transactions-locking-internals).
 
-## How a write commits
+## Handle conflicts and limits
 
-Each `INSERT`, `UPDATE`, or `DELETE` places write intents and takes key-level
-locks on the row keys and the index keys that it changes, then commits them
-atomically. When another transaction already writes a conflicting key, one side
-fails or retries. Neither side overwrites the other in silence. For the full
-commit path, including two-phase commit across partitions, see
-[How a commit works](/docs/distributed-transactions#how-a-commit-works).
+A conflict can abort a transaction even when its SQL is valid. Retry the whole
+unit of work from `BEGIN`, including reads and application checks. CamusDB does
+not automatically replay an explicit multi-statement transaction.
 
-## Transactions of several statements
+Use the retryable error codes and driver helpers described in
+[Retries and conflicts](/docs/serializable-retries). Keep transactions short to
+reduce contention. A transaction that exceeds its
+[mutation limit](/docs/transaction-limits) needs a smaller batch; retrying the
+same oversized batch will fail again.
 
-Use an explicit `BEGIN` in these three cases:
+Snapshot reads can briefly wait for a commit already in progress. If that
+wait cannot finish within its budget, the statement can return retryable
+`CADB0504`. A read without locks does not guarantee an immediate response.
 
-1. Several writes must commit together.
-2. A read-write sequence must be all-or-nothing.
-3. Several queries need one stable serializable snapshot.
+## Guarantees across nodes
 
-An abort is normal here. It is not an exceptional event. CamusDB does not replay
-an aborted multi-statement transaction for you: the client restarts from
-`BEGIN`. [Retries and conflicts](/docs/serializable-retries) lists the causes,
-the error codes that are safe to retry, and the driver helpers that replay a
-unit of work for you.
+Transactions provide atomic writes, durable commits, and no dirty reads.
+Writes spanning several [partitions](/docs/concepts#partition), or slices of
+the database, also commit atomically. The isolation
+choices apply on a single node and across a cluster, but distributed
+transaction support is still an alpha feature; its APIs and behavior may change.
+See [Distributed transactions](/docs/distributed-transactions).
 
-One failure is not a signal to retry. `TransactionMutationLimitExceeded` means
-that the transaction is too large. A replay of the same batch fails again. See
-[Transaction Limits](/docs/transaction-limits).
+To read your previous write when requests can reach different nodes, carry the
+last commit's **causal token** into the next autocommit query or transaction's
+`BEGIN`. The token sets a minimum snapshot timestamp. Pass the complete token;
+changing it after a transaction starts does not advance that transaction's
+snapshot floor. See the [HTTP API](/docs/http-api#explicit-transactions) and
+[gRPC causal tokens](/docs/grpc-api#causal-tokens).
 
-## Timestamps and schema safety
+Transaction timestamps order work logically; they do not guarantee ordering
+against wall-clock time. See
+[Distributed transactions](/docs/distributed-transactions#how-hlc-timestamps-fit-in)
+for details.
 
-Every read-write transaction receives a timestamp from
-[Kahuna](/docs/concepts#kahuna), the transactional storage layer. The timestamp
-comes from a [hybrid logical clock](/docs/concepts#hlc), or HLC, which combines
-physical time with a logical counter. A client never assigns its own timestamp. The timestamp identifies the
-transaction, orders the committed versions, and coordinates the distributed
-commit. The resulting order is logically consistent. It is not a real-time
-wall-clock guarantee. See
-[Distributed Transactions And HLC](/docs/distributed-transactions).
-
-CamusDB also pins the schema version of each table that a transaction touches.
-CamusDB rejects the transaction if a table changes incompatibly before the
-commit. It does not commit a write that mixes an old layout with a new one.
-
-## Single node and cluster
-
-The model is the same in both cases: MVCC reads, locks and write intents on a
-write, and detection of a conflict instead of silence about it. A cluster adds
-routing to partitions and two-phase commit across them. See
-[Distributed transactions](/docs/distributed-transactions).
-
-Serializable is not a single-node feature. CamusDB exercises the anomaly
-coverage on a single node and on a three-node cluster. That coverage includes a
-read-write transaction across more than one partition.
-
-## What is guaranteed today
-
-Serializable is complete, acceptance-tested, and the default. It covers four
-anomalies: read skew, phantoms, write skew, and lost updates.
-
-A transaction that spans more than one partition runs in cluster mode, which is
-still an alpha feature. Its APIs and behavior can change between versions. See
-[Distributed Transactions](/docs/distributed-transactions).
-
-The implementation includes these mechanisms:
-
-- Wait-die deadlock fairness, so two transactions in contention have a
-  determinate winner.
-- Renewal of a range lock by the coordinator, for a long transaction.
-- Lock escalation after `lock_escalation_threshold` (default `50`) shared
-  point locks in one table or index bucket.
-- Tight predicate-lock bounds for a bounded scan, for `UPDATE`, and for
-  `DELETE`.
-
-One gap remains. There is no externally consistent commit-wait guarantee. The
-order is logically consistent. It is not tied to real time.
-
-## Related pages
-
-- [Transactions In SQL](/docs/sql-transactions)
-- [Retries And Conflicts](/docs/serializable-retries)
-- [Transaction Limits](/docs/transaction-limits)
-- [Distributed Transactions And HLC](/docs/distributed-transactions)
-- [Cluster Mode](/docs/cluster)
-- [Distributed Schema Changes](/docs/distributed-schema)
-- [Error Codes](/docs/error-codes)
+Incompatible schema changes can cause a transaction to fail rather than commit
+writes using an outdated table layout. See
+[Distributed schema changes](/docs/distributed-schema).

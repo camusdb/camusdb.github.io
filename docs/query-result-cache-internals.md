@@ -7,60 +7,58 @@ sidebar_position: 3.16
 
 This page is for engineers who maintain or extend the result cache, or who want
 to audit why it never serves stale data on the node that took a write. It
-describes the read path, how dependencies are captured, how a commit
-invalidates entries, the publish gate that orders a publish against a commit,
-the strict validation, and the fingerprint. To use or tune the cache, read
-[Query result cache](/docs/query-result-cache) instead. This page assumes you
-know the terms defined there: family, fingerprint, dependency set, and bucket.
+covers the read path, dependency capture, commit invalidation, the publish gate
+that orders publishes against commits, strict validation, and the fingerprint.
+To use or tune the cache, read [Query result cache](/docs/query-result-cache)
+instead. This page assumes you know the terms defined there: family,
+fingerprint, dependency set, and bucket.
 
-Two more terms appear on this page:
+The page also uses these terms:
 
-- The publish gate is the small concurrency primitive that makes a commit and a
-  publish safe together. It holds a generation counter for each
-  [key space](/docs/concepts#key-space) (all the keys that share one prefix),
-  which only increases, and a set of marks for the writes in flight. See
+- The publish gate is a small concurrency primitive that makes commits and
+  publishes safe together. For each [key space](/docs/concepts#key-space) (all
+  the keys that share one prefix), it holds a generation counter that only
+  increases, plus a set of marks for writes in flight. See
   [The publish gate](#the-publish-gate).
 - `T_cache` is the [HLC](/docs/concepts#hlc) snapshot timestamp at which
-  CamusDB computed a strict entry. The strict validation compares the
-  `LastModified` of each dependency against it.
+  CamusDB computed a strict entry. Strict validation compares each
+  dependency's `LastModified` against it.
 
-## The path of a read
+## The read path
 
-For an eligible query, `QueryExecutor` runs this sequence. See
-`QueryWithCache`:
+For an eligible query, `QueryExecutor` runs this sequence (see
+`QueryWithCache`):
 
-1. It builds the fingerprint. The key of the entry comes from the id of the
-   shape of the plan, the bound parameters, the dependencies of the schema, and
-   the options of the cache.
-2. It probes the cache. It looks the fingerprint up. A live entry, which is an
-   entry that did not expire, is a candidate for a hit.
-   For a hit without the strict mode, CamusDB checks that the schema
-   dependencies of the entry are still current. It then yields the stored rows.
-   For a strict hit, CamusDB validates the entry against the live storage. See
-   [The TTL and the strict validation](#the-ttl-and-the-strict-validation). It
-   yields the stored rows when the entry is valid. Otherwise it evicts the
-   entry, records the revalidation, and continues to a live execution. The final
-   status then becomes `stale-revalidated`.
-3. It guards a strict entry without a snapshot. A strict entry has a meaning
-   only when `T_cache` is a real HLC snapshot. Two reads have one: an autocommit
-   read under the serializable default, without
+1. It builds the fingerprint. The entry key comes from the plan shape id, the
+   bound parameters, the schema dependencies, and the cache options.
+2. It probes the cache by looking up the fingerprint. A live entry (one that
+   has not expired) is a hit candidate.
+   For a non-strict hit, CamusDB checks that the entry's schema dependencies
+   are still current, then yields the stored rows.
+   For a strict hit, CamusDB validates the entry against live storage (see
+   [TTL and strict validation](#ttl-and-strict-validation)) and yields the
+   stored rows if the entry is valid. Otherwise it evicts the entry, records
+   the revalidation, and falls through to live execution. The final status
+   then becomes `stale-revalidated`.
+3. It guards strict entries that have no snapshot. A strict entry means
+   something only when `T_cache` is a real HLC snapshot. Two reads have one: an
+   autocommit read under the serializable default without
    [key-range sharding](/docs/key-range-sharding), and an `AS OF SYSTEM TIME`
-   read. For any other read, CamusDB serves live rows, and it publishes nothing.
-4. It takes a snapshot of the generation. It records the current counter of the
-   generation of the row bucket of the table, before the execution. A write can
-   already be in flight for that bucket. CamusDB then serves live rows without a
-   publish, with the reason `in-flight-write`. It therefore does not race a
-   write that is about to commit.
-5. It executes the query, and it collects the dependencies. It runs the real
-   plan through the collector of the dependencies. See
-   [The capture of a dependency](#the-capture-of-a-dependency). It materializes
-   the rows as they stream to the client.
-6. It publishes the entry. After the stream drains completely, CamusDB tries to
-   store the entry. It stores the entry through the publish gate only. That gate
-   checks the generation again. It rejects the store when a write committed into
-   the bucket during the execution. See [The publish gate](#the-publish-gate).
-   The caps of the rows, of the bytes, and of the dependencies also gate the
-   store at that point.
+   read. For any other read, CamusDB serves live rows and publishes nothing.
+4. It snapshots the generation. Before executing, it records the current
+   generation counter of the table's row bucket. If a write is already in
+   flight for that bucket, CamusDB serves live rows without publishing, with
+   the reason `in-flight-write`, so it never races a write that is about to
+   commit.
+5. It executes the query and collects dependencies. It runs the real plan
+   through the dependency collector (see
+   [Dependency capture](#dependency-capture)) and materializes the rows as they
+   stream to the client.
+6. It publishes the entry. After the stream fully drains, CamusDB tries to
+   store the entry, and only through the publish gate. The gate checks the
+   generation again and rejects the store if a write committed into the bucket
+   during execution (see [The publish gate](#the-publish-gate)). The row, byte,
+   and dependency caps also gate the store at this point.
 
 ```mermaid
 flowchart TD
@@ -78,160 +76,149 @@ flowchart TD
     T -->|fails| N[Return live rows, store nothing]
 ```
 
-An enumeration that a caller cancels, and one that faults, never publishes. The
-runner marks the drain complete after the last row only. CamusDB skips the
-publish otherwise. That rule is the invariant of no partial publish.
+A cancelled or faulted enumeration never publishes. The runner marks the drain
+complete only after the last row, and CamusDB skips the publish otherwise. This
+is the no-partial-publish invariant.
 
 Between step 3 and step 4, several requests for the same fingerprint collapse
-onto one execution. This is the single-flight behavior. The first caller becomes
-the owner, and it runs the sequence above. The other callers wait.
+onto one execution. This is the single-flight behavior: the first caller
+becomes the owner and runs the sequence above, and the other callers wait.
 
-The slot of that wait carries a signal of the completion only. It never carries
-a row. The owner reports its publish. Each waiter then runs step 2 for itself.
-It serves the entry only when its own probe still finds that entry, and
-validates it. It executes live otherwise.
+The wait slot carries only a completion signal, never rows. When the owner
+reports its publish, each waiter runs step 2 for itself. It serves the entry
+only if its own probe still finds and validates that entry, and executes live
+otherwise.
 
-That indirection has a purpose. A write can commit, and it can evict the entry,
-between the publish of the owner and the moment when a waiter wakes. A waiter is
-a query that began after that invalidation. A hand of the materialized rows of
-the owner to that waiter would serve a state older than a committed write. It
-would also skip the checks of the schema and of the strict mode that every other
-reader performs.
+This indirection matters because a write can commit and evict the entry
+between the owner's publish and the moment a waiter wakes. Such a waiter is a
+query that began after that invalidation. Handing it the owner's materialized
+rows would serve a state older than a committed write, and would also skip the
+schema and strict checks that every other reader performs.
 
-A waiter that reaches its timeout executes on its own. A waiter whose owner
-failed also executes on its own.
+A waiter that times out, or whose owner failed, executes on its own.
 
-Why does CamusDB take a snapshot of the row bucket of the table only, even for a
-scan of an index? Every `INSERT`, `UPDATE`, and `DELETE` on a table writes the
-key of the row. The generation of the row bucket therefore increases on any
-write to that table. The fence of the row bucket covers a scan of an index as
-well.
+Why does CamusDB snapshot only the table's row bucket, even for an index scan?
+Every `INSERT`, `UPDATE`, and `DELETE` on a table writes the row key, so the
+row bucket's generation increases on any write to that table. The row bucket
+fence therefore covers index scans too.
 
-That is exactly the reason why a join must not take this path. A join touches
-the buckets of more than one table. The fence of one bucket would not cover the
-others.
+That is exactly why a join must not take this path. A join touches the buckets
+of more than one table, and fencing one bucket would not cover the others.
 
-## The capture of a dependency
+## Dependency capture
 
-The operators of a scan and of a join feed a collector of each request, which is
-the `QueryDependencyCollector`, as they read. CamusDB attaches the collector on
-the path of the cache only. Every call that records a dependency has a guard. A
-query without a cache therefore pays nothing.
+Scan and join operators feed a per-request collector, the
+`QueryDependencyCollector`, as they read. CamusDB attaches the collector only
+on the cache path, and every call that records a dependency is guarded, so
+queries that don't use the cache pay nothing.
 
-The rules follow the shape of the scan:
+The rules depend on the scan shape:
 
-- A full scan of a table records three things: the row bucket as a range
-  dependency, the schema version of the table as a schema dependency, and the
-  key of each fetched row as a point dependency.
-- A scan of an index, a lookup, a range, and an `IN` list each record three
-  things: the bucket of the index as a range dependency, the schema version, and
-  the key of each fetched row as a point dependency. Both parts matter. The
-  range of the index catches a phantom insert, and a change of the membership.
-  The point of the row catches an update of a projected column that the index
-  does not hold.
-- CamusDB also records a row that a residual filter rejects later. A row that
-  does not match today could match after an update. It is therefore a real
+- A full table scan records three things: the row bucket as a range
+  dependency, the table's schema version as a schema dependency, and each
+  fetched row's key as a point dependency.
+- An index scan, a lookup, a range, and an `IN` list each record the index
+  bucket as a range dependency, the schema version, and each fetched row's key
+  as a point dependency. Both parts matter. The index range catches phantom
+  inserts and membership changes. The row point catches updates to projected
+  columns that the index does not hold.
+- CamusDB also records rows that a residual filter later rejects. A row that
+  does not match today could match after an update, so it is a real
   dependency.
 
-Two caps apply, and they can truncate the set. CamusDB caps the point
-dependencies of each entry. It drops a point dependency past that cap, and the
-range dependency then gives the coverage. That behavior is safe for an entry
-without the strict mode, because an invalidation on the same node matches on the
-range.
+Two caps can truncate the set. The first caps the point dependencies per
+entry. CamusDB drops point dependencies past that cap and relies on the range
+dependency for coverage. That is safe for a non-strict entry, because
+same-node invalidation matches on the range.
 
-There is also a cap on the total number of the dependencies. CamusDB marks the
-collector when the set passes that cap. It then does not publish the entry at
-all. It bypasses the store, instead of a store of an incomplete set. A coverage
-that misses something is never acceptable. A coverage that is too wide is.
+The second caps the total number of dependencies. When the set passes that
+cap, CamusDB marks the collector and does not publish the entry at all: it
+bypasses the store rather than storing an incomplete set. Coverage that misses
+something is never acceptable. Coverage that is too wide is.
 
-## The invalidation on the same node
+## Same-node invalidation
 
-The boundary of a transaction drives the invalidation. The invalidation is not
-spread across the methods of the writes. A write of a batch and a write of one
-point therefore have the same coverage.
+Invalidation is driven by the transaction boundary, not spread across the
+individual write methods, so batch writes and single-point writes get the same
+coverage.
 
-For a write of a row and of an index, `KvTransactionsManager.CommitAsync`
-collects the modified keys of the transaction. It derives the buckets of the key
-space of those keys.
+For row and index writes, `KvTransactionsManager.CommitAsync` collects the
+transaction's modified keys and derives their key space buckets.
 
 After a successful commit through [Kahuna](/docs/concepts#kahuna), the
-transactional storage layer, it asks the cache to drop entries. It drops every
-entry whose set of dependencies overlaps a modified key, and every entry whose
-set overlaps a modified bucket.
+transactional storage layer, it asks the cache to drop every entry whose
+dependency set overlaps a modified key or a modified bucket.
 
-A modified key of a row matches two things: a range dependency of a row bucket,
-through its bucket, and a point dependency of a row, exactly.
+A modified row key matches two things: a row bucket range dependency (through
+its bucket) and a row point dependency (exactly).
 
-All of that happens through the publish gate. It is therefore atomic against a
-concurrent publish. See [The publish gate](#the-publish-gate). A transaction
+All of this happens through the publish gate, so it is atomic against a
+concurrent publish (see [The publish gate](#the-publish-gate)). A transaction
 that rolls back invalidates nothing.
 
-A change of the schema and of the catalog needs a separate mechanism. A DDL
-statement does not touch the keys of a row or of an index in the same way.
+Schema and catalog changes need a separate mechanism, because a DDL statement
+does not touch row or index keys in the same way.
 
-After a successful commit of a DDL statement, the executor evicts every entry
-with a schema dependency on the affected table, through `InvalidateByTableId`. A
-drop of a table evicts by the id of the table. A drop of a whole database evicts
-by the database.
+After a DDL statement commits successfully, the executor evicts every entry
+with a schema dependency on the affected table, through `InvalidateByTableId`.
+Dropping a table evicts by table id. Dropping a whole database evicts by
+database.
 
-The fingerprint already holds the schema versions. A query after a change of the
-schema therefore computes a different fingerprint. It cannot collide with an
-entry from before the change, in any case.
+The fingerprint already includes the schema versions, so a query after a
+schema change computes a different fingerprint. It can never collide with an
+entry from before the change.
 
-The index of the dependencies, `DependencyIndex`, maps three things to the ids
-of the entries that depend on them: a bucket, a point key, and a schema key of a
-database and a table. The cost of an invalidation therefore follows the key
-spaces that a write touched, and the entries that overlap. It does not follow the
-total number of the cached entries.
+The dependency index, `DependencyIndex`, maps three kinds of key to the ids of
+the entries that depend on them: buckets, point keys, and database and table
+schema keys. The cost of an invalidation therefore follows the key spaces a
+write touched and the entries that overlap them, not the total number of
+cached entries.
 
 ## The publish gate
 
-The dangerous race is this. A query misses, executes, and publishes an entry, at
-the same moment when a write commits into the same key space. The stale entry
-would survive, if the publish landed after the invalidation of the write.
+The dangerous race goes like this: a query misses, executes, and publishes an
+entry at the same moment a write commits into the same key space. If the
+publish landed after the write's invalidation, the stale entry would survive.
 
-`CachePublishGate` closes that window. It holds two structures for each key
-space:
+`CachePublishGate` closes that window. For each key space it holds:
 
-- A counter of the generation. Every committed write increases it. It never
+- A generation counter. Every committed write increases it, and it never
   decreases.
-- A count of the marks of the writes in flight. CamusDB raises the count before
-  a commit. It clears the count after that commit.
+- A count of in-flight write marks. CamusDB raises the count before a commit
+  and clears it after that commit.
 
 The protocol has two halves.
 
-On the path of a write, inside `CommitAsync`, CamusDB marks the modified key
-spaces as in flight, before the commit through Kahuna. It then resolves that
-mark by the result of the finalize. The question is not "did this write commit?"
-The question is "could this write be visible?"
+On the write path, inside `CommitAsync`, CamusDB marks the modified key spaces
+as in flight before committing through Kahuna. It then resolves the mark based
+on the finalize result. The question is not "did this write commit?" but
+"could this write be visible?"
 
-| Result of the finalize | What it means | Action of the gate |
+| Finalize result | What it means | Gate action |
 | --- | --- | --- |
-| `Committed` | A final success | It increases the generations, invalidates inside the lock of the gate, and clears the marks. |
-| A `MustRetry` past the bound of the retries, an `Errored`, or a cancellation or an exception after a request of a commit left the node | The outcome is unknown. The coordinator can apply a commit and still lose the response. The rows may therefore be readable here already. | The same as a `Committed`. It increases, invalidates, and clears. |
-| An `Aborted`, a confirmed rollback, or any failure before the first request of a commit | A definite absence of a commit | It clears the marks only. |
+| `Committed` | A final success | Increases the generations, invalidates inside the gate lock, and clears the marks. |
+| `MustRetry` past the retry bound, `Errored`, or a cancellation or exception after a commit request left the node | The outcome is unknown. The coordinator can apply a commit and still lose the response, so the rows may already be readable here. | Same as `Committed`: increases, invalidates, and clears. |
+| `Aborted`, a confirmed rollback, or any failure before the first commit request | The commit definitely did not happen | Clears the marks only. |
 
-A fence around a write that never landed costs one execution again. A skipped
-fence around a write that did land serves rows older than a committed write.
-That result is the one thing that the
-[mental model](/docs/query-result-cache#the-mental-model) promises cannot happen
-on this node.
+Fencing a write that never landed costs one re-execution. Skipping the fence
+for a write that did land serves rows older than a committed write, which is
+the one thing the [mental model](/docs/query-result-cache#the-mental-model)
+promises cannot happen on this node.
 
-CamusDB therefore resolves the unknown case conservatively. The caller can later
-retry the same handle, and resolve it. The second fence then has no further
-effect. A generation only moves forward, and the entries are gone already.
+So CamusDB resolves the unknown case conservatively. If the caller later
+retries the same handle and resolves it, the second fence has no further
+effect: generations only move forward, and the entries are already gone.
 
-On the path of a read, CamusDB takes a snapshot of the generations of the key
-spaces before the execution. It bypasses the cache when a key space is in flight
-already.
+On the read path, CamusDB snapshots the key space generations before executing
+and bypasses the cache if a key space is already in flight.
 
-After the execution, CamusDB publishes through `TryPublishUnderGeneration` only.
-That method holds the same lock as the path of the commit. It checks the
-generation again. It inserts the entry only when the generation did not move.
+After executing, CamusDB publishes only through `TryPublishUnderGeneration`.
+That method takes the same lock as the commit path, checks the generation
+again, and inserts the entry only if the generation has not moved.
 
-A publish therefore lands entirely before the invalidation of a write, and the
-invalidation then removes it. Or CamusDB rejects the publish, because the
-generation advanced. There is no interleaving between those two results.
+Either the publish lands entirely before the write's invalidation, which then
+removes it, or CamusDB rejects the publish because the generation advanced.
+No other interleaving is possible.
 
 ```mermaid
 sequenceDiagram
@@ -239,7 +226,7 @@ sequenceDiagram
     participant G as Publish gate
     participant W as Writer
     participant K as Kahuna
-    R->>G: Snapshot the generation of the key space
+    R->>G: Snapshot the key space generation
     W->>G: Mark the key space in flight
     W->>K: Commit
     K-->>W: Committed
@@ -249,101 +236,96 @@ sequenceDiagram
     Note over R: The live rows already reached the client. Nothing stale is stored.
 ```
 
-CamusDB holds the lock across the bookkeeping in memory only. It never holds the
-lock across a commit through Kahuna. The lock therefore stays cheap.
+CamusDB holds the lock only across in-memory bookkeeping, never across a
+Kahuna commit, so the lock stays cheap.
 
-A false rejection is acceptable. Such a rejection makes a query execute again,
-because an unrelated row of the same bucket changed. A stale entry that survives
-a committed write is not acceptable.
+A false rejection is acceptable: it makes a query execute again because an
+unrelated row in the same bucket changed. A stale entry that survives a
+committed write is not acceptable.
 
-## The TTL and the strict validation
+## TTL and strict validation
 
-The guarantees above say nothing about a write on a different node. The commit
-of that node never touches the index in the memory of this node. Two mechanisms
-bound the staleness that results.
+The guarantees above say nothing about writes on other nodes. Another node's
+commit never touches this node's in-memory index. Two mechanisms bound the
+resulting staleness.
 
-The first mechanism is the TTL. Every entry has an expiry, from the `ttl` of its
-hint, or from the configured default. CamusDB checks the expiry at a probe. An
-expired entry misses, and CamusDB removes it. A sweep in the background also
-drops an expired entry periodically. It therefore does not stay in the memory.
+The first is the TTL. Every entry expires, using the `ttl` from its hint or the
+configured default. CamusDB checks expiry on each probe, and an expired entry
+misses and is removed. A background sweep also drops expired entries
+periodically, so they do not linger in memory.
 
-The second mechanism is the strict validation. CamusDB validates a `strict`
-entry against the live storage at every hit, before it serves the rows. The
-`StrictValidator` performs three steps, in this order:
+The second is strict validation. CamusDB validates a `strict` entry against
+live storage on every hit, before serving its rows. The `StrictValidator` runs
+three steps, in this order:
 
-1. It checks the schema dependencies. The entry is stale when a table that it
-   depends on is gone, or when that table now holds a different schema version.
-2. It checks the point dependencies. It probes each key of a row, for the latest
-   committed value. Two results mean that the entry is stale: an absent key,
-   which is a delete, and a `LastModified` newer than `T_cache`, which is an
-   update.
-3. It checks the range dependencies. It scans each bucket. A key with a
-   `LastModified` newer than `T_cache` means a phantom insert, or a change that
+1. It checks schema dependencies. The entry is stale if a table it depends on
+   is gone, or now has a different schema version.
+2. It checks point dependencies by probing each row key for its latest
+   committed value. The entry is stale if a key is absent (a delete) or has a
+   `LastModified` newer than `T_cache` (an update).
+3. It checks range dependencies by scanning each bucket. A key with a
+   `LastModified` newer than `T_cache` means a phantom insert or a change that
    CamusDB did not track.
 
-Every read of the validation is outside a transaction. Each one reads the latest
-committed value.
+Every validation read runs outside a transaction and reads the latest committed
+value.
 
-A limit on the keys of the probe bounds the validation. The validation fails
-closed. CamusDB treats the entry as stale when the validation would pass the
-limit. It executes the query again. It does not trust the entry.
+A limit on probe keys bounds the validation, and validation fails closed. If
+the validation would pass the limit, CamusDB treats the entry as stale and
+executes the query again instead of trusting the entry.
 
-A failed validation evicts the entry. The next probe therefore does not validate
-an entry that CamusDB knows to be stale.
+A failed validation evicts the entry, so the next probe does not validate an
+entry that CamusDB already knows is stale.
 
-Two details of the correctness are worth your attention:
+Correctness also depends on these details:
 
-- A physical delete needs a point dependency. The key of a deleted row is gone,
-  and a scan of a range cannot see it. Only the point dependency of the row
-  catches the delete. That is the reason for one rule: CamusDB does not store a
-  strict entry whose point dependencies the cap truncated. Without complete
-  point dependencies, that entry could not detect a delete. It therefore
-  bypasses the publish.
-- The strict mode needs a snapshot. Only two reads pin an HLC snapshot: an
-  autocommit read under the serializable default, without key-range sharding,
-  and an `AS OF SYSTEM TIME` read. For any other read, `T_cache` would have no
-  meaning, and every comparison of a `LastModified` would fail. CamusDB does not
-  publish such a strict entry. It serves live rows instead.
+- A physical delete needs a point dependency. A deleted row's key is gone, so a
+  range scan cannot see it, and only the row's point dependency catches the
+  delete. That is why CamusDB never stores a strict entry whose point
+  dependencies the cap truncated. Without complete point dependencies, the
+  entry could not detect a delete, so CamusDB bypasses the publish.
+- Strict mode needs a snapshot. Only two reads pin an HLC snapshot: an
+  autocommit read under the serializable default without key-range sharding,
+  and an `AS OF SYSTEM TIME` read. For any other read, `T_cache` would be
+  meaningless and every `LastModified` comparison would fail, so CamusDB does
+  not publish the strict entry. It serves live rows instead.
 
-A strict validation can cost as much as a scan of a range. It is an opt-in mode
-of the correctness, for a read across several nodes. It is not a general path of
-the performance.
+Strict validation can cost as much as a range scan. It is an opt-in
+correctness mode for reads across several nodes, not a general performance
+path.
 
 ## The fingerprint
 
-The fingerprint must never let two logically different queries share one entry.
+The fingerprint must never let two logically different queries share an entry.
 
-It is a hash of 128 bits, and that hash is not cryptographic. CamusDB uses
-XxHash128, over a canonical string that is injective. The fingerprint is not a
-boundary of the security. It only avoids an accidental collision. A fast hash
-over an unambiguous encoding is therefore the correct tool.
+It is a 128-bit, non-cryptographic hash: XxHash128 over an injective canonical
+string. The fingerprint is not a security boundary. It only has to avoid
+accidental collisions, so a fast hash over an unambiguous encoding is the right
+tool.
 
-Six parts go into the canonical form:
+The canonical form contains:
 
-1. The id of the database.
-2. The name of the family.
-3. The id of the shape of the query.
-4. Every bound parameter, in the order of its name.
-5. The schema dependencies, in the order of the name of the table, with their
-   versions.
-6. The options of the cache.
+1. The database id.
+2. The family name.
+3. The query shape id.
+4. Every bound parameter, ordered by name.
+5. The schema dependencies with their versions, ordered by table name.
+6. The cache options.
 
-The encoding takes care in two ways that matter:
+The encoding handles these details:
 
-- Each value carries its type. The integer `1`, the string `'1'`, a `NULL`, and
-  an object id therefore never encode in the same way.
-- Every value of a variable length carries a prefix of its length. A value that
-  holds a delimiter of the structure therefore cannot look like a different set
-  of values. The format of a float is invariant of the culture. The locale of a
-  node therefore cannot change a fingerprint.
+- Each value carries its type, so the integer `1`, the string `'1'`, `NULL`,
+  and an object id never encode the same way.
+- Every variable-length value carries a length prefix, so a value that contains
+  a structural delimiter cannot look like a different set of values. Floats use
+  a culture-invariant format, so a node's locale cannot change a fingerprint.
 
-The id of the shape of the query is a separate hash, of 64 bits. It covers the
-structure of the query, with a placeholder in the position of each literal. The
-plan cache shares that id. It identifies a query that is the same except for its
-constants.
+The query shape id is a separate 64-bit hash of the query's structure, with a
+placeholder in place of each literal. The plan cache shares this id, which
+identifies queries that differ only in their constants.
 
-The fingerprint of a result always folds the literal values back in. The plan
-cache ignores them by design. The result cache must not ignore them.
+A result fingerprint always folds the literal values back in. The plan cache
+ignores them by design, but the result cache must not.
 
 ## Related pages
 

@@ -45,6 +45,16 @@ const config = {
     locales: ['en'],
   },
 
+  headTags: [
+    {
+      tagName: 'meta',
+      attributes: {
+        name: 'algolia-site-verification',
+        content: 'CCAE52A1C7A7537A',
+      },
+    },
+  ],
+
   plugins: [
     [
       '@docusaurus/plugin-client-redirects',
@@ -52,6 +62,7 @@ const config = {
         redirects: [
           // Merged into the SELECT and joins pages during the SQL section rewrite.
           {from: '/docs/query-features', to: '/docs/sql-queries'},
+          {from: '/docs/set-operations', to: '/docs/sql-queries'},
           // Folded into the SQL overview.
           {from: '/docs/sql-comments', to: '/docs/sql'},
           // Merged into the prepared statements page.
@@ -91,6 +102,15 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       image: 'img/camusdb-social-card.png',
+      algolia: {
+        appId: 'SPBBUBI3JT',
+        // Search-only key. Safe to commit; never put the crawler key here.
+        apiKey: '4bce7f90e4896c3f699731e08db06a09',
+        indexName: 'camusdb_github_io_spbbubi3jt_pages',
+        // The site is single-locale and unversioned, so contextual filtering
+        // by docusaurus_tag would only ever exclude valid results.
+        contextualSearch: false,
+      },
       navbar: {
         title: 'CamusDB',
         logo: {
@@ -103,6 +123,11 @@ const config = {
             sidebarId: 'tutorialSidebar',
             position: 'left',
             label: 'Docs',
+          },
+          {
+            to: '/docs/why-camusdb',
+            label: 'Why CamusDB?',
+            position: 'left',
           },
           {
             to: '/blog',
@@ -151,6 +176,7 @@ const config = {
               {label: '.NET driver', to: '/docs/dotnet-driver'},
               {label: 'EF Core provider', to: '/docs/ef-core'},
               {label: 'TypeScript connector', to: '/docs/typescript-connector'},
+              {label: 'Python driver', to: '/docs/python-driver'},
               {label: 'HTTP API', to: '/docs/http-api'},
               {label: 'MCP server', to: '/docs/mcp-server'},
             ],
@@ -191,7 +217,7 @@ const config = {
       prism: {
         theme: camusTheme,
         darkTheme: camusTheme,
-        additionalLanguages: ['csharp', 'json'],
+        additionalLanguages: ['bash', 'csharp', 'json'],
       },
     }),
 };

@@ -135,6 +135,11 @@ set, while the other columns are `NULL`.
 This keeps the result useful during an outage: one unreachable node does not
 make the whole activity query fail.
 
+One cluster request contacts all members. At most
+`cluster_activity_max_concurrent_fan_outs` requests run simultaneously on a node
+(default 8); excess requests fail with `CADB0558` and HTTP 503. This protects
+peer connections and thread-pool work from excessive dashboard polling.
+
 On a standalone node, the cluster forms return the same rows as the local forms.
 
 ## Runtime settings
@@ -146,6 +151,7 @@ These runtime cluster settings control the feature:
 | `query_activity_enabled` | `true` | Lists running statements and allows `CANCEL QUERY`. |
 | `query_activity_max_sql_length` | `1024` | Maximum statement-text characters shown in `SHOW QUERIES`. |
 | `cluster_activity_peer_timeout_ms` | `2000` | Peer wait for cluster forms and forwarded cancels. |
+| `cluster_activity_max_concurrent_fan_outs` | `8` | Concurrent cluster activity requests admitted per node. `0` or below disables the cap. |
 
 Change them with [Runtime Cluster Settings](/docs/runtime-cluster-settings):
 

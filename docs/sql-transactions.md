@@ -4,8 +4,8 @@ sidebar_position: 2.5
 
 # Transactions in SQL
 
-Group your statements with `BEGIN`, or with `START TRANSACTION`. Close the group
-with `COMMIT` or with `ROLLBACK`:
+Group statements into a transaction with `BEGIN` or `START TRANSACTION`, and end
+it with `COMMIT` or `ROLLBACK`:
 
 ```camussql
 BEGIN;
@@ -14,21 +14,21 @@ UPDATE accounts SET balance = balance + 100 WHERE id = @to;
 COMMIT;
 ```
 
-A statement without a transaction receives one. CamusDB opens a transaction of
-one operation around that statement. It then commits the transaction.
+A statement outside a transaction gets one automatically: CamusDB wraps it in a
+single-operation transaction and commits it.
 
-This page gives the SQL syntax. For the guarantees behind that syntax, see
+This page covers the SQL syntax. For the guarantees behind it, see
 [Transactions And Isolation](/docs/serializable-transactions).
 
 Three statements cannot run inside an explicit transaction:
 [`TRUNCATE`](/docs/truncate-table), `ALTER TABLE ... REWRITE STORAGE`, and
 `ALTER SEQUENCE ... RESTART`. Each one commits work that a later `ROLLBACK`
-cannot undo. CamusDB therefore refuses them there, with `CADB0538`
+cannot undo, so CamusDB refuses them there with `CADB0538`
 `StatementNotAllowedInTransaction`.
 
 ## Isolation
 
-Serializable is the default. You can also state it explicitly, at the start of a
+Serializable is the default. You can also set it explicitly at the start of a
 transaction:
 
 ```camussql
@@ -37,7 +37,7 @@ SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 COMMIT;
 ```
 
-Serializable has a read-only mode and a read-write mode:
+Serializable has read-only and read-write modes:
 
 ```camussql
 SET TRANSACTION ISOLATION LEVEL SERIALIZABLE READ ONLY;
@@ -50,43 +50,56 @@ Read Committed is available as an explicit opt-out:
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 ```
 
-## The strategy for the locks
+In an explicit pessimistic Read Committed transaction, each ordinary SELECT sees a
+single committed snapshot plus the transaction's own writes. The next
+statement takes a new snapshot; reads are not repeatable across statements.
+Autocommit `SELECT` also uses a pinned statement snapshot under either default
+isolation level. Read Committed write statements use a statement snapshot for
+their locate/source read phase, followed by latest-value locked reads when
+applying changes.
+Optimistic and read-validation modes retain latest-value reads with validation.
+See [Read Committed snapshots and limits](/docs/serializable-transactions#read-committed-snapshots-and-limits).
 
-Pessimistic locking is the default strategy. It takes the necessary locks before
-any conflicting work continues:
+For a read-then-write decision, keep [SELECT FOR UPDATE](/docs/sql-queries#for-update)
+and the following write in one explicit transaction. Its locks are released
+at commit or rollback; an autocommit locking read cannot protect a later request.
+
+## Locking strategy
+
+Pessimistic locking is the default. It takes the necessary locks before any
+conflicting work continues:
 
 ```camussql
 BEGIN;
 SET TRANSACTION LOCKING PESSIMISTIC;
 ```
 
-Optimistic locking is an opt-in strategy. It skips the explicit exclusive write
-locks. It validates the conflicts at the commit:
+Optimistic locking is opt-in. It skips explicit exclusive write locks and
+validates conflicts at commit:
 
 ```camussql
 BEGIN;
 SET TRANSACTION LOCKING OPTIMISTIC;
 ```
 
-`SET TRANSACTION LOCKING` must run before any data statement of the transaction.
-You can combine it with `SET TRANSACTION ISOLATION LEVEL`, in either order. Both
-statements must come before any read and before any write.
+`SET TRANSACTION LOCKING` must run before any data statement in the
+transaction. You can combine it with `SET TRANSACTION ISOLATION LEVEL` in either
+order, but both must come before any read or write.
 
 The isolation level still governs optimistic locking. With `READ COMMITTED`, an
-optimistic transaction takes no lock at all. It validates only the rows that it
-observed. With `SERIALIZABLE`, a read and a scan still take shared predicate
-locks. The transaction therefore keeps its protection against a phantom (a row
-that another transaction inserts into a range you already read), while it
-validates its write set and its read set at the commit.
+optimistic transaction takes no locks at all and validates only the rows it
+observed. With `SERIALIZABLE`, reads and scans still take shared predicate
+locks, so the transaction keeps its protection against phantoms (rows that
+another transaction inserts into a range you already read) while it validates
+its write set and read set at commit.
 
 ## Priority
 
-The priority of a transaction controls the order of the admission, that is,
-which waiting transaction a busy node lets start first. It applies when a node
-is saturated, and when the concurrency gate (admission gate) of
-[Kahuna](/docs/concepts#kahuna), the storage layer, is enabled. It does not
-change the isolation, the locks, the order of the commits, or the resources of
-the execution after a transaction starts.
+A transaction's priority controls admission order: which waiting transaction a
+busy node lets start first. It applies when a node is saturated and the
+concurrency gate (admission gate) of [Kahuna](/docs/concepts#kahuna), the
+storage layer, is enabled. It does not change isolation, locking, commit order,
+or execution resources once a transaction starts.
 
 ```camussql
 BEGIN;
@@ -97,18 +110,16 @@ COMMIT;
 
 The accepted values are `BACKGROUND`, `LOW`, `NORMAL`, `HIGH`, and `CRITICAL`.
 
-`SET TRANSACTION PRIORITY` must run before any data statement. It must also run
-before the transaction's coordinator session (the session in the storage layer
-that tracks the transaction) starts. You can combine it with `SET TRANSACTION
-ISOLATION LEVEL` and with `SET TRANSACTION LOCKING`, during the setup of the
-transaction.
+`SET TRANSACTION PRIORITY` must run before any data statement, and before the
+transaction's coordinator session (the storage-layer session that tracks the
+transaction) starts. You can combine it with `SET TRANSACTION ISOLATION LEVEL`
+and `SET TRANSACTION LOCKING` while setting up the transaction.
 
-With the default configuration, CamusDB records the priority. It defers no
-transaction. See [Transaction Priority](/docs/transaction-priority) for the
-settings of the admission gate, and for operational guidance.
+With the default configuration, CamusDB records the priority but defers no
+transactions. See [Transaction Priority](/docs/transaction-priority) for the
+admission gate settings and operational guidance.
 
-These four pages give the guarantees, the order of the admission, the limits,
-and guidance on a retry:
+For guarantees, admission order, limits, and retry guidance, see:
 
 - [Transactions And Isolation](/docs/serializable-transactions)
 - [Transaction Priority](/docs/transaction-priority)

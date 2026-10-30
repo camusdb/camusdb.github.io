@@ -249,12 +249,14 @@ Clients and tools:
 
 - An **ADO.NET provider**, a **Dapper adapter**, and an **EF Core provider**.
 - A **TypeScript connector** for Node.js.
+- A **Python driver** with DB-API 2.0 and asyncio interfaces over REST.
 - [HTTP](/docs/http-api) and [gRPC](/docs/grpc-api) APIs.
 - [`camus-cli`](/docs/camus-cli), a browser [Web Console](/docs/web-console),
   and `camus-dump` for backup and restore.
 
 See [.NET Driver](/docs/dotnet-driver), [Dapper](/docs/dapper),
-[EF Core Provider](/docs/ef-core), and [TypeScript](/docs/typescript-connector).
+[EF Core Provider](/docs/ef-core), [TypeScript](/docs/typescript-connector),
+and [Python](/docs/python-driver).
 
 ## AI next to transactional data
 
@@ -286,7 +288,7 @@ CamusDB is a good fit when several of these hold:
 - Capacity must grow or shrink with traffic instead of with hardware upgrades
 - Several services or operators write to the same tables, and the rules must
   hold for every writer
-- The stack is .NET, TypeScript, or anything that can use HTTP or gRPC
+- The stack is .NET, TypeScript, Python, or anything that can use HTTP or gRPC
 - The team works in .NET and wants a database it can read, extend, and adapt
 - Branching, historical reads, or recoverable drops simplify development and
   operations

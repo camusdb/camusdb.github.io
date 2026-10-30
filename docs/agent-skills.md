@@ -16,9 +16,9 @@ The skills are a companion to the [CamusDB MCP server](/docs/mcp-server):
 - The MCP server gives the agent typed tools for inspecting and working with a
   running CamusDB database.
 
-You can use either component on its own. Together, an agent can apply CamusDB
-guidance while it examines schemas, explains plans, runs read-only queries, or
-performs the database operations allowed by its MCP credentials.
+You can use either one on its own. Used together, they let an agent apply
+CamusDB guidance while it examines schemas, explains plans, runs read-only
+queries, or performs the database operations its MCP credentials allow.
 
 ## Available skills
 
@@ -72,8 +72,8 @@ agents at once.
 
 ## Install in a project
 
-Install a copy in one project when the whole team should receive the same skill
-files from version control:
+Install a copy in a project when the whole team should get the same skill files
+from version control:
 
 ```bash
 ./install.sh --project ~/code/my-app --copy
