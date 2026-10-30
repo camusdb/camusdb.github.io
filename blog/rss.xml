@@ -37,7 +37,7 @@
 <li class=""><strong>No native dependencies.</strong> The storage engine can be distributed as .NET assemblies without maintaining separate native binaries for different platforms.</li>
 </ul>
 <p>These benefits aren't purely theoretical.</p>
-<p>SolariumDB was initially designed around the Raft log of <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a> and also serves as a storage backend for Kahuna.</p>
+<p>SolariumDB was initially designed around the Raft log of <a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a> and also serves as a storage backend for Kahuna.</p>
 <p>For example, Raft logs are mostly append-only and periodically discard old entries. SolariumDB can move non-overlapping SSTables between levels without rewriting their contents, reducing unnecessary disk I/O.</p>
 <p>This is the kind of optimization that becomes easier when we control the storage engine.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-about-performance">What About Performance?<a href="https://camusdb.github.io/blog/introducing-solariumdb/#what-about-performance" class="hash-link" aria-label="Direct link to What About Performance?" title="Direct link to What About Performance?" translate="no">​</a></h2>
@@ -59,6 +59,20 @@
 <p>We're not the first to take this approach.</p>
 <p>CockroachDB eventually replaced RocksDB with Pebble, a storage engine written in Go, partly to gain greater control over its implementation and optimization.</p>
 <p>SolariumDB follows a similar motivation within the .NET ecosystem.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-so-many-projects">Why So Many Projects?<a href="https://camusdb.github.io/blog/introducing-solariumdb/#why-so-many-projects" class="hash-link" aria-label="Direct link to Why So Many Projects?" title="Direct link to Why So Many Projects?" translate="no">​</a></h2>
+<p>People sometimes ask me, why do you build so many separate projects instead of just calling everything CamusDB?</p>
+<p>And they're right, it can be a bit confusing. But the truth is that each project has emerged organically from a specific need while building CamusDB. Each has its own identity and can be used to solve specific problems, but they're all pieces of the same puzzle: building a distributed database.</p>
+<ul>
+<li class=""><a href="https://camusdb.github.io/" target="_blank" rel="noopener noreferrer" class="">CamusDB</a>: Distributed SQL database</li>
+<li class=""><a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a>: Distributed key-value store, node scaling, backups, etc.</li>
+<li class=""><a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a>: Raft, WAL, leader election and balancing, consensus, etc.</li>
+<li class=""><a href="https://kahunakv.github.io/nixie.github.io/" target="_blank" rel="noopener noreferrer" class="">Nixie</a>: High-performance actor model</li>
+<li class=""><a href="https://solariumdb.github.io/" target="_blank" rel="noopener noreferrer" class="">Solarium</a>: Embedded key-value store, handling the low-level disk I/O</li>
+</ul>
+<p>A developer can use any of these projects independently without needing to use the others.</p>
+<p>Here's how they fit together inside CamusDB:</p>
+<!-- -->
+<p>CamusDB turns SQL into key-value operations on Kahuna. Inside Kahuna, Nixie actors handle concurrency: each key and lock belongs to one single-threaded actor, so Kahuna avoids sharing mutable state between threads. Kahuna replicates its writes through Kommander. On each node, a storage engine writes both the key-value state and the Raft log to disk. Today that engine is RocksDB by default, and SolariumDB is the alternative.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="whats-next">What's Next?<a href="https://camusdb.github.io/blog/introducing-solariumdb/#whats-next" class="hash-link" aria-label="Direct link to What's Next?" title="Direct link to What's Next?" translate="no">​</a></h2>
 <p>SolariumDB is still young, and there's a significant difference between producing promising benchmarks and operating a reliable storage engine in production.</p>
 <p><strong>RocksDB will remain CamusDB's default storage engine</strong> while we continue testing, benchmarking, and hardening SolariumDB.</p>
