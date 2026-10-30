@@ -13,9 +13,9 @@
 
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea3a4261.css">
-<script src="/assets/js/runtime~main.918e144d.js" defer="defer"></script>
-<script src="/assets/js/main.385fbd07.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.0b44ffb0.css">
+<script src="/assets/js/runtime~main.a6487316.js" defer="defer"></script>
+<script src="/assets/js/main.f057dcb6.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -49,7 +49,8 @@ as replicated log entries. Only then are those changes durable.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-two-durable-paths">The two durable paths<a href="#the-two-durable-paths" class="hash-link" aria-label="Direct link to The two durable paths" title="Direct link to The two durable paths" translate="no">​</a></h2>
 <p>CamusDB has two related persistence paths:</p>
 <table><thead><tr><th>Path</th><th>Owner</th><th>Purpose</th></tr></thead><tbody><tr><td>Raft WAL</td><td>Kommander</td><td>Stores each <a class="" href="/docs/concepts/#partition">partition</a>&#x27;s Raft log entries. An entry can be proposed, committed, rolled back, or part of a checkpoint.</td></tr><tr><td>KV persistence</td><td>Kahuna</td><td>Stores the materialized key/value state that the committed log entries produce.</td></tr></tbody></table>
-<p>By default both paths use RocksDB, as two separate databases. See
+<p>By default both paths use RocksDB, as two separate databases. SQLite and
+<a href="https://solariumdb.github.io/" target="_blank" rel="noopener noreferrer" class="">Solarium</a> are alternatives for either path. See
 <a class="" href="/docs/storage/#the-rocksdb-backend">Storage</a> for the backend settings.</p>
 <p>The Raft WAL is the source of ordering during recovery: it knows which
 operations committed, and in which order. KV persistence is the current durable

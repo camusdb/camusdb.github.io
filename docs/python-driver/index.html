@@ -13,9 +13,9 @@
 
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea3a4261.css">
-<script src="/assets/js/runtime~main.918e144d.js" defer="defer"></script>
-<script src="/assets/js/main.385fbd07.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.0b44ffb0.css">
+<script src="/assets/js/runtime~main.a6487316.js" defer="defer"></script>
+<script src="/assets/js/main.f057dcb6.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -86,6 +86,10 @@ or a type Python cannot distinguish, such as <code>FLOAT32</code>:</p>
 <p><code>FLOAT32</code> results are returned as Python floats. Strings can also bind to OID
 columns; <code>camusdb.ObjectId.generate()</code> creates an ID on the client.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="read-results">Read results<a href="#read-results" class="hash-link" aria-label="Direct link to Read results" title="Direct link to Read results" translate="no">​</a></h2>
+<p>The server&#x27;s default buffered response caps are 1,000,000 rows and 256 MiB of
+estimated memory. Excess results fail with <code>CADB0556</code>; use streaming for large
+ordinary reads or reduce the result. See
+<a class="" href="/docs/configuration/#request-resource-limits">request limits</a>.</p>
 <p><code>execute()</code> returns a cursor with all rows buffered in memory. Iterate it or
 use <code>fetchone()</code>, <code>fetchmany()</code>, and <code>fetchall()</code>. Set <code>cursor.arraysize</code> to
 choose the default <code>fetchmany()</code> size.</p>

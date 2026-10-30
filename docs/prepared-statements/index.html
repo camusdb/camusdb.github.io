@@ -13,9 +13,9 @@
 
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea3a4261.css">
-<script src="/assets/js/runtime~main.918e144d.js" defer="defer"></script>
-<script src="/assets/js/main.385fbd07.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.0b44ffb0.css">
+<script src="/assets/js/runtime~main.a6487316.js" defer="defer"></script>
+<script src="/assets/js/main.f057dcb6.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -82,6 +82,8 @@ property. Neither one silently becomes <code>NULL</code>, because a spelling mis
 not silently become a wrong answer.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-you-can-prepare">What you can prepare<a href="#what-you-can-prepare" class="hash-link" aria-label="Direct link to What you can prepare" title="Direct link to What you can prepare" translate="no">​</a></h2>
 <p>You can prepare <code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, and <code>SHOW</code> statements.
+This includes <a class="" href="/docs/sql-queries/#for-update">SELECT FOR UPDATE</a>: preparing it
+takes no row lock; executing it uses the locking-read transaction rules.
 That covers every <code>SHOW</code> statement in the grammar, including the node-scoped
 ones that run against no database at all, such as <code>SHOW ENGINE STATS</code>,
 <code>SHOW VARIABLES</code>, and <code>SHOW CLUSTER SETTINGS</code>.</p>
@@ -178,6 +180,10 @@ It never becomes an unbounded limit.</p>
 <p>You need both count limits and byte limits. A count cap alone does not bound
 memory: 512 statements permit 512 times the size of the largest accepted
 request.</p>
+<p>Inline SQL is also checked against
+<a class="" href="/docs/configuration/#request-resource-limits">max_statement_bytes</a> in UTF-8
+before parsing, including PREPARE. This does not replace the smaller retained
+prepared-statement limit or its UTF-16 accounting.</p>
 <p>The per-statement limit bounds each term and the budgets bound the total, so
 together they are meaningful.</p>
 <p>CamusDB rejects a statement above <code>max_prepared_statement_bytes</code> as invalid

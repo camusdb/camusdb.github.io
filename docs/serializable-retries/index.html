@@ -13,9 +13,9 @@
 
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea3a4261.css">
-<script src="/assets/js/runtime~main.918e144d.js" defer="defer"></script>
-<script src="/assets/js/main.385fbd07.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.0b44ffb0.css">
+<script src="/assets/js/runtime~main.a6487316.js" defer="defer"></script>
+<script src="/assets/js/main.f057dcb6.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -71,6 +71,9 @@ repeatable unit of work. Python provides <code>camusdb.run_transaction(...)</cod
 see <a class="" href="/docs/python-driver/#transactions-and-retries">Python transactions and retries</a>.
 These helpers replay retryable work with backoff. If you manage an explicit
 transaction by hand, retrying it is up to your application.</p>
+<p><code>CADB0555 LockNotAvailable</code> from <code>FOR UPDATE NOWAIT</code> is not in the automatic
+retry set: retrying would contradict the request not to wait. A failed locking
+read still ends its transaction. See <a class="" href="/docs/sql-queries/#for-update">locking reads</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="retry-an-unresolved-finalize">Retry an unresolved finalize<a href="#retry-an-unresolved-finalize" class="hash-link" aria-label="Direct link to Retry an unresolved finalize" title="Direct link to Retry an unresolved finalize" translate="no">​</a></h2>
 <p><code>CADB0509 TransactionFinalizeUnresolved</code> is different from the other codes.
 CamusDB does not know that the transaction aborted, and it may already have

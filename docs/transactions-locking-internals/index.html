@@ -13,9 +13,9 @@
 
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea3a4261.css">
-<script src="/assets/js/runtime~main.918e144d.js" defer="defer"></script>
-<script src="/assets/js/main.385fbd07.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.0b44ffb0.css">
+<script src="/assets/js/runtime~main.a6487316.js" defer="defer"></script>
+<script src="/assets/js/main.f057dcb6.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -122,7 +122,7 @@ empty transaction when the client commits or rolls back.</p>
 reports and other stable reads that need no writes.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="read-committed-statement-snapshots">Read Committed statement snapshots<a href="#read-committed-statement-snapshots" class="hash-link" aria-label="Direct link to Read Committed statement snapshots" title="Direct link to Read Committed statement snapshots" translate="no">​</a></h2>
 <p>An explicit pessimistic Read Committed transaction opens a <code>KvReadView</code> for
-each <code>SELECT</code>. <code>SelectStatementExecutor</code> fixes its timestamp when the statement
+each ordinary SELECT. <code>SelectStatementExecutor</code> fixes its timestamp when the statement
 starts and closes the view when its cursor ends. Kahuna&#x27;s <code>StatementSnapshot</code>
 read mode uses that view across scans, joins, index fetches, and large values,
 while preserving the transaction&#x27;s own writes.</p>
@@ -136,7 +136,7 @@ read-validating transactions retain their existing read observations and do
 not take the statement-snapshot path.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-zero-identity-fast-path">The zero-identity fast path<a href="#the-zero-identity-fast-path" class="hash-link" aria-label="Direct link to The zero-identity fast path" title="Direct link to The zero-identity fast path" translate="no">​</a></h2>
 <p>Some read paths use a transaction identity of zero without starting a full
-Kahuna transaction or registering coordinator operations. Autocommit <code>SELECT</code>
+Kahuna transaction or registering coordinator operations. Ordinary autocommit <code>SELECT</code>
 uses this identity with a pinned read timestamp under either isolation
 default. Latest-value internal reads can use it without a timestamp.</p>
 <p>CamusDB uses this path only when no server-side working set is needed. Commit

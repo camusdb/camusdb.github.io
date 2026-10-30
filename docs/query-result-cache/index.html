@@ -13,9 +13,9 @@
 
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea3a4261.css">
-<script src="/assets/js/runtime~main.918e144d.js" defer="defer"></script>
-<script src="/assets/js/main.385fbd07.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.0b44ffb0.css">
+<script src="/assets/js/runtime~main.a6487316.js" defer="defer"></script>
+<script src="/assets/js/main.f057dcb6.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -160,6 +160,7 @@ or columns named <code>cache</code> or <code>all</code> keep working.</p>
 supplied no transaction id. An explicit <code>BEGIN … READ ONLY</code> carries its own
 pinned snapshot, so CamusDB excludes it by design, and it always reads live
 storage.</li>
+<li class="">It is not <code>SELECT ... FOR UPDATE</code>; cached rows cannot acquire row locks.</li>
 <li class="">It queries a single table. Joins and combined results from <code>UNION</code>,
 <code>INTERSECT</code>, or <code>EXCEPT</code> bypass the cache.</li>
 <li class="">The cache is enabled.</li>

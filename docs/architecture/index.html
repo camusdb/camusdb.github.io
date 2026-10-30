@@ -13,9 +13,9 @@
 
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea3a4261.css">
-<script src="/assets/js/runtime~main.918e144d.js" defer="defer"></script>
-<script src="/assets/js/main.385fbd07.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.0b44ffb0.css">
+<script src="/assets/js/runtime~main.a6487316.js" defer="defer"></script>
+<script src="/assets/js/main.f057dcb6.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -141,8 +141,10 @@ state durable. Kahuna and Kommander add the rest: replication, commit by a
 <a class="" href="/docs/concepts/#majority">majority</a>, partition leadership, transaction
 coordination, and WAL replay. Together they keep commits consistent across the
 cluster.</p>
-<p>Kahuna can also use SQLite, for deployments that prefer SQLite files to
-RocksDB directories, and an in-memory backend for development and tests only.
+<p>Kahuna can also use SQLite, a managed <a href="https://solariumdb.github.io/" target="_blank" rel="noopener noreferrer" class="">Solarium</a> backend for the KV state or
+Raft WAL, and an in-memory backend for development and tests only. Solarium
+avoids the native RocksDB library but places its caches inside the managed
+heap; see <a class="" href="/docs/configuration/#solarium-storage-engine">Solarium configuration</a>.
 See <a class="" href="/docs/storage/#the-rocksdb-backend">Storage</a> for the backend settings, and
 <a href="https://kahunakv.github.io/docs/storage/overview/" target="_blank" rel="noopener noreferrer" class="">Kahuna&#x27;s storage overview</a>
 for lower-level details.</p>

@@ -13,9 +13,9 @@
 
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea3a4261.css">
-<script src="/assets/js/runtime~main.918e144d.js" defer="defer"></script>
-<script src="/assets/js/main.385fbd07.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.0b44ffb0.css">
+<script src="/assets/js/runtime~main.a6487316.js" defer="defer"></script>
+<script src="/assets/js/main.f057dcb6.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -222,6 +222,8 @@ the server, not after ordinary grant changes.</p>
 That covers joins, derived tables, subqueries, semi-joins (filters that keep a
 row when a match exists in another table), <code>EXISTS</code>, <code>IN</code>, and <code>EXPLAIN</code> for a
 query that reads a table.</p>
+<p><code>SELECT ... FOR UPDATE</code> also requires <code>UPDATE</code> on its table, including when
+wrapped in plain EXPLAIN. See <a class="" href="/docs/sql-queries/#for-update">row-locking reads</a>.</p>
 <p>A write needs the matching write privilege:</p>
 <ul>
 <li class=""><code>INSERT</code> for an insert.</li>

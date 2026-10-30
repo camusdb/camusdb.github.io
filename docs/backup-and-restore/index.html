@@ -13,9 +13,9 @@
 
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea3a4261.css">
-<script src="/assets/js/runtime~main.918e144d.js" defer="defer"></script>
-<script src="/assets/js/main.385fbd07.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.0b44ffb0.css">
+<script src="/assets/js/runtime~main.a6487316.js" defer="defer"></script>
+<script src="/assets/js/main.f057dcb6.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -84,6 +84,9 @@ would mean reading it row by row, which is the logical dump this design avoids.<
 server holds open and caches. A build into a fresh directory leaves the live
 node untouched, and lets you verify the restore first.</li>
 </ul>
+<p>PITR bootstrap with <code>pitr_bootstrap_from</code> requires RocksDB for both
+<code>kahuna.storage</code> and <code>kahuna.wal_storage</code>; <a href="https://solariumdb.github.io/" target="_blank" rel="noopener noreferrer" class="">Solarium</a> cannot be used for that
+bootstrap path. See <a class="" href="/docs/configuration/#solarium-storage-engine">storage-engine choices</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="enable-backups">Enable backups<a href="#enable-backups" class="hash-link" aria-label="Direct link to Enable backups" title="Direct link to Enable backups" translate="no">​</a></h2>
 <p>Backups are off by default. Set a backup directory under <code>kahuna:</code>, then
 restart the node:</p>

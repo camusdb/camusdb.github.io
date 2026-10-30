@@ -13,9 +13,9 @@
 
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea3a4261.css">
-<script src="/assets/js/runtime~main.918e144d.js" defer="defer"></script>
-<script src="/assets/js/main.385fbd07.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.0b44ffb0.css">
+<script src="/assets/js/runtime~main.a6487316.js" defer="defer"></script>
+<script src="/assets/js/main.f057dcb6.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -77,12 +77,19 @@ To change modes, create a new cluster and
 its local range map and database catalog. Start an existing node first, so it
 can restore that map before a new node with an empty data directory joins.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-changes">What changes<a href="#what-changes" class="hash-link" aria-label="Direct link to What changes" title="Direct link to What changes" translate="no">​</a></h2>
-<table><thead><tr><th>Area</th><th>Hash routing</th><th>Key-range routing</th></tr></thead><tbody><tr><td>Table rows</td><td>One partition</td><td>One or more ranges</td></tr><tr><td>Secondary indexes</td><td>The same partition as the table&#x27;s rows</td><td>Independent ranges per eligible index</td></tr><tr><td>Serializable read-write scan locks</td><td>Cover the whole key space</td><td>Clipped to the ranges touched</td></tr><tr><td>Scans</td><td>One partition answers</td><td>All intersecting ranges answer and merge in key order</td></tr><tr><td>Splitting</td><td>Not applicable</td><td>Ranges can split on size or load</td></tr></tbody></table>
+<table><thead><tr><th>Area</th><th>Hash routing</th><th>Key-range routing</th></tr></thead><tbody><tr><td>Table rows</td><td>One partition</td><td>One or more ranges; the first starts on the hash-routed partition</td></tr><tr><td>Secondary indexes</td><td>The same partition as the table&#x27;s rows</td><td>Independent ranges per eligible index</td></tr><tr><td>Serializable read-write scan locks</td><td>Cover the whole key space</td><td>Clipped to the ranges touched</td></tr><tr><td>Scans</td><td>One partition answers</td><td>All intersecting ranges answer and merge in key order</td></tr><tr><td>Splitting</td><td>Not applicable</td><td>Ranges can split on size or load</td></tr></tbody></table>
 <p>Scans stay ordered and complete: a query returns the same rows whether the
 space has one range or many. Only Serializable read-write transactions take
-scan range locks. Read Committed scans and autocommit <code>SELECT</code> statements take
+scan range locks. Read Committed scans and ordinary autocommit <code>SELECT</code> statements take
 none. Under either isolation default, autocommit reads keep one pinned snapshot in
 either routing mode.</p>
+<p>With Kahuna 1.14.7 and later, a table&#x27;s first range uses the partition that
+hash routing gives its placement group. New index and large-value spaces join
+that table&#x27;s existing spaces, keeping it on one partition until a split.
+Older seeded ranges keep their recorded placements; an upgrade does not move
+them. A few tables can still hash to the same partition, leaving another empty.
+The leader balancer moves leaders, not ranges; splitting or moving a range
+changes its partition. The cluster routing mode remains fixed at creation.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="partition-count">Partition count<a href="#partition-count" class="hash-link" aria-label="Direct link to Partition count" title="Direct link to Partition count" translate="no">​</a></h2>
 <p>A standalone node or a cluster with one partition can still use key-range
 routing, but it cannot distribute work. Set <code>initial_partitions: 2</code> or more for

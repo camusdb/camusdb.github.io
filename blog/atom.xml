@@ -2,11 +2,79 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://camusdb.github.io/blog/</id>
     <title>CamusDB Blog</title>
-    <updated>2026-10-22T00:00:00.000Z</updated>
+    <updated>2026-10-29T00:00:00.000Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://camusdb.github.io/blog/"/>
     <subtitle>CamusDB Blog</subtitle>
     <icon>https://camusdb.github.io/img/favicon.ico</icon>
+    <entry>
+        <title type="html"><![CDATA[Introducing SolariumDB: Taking Control of the Storage Layer in .NET]]></title>
+        <id>https://camusdb.github.io/blog/introducing-solariumdb/</id>
+        <link href="https://camusdb.github.io/blog/introducing-solariumdb/"/>
+        <updated>2026-10-29T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[SolariumDB is an embedded key-value storage engine written entirely in C#, built to give CamusDB end-to-end control of the storage layer in .NET.]]></summary>
+        <content type="html"><![CDATA[<p><img decoding="async" loading="lazy" alt="SolariumDB" src="https://camusdb.github.io/assets/images/solarium-f2e239d861f2ebf3534e03306efbd7a2.png" width="2752" height="1536" class="img_ev3q"></p>
+<p>What if you could debug your database's storage engine with the same tools you use to debug your .NET applications? Or optimize how it writes to disk for your specific workload?</p>
+<p>That's the motivation behind <a href="https://solariumdb.github.io/" target="_blank" rel="noopener noreferrer" class="">SolariumDB</a>, an embedded key-value database written entirely in C#.</p>
+<p>SolariumDB brings us one step closer to building a database entirely in .NET, from the SQL layer down to the code responsible for organizing files and writing data to disk.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-build-another-storage-engine">Why Build Another Storage Engine?<a href="https://camusdb.github.io/blog/introducing-solariumdb/#why-build-another-storage-engine" class="hash-link" aria-label="Direct link to Why Build Another Storage Engine?" title="Direct link to Why Build Another Storage Engine?" translate="no">​</a></h2>
+<p>SolariumDB is different from <a href="https://camusdb.github.io/" target="_blank" rel="noopener noreferrer" class="">CamusDB</a>. It isn't a distributed SQL database or a standalone database server. It operates at a much lower level: the storage engine.</p>
+<p>This is the layer responsible for persisting data, organizing files, managing memory, and recovering after failures.</p>
+<p>SolariumDB follows the architecture of <a href="https://rocksdb.org/" target="_blank" rel="noopener noreferrer" class="">RocksDB</a>, using a Log-Structured Merge Tree (LSM-tree) with write-ahead logs, memtables, SSTables, and background compaction.</p>
+<p>RocksDB is an incredibly mature and reliable storage engine. It's the default backend for CamusDB, and we have no plans to change that anytime soon.</p>
+<p>However, from a .NET application's perspective, RocksDB can feel like a black box.</p>
+<p>When investigating a performance problem, we can profile our C# code, but following an operation into the native storage engine requires a different set of tools.</p>
+<p>We also have limited control over its internal I/O behavior without modifying RocksDB itself.</p>
+<p>SolariumDB changes that.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="owning-the-entire-stack">Owning the Entire Stack<a href="https://camusdb.github.io/blog/introducing-solariumdb/#owning-the-entire-stack" class="hash-link" aria-label="Direct link to Owning the Entire Stack" title="Direct link to Owning the Entire Stack" translate="no">​</a></h2>
+<p>By implementing the storage engine in C#, we gain several important advantages:</p>
+<ul>
+<li class=""><strong>End-to-end debugging and profiling.</strong> We can follow an operation from the application down to the storage layer using .NET tools.</li>
+<li class=""><strong>Direct control over I/O.</strong> Every file operation goes through an abstraction we control, allowing us to experiment with Linux <code>io_uring</code> and different I/O strategies.</li>
+<li class=""><strong>Workload-specific optimizations.</strong> We can optimize storage behavior around the applications using it rather than relying exclusively on general-purpose defaults.</li>
+<li class=""><strong>Better observability.</strong> We can expose internal metrics such as write stalls, pending compactions, memtable usage, and file activity.</li>
+<li class=""><strong>No native dependencies.</strong> The storage engine can be distributed as .NET assemblies without maintaining separate native binaries for different platforms.</li>
+</ul>
+<p>These benefits aren't purely theoretical.</p>
+<p>SolariumDB was initially designed around the Raft log of <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a> and also serves as a storage backend for Kahuna.</p>
+<p>For example, Raft logs are mostly append-only and periodically discard old entries. SolariumDB can move non-overlapping SSTables between levels without rewriting their contents, reducing unnecessary disk I/O.</p>
+<p>This is the kind of optimization that becomes easier when we control the storage engine.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-about-performance">What About Performance?<a href="https://camusdb.github.io/blog/introducing-solariumdb/#what-about-performance" class="hash-link" aria-label="Direct link to What About Performance?" title="Direct link to What About Performance?" translate="no">​</a></h2>
+<p>One of my biggest questions was whether a storage engine written in C# could compete with RocksDB.</p>
+<p>The early results have been encouraging.</p>
+<p>In our October 29 benchmarks, SolariumDB achieved up to <strong>2.8 times RocksDB's throughput in unsynced Kommander WAL workloads</strong>, while synced writes generally performed similarly because both engines were limited by the storage device.</p>
+<p><img decoding="async" loading="lazy" alt="Kommander WAL unsynced throughput: SolariumDB compared with RocksDB at 1, 4 and 16 writers" src="https://camusdb.github.io/assets/images/solarium-kommander-wal-64d645112204ffc97eb3165c06d94d76.svg" width="938" height="587" class="img_ev3q"></p>
+<p>In Kahuna's larger, page-cached dataset, SolariumDB also achieved approximately <strong>1.8 times the read throughput</strong> of RocksDB configured to use buffered reads with eight reader threads.</p>
+<p><img decoding="async" loading="lazy" alt="Kahuna read throughput: SolariumDB compared with RocksDB for gets, batch gets and prefix scans" src="https://camusdb.github.io/assets/images/solarium-kahuna-reads-78ed8e4c655d487edf6674a0b3aca267.svg" width="946" height="587" class="img_ev3q"></p>
+<p>These results come from specific workloads on a single machine, not a claim that SolariumDB is universally faster.</p>
+<p>There are still areas to improve. Garbage collection can affect tail latency under heavy load, some compaction workloads need better tuning, and the <code>io_uring</code> implementation doesn't outperform the default I/O path in every scenario.</p>
+<p><img decoding="async" loading="lazy" alt="Compaction throughput: RocksDB leads on append workloads, SolariumDB leads on random updates" src="https://camusdb.github.io/assets/images/solarium-compaction-339e89f2d3f8bd0912f1cbf01214a525.svg" width="987" height="587" class="img_ev3q"></p>
+<p>But the results demonstrate something important: <strong>writing a storage engine in C# doesn't automatically mean sacrificing competitive performance.</strong></p>
+<p>The complete methodology and results are available in our <a href="https://github.com/solariumdb/solariumdb/blob/main/docs/benchmarks.md" target="_blank" rel="noopener noreferrer" class="">benchmarks</a>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="different-workloads-different-storage-engines">Different Workloads, Different Storage Engines<a href="https://camusdb.github.io/blog/introducing-solariumdb/#different-workloads-different-storage-engines" class="hash-link" aria-label="Direct link to Different Workloads, Different Storage Engines" title="Direct link to Different Workloads, Different Storage Engines" translate="no">​</a></h2>
+<p>CamusDB was designed to support multiple storage backends, following a philosophy similar to MySQL, where different storage engines can be selected for different requirements.</p>
+<p>Some workloads prioritize write throughput, others need efficient range scans, and others require predictable latency under heavy concurrency.</p>
+<p>Having interchangeable storage engines gives us the flexibility to explore those tradeoffs without rebuilding the entire database.</p>
+<p>We're not the first to take this approach.</p>
+<p>CockroachDB eventually replaced RocksDB with Pebble, a storage engine written in Go, partly to gain greater control over its implementation and optimization.</p>
+<p>SolariumDB follows a similar motivation within the .NET ecosystem.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="whats-next">What's Next?<a href="https://camusdb.github.io/blog/introducing-solariumdb/#whats-next" class="hash-link" aria-label="Direct link to What's Next?" title="Direct link to What's Next?" translate="no">​</a></h2>
+<p>SolariumDB is still young, and there's a significant difference between producing promising benchmarks and operating a reliable storage engine in production.</p>
+<p><strong>RocksDB will remain CamusDB's default storage engine</strong> while we continue testing, benchmarking, and hardening SolariumDB.</p>
+<p>Durability, recovery, and predictable behavior are non-negotiable. A faster database isn't useful if it cannot reliably preserve your data.</p>
+<p>Our goal is to mature SolariumDB into a strong alternative while gaining deeper visibility and control over the entire database stack.</p>
+<p>Building a storage engine from scratch is a substantial investment, especially when excellent alternatives already exist.</p>
+<p>But sometimes the motivation isn't to replace something because it's broken.</p>
+<p>It's to gain the freedom to understand, modify, and optimize every layer of the system.</p>]]></content>
+        <author>
+            <name>Andres Gutierrez</name>
+            <uri>https://github.com/andresgutierrez</uri>
+        </author>
+        <category label="camusdb" term="camusdb"/>
+        <category label="solariumdb" term="solariumdb"/>
+        <category label="storage-engine" term="storage-engine"/>
+        <category label="benchmarks" term="benchmarks"/>
+    </entry>
     <entry>
         <title type="html"><![CDATA[From 400 to 10,000 operations per second in CamusDB]]></title>
         <id>https://camusdb.github.io/blog/from-400-to-10k-ops/</id>

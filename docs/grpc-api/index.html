@@ -13,9 +13,9 @@
 
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea3a4261.css">
-<script src="/assets/js/runtime~main.918e144d.js" defer="defer"></script>
-<script src="/assets/js/main.385fbd07.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.0b44ffb0.css">
+<script src="/assets/js/runtime~main.a6487316.js" defer="defer"></script>
+<script src="/assets/js/main.f057dcb6.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -157,6 +157,11 @@ background.</p>
 <p>Row-level CRUD requests also accept <code>priority</code> when they start an autocommit
 transaction. See <a class="" href="/docs/transaction-priority/">Transaction Priority</a> for
 admission semantics and configuration.</p>
+<p><code>SELECT ... FOR UPDATE</code> is a query with write-lock effects: autocommit uses a
+writable transaction and releases locks before returning rows. An explicit
+transaction holds them until commit or rollback. Set READ_COMMITTED for
+SKIP LOCKED; read-only and optimistic transactions are refused. See
+<a class="" href="/docs/sql-queries/#for-update">row-locking SELECT</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="causal-tokens">Causal tokens<a href="#causal-tokens" class="hash-link" aria-label="Direct link to Causal tokens" title="Direct link to Causal tokens" translate="no">​</a></h2>
 <p>Replies that advance transaction state include a causal token: a cluster
 timestamp with the three parts of a <a class="" href="/docs/concepts/#hlc">hybrid logical clock (HLC)</a>

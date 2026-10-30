@@ -13,9 +13,9 @@
 
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea3a4261.css">
-<script src="/assets/js/runtime~main.918e144d.js" defer="defer"></script>
-<script src="/assets/js/main.385fbd07.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.0b44ffb0.css">
+<script src="/assets/js/runtime~main.a6487316.js" defer="defer"></script>
+<script src="/assets/js/main.f057dcb6.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -239,6 +239,13 @@ not <code>UPDATE ... RETURNING</code>.</p>
 <p>For <code>INSERT ... SELECT ... RETURNING</code>, the source tables also need <code>SELECT</code>, as
 they do for a regular <code>INSERT ... SELECT</code>.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="size-limits">Size limits<a href="#size-limits" class="hash-link" aria-label="Direct link to Size limits" title="Direct link to Size limits" translate="no">​</a></h3>
+<p>Returned rows also obey <code>max_buffered_result_rows</code> (1,000,000) and
+<code>max_buffered_result_bytes</code> (256 MiB estimated memory) when collected before
+commit. Exceeding either fails with <code>CADB0556</code> and rolls back. A streaming
+query endpoint avoids the single-message gRPC limit, but does not bypass these
+caps when a write must buffer RETURNING rows before committing. Reduce the
+batch or returned columns, or raise the caps deliberately. See
+<a class="" href="/docs/configuration/#request-resource-limits">request resource limits</a>.</p>
 <p>The returned rows stay in server memory until the statement completes. The
 number of written rows is still bounded by <code>max_mutations_per_transaction</code>.</p>
 <p>A gRPC <code>ExecuteNonQuery</code> reply and a gRPC <code>NON_QUERY</code> batch reply carry all
@@ -261,6 +268,8 @@ from that locked read.</p>
 <p>For example, <code>UPDATE accounts SET balance = balance + 1 WHERE id = ...</code> adds to
 the latest committed balance for that row. If another transaction changed the
 row so it no longer matches the predicate, or deleted it, CamusDB skips it.</p>
+<p>Use <a class="" href="/docs/sql-queries/#for-update">SELECT FOR UPDATE</a> in an explicit transaction
+when a preceding read must hold its rows against other writers.</p>
 <p>This protection covers one statement. A read in one statement followed by a
 write in a later statement is still a read-then-write pattern; use Serializable
 for that invariant, or express the change as one <code>UPDATE</code>.</p>
