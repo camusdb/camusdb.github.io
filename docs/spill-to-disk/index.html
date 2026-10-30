@@ -13,9 +13,9 @@
 
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.0b44ffb0.css">
-<script src="/assets/js/runtime~main.5cc8bcbc.js" defer="defer"></script>
-<script src="/assets/js/main.f057dcb6.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
+<script src="/assets/js/runtime~main.70651763.js" defer="defer"></script>
+<script src="/assets/js/main.512e3a38.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -25,7 +25,8 @@
 <p>CamusDB streams query results to the client, but some query operators must
 still hold intermediate rows before they can produce output.</p>
 <p>Spill to disk lets such an operator move a large intermediate buffer into a
-temporary file, so process memory does not grow without bound.</p>
+temporary file, reducing the memory needed for that buffer. Some operators
+still retain other state in memory, as described below.</p>
 <p>Spill is off by default. While it is off, operators use their normal in-memory
 path. While it is on, each operator stays in memory until its own buffer passes
 the spill threshold.</p>
@@ -49,7 +50,7 @@ threshold are unaffected.</p>
 as key lookups and short result pages.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-can-spill">What can spill<a href="#what-can-spill" class="hash-link" aria-label="Direct link to What can spill" title="Direct link to What can spill" translate="no">​</a></h2>
 <p>Spill applies to blocking work and to work that materializes rows:</p>
-<table><thead><tr><th>Operator</th><th>Why it buffers</th><th>Spill behavior</th></tr></thead><tbody><tr><td><code>ORDER BY</code> sort</td><td>It needs all the rows before it can emit sorted output.</td><td>An external merge sort.</td></tr><tr><td>Hash join</td><td>It builds a hash table from one side of the join (the build side), then streams the other side (the probe side) past it.</td><td>A grace or hybrid hash join, which divides the rows into spill files when the build side is too large.</td></tr><tr><td><code>GROUP BY</code></td><td>It keeps one accumulator per group.</td><td>It hashes rows by group key into spill partitions (groups of rows on disk, not cluster partitions), then aggregates one partition at a time.</td></tr><tr><td><code>SELECT DISTINCT</code></td><td>It records which result tuples it has already seen.</td><td>It hash-partitions the rows into spill files, then deduplicates one partition at a time.</td></tr><tr><td><code>UNION</code></td><td>It removes duplicates from both inputs.</td><td>The same partitioned deduplication as <code>DISTINCT</code>.</td></tr><tr><td><code>INTERSECT</code>, <code>EXCEPT</code>, including <code>ALL</code></td><td>It counts distinct right-side rows; distinct <code>EXCEPT</code> also tracks emitted left rows.</td><td>Hash-partitions both inputs and combines each partition pair in memory.</td></tr><tr><td>Derived tables and subqueries</td><td>It materializes the rows so the outer query can scan them.</td><td>A spill buffer that CamusDB can enumerate again.</td></tr><tr><td><code>DELETE</code> and <code>UPDATE</code> match sets</td><td>It must collect the matching rows before the mutation.</td><td>A spill buffer that CamusDB can enumerate again.</td></tr></tbody></table>
+<table><thead><tr><th>Operator</th><th>Why it buffers</th><th>Spill behavior</th></tr></thead><tbody><tr><td><code>ORDER BY</code> sort</td><td>It needs all the rows before it can emit sorted output.</td><td>An external merge sort.</td></tr><tr><td>Hash join</td><td>It builds a hash table from one side of the join (the build side), then streams the other side (the probe side) past it.</td><td>A grace or hybrid hash join, which divides the rows into spill files when the build side is too large.</td></tr><tr><td><code>GROUP BY</code></td><td>It keeps one accumulator per group.</td><td>It hashes rows by group key into spill partitions (groups of rows on disk, not cluster partitions), then aggregates one partition at a time.</td></tr><tr><td><code>SELECT DISTINCT</code></td><td>It records which result tuples it has already seen.</td><td>It hash-partitions the rows into spill files, then deduplicates one partition at a time.</td></tr><tr><td><code>UNION</code></td><td>It removes duplicates from both inputs.</td><td>The same partitioned deduplication as <code>DISTINCT</code>.</td></tr><tr><td><code>INTERSECT</code>, <code>EXCEPT</code>, including <code>ALL</code></td><td>It counts distinct right-side rows; distinct <code>EXCEPT</code> also tracks emitted left rows.</td><td>Hash-partitions both inputs and combines each partition pair in memory.</td></tr><tr><td>Window functions</td><td>Sorts input and holds the current window partition.</td><td>External sorts and spill-capable full-row partition buffers. Arguments, ordering values, and results remain in memory for the current partition.</td></tr><tr><td>Derived tables and subqueries</td><td>It materializes the rows so the outer query can scan them.</td><td>A spill buffer that CamusDB can enumerate again.</td></tr><tr><td><code>DELETE</code> and <code>UPDATE</code> match sets</td><td>It must collect the matching rows before the mutation.</td><td>A spill buffer that CamusDB can enumerate again.</td></tr></tbody></table>
 <p>Streaming operators do not spill, because they need no large intermediate
 buffer. For example:</p>
 <ul>
@@ -60,6 +61,11 @@ buffer. For example:</p>
 <li class="">A merge join, which walks two inputs already sorted on the join key and
 buffers only the current run of equal keys.</li>
 </ul>
+<p>A <a class="" href="/docs/sql-queries/#window-functions">window function</a> processes one SQL
+partition at a time. Spilling its rows does not bound all memory use: the
+window&#x27;s input values and computed results still grow with that partition&#x27;s
+row count. <code>EXPLAIN (ANALYZE)</code> reports spilled partition buffers in the
+<a class="" href="/docs/explain/#window-functions"><code>window</code> node</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="delete-and-update">DELETE and UPDATE<a href="#delete-and-update" class="hash-link" aria-label="Direct link to DELETE and UPDATE" title="Direct link to DELETE and UPDATE" translate="no">​</a></h2>
 <p><code>DELETE</code> and <code>UPDATE</code> collect every matching row before they apply any
 mutation, because they cannot safely change rows during the scan. Changing a
