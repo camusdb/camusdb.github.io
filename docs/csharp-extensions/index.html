@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.2f6627bf.js" defer="defer"></script>
-<script src="/assets/js/main.83b59bb7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.bf2ba19a.js" defer="defer"></script>
+<script src="/assets/js/main.05843788.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -272,7 +272,8 @@ target tables&#x27; triggers.</li>
 <p>An error from nested SQL makes the transaction rollback-only even when the
 extension catches the exception. There are no savepoints. Returning after such
 an error fails the statement with <code>CADB0823</code>, and attempting to commit the
-transaction fails with <code>CADB0824</code>.</p>
+transaction rolls it back with <code>CADB0824</code>. Later statements are refused too,
+following the general <a class="" href="/docs/sql-transactions/#failed-statements">failed-statement rule</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="supported-values">Supported values<a href="#supported-values" class="hash-link" aria-label="Direct link to Supported values" title="Direct link to Supported values" translate="no">​</a></h2>
 <table><thead><tr><th>CamusDB type</th><th>C# type</th></tr></thead><tbody><tr><td><code>INT64</code></td><td><code>long</code></td></tr><tr><td><code>FLOAT64</code></td><td><code>double</code></td></tr><tr><td><code>FLOAT32</code></td><td><code>float</code></td></tr><tr><td><code>BOOL</code></td><td><code>bool</code></td></tr><tr><td><code>STRING</code></td><td><code>string</code></td></tr><tr><td><code>OID</code></td><td><code>string</code> containing the ObjectId text</td></tr><tr><td><code>UUID</code></td><td><code>Guid</code></td></tr><tr><td><code>BYTES</code>, including vectors</td><td><code>byte[]</code></td></tr><tr><td><code>DATE</code>, <code>DATETIME</code></td><td>UTC <code>DateTime</code>; a returned <code>DateTime</code> is <code>DATETIME</code></td></tr><tr><td><code>NUMERIC</code></td><td><code>decimal</code></td></tr><tr><td><code>ARRAY(E)</code></td><td><code>IReadOnlyList&lt;T&gt;</code> for the element&#x27;s mapped type</td></tr></tbody></table>
 <p>An <code>INT64</code> argument can convert to <code>double</code> or <code>decimal</code>, and a UUID-formatted

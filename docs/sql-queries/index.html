@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.2f6627bf.js" defer="defer"></script>
-<script src="/assets/js/main.83b59bb7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.bf2ba19a.js" defer="defer"></script>
+<script src="/assets/js/main.05843788.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -68,6 +68,9 @@ match. If nothing matches and there is no <code>ELSE</code>, the result is <code
 including inside an aggregate. That is the usual way to write a conditional
 total:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">SUM</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token keyword" style="color:#c4b5fd;font-weight:500">CASE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHEN</span><span class="token plain"> status </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;paid&#x27;</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">THEN</span><span class="token plain"> amount </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ELSE</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">0</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">END</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">AS</span><span class="token plain"> paid_total</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> orders</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
+<p>All result branches must have a <a class="" href="/docs/data-types/#conditional-result-types">common type</a>,
+including branches that do not run. For a short boolean condition, use
+<a class="" href="/docs/functions-null/#if"><code>IF(condition, a, b)</code></a>.</p>
 <p><code>CASE</code> and <code>END</code> are reserved keywords. To use one as a column name, see
 <a class="" href="/docs/sql/#backticks">Backticks</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="filter-the-rows">Filter the rows<a href="#filter-the-rows" class="hash-link" aria-label="Direct link to Filter the rows" title="Direct link to Filter the rows" translate="no">​</a></h2>
@@ -279,7 +282,7 @@ form. Without <code>ORDER BY</code>, result order is undefined.</p>
 <p>Both queries must return the same number of columns. Columns match by
 <strong>position</strong>, and output names come from the leftmost query. Incompatible
 column counts or types fail with <code>CADB0400</code> (<code>InvalidInput</code>) before reading rows.</p>
-<table><thead><tr><th>Input types at the same position</th><th>Output type</th></tr></thead><tbody><tr><td>Same type</td><td>That type.</td></tr><tr><td>NULL literal or placeholder on one side</td><td>The other side&#x27;s type.</td></tr><tr><td>Two numeric types</td><td>Their common arithmetic type; for example, <code>INT64</code> plus <code>FLOAT64</code> becomes <code>FLOAT64</code>.</td></tr><tr><td><code>DATE</code> and <code>DATETIME</code></td><td><code>DATETIME</code>.</td></tr><tr><td>Other incompatible pairs</td><td>Error naming the column position and types.</td></tr></tbody></table>
+<table><thead><tr><th>Input types at the same position</th><th>Output type</th></tr></thead><tbody><tr><td>Same type</td><td>That type.</td></tr><tr><td>NULL literal or placeholder on one side</td><td>The other side&#x27;s type.</td></tr><tr><td>Two numeric types</td><td>Their common arithmetic type; for example, <code>INT64</code> plus <code>FLOAT64</code> becomes <code>FLOAT64</code>.</td></tr><tr><td><code>DATE</code> and <code>DATETIME</code></td><td><code>DATETIME</code>.</td></tr><tr><td>Quoted string literal with <code>DATE</code> or <code>DATETIME</code></td><td>That temporal type; invalid literal text fails before reading rows. A string column does not implicitly convert.</td></tr><tr><td>Arrays</td><td>Element types must match, or one side must be empty/untyped. Known incompatible element types are refused.</td></tr><tr><td>Other incompatible pairs</td><td>Error naming the column position and types.</td></tr></tbody></table>
 <p>Values are converted before comparison. <code>SELECT 1 UNION SELECT 1.0</code> therefore
 returns one row. A column containing only untyped NULLs is exposed as <code>STRING</code>,
 but can still take the other operand&#x27;s type in an enclosing set operation.</p>

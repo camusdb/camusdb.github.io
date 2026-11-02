@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.2f6627bf.js" defer="defer"></script>
-<script src="/assets/js/main.83b59bb7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.bf2ba19a.js" defer="defer"></script>
+<script src="/assets/js/main.05843788.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -97,6 +97,8 @@ Optimistic locking checks for conflicts at commit instead:</p>
 <p>Keep the default unless you have a reason to change it. For lock escalation,
 conflict resolution, and configuration, see
 <a class="" href="/docs/transactions-locking-internals/">Transactions and locking internals</a>.</p>
+<p>A failed statement <a class="" href="/docs/sql-transactions/#failed-statements">aborts its explicit transaction</a>.
+Earlier writes cannot be committed afterward; roll back and begin again.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="handle-conflicts-and-limits">Handle conflicts and limits<a href="#handle-conflicts-and-limits" class="hash-link" aria-label="Direct link to Handle conflicts and limits" title="Direct link to Handle conflicts and limits" translate="no">​</a></h2>
 <p>A conflict can abort a transaction even when its SQL is valid. Retry the whole
 unit of work from <code>BEGIN</code>, including reads and application checks. CamusDB does

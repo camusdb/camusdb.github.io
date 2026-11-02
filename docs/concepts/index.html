@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.2f6627bf.js" defer="defer"></script>
-<script src="/assets/js/main.83b59bb7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.bf2ba19a.js" defer="defer"></script>
+<script src="/assets/js/main.05843788.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -285,8 +285,9 @@ alternative backends. See
 <p><a href="https://solariumdb.github.io/" target="_blank" rel="noopener noreferrer" class="">Solarium</a> is an embedded key/value engine written
 in C#. You can use it instead of RocksDB or SQLite for the stored key/value
 state, the Raft WAL, or both. It runs inside the CamusDB process without a
-native RocksDB dependency. Its caches use the .NET managed heap, so include
-them when sizing the node&#x27;s memory. See
+native RocksDB dependency. Its cache and memtable budgets use native memory,
+while index/filter partitions and handles use the .NET heap. Include both when
+sizing the node&#x27;s memory. See
 <a class="" href="/docs/storage/#solarium-backend">Solarium storage</a> for configuration and
 migration considerations.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="related-topics">Related topics<a href="#related-topics" class="hash-link" aria-label="Direct link to Related topics" title="Direct link to Related topics" translate="no">​</a></h2>

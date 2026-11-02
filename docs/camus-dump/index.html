@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.2f6627bf.js" defer="defer"></script>
-<script src="/assets/js/main.83b59bb7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.bf2ba19a.js" defer="defer"></script>
+<script src="/assets/js/main.05843788.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -252,15 +252,15 @@ filters.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="lossy-values">Lossy values<a href="#lossy-values" class="hash-link" aria-label="Direct link to Lossy values" title="Direct link to Lossy values" translate="no">​</a></h2>
 <p>Most stored values have an exact SQL literal form. <code>camus-dump</code> reports any
 value it cannot restore exactly.</p>
-<p>Non-finite floats have no CamusSQL literal:</p>
-<ul>
-<li class=""><code>NaN</code></li>
-<li class=""><code>+Infinity</code></li>
-<li class=""><code>-Infinity</code></li>
-</ul>
-<p>By default, the dump writes <code>NULL</code> for such a value, adds a warning comment to
-the dump, and prints a count to standard error at the end. Use <code>--strict</code> to
-fail instead.</p>
+<p>Non-finite floats are preserved as casts, for example
+<code>CAST(&#x27;NaN&#x27; AS FLOAT64)</code> or <code>CAST(&#x27;-Infinity&#x27; AS FLOAT32)</code>. The dump prints a
+compatibility note: restoring requires a server that supports these
+<a class="" href="/docs/data-types/#floating-point-values">floating-point values</a>. Older dump
+versions replaced them with NULL; use a current build to preserve them.</p>
+<p>REST dumps containing these values require CamusDB.Client 0.17.2 or later.
+Version 0.17.1 reads them as text, which can prevent mixed float arrays from
+loading. Current dump builds use the updated client; gRPC also carries their
+native float representation.</p>
 <p><code>DATETIME</code> values keep their full precision. Sub-millisecond values are written
 with seven fractional digits.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="restore-a-dump">Restore a dump<a href="#restore-a-dump" class="hash-link" aria-label="Direct link to Restore a dump" title="Direct link to Restore a dump" translate="no">​</a></h2>

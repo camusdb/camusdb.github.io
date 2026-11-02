@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.2f6627bf.js" defer="defer"></script>
-<script src="/assets/js/main.83b59bb7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.bf2ba19a.js" defer="defer"></script>
+<script src="/assets/js/main.05843788.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -72,6 +72,10 @@ OpenTelemetry resource attribute <code>camus.run_id</code>.</p>
 <table><thead><tr><th>Instrument</th><th>Prometheus name</th><th>Type</th><th>Tags</th></tr></thead><tbody><tr><td><code>camus.request.count</code></td><td><code>camus_request_count_total</code></td><td>counter</td><td><code>operation</code>, <code>transport</code>, <code>outcome</code></td></tr><tr><td><code>camus.request.duration</code></td><td><code>camus_request_duration_milliseconds</code></td><td>histogram</td><td><code>operation</code>, <code>transport</code>, <code>outcome</code></td></tr><tr><td><code>camus.request.in_flight</code></td><td><code>camus_request_in_flight</code></td><td>up-down</td><td><code>transport</code></td></tr><tr><td><code>camus.execute.duration</code></td><td><code>camus_execute_duration_milliseconds</code></td><td>histogram</td><td><code>operation</code>, <code>statement</code></td></tr><tr><td><code>camus.sql.parse.cache</code></td><td><code>camus_sql_parse_cache_total</code></td><td>counter</td><td><code>result</code></td></tr><tr><td><code>camus.sql.parse.duration</code></td><td><code>camus_sql_parse_duration_milliseconds</code></td><td>histogram</td><td>none</td></tr><tr><td><code>camus.query.rows</code></td><td><code>camus_query_rows_total</code></td><td>counter</td><td><code>scan</code>, <code>stage</code></td></tr><tr><td><code>camus.query.scan.duration</code></td><td><code>camus_query_scan_duration_milliseconds</code></td><td>histogram</td><td><code>scan</code></td></tr><tr><td><code>camus.query_cache.requests</code></td><td><code>camus_query_cache_requests_total</code></td><td>counter</td><td><code>result</code></td></tr><tr><td><code>camus.transaction.count</code></td><td><code>camus_transaction_count_total</code></td><td>counter</td><td><code>operation</code>, <code>outcome</code></td></tr><tr><td><code>camus.transaction.active</code></td><td><code>camus_transaction_active</code></td><td>up-down</td><td><code>transaction_mode</code></td></tr><tr><td><code>camus.transaction.commit.duration</code></td><td><code>camus_transaction_commit_duration_milliseconds</code></td><td>histogram</td><td><code>outcome</code></td></tr><tr><td><code>camus.transaction.staged_mutations</code></td><td><code>camus_transaction_staged_mutations</code></td><td>histogram</td><td>none</td></tr></tbody></table>
 <p>Tag values come from a bounded set. CamusDB never uses SQL text, row keys, ids,
 messages, or user values as metric tags.</p>
+<p>When <code>kahuna.wal_storage: solarium</code>, the metrics exporter also subscribes to
+<a href="https://solariumdb.github.io/" target="_blank" rel="noopener noreferrer" class="">Solarium</a>&#x27;s WAL meter. It exposes the same
+<code>raft.wal.*</code> instruments used to observe RocksDB WAL behavior, so WAL gauges
+remain available after changing storage engines.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="dependency-metrics">Dependency metrics<a href="#dependency-metrics" class="hash-link" aria-label="Direct link to Dependency metrics" title="Direct link to Dependency metrics" translate="no">​</a></h2>
 <p>The diagnostics exporter also subscribes to the meters of the embedded
 dependencies and the runtime:</p>

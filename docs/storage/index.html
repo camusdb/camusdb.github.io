@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.2f6627bf.js" defer="defer"></script>
-<script src="/assets/js/main.83b59bb7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.bf2ba19a.js" defer="defer"></script>
+<script src="/assets/js/main.05843788.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -65,8 +65,9 @@ across a crash.</p>
 <p>Use <a href="https://solariumdb.github.io/" target="_blank" rel="noopener noreferrer" class="">Solarium</a> by selecting <code>solarium</code> for <code>kahuna.storage</code>,
 <code>kahuna.wal_storage</code>, or both when you
 want managed storage without a native RocksDB dependency. CamusDB includes the
-engine integration. Its cache and memtables consume managed heap, unlike
-RocksDB&#x27;s native allocations, so heap and cache budgets must be sized together.</p>
+engine integration. Since Solarium 0.1.4, cached data blocks and memtable entries
+use native memory. Shared budgets are sized from machine/container memory;
+managed index/filter partitions and handles still use the .NET heap.</p>
 <p>The two engines cannot read each other&#x27;s files. Moving data between them
 requires a <a class="" href="/docs/logical-dump-and-reimport/">logical dump and reimport</a>.
 PITR bootstrap still requires RocksDB for both layers. See
@@ -180,7 +181,7 @@ and allocation costs drop for read-heavy queries, index lookups, updates, and
 backfills.</p>
 <p>CamusDB encodes a column value by its type:</p>
 <table><thead><tr><th>Column type</th><th>Stored representation</th></tr></thead><tbody><tr><td><code>OID</code></td><td>A 12-byte object id.</td></tr><tr><td><code>UUID</code></td><td>A 16-byte UUID.</td></tr><tr><td><code>INT64</code></td><td>An 8-byte signed integer.</td></tr><tr><td><code>NUMERIC</code></td><td>An exact fixed-point decimal value with the fixed <code>NUMERIC</code> precision and scale.</td></tr><tr><td><code>FLOAT64</code></td><td>An 8-byte double.</td></tr><tr><td><code>FLOAT32</code></td><td>A 4-byte single-precision value, exposed through the common numeric value path.</td></tr><tr><td><code>STRING</code></td><td>A length-prefixed UTF-16 string.</td></tr><tr><td><code>BOOL</code></td><td>One boolean marker byte.</td></tr><tr><td><code>DATE</code></td><td>UTC ticks, truncated to midnight.</td></tr><tr><td><code>DATETIME</code></td><td>UTC ticks.</td></tr><tr><td><code>BYTES</code></td><td>A length-prefixed byte payload.</td></tr><tr><td><code>ARRAY(T)</code></td><td>The element type, followed by the ordered encoded element values.</td></tr><tr><td><code>NULL</code></td><td>One null marker byte.</td></tr></tbody></table>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="index-encoding">Index encoding<a href="#index-encoding" class="hash-link" aria-label="Direct link to Index encoding" title="Direct link to Index encoding" translate="no">  ​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="index-encoding">Index encoding<a href="#index-encoding" class="hash-link" aria-label="Direct link to Index encoding" title="Direct link to Index encoding" translate="no">​</a></h2>
 <p>Index keys must sort in the same order as the SQL values they encode. CamusDB
 uses an order-preserving encoder for composite index values:</p>
 <ul>

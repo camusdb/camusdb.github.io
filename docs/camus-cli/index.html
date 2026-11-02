@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.2f6627bf.js" defer="defer"></script>
-<script src="/assets/js/main.83b59bb7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.bf2ba19a.js" defer="defer"></script>
+<script src="/assets/js/main.05843788.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -197,6 +197,9 @@ state directory as the history file:</p>
 <p>At the interactive prompt, <code>EXPLAIN</code> results open as a flow from source to
 result. Operator boxes show their detail and estimated cost, arrows show row
 estimates, and joins show their right input beside the operator. <code>EXPLAIN (ANALYZE)</code> adds measured rows and flags large estimate misses.</p>
+<p>Set-operation plans draw both inputs to <code>UNION</code>, <code>INTERSECT</code>, and <code>EXCEPT</code>,
+including nested operations. Window nodes show each partition/order group on
+its own line, and <code>gin-scan</code> identifies its JSONB index.</p>
 <p>Use <code>\plan table</code> for the raw rows and <code>\plan flow</code> to return to the diagram.
 <code>/plan</code> is an alias. Vertical output, <code>--format json|yaml</code>, and the TUI retain
 the raw table representation.</p>
@@ -252,7 +255,10 @@ rows emits no document.</p>
 <p>Values keep their useful types: integers, floats, and booleans stay scalar;
 <code>NULL</code> stays null; <code>NUMERIC</code> is written as a string to avoid losing precision;
 <code>BYTES</code> is base64; arrays are arrays. The <code>\G</code> vertical-output suffix has no
-effect in JSON or YAML mode.</p>
+effect in JSON or YAML mode. JSONB cells are emitted as documents, preserving
+all numeric digits, rather than strings containing JSON. YAML uses flow syntax
+for documents; CSV exports use document text. In tables and the TUI, JSONB is
+shown in its PostgreSQL text form.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="prepared-statements">Prepared statements<a href="#prepared-statements" class="hash-link" aria-label="Direct link to Prepared statements" title="Direct link to Prepared statements" translate="no">​</a></h2>
 <p>After the driver sees the same SQL text a few times, it registers the statement
 with the server and runs it in prepared form from then on.</p>
@@ -359,6 +365,8 @@ pages for statement semantics:</p>
 </ul>
 <p>The shell intercepts only a small set of client-side commands, such as <code>use</code>,
 <code>source</code>, <code>show prepared</code>, <code>backup</code>, <code>clear</code>, <code>exit</code>, and <code>quit</code>.</p>
+<p>JSONB operators <code>#&gt;</code>, <code>#&gt;&gt;</code>, and <code>#-</code> remain part of the SQL, rather than
+starting a shell comment. Other <code>#</code> line comments, including <code>#---</code>, still work.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="vertical-output">Vertical output<a href="#vertical-output" class="hash-link" aria-label="Direct link to Vertical output" title="Direct link to Vertical output" translate="no">​</a></h2>
 <p>End a query with <code>\G</code> instead of <code>;</code> to print each row vertically. This helps
 with wide rows, long JSON values, and inspection commands with many columns.</p>
@@ -390,7 +398,9 @@ with wide rows, long JSON values, and inspection commands with many columns.</p>
 <li class="">supported function names</li>
 </ul>
 <p>The keyword and function lists are built into the shell. They control CLI
-coloring only and do not affect which SQL the server supports.</p>
+coloring only and do not affect which SQL the server supports. Current builds
+include JSONB types/operators/functions, GIN index phrases, <code>OVER</code>, window
+functions, and frame syntax.</p>
 <p>The current highlighter follows the newer CamusSQL vocabulary, including
 <code>NUMERIC</code>/<code>DECIMAL</code>, <code>SERIAL</code>/<code>BIGSERIAL</code>, arrays, UUIDs, blobs, temporal
 types, joins, <code>RETURNING</code>, sequences, foreign keys, query activity statements,
@@ -419,6 +429,10 @@ commands.</p>
 <code>SHOW MATERIALIZED VIEWS</code>. It loads sequence names with <code>SHOW SEQUENCES</code>. It
 loads configuration keys with <code>SHOW VARIABLES</code> and omits restart-only keys from
 the completion list.</p>
+<p><code>DROP INDEX</code> completes <code>table.index</code> targets, and <code>ALTER TABLE table DROP INDEX</code> completes that table&#x27;s indexes, with optional <code>IF EXISTS</code>. After
+<code>CREATE [UNIQUE|INVERTED] INDEX name ON</code> or <code>DROP INDEX name ON</code>, completion
+offers table names. Internal indexes whose names begin with <code>~</code> are omitted
+from drop suggestions.</p>
 <p>It refreshes those names at startup, after <code>use &lt;database&gt;</code>, and after any
 statement that changes the set of relations:</p>
 <ul>
