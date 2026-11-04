@@ -35,6 +35,18 @@ VALUES
 
 A multi-row `INSERT` is atomic: every row is inserted, or none is.
 
+### Target each column once
+
+A column can appear only once in an INSERT column list or an UPDATE SET list,
+including the update arm of ON CONFLICT. Names compare case-insensitively:
+`SET quantity = 1, Quantity = 2` is an error, not a last-value-wins assignment.
+Repeated targets fail with `CADB0403` (`DuplicateColumn`) before writes begin.
+The same rule applies to INSERT ... SELECT target lists and typed row writes.
+
+Uncorrelated subqueries can supply INSERT values, UPDATE assignments, and
+write filters, including inside CASE or function calls. They are evaluated
+once before writing. See [subquery rules](/docs/joins-and-subqueries#subqueries-in-where).
+
 ### Defaults
 
 Write `DEFAULT` in the values list, or omit the column from the column list.
@@ -428,7 +440,7 @@ commit. Exceeding either fails with `CADB0556` and rolls back. A streaming
 query endpoint avoids the single-message gRPC limit, but does not bypass these
 caps when a write must buffer RETURNING rows before committing. Reduce the
 batch or returned columns, or raise the caps deliberately. See
-[request resource limits](/docs/configuration#request-resource-limits).
+[request resource limits](/docs/settings-reference#request-resource-limits).
 
 The returned rows stay in server memory until the statement completes. The
 number of written rows is still bounded by `max_mutations_per_transaction`.

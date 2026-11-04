@@ -40,7 +40,7 @@ starts release slots. Autocommit does not consume these slots.
 This is separate from Kahuna's coordinator-session gate: it bounds tracked
 client transactions rather than ordering starts by priority. It is
 runtime-mutable; `0` or below disables it. Back off before retrying a refused
-begin. See [request resource limits](/docs/configuration#request-resource-limits)
+begin. See [request resource limits](/docs/settings-reference#request-resource-limits)
 for SQL-size, result-memory, and client-connection caps.
 
 ## Idle timeout

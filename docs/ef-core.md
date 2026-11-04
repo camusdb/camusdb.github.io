@@ -170,6 +170,8 @@ Supported CLR-to-store mappings:
 | `float` | `float32` or `real` | `FLOAT32` |
 | `double` | `float64` | `FLOAT64` |
 | `decimal` | `numeric` or `decimal` | `NUMERIC` |
+| `JsonDocument`, `JsonElement`, `JsonNode`, `JsonObject`, `JsonArray` | `jsonb` | `JSONB` |
+| `string` with `HasColumnType("jsonb")` | `jsonb` | `JSONB` |
 | `byte[]` | `bytes` or `blob` | `BYTES` |
 | `DateOnly` | `date` | `DATE` |
 | `DateTime`, `DateTimeOffset` | `datetime` or `timestamp` | `DATETIME` |
@@ -193,9 +195,9 @@ The provider normalizes `DateTime` and `DateTimeOffset` values to UTC.
 `ARRAY(T)` columns. Arrays are read and written as whole values. They are not
 indexable, have no inline SQL literal, and cannot be used in a LINQ predicate.
 
-Vector embeddings are stored as `byte[]` in a `bytes` column. Use
-`CamusVector.ToBytes(...)` from the ADO.NET package to pack a `float[]`, and use
-the vector functions described below to rank rows.
+Vector properties can be `float[]` or `byte[]` with
+[`IsVector(dimensions)`](#vector-queries). The provider stores them as packed
+bytes, rather than a SQL array.
 
 ## Create tables
 
@@ -327,7 +329,9 @@ Join support covers the usual LINQ shapes:
 | `RightJoin(...)` | `RIGHT JOIN` |
 | `from a in A from b in B` with no correlation | `CROSS JOIN` |
 
-CamusDB does not have lateral joins or window functions. A `SelectMany` whose
+The provider does not translate lateral joins or per-row window query shapes.
+The server supports [window functions](/docs/sql-queries#window-functions),
+which you can use through raw SQL. A `SelectMany` whose
 inner sequence refers to the outer row outside an equality key, and per-row
 `Take` / `Skip` / `First` shapes such as filtered includes, are not translated.
 
@@ -373,33 +377,106 @@ Supported regex helpers include `Regex.IsMatch`, `Regex.Replace`,
 `EF.Functions.RegexpLike`, `RegexpReplace`, `RegexpCount`, `RegexpSubstr`, and
 `RegexpInstr`.
 
-## Vector queries
+### String concatenation and interpolation
 
-Use a `byte[]` property for an embedding column. Pack the vector with
-`CamusVector.ToBytes(...)`, and add a server-side dimension check:
+From 0.16.8, string `+` and `string.Concat` translate to SQL `||`, with nullable
+operands treated as empty strings to match C#. From 0.16.9, simple string
+interpolation translates too:
 
 ```csharp
-modelBuilder.Entity<Document>(b =>
-{
-    b.ToTable("documents", t =>
-        t.HasCheckConstraint("ck_documents_embedding_768d",
-            "vector_dims(embedding) = 768"));
+var people = await ctx.People
+    .Where(p => $"{p.First} {p.Last}" == "Ada Lovelace")
+    .ToListAsync();
+```
 
-    b.Property(d => d.Embedding).HasColumnType("bytes");
+Interpolation supports string/integer arguments and plain placeholders. Format
+specifiers, alignment, and date, decimal, or floating-point arguments are not
+translated. EF Core can format these on the client in the final projection;
+using them in a filter or ordering raises a translation error.
+
+### Set operations
+
+`Union`, `Concat`, `Intersect`, and `Except` translate to `UNION`, `UNION ALL`,
+`INTERSECT`, and `EXCEPT`. See [set operations](/docs/sql-queries#set-operations)
+for server behavior.
+
+## JSON documents
+
+Document properties map to JSONB automatically; a string property needs
+`HasColumnType("jsonb")`. GIN indexes use `HasMethod("gin")`:
+
+```csharp
+modelBuilder.Entity<Event>(b =>
+{
+    b.Property(e => e.Payload).HasColumnType("jsonb");
+    b.HasIndex(e => e.Payload).HasMethod("gin");
+});
+
+var events = await ctx.Events
+    .Where(e => EF.Functions.JsonContains(e.Payload, """{"kind": "login"}"""))
+    .Where(e => EF.Functions.JsonExists(e.Payload, "user"))
+    .ToListAsync();
+```
+
+`JsonContained`, `JsonExistAny`, `JsonExistAll`, and `JsonTypeof` are also
+available. These helpers translate to the corresponding `jsonb_*` functions.
+A compatible top-level predicate can use the GIN index.
+
+`JsonNode` properties use content comparison so in-place edits are saved.
+Replace a `JsonDocument` or `JsonElement` value to change it. JSON member access
+such as `RootElement.GetProperty(...)` and EF Core's owned/complex `ToJson()`
+mapping are not translated; use raw SQL for document operators. See
+[JSON documents](/docs/json).
+
+## Vector queries
+
+From 0.16.10, declare a `float[]` or `byte[]` embedding with `IsVector`:
+
+```csharp
+public sealed class SearchDocument
+{
+    public string Id { get; set; } = "";
+    public string Kind { get; set; } = "";
+    public float[] Embedding { get; set; } = [];
+}
+```
+
+Configure the property in `OnModelCreating`:
+
+```csharp
+modelBuilder.Entity<SearchDocument>(b =>
+{
+    b.Property(d => d.Embedding).IsRequired().IsVector(768);
 });
 ```
 
-Rank rows with `EF.Functions` vector helpers:
+This sets `BYTES(3072)`, `STORAGE PLAIN`, and a dimension check named
+`CK_{table}_{column}_dims`. `IsRequired()` also rejects NULL; the dimension
+check alone does not. A later `HasStorage` can override the storage strategy.
+For `float[]`, a converter packs the values and an element-wise comparer
+tracks edits made inside the array.
+
+Rank rows with the vector helpers and a `float[]` query vector:
 
 ```csharp
-byte[] query = CamusVector.ToBytes(await EmbedAsync("warehouse safety"));
-
-List<Document> nearest = await ctx.Documents
+float[] query = await EmbedAsync("warehouse safety");
+var nearest = await ctx.Set<SearchDocument>()
     .Where(d => d.Kind == "manual")
     .OrderBy(d => EF.Functions.L2Distance(d.Embedding, query))
     .Take(10)
     .ToListAsync();
 ```
+
+A query vector uses the column's mapping and travels as packed bytes. For a
+`byte[]` property, pack it explicitly with `CamusVector.ToBytes(...)`.
+
+Use `IsVector(768, loadWithEntity: false)` to omit an embedding from ordinary
+entity loads. The property must be required; its runtime NULL then means
+"not loaded". Queries that name the vector in a filter, ordering, or explicit
+projection still read it. `SaveChanges` does not overwrite a stored vector with
+that unloaded NULL, including on a detached entity passed to `Update`.
+Unrecognized shapes, including collection includes, split queries, and
+`Distinct`, retain the vector.
 
 Available helpers:
 
@@ -833,7 +910,8 @@ Unsupported or restricted operations include:
 - no add/drop primary key through migrations
 - no LINQ predicate over an `ARRAY(T)` property; arrays can be read and written
   as whole values
-- no lateral join, window functions, `UNION`, or `UNION ALL`
+- no lateral join or automatic translation of per-row window query shapes;
+  use raw SQL for window functions
 - `ExecuteUpdate` cannot set a value read from another table. Bulk
   update/delete shapes that use joins, correlated subqueries, or pagination need
   a single-column primary key.

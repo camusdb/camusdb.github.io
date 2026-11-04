@@ -12,6 +12,8 @@ indexed in its native form rather than as loose text. That gives you:
 - Native `UUID` and `OID` keys, stored as compact binary values instead of
   text.
 - `ARRAY(T)` columns for short lists, such as tags, without a join table.
+- `JSONB` columns for [JSON documents](/docs/json), with PostgreSQL operators
+  and GIN indexes.
 - `BYTES(N)` columns that hold [vector embeddings](/docs/vector-search) for
   similarity search.
 
@@ -40,6 +42,7 @@ comparisons, indexes, casts, defaults, and JSON values.
 | `BYTES` | An opaque byte string | Yes | CamusDB also accepts `BLOB`. |
 | `BYTES(N)` | An opaque byte string, up to `N` bytes | Yes | `N` must be a positive integer. `BLOB(N)` uses the same bound. |
 | `ARRAY(T)` | An ordered list of scalar values of type `T` | No | `T` must be a scalar type. Arrays cannot be used in a primary key or an index. |
+| `JSONB` | A JSON document, stored in a binary form | GIN only | CamusDB also accepts `JSON`. A `JSONB` column cannot be part of a primary key, a `UNIQUE` constraint, an ordered index, or a foreign key. See [JSON documents](/docs/json). |
 
 ```camussql
 CREATE TABLE events (
@@ -68,6 +71,7 @@ CREATE TABLE events (
 | `OBJECT_ID` | `OID` |
 | `GUID` | `UUID` |
 | `BOOLEAN` | `BOOL` |
+| `JSON` | `JSONB` |
 
 `SERIAL` and `BIGSERIAL` are not separate storage types. They are column
 definition shorthands for an `INT64` column backed by an owned sequence, similar
@@ -92,6 +96,68 @@ Use a `UUID` or `GUID` column for UUID identifiers, not a `STRING` column.
 CamusDB stores a native UUID as a compact 128-bit value with a fixed-width,
 order-preserving index encoding, so it is more efficient than UUID text in
 memory, on disk, and in indexes.
+
+## Integer overflow
+
+`INT64` ranges from `-9223372036854775808` to `9223372036854775807`. Arithmetic,
+literals, casts, and `abs` fail with `CADB0420` (`IntegerValueOutOfRange`) when
+the result is outside that range. Values never wrap around. Use an exact
+`NUMERIC` literal for larger numbers:
+
+```camussql
+SELECT 9223372036854775807 + 1; -- CADB0420
+SELECT NUMERIC '9223372036854775808';
+```
+
+Integer `SUM` uses an exact accumulator and checks only the final total,
+including grouped, window, and distributed aggregates. Intermediate totals can
+exceed `INT64` if the final result fits. `AVG` divides the exact total and does
+not overflow an integer accumulator. The remainder of the minimum `INT64`
+divided by `-1` is `0`; dividing it by `-1` raises `CADB0420`.
+
+An overflow fails the whole statement. Inside an explicit transaction, it also
+[aborts the transaction](/docs/sql-transactions#failed-statements).
+
+## Floating-point values
+
+`FLOAT64` and `FLOAT32` support infinity and NaN, following PostgreSQL's
+comparison rules. Use a string conversion to construct them:
+
+```camussql
+SELECT CAST('Infinity' AS FLOAT64), CAST('-Infinity' AS FLOAT64);
+SELECT CAST('NaN' AS FLOAT64) = CAST('NaN' AS FLOAT64); -- true
+```
+
+The text is case-insensitive; `inf`, `+inf`, and `-inf` also work. These values
+can be stored, indexed, grouped, and compared:
+
+- Values sort as `-Infinity`, finite numbers, `Infinity`, then `NaN`.
+- All NaNs compare equal, so `GROUP BY` and `DISTINCT` combine them.
+- Negative zero equals zero. A unique index cannot store both as distinct
+  keys. A covering index read returns `0` for a stored `-0`.
+
+Finite arithmetic that overflows, or rounds a nonzero result down to zero,
+fails with `CADB0421` (`FloatValueOutOfRange`). For example, `1e308 * 10` and
+`1e-300 * 1e-300` fail. Nonzero subnormal values remain valid. The same checks
+apply to literals, casts, math functions, and narrowing to `FLOAT32`.
+
+A plain floating-point `SUM` checks its running total; a window `SUM` checks
+the exact frame total. Explicit infinity and NaN inputs follow IEEE arithmetic,
+but division by zero, `sqrt` of a negative value, and `sign(NaN)` fail with
+`CADB0400`. Casting infinity or NaN to `INT64` raises `CADB0420`; `NUMERIC`
+cannot hold either value.
+
+HTTP JSON represents non-finite floats as strings: `"Infinity"`, `"-Infinity"`,
+and `"NaN"`. The column type remains `FLOAT64` or `FLOAT32`; finite values,
+including negative zero, remain JSON numbers. Float parameters accept the same
+strings, for example `{"type": 5, "floatValue": "NaN"}`. gRPC carries the native
+IEEE value in its float or double field.
+
+**Existing float indexes:** rebuild indexes containing negative zero or NaN
+that were created before the new encoding. Negative zero now shares zero's key,
+and all NaNs share a key above infinity. Drop and recreate the affected index;
+indexes containing neither value need no rebuild. See
+[Drop an index](/docs/sql-indexes#drop-an-index).
 
 ## Exact decimal numbers
 
@@ -369,6 +435,56 @@ SELECT "42"::INT64 + 1;
 
 See [Conversion Functions](/docs/functions-conversion) for the equivalent `to_*`
 functions.
+
+## Comparing different types
+
+CamusDB rejects comparisons without a defined type rule instead of silently
+returning false. For example, `5 = '5'` raises `CADB0400` (`InvalidInput`);
+write `5 = CAST('5' AS INT64)` when conversion is intended.
+
+| Types | Comparison rule |
+| --- | --- |
+| Same type | Compare their values. |
+| Numeric types | Compare across numeric types; `INT64` with `NUMERIC` is exact, while a float uses double precision. |
+| `DATE` and `DATETIME` | Compare the date at midnight UTC. |
+| String with a temporal value | Parse the string; invalid temporal text is an error. |
+| String with `UUID`, `OID`, or `JSONB` | Parse using that type's comparison rules; unparseable text matches no value. |
+| Arrays | Element types must match, unless one array is empty or contains only untyped NULLs. Numeric array elements do not widen for comparison. |
+| Any other pair | Error naming the operator and both types. |
+
+These rules apply to predicates, joins, `BETWEEN`, `IN`, quantified comparisons,
+simple `CASE` comparisons, `NULLIF`, and `array_contains`. A NULL operand yields
+unknown before the type check. Comparisons are checked when evaluated, so an
+empty input raises no comparison error. An incompatible `IN` item still fails
+even if another item matches: `1 IN (1, 'a')` is an error.
+
+A `CHECK` constraint with an incompatible comparison rejects the write with
+`CADB0303`.
+
+## Conditional result types
+
+`CASE`, `COALESCE`, `IFNULL`, `NVL`, and `IF` must return one common type across
+all branches. A branch's value is converted to that type in every row:
+
+| Inputs | Common result type |
+| --- | --- |
+| NULL with another type | The other type. |
+| Same type | That type; array element types must also agree, or one array must be empty/untyped. |
+| Numeric types | Their arithmetic result type: `INT64` with `NUMERIC` stays `NUMERIC`; a float with `NUMERIC` gives `FLOAT64`. |
+| `DATE` with `DATETIME` | `DATETIME`. |
+| Quoted string literal with a temporal type | That temporal type; the literal is parsed. |
+| Other combinations | `CADB0400`; use an explicit `CAST`. |
+
+For example, `CASE WHEN enabled THEN 1 ELSE 1.5 END` always returns `FLOAT64`.
+`COALESCE(1, '2')` fails: a numeric-looking string does not become a number.
+A quoted date literal can adopt a temporal type, but a typed string column
+cannot. Parameters whose types are known only from their values are checked
+when evaluated.
+
+Known branch types are checked before reading rows, including unused branches
+and queries over empty tables. Evaluation still selects only one `CASE` or
+`IF` branch; `COALESCE`, `IFNULL`, and `NVL` evaluate every argument. See
+[Null functions](/docs/functions-null) for examples and `IF` syntax.
 
 ## Reserved type keywords
 

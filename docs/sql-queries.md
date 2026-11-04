@@ -5,7 +5,7 @@ sidebar_position: 2.4
 # SELECT
 
 `SELECT` reads rows from a table and shapes them: you choose the columns, then
-filter, group, sort, and paginate the rows.
+filter, group, rank, sort, and paginate the rows.
 
 ```camussql
 SELECT id, name, year
@@ -25,8 +25,7 @@ derived tables, see [Joins And Subqueries](/docs/joins-and-subqueries). For a
 
 ## Clause order
 
-You must write the clauses in this order, and CamusDB evaluates them in roughly
-the same order:
+Write the clauses in this order:
 
 ```camussql
 SELECT   [DISTINCT] projections
@@ -39,7 +38,8 @@ LIMIT    n OFFSET m
 ```
 
 In practice, `WHERE` filters input rows before grouping, and `HAVING` filters
-the grouped rows after it.
+the grouped rows after it. [Window functions](#window-functions) run next,
+before projection, `DISTINCT`, the final `ORDER BY`, and pagination.
 
 `ORDER BY`, `LIMIT`, and `OFFSET` apply last, to the projected result, so they
 can reference output aliases.
@@ -123,6 +123,10 @@ total:
 SELECT SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) AS paid_total
 FROM orders;
 ```
+
+All result branches must have a [common type](/docs/data-types#conditional-result-types),
+including branches that do not run. For a short boolean condition, use
+[`IF(condition, a, b)`](/docs/functions-null#if).
 
 `CASE` and `END` are reserved keywords. To use one as a column name, see
 [Backticks](/docs/sql#backticks).
@@ -275,6 +279,138 @@ HAVING total > 0;
 rather than groups, use `WHERE`. It runs first, so it gives the aggregate less
 work.
 
+## Compute across related rows {#window-functions}
+
+Window functions let you rank orders per customer, calculate running totals,
+or compare a value with the previous row without collapsing the rows into
+one aggregate result. Add `OVER (...)` to a supported function:
+
+```camussql
+SELECT customer_id, id, total,
+       row_number() OVER (
+         PARTITION BY customer_id ORDER BY total DESC, id
+       ) AS position,
+       sum(total) OVER (PARTITION BY customer_id) AS customer_total
+FROM orders;
+```
+
+`PARTITION BY` groups rows for the calculation; it does not change their storage
+placement. Without it, the whole input is one group. The window's `ORDER BY`
+sets calculation order, while the query's final `ORDER BY` controls output order.
+Add a unique tie-breaker, such as `id`, when row numbering must be repeatable.
+
+### Supported functions
+
+| Function | Result |
+| --- | --- |
+| `row_number()` | Row position within its partition, starting at 1. |
+| `rank()`, `dense_rank()` | Rank with gaps after ties, or rank without gaps. |
+| `percent_rank()` | `(rank - 1) / (partition rows - 1)`; 0 for one row. |
+| `cume_dist()` | Fraction of partition rows up to and including the current row's peers. |
+| `ntile(k)` | Divides rows into `k` buckets, numbered from 1; larger buckets come first. `k` must be positive. |
+| `lag(value [, offset [, default]])` | Value from an earlier row; offset defaults to 1 and the fallback to NULL. |
+| `lead(value [, offset [, default]])` | Value from a later row, with the same defaults as `lag`. |
+| `first_value(value)`, `last_value(value)` | Value from the first or last row of the frame. |
+| `nth_value(value, n)` | Value from frame position `n` (starting at 1), or NULL when the frame is shorter. `n` must be positive. |
+| `count`, `sum`, `avg`, `min`, `max` | Aggregate over the frame, using the ordinary aggregate's result type and null rules. |
+
+Ranking functions, `lag`, and `lead` ignore the frame. Negative `lag` or `lead`
+offsets read in the opposite direction. Their fallback must have a compatible
+type; numeric inputs and fallbacks use their common arithmetic type. A
+placeholder fallback may be widened to that type, but not narrowed. The
+fallback applies when the requested row is outside the partition; a NULL
+value in an existing row remains NULL.
+
+### Running totals and frames
+
+A frame chooses which rows of the partition contribute to a calculation:
+
+```camussql
+SELECT customer_id, id, total,
+       sum(total) OVER (
+         PARTITION BY customer_id ORDER BY id
+         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+       ) AS running_total,
+       total - lag(total, 1, 0) OVER (
+         PARTITION BY customer_id ORDER BY id
+       ) AS change_from_previous
+FROM orders
+ORDER BY customer_id, id;
+```
+
+`ROWS` counts physical rows in calculation order. Bounds accept `UNBOUNDED
+PRECEDING`, `n PRECEDING`, `CURRENT ROW`, `n FOLLOWING`, and `UNBOUNDED
+FOLLOWING`. Offsets must be non-negative integer literals or placeholders.
+For example, `ROWS BETWEEN 2 PRECEDING AND CURRENT ROW` includes at most three
+rows. A single bound, such as `ROWS 2 PRECEDING`, ends at the current row.
+Frames stop at partition boundaries.
+
+The default frame is `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`.
+Rows with equal window ordering values are **peers**; this frame includes all
+peers of the current row. Without a window `ORDER BY`, every row is a peer and
+the frame covers the whole partition. `RANGE` supports current-row and
+unbounded bounds, but not numeric offsets; use `ROWS` for those.
+
+Consequently, `last_value(total) OVER (ORDER BY id)` usually gives the current
+row's value when `id` is unique. To read the last value of the entire partition,
+use `ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING`.
+
+Nulls sort first in ascending order and last in descending order, matching
+CamusDB's ordinary sorts. PostgreSQL defaults to the opposite order.
+`NULLS FIRST` and `NULLS LAST` are unsupported. Null partition keys group together.
+
+Window `sum` and `avg` over `FLOAT64` accumulate exact values and round once.
+Unlike a plain floating-point aggregate, their result does not depend on row
+order, so the two forms can differ in the last binary digit.
+
+### Filter a window result
+
+Windows run after `WHERE`, `GROUP BY`, and `HAVING`. To filter a computed rank,
+use an outer query. This returns each customer's three largest orders:
+
+```camussql
+SELECT customer_id, id, total
+FROM (
+  SELECT customer_id, id, total,
+         row_number() OVER (
+           PARTITION BY customer_id ORDER BY total DESC, id
+         ) AS position
+  FROM orders
+) AS ranked
+WHERE position <= 3
+ORDER BY customer_id, total DESC, id;
+```
+
+A final `LIMIT` reduces output, not window input. For example,
+`SELECT id, count(*) OVER () FROM orders LIMIT 5` still counts all orders.
+Windows can also use group keys and aggregates from a grouped query, such as
+`rank() OVER (ORDER BY sum(total) DESC)` with `GROUP BY customer_id`.
+
+### Execution and restrictions
+
+Window calculations run on the node executing the statement, after gathering
+any distributed scan or aggregate results. Functions with the same partition
+and ordering expressions share a sort. Sorts and full-row partition buffers
+can [spill to disk](/docs/spill-to-disk), but window inputs and results still
+need memory proportional to the current partition's row count. A large
+partition can therefore consume substantial memory even with spill enabled.
+See [window plans](/docs/explain#window-functions) to inspect the work.
+
+Window calls are allowed in the select list and final `ORDER BY`, including
+inside larger expressions. They cannot nest or appear in `WHERE`, `GROUP BY`,
+`HAVING`, join conditions, `UPDATE SET`, `INSERT VALUES`, column defaults, or
+`CHECK` constraints. `SELECT ... FOR UPDATE` cannot contain a window call.
+
+Named windows (`OVER name` or `WINDOW name AS (...)`), `GROUPS` frames,
+`EXCLUDE`, aggregate `FILTER`, and extension aggregates with `OVER` are
+unsupported. `SELECT DISTINCT *` with a window call only in `ORDER BY` is also
+refused. Uncorrelated subqueries can read a window query, including from an
+outer select list. Correlated EXISTS with a multi-source inner query remains
+unsupported. See [subquery restrictions](/docs/joins-and-subqueries#subqueries-in-where).
+
+`OVER` is reserved; quote it with backticks when using it as an identifier.
+Frame words such as `ROWS`, `PARTITION`, and `PRECEDING` remain valid identifiers.
+
 ## Sort and paginate {#sort-the-rows-and-divide-them-into-pages}
 
 ```camussql
@@ -393,7 +529,8 @@ can use the locks it already owns.
 The statement requires `SELECT` and `UPDATE` privileges on one ordinary table.
 Read-only or optimistic transactions are refused with `CADB0400`. Joins,
 views, materialized views, derived tables, table functions, grouping,
-aggregates, `DISTINCT`, set operations, and historical reads are unsupported.
+aggregates, window functions, `DISTINCT`, set operations, and historical reads
+are unsupported.
 The clause is top-level only: it cannot appear inside subqueries, view bodies,
 `INSERT ... SELECT`, or `CREATE TABLE ... AS SELECT`.
 
@@ -460,6 +597,8 @@ column counts or types fail with `CADB0400` (`InvalidInput`) before reading rows
 | NULL literal or placeholder on one side | The other side's type. |
 | Two numeric types | Their common arithmetic type; for example, `INT64` plus `FLOAT64` becomes `FLOAT64`. |
 | `DATE` and `DATETIME` | `DATETIME`. |
+| Quoted string literal with `DATE` or `DATETIME` | That temporal type; invalid literal text fails before reading rows. A string column does not implicitly convert. |
+| Arrays | Element types must match, or one side must be empty/untyped. Known incompatible element types are refused. |
 | Other incompatible pairs | Error naming the column position and types. |
 
 Values are converted before comparison. `SELECT 1 UNION SELECT 1.0` therefore

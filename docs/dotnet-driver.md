@@ -289,6 +289,7 @@ The ADO.NET driver covers CamusDB's current scalar types and its array type:
 | `BYTES`, `BLOB` | `ColumnType.Bytes` | `byte[]` |
 | `DATE` | `ColumnType.Date` | `DateOnly`, `DateTime` |
 | `DATETIME`, `TIMESTAMP` | `ColumnType.DateTime` | `DateTime`, `DateTimeOffset` |
+| `JSONB`, `JSON` | `ColumnType.Jsonb` | JSON text on read; `JsonDocument`, `JsonElement`, `JsonNode`, or typed text on write. |
 | `ARRAY(T)` | `ColumnType.Array` | `object?[]` on read, `IEnumerable` on write |
 
 Store UUIDs in a native `UUID` column, not as text in a `STRING`. The native
@@ -300,6 +301,44 @@ parameter binds as `NUMERIC`; use `ColumnType.Numeric` with a `string` when the
 value has more significant digits than .NET `decimal` can hold. Read small
 values with `GetDecimal()` or `GetFieldValue<decimal>()`; read every value
 without rounding with `GetString()`.
+
+### JSON documents
+
+Use JSONB parameters to store and query [JSON documents](/docs/json) without
+serializing them into ordinary string columns. `JsonDocument`, `JsonElement`,
+and `JsonNode` values infer `ColumnType.Jsonb`; type raw text explicitly:
+
+```csharp
+using System.Text.Json;
+
+await using CamusCommand command = connection.CreateCamusCommand(
+    "SELECT payload FROM events WHERE payload @> @filter");
+command.Parameters.Add("filter", ColumnType.Jsonb, """{"kind": "login"}""");
+await using CamusDataReader reader = await command.ExecuteReaderAsync();
+while (await reader.ReadAsync())
+{
+    JsonElement payload = reader.GetFieldValue<JsonElement>(0);
+}
+```
+
+`GetString()` and `GetValue()` return the PostgreSQL JSON text form, preserving
+numeric digits and scale. `GetFieldValue<T>()` can instead parse a
+`JsonDocument`, `JsonElement`, `JsonNode`, `JsonObject`, or `JsonArray`.
+`CamusJsonb.Format(text)` produces the same text form.
+
+A JSON `null` document reads as the string `"null"`; SQL NULL reads as
+`DBNull`. From 0.17.1, REST requests ask for `jsonbAsText` to preserve that
+distinction; an older server that ignores the option cannot distinguish the
+two over REST. Arrays of JSONB documents are unsupported; bind one JSON array
+document instead.
+
+### Infinity and NaN
+
+From 0.17.2, the driver reads and binds infinity and NaN on both REST and gRPC.
+Use `double.PositiveInfinity`, `double.NegativeInfinity`, or `double.NaN`
+with `ColumnType.Float64`, and the corresponding `float` values for `Float32`.
+REST encodes them as named strings; the reader returns native .NET floats,
+including inside float arrays. See [float behavior](/docs/data-types#floating-point-values).
 
 ## Transactions
 

@@ -227,6 +227,26 @@ CamusDB supports descending index columns for fixed-width scalar types: `OID`,
 CamusDB currently rejects descending `STRING` and `BYTES` index columns with
 `InvalidInput`. You cannot index an `ARRAY(T)` column.
 
+## GIN indexes for JSON documents
+
+An ordered index cannot index a `JSONB` column. To search inside JSON
+documents, create a GIN index (generalized inverted index). It maps each key
+and value in each document to the rows that hold it:
+
+```camussql
+CREATE INDEX events_payload_gin ON events USING GIN (payload);
+
+SELECT id FROM events WHERE payload @> '{"kind": "login"}';
+```
+
+The planner uses a GIN index for `@>`, `?`, `?|`, `?&`, and equality on one
+field, such as `payload ->> 'kind' = 'login'`. A GIN index has exactly one
+`JSONB` column, and it has no `INCLUDE` columns and no `DESC`. `SHOW INDEXES`
+shows the index type `GIN`.
+
+For the other forms, the filters that use the index, and the write cost, see
+[GIN indexes](/docs/json#gin-indexes).
+
 ## Index DDL in ALTER TABLE
 
 ```camussql
@@ -236,6 +256,28 @@ ALTER TABLE robots ADD UNIQUE INDEX robots_code_uq (code) INCLUDE (name);
 ALTER TABLE robots ADD INDEX robots_kind_idx (kind) INCLUDE (name, year);
 ALTER TABLE robots DROP INDEX robots_kind_year_idx;
 ```
+
+## Drop an index
+
+Remove an unused secondary index while keeping its table and rows:
+
+```camussql
+DROP INDEX robots_year_idx ON robots;
+DROP INDEX IF EXISTS robots.robots_year_idx;
+ALTER TABLE robots DROP INDEX IF EXISTS robots_year_idx;
+```
+
+All three forms have the same behavior. A table is required because index names
+are unique per table; bare `DROP INDEX robots_year_idx` is refused. Use the
+`ON` form when a quoted table name itself contains a dot.
+
+`IF EXISTS` skips a missing index or table, but does not override dependencies.
+An index required by a foreign key cannot be dropped until that constraint is
+removed. Use `ALTER TABLE ... DROP PRIMARY KEY` for a primary key.
+
+Dropping requires the table's `INDEX` privilege. In a cluster, the schema leader
+checks existence and replicates the change; a stale follower does not decide
+whether the object is missing.
 
 ## Rename an index
 
@@ -259,6 +301,7 @@ An index can drive:
 - Ordered scans.
 - Indexed joins.
 - Index-only reads through `INCLUDE` columns.
+- Searches inside `JSONB` documents, through a [GIN index](#gin-indexes-for-json-documents).
 
 For planner behavior, see [Query Planning](/docs/query-planning). For query
 syntax examples that use indexes, see [SELECT](/docs/sql-queries) and

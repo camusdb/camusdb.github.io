@@ -7,7 +7,7 @@ sidebar_position: 4.55
 A null function picks a fallback when an expression evaluates to `NULL`, or
 turns a value into `NULL`. Use them for display defaults, aggregate defaults,
 nullable columns inside derived expressions, and guards against division by
-zero.
+zero. `IF` chooses between two results using a boolean condition.
 
 Most scalar functions return `NULL` when any argument is `NULL`. These functions
 do not.
@@ -16,13 +16,26 @@ do not.
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `coalesce(value, ...)` | The type of the first compatible argument that is not null | Returns the first non-`NULL` argument. Accepts one or more arguments. Returns `NULL` when every argument is `NULL`. |
-| `ifnull(value, fallback)` | The type of the first compatible argument that is not null | Two-argument shorthand for `coalesce(value, fallback)`. |
-| `nvl(value, fallback)` | The type of the first compatible argument that is not null | Alias for `ifnull(value, fallback)`. |
+| `coalesce(value, ...)` | The common argument type | Returns the first non-`NULL` argument. Accepts one or more arguments. Returns `NULL` when every argument is `NULL`. |
+| `ifnull(value, fallback)` | The common argument type | Two-argument shorthand for `coalesce(value, fallback)`. |
+| `nvl(value, fallback)` | The common argument type | Alias for `ifnull(value, fallback)`. |
 | `nullif(value, other)` | The type of `value` | Returns `NULL` when `value = other` is true, otherwise `value`. |
 
-`IFNULL` is the currently supported name for the two-argument form.
 `IFNULL(value, fallback)` means: if `value` is null, use `fallback`.
+
+## IF
+
+Use `IF(condition, true_result, else_result)` for a conditional value:
+
+```camussql
+SELECT IF(quantity > 0, 'in stock', 'sold out') AS availability
+FROM inventory;
+SELECT IF(true, 1, 1 / 0); -- returns 1; the unused result is not evaluated
+```
+
+A true condition selects the second argument; false or NULL selects the third.
+The condition must be boolean. Both results must have a common type, just as
+in `CASE WHEN ... THEN ... ELSE ... END`.
 
 ## NULLIF
 
@@ -40,19 +53,19 @@ evaluates `value` only once.
 
 ## Type rules
 
-These rules apply to `coalesce`, `ifnull`, and `nvl`. CamusDB infers the result
-type from the non-null arguments' types:
+`COALESCE`, `IFNULL`, `NVL`, `IF`, and `CASE` use the same
+[conditional result rules](/docs/data-types#conditional-result-types). The
+result type comes from all inputs, rather than the first non-null value.
+Numeric inputs widen where needed, and incompatible types fail with
+`CADB0400`, even when a branch is unused.
 
-- The result type is `NULL` when every argument is `NULL`.
-- CamusDB widens numeric arguments where necessary. `FLOAT64` beats `FLOAT32`,
-  and `FLOAT32` beats `INT64`. `NUMERIC` with `INT64` stays `NUMERIC`;
-  `NUMERIC` with a float widens to `FLOAT64`.
-- CamusDB rejects mixing `STRING` with a non-string type.
-- Compatible non-numeric arguments keep the first non-null type.
+For example, `COALESCE(score, 3.5)` returns `FLOAT64` when `score` is `INT64`;
+a non-null score is converted too. `COALESCE(1, 'fallback')` fails.
+`COALESCE(date_column, '2026-01-01')` returns `DATE`, but a string column
+needs an explicit cast to combine with a date.
 
-For example, `coalesce(score, 3.5)` returns `FLOAT64`. A non-null `INT64`
-`score` widens to `FLOAT64`, so the runtime value matches the inferred result
-type.
+`COALESCE`, `IFNULL`, and `NVL` evaluate every argument. Use `CASE` or `IF`
+when an unused expression must not run.
 
 ## Examples
 

@@ -47,9 +47,12 @@ SELECT round(NUMERIC '1.2345', 2), trunc(NUMERIC '1299.99', -2);
 ## Errors
 
 `abs` fails on the minimum `INT64` value, because an `INT64` cannot represent
-its positive form.
+its positive form. It reports `CADB0420`.
 
 `sqrt` fails for negative values. `mod` fails when the divisor is zero.
 
-The second argument of `round(value, scale)` must be an `INT64` that fits in a
-32-bit integer.
+`round(value, scale)` and `trunc(value, scale)` accept an `INT64` scale,
+including very large magnitudes. They do not turn a finite value into NaN or
+infinity. Finite float overflow and underflow to zero report `CADB0421`;
+`pow(0, negative)`, `sqrt(negative)`, and `sign(NaN)` report `CADB0400`.
+See [Floating-point values](/docs/data-types#floating-point-values).

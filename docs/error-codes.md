@@ -62,7 +62,7 @@ an unexpected internal state, or an inconsistency in the storage layer.
 | `CADB0400` | `InvalidInput` | The request shape is invalid: missing names, invalid DDL/DML parameters, malformed query structure, invalid check definitions, invalid regex patterns, unsupported function arguments, invalid casts, malformed UUID input, duplicate aliases, invalid transaction priority, invalid table settings such as row-level TTL options, invalid index rename inputs, invalid `INSERT INTO ... SELECT` column counts, invalid CTAS projections, invalid `GROUP BY` / `HAVING` / `DISTINCT` combinations, and similar user mistakes. |
 | `CADB0401` | `UnknownType` | CamusDB is asked to encode, decode, cast, or evaluate a type it does not understand in that context. |
 | `CADB0402` | `DuplicatePrimaryKey` | Reserved for duplicate primary-key violations. The current storage path usually reports uniqueness failures as `CADB0300`. |
-| `CADB0403` | `DuplicateColumn` | A `CREATE TABLE` or `ALTER TABLE` introduces the same column name more than once, or a column rename targets an existing column name. |
+| `CADB0403` | `DuplicateColumn` | A schema definition, INSERT target list, UPDATE SET list, ON CONFLICT update arm, or typed row write repeats a column name, ignoring case; also a column rename targeting an existing name. Repeated write targets are refused before writing. HTTP 400. |
 | `CADB0404` | `UnknownColumn` | A statement references or renames a column name that is not present or not currently visible in the schema state. |
 | `CADB0405` | `UnknownKey` | Query planning or scanning expected a known row or index key shape but received a key it could not map correctly. This is uncommon for ordinary SQL and usually points to an internal query/storage mismatch. |
 | `CADB0406` | `SqlSyntaxError` | The SQL parser cannot parse the statement text. |
@@ -73,10 +73,15 @@ an unexpected internal state, or an inconsistency in the storage layer.
 | `CADB0411` | `VectorDimensionMismatch` | Two vector operands of a distance function have different dimensions. The message names both dimensions. |
 | `CADB0412` | `InvalidVectorValue` | A vector element is `NaN` or an infinity, or `cosine_distance` receives a zero-magnitude vector, for which the metric is undefined. |
 | `CADB0413` | `StatementTooDeeplyNested` | A statement's parse tree is deeper than CamusDB's safety limit. Rewrite the statement with less nesting, or split it into more statements. |
-| `CADB0414` | `ColumnStorageNotApplicable` | A `STORAGE` strategy was given for a column type that has no variable-length value. Use storage strategies only on `STRING`, `BYTES`/`BLOB`, and `ARRAY` columns. |
+| `CADB0414` | `ColumnStorageNotApplicable` | A `STORAGE` strategy was given for a column type that has no variable-length value. Use storage strategies only on `STRING`, `BYTES`/`BLOB`, `JSONB`, and `ARRAY` columns. |
 | `CADB0415` | `InvalidForeignKeyDefinition` | A foreign key references an invalid target: wrong column count or type, no matching primary key or unique index, a view, a materialized view, or another database. |
 | `CADB0416` | `ForeignKeyCycle` | A foreign key would create a cycle across two or more tables. A self-reference is allowed. |
 | `CADB0417` | `NumericValueOutOfRange` | A `NUMERIC` value or arithmetic result is outside the supported range of `-99999999999999999999999999999.999999999` to `99999999999999999999999999999.999999999`. |
+| `CADB0418` | `InvalidJsonText` | Text given for a `JSONB` value is not a document the type can store: invalid JSON, a `\u0000` escape or a lone surrogate in a string, or a number past the PostgreSQL `numeric` limits. A cast, a typed literal, a write to a `JSONB` column, or a `JSONB` parameter can raise it. HTTP 400. See [JSON documents](/docs/json#write-a-document). |
+| `CADB0419` | `JsonNestingTooDeep` | A `JSONB` document nests objects and arrays deeper than 512 levels. HTTP 400. |
+| `CADB0420` | `IntegerValueOutOfRange` | Integer arithmetic, a literal, aggregate, or cast exceeds `INT64`. Use `NUMERIC` when a wider exact value is intended. HTTP 400; gRPC `OUT_OF_RANGE`. |
+| `CADB0421` | `FloatValueOutOfRange` | Finite float arithmetic, a literal, aggregate, or cast overflows or underflows to zero. HTTP 400; gRPC `OUT_OF_RANGE`. |
+| `CADB0422` | `JsonbValueTooLarge` | A built JSONB aggregate exceeds 268,435,455 bytes. Reduce the group or result size. HTTP 400; gRPC `INVALID_ARGUMENT`. |
 | `CADB0501` | `TransactionAlreadyCompleted` | The caller tries to commit or roll back a transaction that is already committed, already rolled back, or otherwise no longer active. It is also used when [Kahuna](/docs/concepts#kahuna), the transactional storage layer, returns a permanent non-retryable commit failure and the transaction is already dead. |
 | `CADB0502` | `TransactionConflict` | The transaction cannot acquire the needed lock or hits a conflicting concurrent write. Conflict messages include bounded diagnostic context such as the table/database, a small sample of contended keys, and the waiting transaction mode when available. |
 | `CADB0503` | `SchemaCatchingUp` | The node is more than one schema version behind the committed schema head for that database, so it temporarily rejects reads and DML until schema apply catches up. Retry on another node or retry later. |
@@ -133,6 +138,7 @@ an unexpected internal state, or an inconsistency in the storage layer.
 | `CADB0556` | `ResultSetTooLarge` | A buffered result exceeded its row or estimated-memory cap. The statement rolls back; reduce the result or batch size. HTTP 400 / gRPC RESOURCE_EXHAUSTED. |
 | `CADB0557` | `StatementTooLarge` | Inline SQL exceeded max_statement_bytes before parsing. HTTP 413 / gRPC INVALID_ARGUMENT. |
 | `CADB0558` | `ConcurrencyLimitExceeded` | The node reached its explicit-transaction or cluster-activity fan-out cap. Back off before retrying. HTTP 503 / gRPC RESOURCE_EXHAUSTED. |
+| `CADB0559` | `JsonbValueCorrupt` | Stored `JSONB` bytes do not decode. This means damaged data or a value written by a newer build. The statement fails and returns no partial document. HTTP 500. |
 | `CADB0600` | `InvalidConfig` | Configuration is invalid: an explicit `--config` or `CAMUS_CONFIG_PATH` file does not exist, the mode is wrong, a listener or Raft port is invalid, peer lists are malformed, schema-ack settings are invalid, transaction/locking/priority settings are invalid, prepared-statement settings are invalid, statistics, automatic-analyze, row-level TTL, spill, large-value, diagnostics, parser-cache, or regex settings are invalid, config keys are unknown, or `kahuna` options are unsupported. Also raised at runtime when a [`SET CLUSTER SETTING`](/docs/runtime-cluster-settings) value breaks a cross-field invariant; the message names both settings, and nothing is applied. |
 
 ## Backup and restore errors
@@ -193,7 +199,7 @@ for deployment and transaction behavior.
 | `CADB0821` | `ProcedureNotFound` | `CALL` names no procedure in the installed extensions. |
 | `CADB0822` | `ProcedureFailed` | Procedure code threw and all changes made by the call were rolled back. |
 | `CADB0823` | `ExtensionCaughtSqlError` | Extension code caught a nested SQL failure, but the transaction is rollback-only. |
-| `CADB0824` | `TransactionRollbackOnly` | A commit was attempted after nested extension SQL failed. |
+| `CADB0824` | `TransactionRollbackOnly` | A statement failed and aborted the transaction. Later statements are refused; COMMIT rolls it back. See [Failed statements](/docs/sql-transactions#failed-statements). |
 | `CADB0825` | `TriggerMutationConflict` | A `BEFORE` trigger changed a row the outer statement had already read and was still writing. |
 | `CADB0826` | `TriggerQueueTooLarge` | Rows retained for `AFTER` triggers exceeded `spill_threshold_bytes`. |
 | `CADB0827` | `ExtensionManifestInvalid` | An extension assembly has no manifest or an invalid name, version, or requirement. |

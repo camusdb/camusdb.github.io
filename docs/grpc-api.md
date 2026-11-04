@@ -149,13 +149,18 @@ operator boundary instead of continuing work for a caller that has gone away.
 | `InsertRow` | Insert one row from a column-value map. |
 | `Query` | Query rows by table, optional index name, filters, and ordering. |
 | `QueryById` | Fetch one row by primary-key value. |
-| `UpdateRows` | Update matching rows. |
+| `UpdateRows` | Update matching rows; at least one filter is required. |
 | `UpdateById` | Update one row by primary-key value. |
-| `DeleteRows` | Delete matching rows. |
+| `DeleteRows` | Delete matching rows; at least one filter is required. |
 | `DeleteById` | Delete one row by primary-key value. |
 
 A filter uses a `QueryFilter { column_name, op, value }`. The `op` is a string,
 such as `"="`, `">"`, `">="`, `"<"`, `"<="`, or `"LIKE"`.
+
+`UpdateRows` and `DeleteRows` without filters fail with `INVALID_ARGUMENT`
+and `CADB0400`, preventing accidental whole-table changes. To change all rows
+intentionally, use SQL with `WHERE TRUE`. A refused request also aborts its
+explicit transaction. See [Failed statements](/docs/sql-transactions#failed-statements).
 
 An order uses an `OrderBy { column_name, direction }`, where the direction is
 ascending or descending.
@@ -163,6 +168,10 @@ ascending or descending.
 `QueryById`, `UpdateById`, and `DeleteById` each take the key value as a string.
 The server resolves the actual primary-key column from the table schema, so the
 primary key doesn't have to be named `id`.
+
+Row value maps reject column names that differ only in case with `CADB0403`.
+Identical duplicate wire keys are collapsed by the Protobuf map decoder before
+the engine sees them; clients must send each map key once.
 
 ## Value encoding
 
@@ -176,14 +185,15 @@ message, a typed `oneof` that follows the CamusDB column types:
 | `INT64` | `int64_value` | Signed 64-bit integer. |
 | `STRING` | `string_value` | UTF-8 string. |
 | `BOOL` | `bool_value` | Boolean. |
-| `FLOAT64` | `float64_value` | IEEE-754 double. |
-| `FLOAT32` | `float32_value` | IEEE-754 float. |
+| `FLOAT64` | `float64_value` | IEEE-754 double, including infinity and NaN. |
+| `FLOAT32` | `float32_value` | IEEE-754 float, including infinity and NaN. |
 | `BYTES` | `bytes_value` | Raw bytes. |
 | `DATE` | `date_value` | UTC .NET ticks, truncated to midnight. |
 | `DATETIME` | `datetime_value` | UTC .NET ticks. |
 | `ARRAY` | `array_value` | Element type plus nested `Value` items. |
 | `UUID` / `GUID` | `uuid_value` | Exactly 16 bytes in canonical big-endian order. |
 | `NUMERIC` | `numeric_value` | Canonical decimal text with at most 9 fractional digits, such as `"-12.5"`. |
+| `JSONB` | `json_value` | The document text in the PostgreSQL form, such as `{"a": [1, 2.50]}`. Numbers are exact. A client built before this field existed reads a `JSONB` cell as NULL. See [JSON documents](/docs/json#client-apis). |
 
 If you write a client:
 

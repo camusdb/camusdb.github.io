@@ -26,6 +26,21 @@ Three statements cannot run inside an explicit transaction:
 cannot undo, so CamusDB refuses them there with `CADB0538`
 `StatementNotAllowedInTransaction`.
 
+## Failed statements
+
+Any failed statement in an explicit transaction aborts the transaction,
+including a cancelled read or a statement refused inside a transaction block.
+Roll back and start a new transaction; there are no savepoints for recovering
+just the failed statement. Earlier writes cannot be committed after the error.
+
+The engine refuses later statements, including reads, with `CADB0824`
+(`TransactionRollbackOnly`). `COMMIT` rolls it back and reports the same code.
+HTTP and gRPC immediately roll back on statement failure, so reusing their
+transaction handle instead returns an unknown-transaction error.
+
+Fix invalid input before restarting. For retryable conflicts, replay the whole
+unit of work as described in [Retries and conflicts](/docs/serializable-retries).
+
 ## Isolation
 
 Serializable is the default. You can also set it explicitly at the start of a

@@ -75,7 +75,7 @@ them and sets aside an unreachable endpoint for 30 seconds.
 | --- | --- | --- |
 | `endpoint` | `Endpoint` | Base URL, or several URLs to rotate through. |
 | `database` | `Database` | Database sent with each request. |
-| `timeoutSeconds` | `Timeout` | Request timeout in seconds. Default is `10`. |
+| `timeoutSeconds` | `Timeout` | REST request timeout, including the complete buffered body, in seconds. Default is `10`; streamed row consumption is excluded. |
 | `protocol` | `Protocol` | `rest`, the default, or `grpc`. |
 | `user` | `User` | User to authenticate as. Aliases include `UserId`, `Uid`, and `Username`. |
 | `password` | `Password` | Password for `user`. Alias: `Pwd`. |
@@ -96,6 +96,7 @@ them and sets aside an unreachable endpoint for 30 seconds.
 | `routingNodes` | `RoutingNodes` | Operator trust map from server node identities to endpoint pool members. |
 | `routingMaxHintAgeMs` | `RoutingMaxHintAge` | Maximum reuse age for a learned route. Default is `5000`. |
 | `defaultTransactionOptions` | `IsolationLevel`, `TransactionMode`, `Locking` | Defaults for transactions and autocommit statements. |
+| `jsonb` | `Jsonb` | `parse` (default) or `text`; see [JSON documents](#json-documents). |
 | `int64` | `Int64` | `auto`, `number`, or `bigint`. Default is `auto`. |
 | `traceQueryText` | `TraceQueryText` | Adds SQL text to OpenTelemetry spans. Default is `false`, because SQL literals can contain sensitive data. |
 
@@ -245,6 +246,54 @@ await client.execute('INSERT INTO docs (id, embedding) VALUES (GEN_ID(), @embedd
 const row = await client.queryOne<{ embedding: Uint8Array }>('SELECT embedding FROM docs LIMIT 1');
 const values = CamusVector.toFloats(row!.embedding);
 ```
+
+## JSON documents
+
+Plain objects bind as [JSONB documents](/docs/json). Use `camus.jsonb(value)`
+for raw JSON text, a JSON array, a scalar, or a JSON null document. A plain
+array still binds as `ARRAY`, and a plain string as `STRING`.
+
+```ts
+await client.execute(
+  'INSERT INTO events (id, payload) VALUES (GEN_ID(), @payload)',
+  { payload: { kind: 'login', user: { id: 7 } } },
+);
+
+const payload = await client.scalar<string>(
+  'SELECT payload FROM events LIMIT 1', undefined, { jsonb: 'text' },
+);
+```
+
+Choose decoding per client, statement, or pipelined query:
+
+| Mode | Returned value |
+| --- | --- |
+| `parse` (default) | Parsed JavaScript value. Unsafe integers become `bigint`; fractional numbers use `number` and can lose precision or trailing zeros. |
+| `text` | PostgreSQL JSON text, preserving every numeric digit and its scale. |
+
+Set `jsonb: 'text'` on `CamusClient` or `Jsonb=text` in the connection string
+to make text the default. `formatJsonb(text)` formats a document the same way.
+In text mode, a JSON null document returns `'null'` and SQL NULL returns `null`;
+in parse mode both return `null`.
+
+JSONB requires 0.12.0 or later; 0.12.1 adds REST `jsonbAsText` support to
+preserve top-level JSON null on a compatible server. Versions before 0.12.0 can read
+JSONB cells as null without an error. The server has no `ARRAY(JSONB)`; wrap
+an array of documents with `camus.jsonb` to send it as one document.
+
+## Response limits and validation
+
+From 0.13.0, a REST response body is capped at 256 MiB and a streamed result
+line at 64 × 1024 × 1024 characters. Exceeding a cap raises `CamusError`; use `queryStream` or
+pagination for large results. The REST timeout covers body reads as well as
+headers, including authentication and administration calls. Streamed rows are
+not subject to that whole-response timeout; gRPC streaming has its own
+per-row wait timeout.
+
+Endpoints and database names reject control characters. Parameter names passed
+to `call` must contain only ASCII letters, digits, or `_`, with an optional
+leading `@`; invalid names fail locally with `CADB0400`. Server error messages
+are sanitized, and token lifetimes are capped at 24 hours for renewal.
 
 ## Streaming
 

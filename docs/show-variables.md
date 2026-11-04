@@ -19,7 +19,9 @@ does. Use it to:
 - Compare nodes when one behaves differently from the others.
 - Collect a node's configuration for a bug report.
 
-For the meaning of each key, see [Configuration](/docs/configuration).
+For the meaning, default, and valid values of each variable, see the
+[settings reference](/docs/settings-reference). It documents
+every variable that this statement lists.
 
 ```camussql
 SHOW VARIABLES;
@@ -54,7 +56,7 @@ what the node runs.
 | Column     | Meaning |
 |------------|---------|
 | `variable` | The key in `snake_case`, as you write it in `config.yml`. Keys in the nested `kahuna:` section, which configures the embedded [Kahuna](/docs/concepts#kahuna) storage layer, appear in dotted form, such as `kahuna.wal_sync_writes`. |
-| `value`    | The effective value. It is SQL `NULL` when the setting is genuinely unset, which differs from an empty string. |
+| `value`    | The effective value. It is SQL `NULL` when the setting is genuinely unset, which differs from an empty string. An unset `kahuna.*` key shows `NULL` in `value` and `default`. The node then applies the default that the [kahuna keys reference](/docs/settings-reference#kahuna-keys) gives: either a CamusDB baseline or a default of Kahuna itself. |
 | `type`     | `bool`, `int`, `long`, `double`, `string`, `enum`, `duration_ms`, or `list`. |
 | `default`  | The value the setting would hold without an override. A value that differs from `default` is one that somebody configured. |
 | `source`   | The layer that supplied the value: `default`, `config`, `env`, `cli`, or `cluster`. Precedence is cluster first, then cli, then env, then config, then default. |
@@ -164,6 +166,8 @@ for a transaction that states no value of its own.
 
 ## See also
 
+- [Settings reference](/docs/settings-reference) for the meaning, default, and
+  valid values of each variable.
 - [Configuration](/docs/configuration) for the file format, the precedence
   chain, and the CLI flag mapping.
 - [Runtime Cluster Settings](/docs/runtime-cluster-settings) for changing

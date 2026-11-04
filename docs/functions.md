@@ -45,6 +45,8 @@ supports table functions, aggregates, transactional row triggers, and stored pro
   `FROM` clause, including numeric and temporal series.
 - [JSON Functions](/docs/functions-json) validate JSON text and inspect or
   extract values with paths.
+- [JSONB functions](/docs/json#functions) build, inspect, change, expand, and
+  aggregate `JSONB` documents with the PostgreSQL function names.
 - [Regex Functions](/docs/functions-regex) match, extract, replace, count, and
   split text with regular expressions.
 - [Conversion Functions](/docs/functions-conversion) convert scalar values with
@@ -61,6 +63,11 @@ supports table functions, aggregates, transactional row triggers, and stored pro
   values from named counters.
 - [Vector Functions](/docs/vector-search) inspect vector dimensions and compare
   vectors with distance and similarity metrics.
+
+[Window functions](/docs/sql-queries#window-functions) rank rows, compare
+neighboring values, and calculate totals while keeping individual rows. They
+use `OVER (...)` and are allowed in the select list and final `ORDER BY`, rather
+than wherever a scalar value is accepted.
 
 ## Nulls and volatile functions
 
@@ -85,5 +92,7 @@ scan.
 The [session functions](/docs/functions-session) vary by caller, not by row. See
 that page for how they interact with the result cache, `DEFAULT`, and `CHECK`.
 
-CamusDB evaluates arguments before the call. It validates the argument count
-and types at execution time, not at parse time.
+Most scalar functions evaluate their arguments before the call. `IF` and
+`CASE` evaluate only the selected result. Conditional result types can be
+checked before rows are read; see
+[conditional type rules](/docs/data-types#conditional-result-types).

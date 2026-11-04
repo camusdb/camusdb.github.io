@@ -8,6 +8,13 @@ JSON functions operate on JSON text stored in a `STRING` value. Invalid JSON
 usually returns `NULL` rather than failing the query. The exception is
 `json_valid`, which returns `false` for invalid JSON and for `NULL`.
 
+:::tip
+To store and query JSON documents, use a [`JSONB` column](/docs/json). It
+validates documents on write, supports the PostgreSQL operators and `jsonb_*`
+functions, and can use a GIN index. The functions on this page read a `JSONB`
+argument as its text.
+:::
+
 | Function | Returns | Description |
 | --- | --- | --- |
 | `json_valid(json)` | `BOOL` | Whether `json` is valid JSON text. |
@@ -17,6 +24,10 @@ usually returns `NULL` rather than failing the query. The exception is
 | `json_array_length(json)` | `INT64` | The length of the root JSON array. Returns `NULL` when the root is not an array. |
 | `json_array_length(json, path)` | `INT64` | The length of the array at `path`. Returns `NULL` when the path is missing or the value is not an array. |
 | `json_contains(value, candidate)` | `BOOL` | Whether `value` structurally contains `candidate`. |
+
+JSON text in a STRING is limited to 64 nesting levels by these functions.
+A JSONB argument supports the document limit of 512 levels. Use JSONB for
+deeply nested documents rather than converting them to text first.
 
 ## JSON paths
 

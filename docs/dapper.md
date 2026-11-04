@@ -142,6 +142,7 @@ Robot robot = await connection.QuerySingleAsync<Robot>(
 | `CamusValue.Id(...)` | Bind an `OID`, including an object id stored as a string. |
 | `CamusValue.Uuid(...)` | Bind a native `UUID`. |
 | `CamusValue.Numeric(...)` | Bind a `NUMERIC` value, including exact decimal text too wide for .NET `decimal`. |
+| `CamusValue.Jsonb(...)` | Bind one JSONB document from text, `JsonDocument`, `JsonElement`, or `JsonNode`. |
 | `CamusValue.Array(...)` | Bind one native `ARRAY(T)` value. |
 | `CamusValue.Vector(...)` | Pack a `float` vector for a `BYTES` column. |
 
@@ -155,6 +156,22 @@ Robot robot = await connection.QuerySingleAsync<Robot>(
     "SELECT * FROM robots WHERE id = @id",
     parameters);
 ```
+
+## JSON documents
+
+`CamusDapper.Register()` also registers handlers for `JsonDocument`,
+`JsonElement`, `JsonNode`, `JsonObject`, and `JsonArray`. Use these types on a
+mapped property to read a JSONB document, or `CamusValue.Jsonb(text)` to bind
+raw JSON text:
+
+```csharp
+var rows = await connection.QueryAsync(
+    "SELECT id, payload FROM events WHERE payload @> @filter",
+    new { filter = CamusValue.Jsonb("""{"kind": "login"}""") });
+```
+
+The underlying driver preserves exact JSON text and the distinction between
+JSON null and SQL NULL. See [.NET JSON handling](/docs/dotnet-driver#json-documents).
 
 ## Object ids
 

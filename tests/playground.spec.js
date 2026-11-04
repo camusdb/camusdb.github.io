@@ -178,3 +178,34 @@ FROM feature_probe ORDER BY id;`);
   await expect(windowResult.getByRole('cell', {name: '35', exact: true})).toBeVisible();
   await expect(windowResult.getByRole('cell', {name: '65', exact: true})).toBeVisible();
 });
+
+test('JSONB sample filters, updates and displays documents and can run twice', async ({page}) => {
+  await page.goto('/playground/');
+  const run = page.getByRole('button', {name: 'Run query', exact: true});
+  const editor = page.getByRole('textbox', {name: 'Data center SQL', exact: true});
+  const results = page.getByRole('region', {name: 'Query results'});
+  await expect(run).toBeEnabled({timeout: 60000});
+  await page.getByRole('button', {name: 'JSONB documents', exact: true}).click();
+  const highlighted = editor.locator('..').locator('pre');
+  await expect(highlighted.locator('span').filter({hasText: /^JSONB$/}).first())
+    .toHaveAttribute('class', /type/);
+  await expect(highlighted.locator('span').filter({hasText: /^GIN$/}).first())
+    .toHaveAttribute('class', /keyword/);
+  for (const operator of ['->>', '#>>', '@>']) {
+    await expect(highlighted.locator('span').filter({hasText: operator}).filter({hasText: new RegExp(`^${operator}$`)}).first())
+      .toHaveAttribute('class', /operator/);
+  }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await run.click();
+    await expect(run).toBeEnabled();
+    await expect(results.locator('article')).toHaveCount(5);
+    await expect(results.locator('article[class*="failed"]')).toHaveCount(0);
+    const documents = results.locator('article').last();
+    await expect(documents.getByRole('cell', {name: 'Foundation', exact: true})).toBeVisible();
+    await expect(documents.getByRole('cell', {name: 'Solaris', exact: true})).toBeVisible();
+    await expect(documents.getByRole('cell', {name: 'ebook', exact: true})).toBeVisible();
+    await expect(documents.getByRole('row')).toHaveCount(3);
+    await expect(documents).toContainText('"available":true');
+    await expect(documents).not.toContainText('[object Object]');
+  }
+});

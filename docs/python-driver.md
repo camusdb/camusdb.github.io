@@ -88,7 +88,13 @@ conn = camusdb.connect(
 | `http2` | `HttpVersion` | `False`; HTTP/2 requires the optional dependency and HTTPS. `HttpVersion=3` uses HTTP/2, not HTTP/3. |
 | `token_lifetime` | `TokenLifetime` | 600 seconds when login returns no token lifetime. |
 | `allow_insecure_credentials` | `AllowInsecureCredentials` | `False`; see authentication below. |
+| `backup_endpoint` | `BackupEndpoint` | Optional single REST node for backup administration. |
+| `backup_timeout` | `BackupTimeout` | 300 seconds per backup request. |
 | `row_factory` | — | Tuple rows by default. |
+
+Endpoints must have a valid host and port, without embedded user/password
+credentials or `.` / `..` path segments. Pass authentication through `user`
+and `password` instead. Invalid endpoints fail locally.
 
 Connection-string keys are case-insensitive. Quote values containing
 semicolons and double an embedded quote, for example
@@ -105,10 +111,13 @@ the same nodes share endpoint rotation and health state within the process.
 
 Use `user` and `password` to log in and send a cached bearer token with later
 requests. Connections with the same nodes and credentials share the process
-cache. The next request renews the token after 80% of its lifetime; if renewal
-fails, the old token remains usable until 95% of its lifetime. A rejected
-managed token triggers login and one resend. An `access_token` supplied by you
-is never renewed.
+cache. From 0.2.0, renewal starts in the background at 80% of the token's
+lifetime while requests keep using the old token. A request waits for login
+when no token exists or the token reaches 95% of its lifetime. Failed background
+renewals wait at least five seconds before retrying. A busy login (`CADB0518`)
+is retried up to three times with a short randomized wait.
+A rejected managed token triggers login and one resend. An `access_token`
+supplied by you is never renewed.
 
 Credentials require HTTPS unless the endpoint is loopback. Other plaintext
 endpoints fail in `connect()` with `InterfaceError` (`CADB0519`). Set
@@ -144,6 +153,7 @@ The driver reports `paramstyle = "named"` and sends typed parameter values.
 | `datetime.date` | `DATE` | `datetime.date` |
 | `datetime.datetime` | `DATETIME` | UTC `datetime.datetime` with microsecond precision |
 | `uuid.UUID` | `UUID` | `uuid.UUID` |
+| `dict` | `JSONB` | PostgreSQL JSON text as `str`. |
 | `list`, `tuple` | `ARRAY(T)` | `list` |
 
 Integers must fit signed 64-bit storage. NaN and infinity are rejected.
@@ -165,12 +175,42 @@ single_precision = Typed(9.5, ColumnType.FLOAT32)
 `FLOAT32` results are returned as Python floats. Strings can also bind to OID
 columns; `camusdb.ObjectId.generate()` creates an ID on the client.
 
+### JSON documents
+
+From 0.2.0, a `dict` binds as [JSONB](/docs/json). A `list` still binds as
+`ARRAY`; use `Typed` to send it as one JSON array document or to bind raw text:
+
+```python
+from camusdb import ColumnType, Typed
+
+conn.execute(
+    "INSERT INTO events (id, payload) VALUES (GEN_ID(), @payload)",
+    {"payload": {"kind": "login", "user": {"id": 7}}},
+)
+cur = conn.execute(
+    "SELECT payload FROM events WHERE payload @> @filter",
+    {"filter": Typed('{"kind": "login"}', ColumnType.JSONB)},
+)
+payload_text = cur.fetchone()[0]
+```
+
+JSONB results are strings in PostgreSQL's JSON text form, preserving numeric
+digits. A JSON null document is `"null"`; SQL NULL is `None`. An older server
+without `jsonbAsText` support returns both as `None`. Use
+`json.loads(payload_text, parse_float=decimal.Decimal)` when parsing exact
+fractional values, or `camusdb.format_jsonb(text)` to format JSON text.
+
+Arrays of JSONB values are unsupported; send one JSON array document instead.
+In 0.2.1, a dict/list document deeper than 512 levels raises `DataError` before
+sending. Malformed server responses raise `InterfaceError`, including invalid
+base64 BYTES cells and invalid typed values.
+
 ## Read results
 
 The server's default buffered response caps are 1,000,000 rows and 256 MiB of
 estimated memory. Excess results fail with `CADB0556`; use streaming for large
 ordinary reads or reduce the result. See
-[request limits](/docs/configuration#request-resource-limits).
+[request limits](/docs/settings-reference#request-resource-limits).
 
 `execute()` returns a cursor with all rows buffered in memory. Iterate it or
 use `fetchone()`, `fetchmany()`, and `fetchall()`. Set `cursor.arraysize` to
@@ -309,7 +349,7 @@ Await `connect()`, execution, fetching, commit, and rollback. `cursor()` and
 Driver errors expose `code` and `message`. Catch DB-API classes such as
 `IntegrityError` for constraint violations, `DataError` for invalid values,
 `ProgrammingError` for SQL or privilege errors, and `OperationalError` for
-connectivity or transaction failures. `InterfaceError` covers driver misuse.
+connectivity or transaction failures. `InterfaceError` covers driver misuse and malformed server responses.
 `camusdb.codes` provides named constants; see [server error codes](/docs/error-codes).
 
 Connections also expose `ping()`, `create_database()`, `drop_database()`,
@@ -317,6 +357,40 @@ Connections also expose `ping()`, `create_database()`, `drop_database()`,
 to change databases when no transaction is open. Database administration runs
 outside the connection's data transaction. See
 [database branching](/docs/database-branching) for branch behavior.
+
+### Node statistics and backups
+
+Use `conn.node_stats()` for the selected node's CPU, disk, and memory readings.
+To inspect a pool, pass each node explicitly:
+
+```python
+for endpoint in conn.endpoints:
+    stats = conn.node_stats(endpoint)
+    print(endpoint, stats.data_volume.available_bytes)
+```
+
+Unavailable readings are `-1`, with reasons in `stats.errors`. The server
+requires a superuser or `MONITOR` privilege when authentication is enabled.
+See [Node stats](/docs/node-stats).
+
+`conn.backups` manages online backups:
+
+```python
+full = conn.backups.take_full()
+incremental = conn.backups.take_incremental(full.backup_id)
+chain = conn.backups.chain(incremental.backup_id)
+preview = conn.backups.preview_garbage_collection()
+```
+
+It also provides `list()`, `take_coordinated()`, and `collect_garbage()`.
+Backups cover every database on the node and require server backup configuration.
+Authenticated callers must be superusers; unauthenticated calls are loopback-only.
+Set `backup_endpoint` to the backup coordinator for coordinated cluster backups,
+or to a specific node when the normal endpoint is a pool. A full backup may
+replace an unavailable incremental base; check `was_substituted`.
+The driver cannot restore backups. See [Backup and restore](/docs/backup-and-restore).
+
+The asyncio connection provides the same administration methods with `await`.
 
 ## Current limits
 
@@ -327,6 +401,6 @@ outside the connection's data transaction. See
   [causal tokens](/docs/grpc-api#causal-tokens); do not assume cross-node
   read-your-writes from endpoint rotation alone.
 - gRPC, HTTP/3, prepared statements, learned routing, transaction pipelines,
-  backup/node-statistics helpers, and OpenTelemetry integration are not provided.
+  and OpenTelemetry integration are not provided.
   Shared .NET connection-string tuning keys such as `RoutingMode` and
   `MaxAutoPrepare` are accepted without effect; `Protocol=grpc` is rejected.

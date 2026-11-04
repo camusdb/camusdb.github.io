@@ -101,6 +101,11 @@ CamusDB exports these metrics from the `CamusDB.Server` meter:
 Tag values come from a bounded set. CamusDB never uses SQL text, row keys, ids,
 messages, or user values as metric tags.
 
+When `kahuna.wal_storage: solarium`, the metrics exporter also subscribes to
+[Solarium](https://solariumdb.github.io/)'s WAL meter. It exposes the same
+`raft.wal.*` instruments used to observe RocksDB WAL behavior, so WAL gauges
+remain available after changing storage engines.
+
 ## Dependency metrics
 
 The diagnostics exporter also subscribes to the meters of the embedded

@@ -106,8 +106,9 @@ SELECT (
 ```
 
 A `SELECT` without a `FROM` clause has no outer row, so these subqueries are
-never correlated. A correlated subquery in the projection of a `SELECT` that
-reads a table is a different query shape.
+never correlated. A SELECT with a FROM clause also supports uncorrelated
+projection subqueries. Correlated EXISTS is limited to the WHERE of a SELECT;
+see [subquery positions](/docs/joins-and-subqueries#subqueries-in-where).
 
 ## Rejected shapes
 

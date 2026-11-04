@@ -8,7 +8,8 @@ CamusDB streams query results to the client, but some query operators must
 still hold intermediate rows before they can produce output.
 
 Spill to disk lets such an operator move a large intermediate buffer into a
-temporary file, so process memory does not grow without bound.
+temporary file, reducing the memory needed for that buffer. Some operators
+still retain other state in memory, as described below.
 
 Spill is off by default. While it is off, operators use their normal in-memory
 path. While it is on, each operator stays in memory until its own buffer passes
@@ -48,6 +49,7 @@ Spill applies to blocking work and to work that materializes rows:
 | `SELECT DISTINCT` | It records which result tuples it has already seen. | It hash-partitions the rows into spill files, then deduplicates one partition at a time. |
 | `UNION` | It removes duplicates from both inputs. | The same partitioned deduplication as `DISTINCT`. |
 | `INTERSECT`, `EXCEPT`, including `ALL` | It counts distinct right-side rows; distinct `EXCEPT` also tracks emitted left rows. | Hash-partitions both inputs and combines each partition pair in memory. |
+| Window functions | Sorts input and holds the current window partition. | External sorts and spill-capable full-row partition buffers. Arguments, ordering values, and results remain in memory for the current partition. |
 | Derived tables and subqueries | It materializes the rows so the outer query can scan them. | A spill buffer that CamusDB can enumerate again. |
 | `DELETE` and `UPDATE` match sets | It must collect the matching rows before the mutation. | A spill buffer that CamusDB can enumerate again. |
 
@@ -60,6 +62,21 @@ buffer. For example:
 - A streaming `DISTINCT` over an ordered index.
 - A merge join, which walks two inputs already sorted on the join key and
   buffers only the current run of equal keys.
+
+A [window function](/docs/sql-queries#window-functions) processes one SQL
+partition at a time. Spilling its rows does not bound all memory use: the
+window's input values and computed results still grow with that partition's
+row count. `EXPLAIN (ANALYZE)` reports spilled partition buffers in the
+[`window` node](/docs/explain#window-functions).
+
+JSONB aggregate states (`jsonb_agg` and `jsonb_object_agg`) count their retained
+bytes as they grow inside a group, so byte-based spilling can trigger even
+with few groups. The per-document size limit still applies; spilling does not
+allow an oversized aggregate result.
+
+GIN scans also use the row and byte thresholds to bound candidate collection,
+even with spill disabled. They switch to a table scan rather than spilling
+candidate IDs. See [JSONB indexes](/docs/json#how-a-gin-scan-works).
 
 ## DELETE and UPDATE
 

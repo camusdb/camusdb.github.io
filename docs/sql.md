@@ -16,10 +16,10 @@ additions:
 - Schemas with `CHECK` constraints, foreign keys, sequences, identity columns,
   views, and materialized views.
 - Queries with inner, outer, and cross joins, subqueries, derived tables,
-  aggregates, and `CASE` expressions.
+  aggregates, window functions, and `CASE` expressions.
 - Writes with `INSERT ... SELECT` and `RETURNING`.
 - Serializable transactions, time-travel reads, vector search, row-level TTL,
-  roles and grants, and a large library of scalar functions.
+  users and grants, and a large library of scalar functions.
 
 This page covers the parts that belong to CamusDB alone and maps each statement
 to its page.
@@ -83,7 +83,7 @@ SELECT `select`, `from`
 FROM `order`;
 ```
 
-`CASE` and `END` are reserved, so a column named `end` needs
+`CASE`, `END`, and `OVER` are reserved, so a column named `end` needs
 ``SELECT `end` FROM events``.
 
 ## Literals
@@ -136,36 +136,42 @@ number, write `10 - -5`, with a space.
 
 | Task | Page |
 | --- | --- |
-| Create and drop a database | [Databases](/docs/databases) |
+| Create, rename, and drop databases | [Databases](/docs/databases) |
 | Branch a database | [Database Branching](/docs/database-branching) |
 | Restore a dropped database or table | [Recover Dropped Objects](/docs/recover-dropped-objects) |
-| Tables, columns, and `ALTER` | [Tables And Columns](/docs/sql-schema) |
+| Tables, columns, and `ALTER TABLE` | [Tables And Columns](/docs/sql-schema) |
 | Column types and literals | [Data Types](/docs/data-types) |
-| PostgreSQL-style expression forms | [PostgreSQL Expression Syntax](/docs/sql-expression-syntax) |
 | `CHECK` and `NOT NULL` | [Check Constraints](/docs/check-constraints) |
 | Parent-child integrity | [Foreign Keys](/docs/foreign-keys) |
-| Indexes and covering indexes | [Indexes](/docs/sql-indexes) |
+| `CREATE INDEX`, `DROP INDEX`, and covering indexes | [Indexes](/docs/sql-indexes) |
+| GIN indexes for JSONB | [JSON Indexes](/docs/json#gin-indexes) |
 | Sequences and identity columns | [Sequences](/docs/sequences) |
 | Descriptions on schema objects | [Schema Comments](/docs/comment-on) |
+| Column compression and out-of-line storage | [Large Values](/docs/storage-layout) |
 | A stored query | [Views](/docs/views) |
-| A stored query result | [Materialized Views](/docs/materialized-views) |
+| A stored query result and `REFRESH MATERIALIZED VIEW` | [Materialized Views](/docs/materialized-views) |
 
 ### Read and write
 
 | Task | Page |
 | --- | --- |
-| `INSERT`, `UPDATE`, `DELETE` | [Insert, Update, Delete](/docs/sql-writes) |
+| `INSERT`, `UPDATE`, `DELETE`; `LIMIT` on updates and deletes | [Insert, Update, Delete](/docs/sql-writes) |
+| `RETURNING` from inserts, updates, and deletes | [Return Changed Rows](/docs/sql-writes#returning) |
 | `ON CONFLICT`, `UPSERT` | [Skip or Update Conflicting Rows](/docs/sql-writes#on-conflict) |
 | `INSERT ... SELECT` and CTAS | [Copying Query Results](/docs/insert-select-and-ctas) |
 | `TRUNCATE`, which empties a table | [Emptying A Table](/docs/truncate-table) |
-| `SELECT`, filtering, grouping, ordering | [SELECT](/docs/sql-queries) |
+| `SELECT`, filtering, grouping, sorting, and pagination | [SELECT](/docs/sql-queries) |
 | `FOR UPDATE`, `NOWAIT`, `SKIP LOCKED` | [Lock Rows Before Updating Them](/docs/sql-queries#for-update) |
+| Ranking, running totals, and comparisons between rows | [Window Functions](/docs/sql-queries#window-functions) |
 | Joins, subqueries, derived tables | [Joins And Subqueries](/docs/joins-and-subqueries) |
 | `UNION`, `INTERSECT`, `EXCEPT`, including `ALL` | [Combine Query Results](/docs/sql-queries#set-operations) |
 | A historical snapshot | [Time-Travel Reads](/docs/time-travel-reads) |
 | A `SELECT` with no table source | [SELECT Without FROM](/docs/sql-fromless-select) |
+| JSONB documents, operators, and updates | [JSON Documents](/docs/json) |
+| PostgreSQL-style casts, arrays, and expression forms | [PostgreSQL Expression Syntax](/docs/sql-expression-syntax) |
 | Scalar functions | [Functions](/docs/functions) |
-| Custom C# functions, row triggers, and procedures | [C# Extensions](/docs/csharp-extensions) |
+| Generate rows with `generate_series` | [Set-Returning Functions](/docs/functions-set-returning) |
+| Custom C# functions, row triggers, and `CALL` procedures | [C# Extensions](/docs/csharp-extensions) |
 | Vectors and nearest neighbor search | [Vector Search](/docs/vector-search) |
 | Row expiry | [Row-Level TTL](/docs/row-level-ttl) |
 
@@ -173,16 +179,28 @@ number, write `10 - -5`, with a space.
 
 | Task | Page |
 | --- | --- |
-| `BEGIN`, `COMMIT`, isolation, locks | [Transactions In SQL](/docs/sql-transactions) |
+| `BEGIN`, `COMMIT`, `ROLLBACK`, isolation, and locks | [Transactions In SQL](/docs/sql-transactions) |
+| Snapshot behavior and isolation guarantees | [Transactions And Isolation](/docs/serializable-transactions) |
+| Retry a transaction after a conflict | [Retries And Conflicts](/docs/serializable-retries) |
+| Transaction size and lifetime limits | [Transaction Limits](/docs/transaction-limits) |
+| `SET TRANSACTION PRIORITY` | [Transaction Priority](/docs/transaction-priority) |
 | How CamusDB selects a plan | [Query Planning](/docs/query-planning) |
 | How to read a plan | [EXPLAIN](/docs/explain) |
 | The estimates behind a plan | [SHOW STATISTICS](/docs/show-statistics) |
+| Refresh optimizer statistics with `ANALYZE` | [Automatic Analyze](/docs/automatic-analyze) |
 | Caching repeated reads | [Result Cache](/docs/query-result-cache) |
+| Spill large query buffers to temporary files | [Spill To Disk](/docs/spill-to-disk) |
 | Scans across the cluster | [Distributed Queries](/docs/distributed-queries) |
+| Learn routes for repeated SQL | [SQL Routing Advice](/docs/sql-routing-advice) |
 | The range placement of a table or index | [SHOW RANGES](/docs/show-ranges) |
+| Active queries, connections, and `CANCEL QUERY` | [Query Activity](/docs/query-activity) |
 | Statements that crossed a slow-query threshold | [Slow Query Log](/docs/slow-query-log) |
+| Repeated query costs with `SHOW STATEMENT STATS` | [Statement Statistics](/docs/statement-stats) |
+| Index reads and writes with `SHOW INDEX USAGE` | [Index Usage](/docs/index-usage) |
+| Storage and replication metrics with `SHOW ENGINE STATS` | [Engine Stats](/docs/engine-stats) |
+| Effective configuration with `SHOW VARIABLES` | [SHOW VARIABLES](/docs/show-variables) |
 | Placeholders and prepared handles | [Parameters And Prepared Statements](/docs/prepared-statements) |
 | A deeply nested generated statement | [Statement Nesting Limit](/docs/statement-nesting-limit) |
-| `SHOW`, `DESCRIBE`, `ANALYZE` | [Inspecting The Database](/docs/sql-inspection) |
-| Grants and roles | [Authentication And Authorization](/docs/sql-authentication) |
-| `SET` and `RESET CLUSTER SETTING` | [Runtime Cluster Settings](/docs/runtime-cluster-settings) |
+| List databases, tables, columns, and indexes | [Inspecting The Database](/docs/sql-inspection) |
+| Users, passwords, `GRANT`, and `REVOKE` | [Authentication And Authorization](/docs/sql-authentication) |
+| `SET`/`RESET CLUSTER SETTING` and `SHOW CLUSTER SETTINGS` | [Runtime Cluster Settings](/docs/runtime-cluster-settings) |

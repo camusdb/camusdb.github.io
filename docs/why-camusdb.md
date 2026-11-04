@@ -309,6 +309,11 @@ indexes, statistics with automatic analysis, joins, subqueries, aggregates,
 views, materialized views, prepared statements, result caching, spill-to-disk
 execution, row-level TTL, write-ahead logging, and crash recovery.
 
+It also stores [JSON documents](/docs/json) in `JSONB` columns, with the
+PostgreSQL operators and functions, and
+[GIN indexes](/docs/json#gin-indexes) that search inside them. Flexible data
+can live next to relational columns, in the same transactions.
+
 Operational tooling, production hardening, and multi-region controls continue
 to evolve.
 

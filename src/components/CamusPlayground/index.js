@@ -72,6 +72,36 @@ export const defaultExamples = [
     sql: "SELECT title, year\nFROM books\nWHERE author IN (SELECT name FROM authors WHERE country = 'UK')\nORDER BY year;",
   },
   {
+    label: 'JSONB documents',
+    sql: `CREATE TABLE IF NOT EXISTS book_details (
+  id INT64 PRIMARY KEY,
+  details JSONB NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS book_details_gin
+ON book_details USING GIN (details);
+
+-- UPSERT makes this example safe to run again.
+UPSERT INTO book_details (id, details) VALUES
+  (1, JSONB '{"title":"Foundation","tags":["science-fiction","classic"],"edition":{"format":"paperback"},"available":true}'),
+  (2, JSONB '{"title":"Solaris","tags":["science-fiction"],"edition":{"format":"ebook"},"available":false}'),
+  (3, JSONB '{"title":"A Wizard of Earthsea","tags":["fantasy"],"edition":{"format":"paperback"},"available":true}');
+
+-- Change one field while keeping the rest of the document.
+UPDATE book_details
+SET details = jsonb_set(details, '{available}', 'true')
+WHERE id = 2;
+
+-- The GIN index can serve this containment filter.
+SELECT details ->> 'title' AS title,
+       details #>> '{edition,format}' AS format,
+       jsonb_array_length(details -> 'tags') AS tag_count,
+       details
+FROM book_details
+WHERE details @> '{"tags":["science-fiction"],"available":true}'
+ORDER BY id;`,
+  },
+  {
     label: 'Returning',
     sql: `CREATE TABLE IF NOT EXISTS reading_list (
   id OID PRIMARY KEY NOT NULL DEFAULT (gen_id()),
@@ -216,28 +246,29 @@ const sqlKeywords = new Set([
   'DEFAULT', 'DEFERRABLE', 'DEFERRED', 'DELETE', 'DESC', 'DESCRIBE', 'DISTINCT', 'DO', 'DROP',
   'ELSE', 'END', 'ENGINE', 'EVICT', 'EXCEPT', 'EXCLUDED', 'EXISTS', 'EXIT', 'EXPLAIN', 'EXTENDED',
   'EXTENSION', 'EXTENSIONS', 'EXTERNAL', 'FALSE', 'FLUSH', 'FOLLOWING', 'FOR', 'FORCE',
-  'FORCE_INDEX', 'FOREIGN', 'FROM', 'FULL', 'GENERATED', 'GRANT', 'GRANTS', 'GROUP', 'HAVING',
-  'HIGH', 'IDENTIFIED', 'IDENTITY', 'IF', 'ILIKE', 'IMMEDIATE', 'IN', 'INCLUDE', 'INCREMENT',
-  'INDEX', 'INDEXES', 'INITIALLY', 'INLINE', 'INNER', 'INSERT', 'INTERSECT', 'INTO', 'IS',
-  'ISOLATION', 'JOIN', 'KEY', 'LEFT', 'LEVEL', 'LIKE', 'LIMIT', 'LOCAL', 'LOCKED', 'LOCKING',
-  'LOGICAL', 'LOW', 'MAIN', 'MATCH', 'MATERIALIZED', 'MAXVALUE', 'MINVALUE', 'MONITOR', 'NAME',
-  'NATURAL', 'NO', 'NORMAL', 'NOT', 'NOTHING', 'NOWAIT', 'NULL', 'OF', 'OFFSET', 'ON', 'ONLY',
-  'OPTIMISTIC', 'OPTION', 'OR', 'ORDER', 'ORPHAN', 'OUTER', 'OVER', 'OWNED', 'OWNER', 'PARTIAL',
-  'PARTITION', 'PASSWORD', 'PESSIMISTIC', 'PHYSICAL', 'PLAIN', 'PRECEDING', 'PRIMARY', 'PRIORITY',
-  'PRIVILEGES', 'QUERIES', 'QUERY', 'QUIT', 'RANGE', 'RANGES', 'READ', 'REFERENCES', 'REFRESH',
-  'RELINK', 'RENAME', 'REPLACE', 'RESET', 'RESTART', 'RESTRICT', 'RETURNING', 'REVOKE', 'REWRITE',
-  'RIGHT', 'ROLLBACK', 'ROW', 'ROWS', 'SELECT', 'SEQUENCE', 'SEQUENCES', 'SERIALIZABLE', 'SESSIONS',
-  'SET', 'SETTING', 'SETTINGS', 'SHARE', 'SHOW', 'SIMPLE', 'SKIP', 'SLOW', 'SOME', 'SOURCE',
-  'START', 'STATEMENT', 'STATISTICS', 'STATS', 'STORAGE', 'STRICT', 'SYSTEM', 'TABLE', 'TABLES',
-  'THEN', 'TIME', 'TO', 'TRANSACTION', 'TRIGGER', 'TRUE', 'TRUNCATE', 'TTL', 'UNBOUNDED', 'UNION',
-  'UNIQUE', 'UPDATE', 'UPSERT', 'USAGE', 'USE', 'USER', 'USERS', 'USING', 'VALID', 'VALIDATE',
-  'VALUES', 'VARIABLES', 'VERSION', 'VIEW', 'VIEWS', 'WHEN', 'WHERE', 'WITH', 'WITHOUT', 'WRITE',
+  'FORCE_INDEX', 'FOREIGN', 'FROM', 'FULL', 'GENERATED', 'GIN', 'GRANT', 'GRANTS', 'GROUP',
+  'HAVING', 'HIGH', 'IDENTIFIED', 'IDENTITY', 'IF', 'ILIKE', 'IMMEDIATE', 'IN', 'INCLUDE',
+  'INCREMENT', 'INDEX', 'INDEXES', 'INITIALLY', 'INLINE', 'INNER', 'INSERT', 'INTERSECT', 'INTO',
+  'INVERTED', 'IS', 'ISOLATION', 'JOIN', 'KEY', 'LEFT', 'LEVEL', 'LIKE', 'LIMIT', 'LOCAL', 'LOCKED',
+  'LOCKING', 'LOGICAL', 'LOW', 'MAIN', 'MATCH', 'MATERIALIZED', 'MAXVALUE', 'MINVALUE', 'MONITOR',
+  'NAME', 'NATURAL', 'NO', 'NORMAL', 'NOT', 'NOTHING', 'NOWAIT', 'NULL', 'OF', 'OFFSET', 'ON',
+  'ONLY', 'OPTIMISTIC', 'OPTION', 'OR', 'ORDER', 'ORPHAN', 'OUTER', 'OVER', 'OWNED', 'OWNER',
+  'PARTIAL', 'PARTITION', 'PASSWORD', 'PESSIMISTIC', 'PHYSICAL', 'PLAIN', 'PRECEDING', 'PRIMARY',
+  'PRIORITY', 'PRIVILEGES', 'QUERIES', 'QUERY', 'QUIT', 'RANGE', 'RANGES', 'READ', 'REFERENCES',
+  'REFRESH', 'RELINK', 'RENAME', 'REPLACE', 'RESET', 'RESTART', 'RESTRICT', 'RETURNING', 'REVOKE',
+  'REWRITE', 'RIGHT', 'ROLLBACK', 'ROW', 'ROWS', 'SELECT', 'SEQUENCE', 'SEQUENCES', 'SERIALIZABLE',
+  'SESSIONS', 'SET', 'SETTING', 'SETTINGS', 'SHARE', 'SHOW', 'SIMPLE', 'SKIP', 'SLOW', 'SOME',
+  'SOURCE', 'START', 'STATEMENT', 'STATISTICS', 'STATS', 'STORAGE', 'STRICT', 'SYSTEM', 'TABLE',
+  'TABLES', 'THEN', 'TIME', 'TO', 'TRANSACTION', 'TRIGGER', 'TRUE', 'TRUNCATE', 'TTL', 'UNBOUNDED',
+  'UNION', 'UNIQUE', 'UPDATE', 'UPSERT', 'USAGE', 'USE', 'USER', 'USERS', 'USING', 'VALID',
+  'VALIDATE', 'VALUES', 'VARIABLES', 'VERSION', 'VIEW', 'VIEWS', 'WHEN', 'WHERE', 'WITH', 'WITHOUT',
+  'WRITE',
 ]);
 const sqlTypes = new Set([
-  'ARRAY', 'BLOB', 'BOOL', 'BOOLEAN', 'BYTES', 'CHAR', 'DATE', 'DATETIME',
-  'BIGSERIAL', 'DECIMAL', 'DOUBLE', 'FLOAT', 'FLOAT32', 'FLOAT64', 'GUID', 'INT', 'INT64',
-  'INTEGER', 'NUMERIC', 'OBJECT_ID', 'OID', 'REAL', 'SERIAL', 'SMALLINT', 'STRING', 'TEXT',
-  'TIMESTAMP', 'UUID', 'VARCHAR',
+  'ARRAY', 'BIGSERIAL', 'BLOB', 'BOOL', 'BOOLEAN', 'BYTES', 'CHAR', 'DATE', 'DATETIME', 'DECIMAL',
+  'DOUBLE', 'FLOAT', 'FLOAT32', 'FLOAT64', 'GUID', 'INT', 'INT64', 'INTEGER', 'JSON', 'JSONB',
+  'NUMERIC', 'OBJECT_ID', 'OID', 'REAL', 'SERIAL', 'SMALLINT', 'STRING', 'TEXT', 'TIMESTAMP',
+  'UUID', 'VARCHAR',
 ]);
 const sqlFunctions = new Set([
   'ABS', 'ACOS', 'ARRAY_CONTAINS', 'ARRAY_LENGTH', 'ASIN', 'ATAN', 'ATAN2', 'AVG', 'BIT_COUNT',
@@ -248,8 +279,16 @@ const sqlFunctions = new Set([
   'DATE_TRUNC', 'DAY', 'DAYNAME', 'DAYOFMONTH', 'DAYOFWEEK', 'DAYOFYEAR', 'DECODE', 'DENSE_RANK',
   'DIGEST', 'ENCODE', 'ENDS_WITH', 'EXP', 'EXTRACT', 'FIRST_VALUE', 'FLOOR', 'FROM_BASE64',
   'FROM_UNIXTIME', 'GENERATE_SERIES', 'GEN_ID', 'GEN_RANDOM_BYTES', 'GEN_UUID_V4', 'GEN_UUID_V7',
-  'GET_BIT', 'GET_BYTE', 'HEX', 'HMAC', 'HOUR', 'IFNULL', 'INNER_PRODUCT', 'IS_SUPERUSER',
-  'JSON_ARRAY_LENGTH', 'JSON_CONTAINS', 'JSON_EXTRACT', 'JSON_TYPE', 'JSON_VALID', 'JSON_VALUE',
+  'GET_BIT', 'GET_BYTE', 'HEX', 'HMAC', 'HOUR', 'IF', 'IFNULL', 'INNER_PRODUCT', 'IS_SUPERUSER',
+  'JSONB_AGG', 'JSONB_ARRAY_ELEMENTS', 'JSONB_ARRAY_ELEMENTS_TEXT', 'JSONB_ARRAY_LENGTH',
+  'JSONB_BUILD_ARRAY', 'JSONB_BUILD_OBJECT', 'JSONB_EACH', 'JSONB_EACH_TEXT', 'JSONB_EXISTS',
+  'JSONB_EXISTS_ALL', 'JSONB_EXISTS_ANY', 'JSONB_EXTRACT_PATH', 'JSONB_EXTRACT_PATH_TEXT',
+  'JSONB_INSERT', 'JSONB_OBJECT', 'JSONB_OBJECT_AGG', 'JSONB_OBJECT_KEYS', 'JSONB_PRETTY',
+  'JSONB_SET', 'JSONB_SET_LAX', 'JSONB_STRIP_NULLS', 'JSONB_TYPEOF', 'JSON_AGG',
+  'JSON_ARRAY_ELEMENTS', 'JSON_ARRAY_ELEMENTS_TEXT', 'JSON_ARRAY_LENGTH', 'JSON_BUILD_ARRAY',
+  'JSON_BUILD_OBJECT', 'JSON_CONTAINS', 'JSON_EACH', 'JSON_EACH_TEXT', 'JSON_EXTRACT',
+  'JSON_EXTRACT_PATH', 'JSON_EXTRACT_PATH_TEXT', 'JSON_OBJECT', 'JSON_OBJECT_AGG',
+  'JSON_OBJECT_KEYS', 'JSON_STRIP_NULLS', 'JSON_TYPE', 'JSON_TYPEOF', 'JSON_VALID', 'JSON_VALUE',
   'L2_DISTANCE', 'LAG', 'LASTVAL', 'LAST_DAY', 'LAST_VALUE', 'LEAD', 'LENGTH', 'LN', 'LOG', 'LOWER',
   'LTRIM', 'MAKEDATE', 'MAKE_DATE', 'MAKE_TIMESTAMP', 'MAX', 'MD5', 'MIN', 'MINUTE', 'MOD', 'MONTH',
   'MONTHNAME', 'NEXTVAL', 'NOW', 'NTH_VALUE', 'NTILE', 'NULLIF', 'NVL', 'OCTET_LENGTH',
@@ -259,10 +298,10 @@ const sqlFunctions = new Set([
   'ROW_NUMBER', 'RTRIM', 'SECOND', 'SETVAL', 'SET_BIT', 'SET_BYTE', 'SHA1', 'SHA256', 'SHA512',
   'SIGN', 'SIN', 'SQRT', 'STARTS_WITH', 'STATEMENT_TIMESTAMP', 'STRPOS', 'STR_ID', 'STR_TO_DATE',
   'SUBSTR', 'SUBSTRING', 'SUM', 'SYSDATE', 'TAN', 'TO_BASE64', 'TO_BOOL', 'TO_BYTES', 'TO_CHAR',
-  'TO_DATE', 'TO_DATETIME', 'TO_FLOAT32', 'TO_FLOAT64', 'TO_ID', 'TO_INT64', 'TO_STRING',
-  'TO_TIMESTAMP', 'TRANSACTION_TIMESTAMP', 'TRIM', 'TRUNC', 'UNHEX', 'UNIX_MICROSECONDS',
-  'UNIX_MILLISECONDS', 'UNIX_SECONDS', 'UNIX_TIMESTAMP', 'UNIX_TIMESTAMP_MS', 'UPPER',
-  'VECTOR_DIMS', 'WEEK', 'WEEKDAY', 'YEAR',
+  'TO_DATE', 'TO_DATETIME', 'TO_FLOAT32', 'TO_FLOAT64', 'TO_ID', 'TO_INT64', 'TO_JSON', 'TO_JSONB',
+  'TO_STRING', 'TO_TIMESTAMP', 'TRANSACTION_TIMESTAMP', 'TRIM', 'TRUNC', 'UNHEX',
+  'UNIX_MICROSECONDS', 'UNIX_MILLISECONDS', 'UNIX_SECONDS', 'UNIX_TIMESTAMP', 'UNIX_TIMESTAMP_MS',
+  'UPPER', 'VECTOR_DIMS', 'WEEK', 'WEEKDAY', 'YEAR',
 ]);
 
 function readQuoted(sql, start) {
@@ -331,6 +370,7 @@ function tokenizeSql(sql) {
       const after = sql.slice(index + value.length).trimStart();
       let kind = 'plain';
       if (sqlTypes.has(upper)) kind = 'type';
+      else if (upper === 'IF' && after.startsWith('(')) kind = 'function';
       else if (sqlKeywords.has(upper)) kind = 'keyword';
       else if (sqlFunctions.has(upper) || after.startsWith('(')) kind = 'function';
       tokens.push({kind, value});
@@ -338,7 +378,7 @@ function tokenizeSql(sql) {
       continue;
     }
 
-    const operator = /^(?:!~\*|~\*|!~|~|::|<>|!=|<=|>=|[-+*/%=<>()[\],.;])/.exec(rest);
+    const operator = /^(?:->>|->|#>>|#>|#-|@>|<@|\?[|&]?|\|\||!~\*|~\*|!~|~|::|<>|!=|<=|>=|<<|>>|[-+*/%=<>#&|^~()[\],.;])/.exec(rest);
     if (operator) {
       tokens.push({kind: 'operator', value: operator[0]});
       index += operator[0].length;

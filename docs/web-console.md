@@ -488,6 +488,18 @@ Sequences appear after tables. Double-click a sequence to insert
 Dangerous actions require confirmation. DDL run from the editor also refreshes
 the schema tree and schema-aware completion.
 
+### JSON documents
+
+JSONB cells display PostgreSQL-formatted JSON text, with a tooltip for a long
+document. Create Table and Add Column accept JSONB, and validate JSON defaults.
+The row editor opens an indented, multiline document and writes it back as a
+typed `JSONB` literal. The text `null` means JSON null; the NULL toggle means
+SQL NULL.
+
+Add Index on a JSONB column creates a single-column, non-unique GIN index. The
+schema tree marks it with `(GIN)`. See [JSON documents](/docs/json) for operators
+and index behavior.
+
 ## Query behavior
 
 The console routes SQL by statement shape:
@@ -563,6 +575,9 @@ contains.
 separate branches, including nested set operations. Per-span measurements for
 gathers and broadcast probes stay attached to their operator.
 
+Window plans have their own operator family, and `gin-scan` identifies a JSONB
+index scan. SQL highlighting also recognizes window clauses and JSONB operators.
+
 Rows that describe the whole plan, such as `plan-info`, `distribution`, and
 `cache`, appear below the diagram as plan notes. The console remembers whether
 you last used `Table` or `Flow`, so the next plan opens in the same view.
@@ -593,6 +608,7 @@ The Administration page exposes node-local operational views:
 
 | Panel | What it shows or does |
 | --- | --- |
+| Node | Disk space, CPU, and memory from the node statistics API; select a node when using an endpoint pool. |
 | Engine stats | Runs `SHOW ENGINE STATS` and displays the metrics of the node that answered. |
 | Statements | Runs `SHOW STATEMENT STATS` to compare query frequency, execution time, errors, scans, spills, retries, and plan changes. |
 | Index usage | Runs `SHOW INDEX USAGE` for the current database to compare index reads, constraint checks, and writes. |
@@ -600,9 +616,12 @@ The Administration page exposes node-local operational views:
 | Backups | Takes full, incremental, and coordinated backups; lists the backup catalog; validates a chain; previews or runs retention garbage collection. |
 
 These views are node-local: they show only the node that answered, and do not
-forward to another node. To compare a cluster, point the console at each node.
+forward to another node. The Node tab can target each configured endpoint;
+for other panels, change the console connection to inspect a different node.
 
-When authentication is enabled, Administration requires a superuser. Engine
+When authentication is enabled, the Node tab accepts a superuser or an account
+with `MONITOR` (`GRANT MONITOR ON *.* TO user`). A monitor-only account sees
+only that tab; reconnect after a grant. All other tabs require a superuser. Engine
 metrics and index usage describe node-level workload, statement statistics can
 contain other users' SQL, variables describe the node's configuration, and
 backups cover every database on the node.
@@ -610,6 +629,15 @@ backups cover every database on the node.
 Backups are available only when the server has backup configuration. See
 [Backup And Restore](/docs/backup-and-restore) for backup setup, retention,
 coordinated backups, and offline restore.
+
+### Inspect node resources
+
+Open **Node** to inspect each engine volume's free space, the write watermark,
+CPU utilization, working set, and managed heap. **Below watermark** means the
+node refuses writes with `CADB0536`. Unavailable readings include their reason.
+Use **Take reading** to refresh once or **Auto every 5s** for periodic readings;
+the Node selector targets an endpoint from the configured pool. See
+[Node stats](/docs/node-stats) for metric definitions.
 
 ### Find expensive statements
 
@@ -645,7 +673,8 @@ before exporting if you need more rows. The console downloads CSV or JSON.
 
 CSV uses proper quoting and escaping. JSON downloads an array of objects with
 dates as ISO-8601 strings, blobs as hex, UUIDs in standard textual form, and
-`NUMERIC` values as strings so no digits are lost.
+`NUMERIC` values as strings so no digits are lost. JSONB values are written as
+native JSON documents, preserving their numbers, rather than quoted JSON text.
 
 If the table holds more rows than `MaxRows`, the export reports that the result
 was truncated.

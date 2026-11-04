@@ -9,12 +9,14 @@ SQL and migration scripts:
 
 | Form | Example | Meaning |
 | --- | --- | --- |
+| Window functions | `row_number() OVER (PARTITION BY customer_id ORDER BY id)` | [Ranks rows without grouping them into one result](/docs/sql-queries#window-functions). |
 | Digit separators | `200_000` | The number `200000`. |
 | `%` | `i % 3` | The remainder of `i / 3`, the same as `mod(i, 3)`. |
 | `::` | `x::text` | The same as `CAST(x AS text)`. |
 | Subscript | `tags[1]` | The first element of an array. |
 | Quantified comparison | `'news' = ANY (tags)` | `true` when the array holds the value. |
 | Quantified comparison | `score > ALL (limits)` | `true` when the value is greater than every array element. |
+| JSONB operators | `payload ->> 'kind'` | [Reads, tests, and changes JSON documents](#jsonb-operators). |
 
 Together they allow statements such as this:
 
@@ -132,6 +134,21 @@ cast the elements to one type.
 See [Data Types](/docs/data-types#arrays) for array columns and literals. See
 [Array Functions](/docs/functions-array) for `cardinality`, `array_length`, and
 `array_contains`.
+
+## Subqueries in expressions
+
+Uncorrelated subqueries work in SELECT lists, HAVING, JOIN ON, and write
+expressions as well as WHERE. They can be nested inside CASE branches,
+function arguments, comparisons, and BETWEEN bounds. For example:
+
+```camussql
+SELECT id, EXISTS (SELECT 1 FROM stock_alerts WHERE active = true) AS has_alerts
+FROM products;
+```
+
+The inner query runs once. Correlated EXISTS is supported only in the WHERE
+of a SELECT; other correlated forms remain unsupported. See
+[subquery positions and examples](/docs/joins-and-subqueries#subqueries-in-where).
 
 ## Quantified comparisons
 
@@ -257,3 +274,27 @@ CamusDB has no array text literal, so an expression such as
 A column can still be named `any`, `some`, or `all`. These words act as a
 quantifier only when a parenthesized argument follows them on the right side of
 a comparison.
+
+## JSONB operators
+
+CamusDB supports the PostgreSQL operators for [`JSONB` documents](/docs/json#operators):
+`->`, `->>`, `#>`, `#>>`, `@>`, `<@`, `?`, `?|`, `?&`, `||`, `-`, and `#-`.
+
+```camussql
+SELECT payload -> 'user' ->> 'id'
+FROM events
+WHERE payload @> '{"kind": "login"}'
+  AND payload ->> 'deleted_at' IS NULL;
+```
+
+These operators bind tighter than comparisons, `IS`, and `IN`, and less tightly
+than unary minus and `::`. PostgreSQL puts them at the level of `||`. CamusDB
+gives them their own level because it binds `IS` tighter than every binary
+operator, and `doc ->> 'k' IS NULL` must still test the result of `->>`.
+
+`#-` with no space between the two characters is the delete-path operator.
+Before `JSONB`, `x #-1` meant `x XOR -1`. It now deletes a path. For XOR, write
+`x # -1`, with a space.
+
+`<@` is the contained-by operator only when no placeholder name follows it
+directly. `x <@p` still means `x < @p`. Write `x <@ @p` for the operator.

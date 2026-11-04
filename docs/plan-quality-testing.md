@@ -47,6 +47,41 @@ The data generators use fixed seeds and load rows in a stable order. The suite
 runs `ANALYZE` explicitly and disables caches and background jobs that would
 make counters vary between runs.
 
+## Randomized SQL correctness testing
+
+The complementary `CamusDB.SqlFuzz.Tests` suite generates SQL and checks
+relationships that must hold between equivalent queries. It can find wrong
+rows even when no query raises an error, without needing a second database:
+
+| Check | What it compares |
+| --- | --- |
+| Predicate partitioning (TLP) | A full result against rows where a predicate is true, false, or NULL. |
+| Count rewriting (NoREC) | Equivalent ways of counting matching rows. |
+| Plan equivalence | Results under index/full-scan hints, planner settings, and forced join strategies. |
+| Error classification | Expected SQL errors versus internal errors, hangs, and invalid HTTP JSON output. |
+| Write integrity | Expected write effects and consistency of rows, indexes, covering payloads, and large values. |
+
+Run the campaigns from the CamusDB checkout:
+
+```bash
+SQLFUZZ_SEED=42 SQLFUZZ_BUDGET_SECONDS=30 \
+  dotnet test CamusDB.SqlFuzz.Tests/CamusDB.SqlFuzz.Tests.csproj \
+  --filter 'FullyQualifiedName~.FuzzCampaignTests.'
+```
+
+The budget is per check, not for the entire run. A finding records its seed
+and round, reduces the SQL to a smaller failing case, and emits a regression
+test. Set `SQLFUZZ_ORACLE` (`tlp`, `norec`, `plan`, `error`, or `dml`) and
+`SQLFUZZ_ROUND` with the recorded seed to replay one case. Reports go under
+`sqlfuzz-findings` in the test output directory; `SQLFUZZ_OUTPUT_DIR` overrides it.
+
+The [nightly workflow](https://github.com/camusdb/camusdb/actions/workflows/sql-fuzz-nightly.yml)
+rotates seeds and uploads findings. This suite runs one session at a time, so
+it does not test concurrency or injected faults. Row-equivalence checks skip
+order-dependent shapes such as LIMIT, window functions, and set operations;
+those still receive error checks. A defect shared by every compared form can
+also escape detection. See [Caraxes](/docs/caraxes) for distributed fault testing.
+
 ## Comparison with SQLite and PostgreSQL
 
 The Join Order Benchmark also provides a reference comparison with SQLite and

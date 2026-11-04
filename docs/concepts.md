@@ -367,8 +367,9 @@ alternative backends. See
 [Solarium](https://solariumdb.github.io/) is an embedded key/value engine written
 in C#. You can use it instead of RocksDB or SQLite for the stored key/value
 state, the Raft WAL, or both. It runs inside the CamusDB process without a
-native RocksDB dependency. Its caches use the .NET managed heap, so include
-them when sizing the node's memory. See
+native RocksDB dependency. Its cache and memtable budgets use native memory,
+while index/filter partitions and handles use the .NET heap. Include both when
+sizing the node's memory. See
 [Solarium storage](/docs/storage#solarium-backend) for configuration and
 migration considerations.
 

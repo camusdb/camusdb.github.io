@@ -60,8 +60,9 @@ EXPLAIN (LOGICAL)  SELECT ...   -- same plan, stage column = "logical"
 EXPLAIN (ANALYZE)  SELECT ...   -- executes the query and adds actual counters
 ```
 
-`EXPLAIN` without `ANALYZE` builds the physical plan. It opens no table cursor
-and reads no row data.
+`EXPLAIN` without `ANALYZE` builds the physical plan without executing the
+outer query. Preparing a plan can still execute uncorrelated inner subqueries,
+as described below.
 
 `EXPLAIN (ANALYZE)` executes the full query and drains the result, then reports
 the true runtime counters beside the estimate columns.
@@ -105,6 +106,34 @@ Under ANALYZE its detail includes:
 
 The step's `actual_rows` is `locked − recheck-dropped`, before a later OFFSET
 removes rows. See [row-locking SELECT](/docs/sql-queries#for-update) for semantics.
+
+## Window functions
+
+[Window queries](/docs/sql-queries#window-functions) show one `window` node
+with an entry for each distinct partition and ordering specification. Functions
+that read a frame include it in the detail. For example:
+
+```camussql
+EXPLAIN (ANALYZE)
+SELECT customer_id, id,
+       sum(total) OVER (
+         PARTITION BY customer_id ORDER BY id
+         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+       ) AS running_total
+FROM orders;
+```
+
+The `window` detail adds these runtime counters:
+
+| Counter | Meaning |
+| --- | --- |
+| `partitions` | Partitions computed, summed across window specifications. These are SQL window groups, not storage partitions. |
+| `rows` | Rows processed, summed across those specifications; a row can count more than once. |
+| `spilled` | Full-row partition buffers moved to disk. |
+
+The window step runs on the statement's executing node after its input query,
+before final projection, ordering, and pagination. Its input can still use
+distributed scans and partial aggregates.
 
 ## Result columns
 
@@ -238,8 +267,10 @@ parent before its children.
 | `index-lookup`           | An equality on a unique index | `index=<name>, key=<value>` |
 | `index-range-scan`       | A range predicate with `<`, `>`, or `BETWEEN`, or an equality on a non-unique index | `index=<name>, from>=<val>, to<<val>` |
 | `index-in-list`          | `x IN (v1, v2, …)` on an indexed column. CamusDB seeks the index once per distinct value and unions the results. | `index=<name>, values=<n>`, where `n` is the number of values sought |
+| `gin-scan`               | A `JSONB` filter, such as `@>` or `?`, served by a [GIN index](/docs/json#gin-indexes). A `filter` node above it checks each candidate row. | `index=<name>, groups=<n>, entries=<m>`, where `entries` is the number of index lookups |
 | `filter`                 | A residual predicate that the chosen index does not satisfy | `<expr>` |
 | `aggregate`              | A `GROUP BY` or an aggregate function | `group=[<exprs>], aggs=[<calls>]` |
+| `window` | Window functions with an `OVER` clause. | Partition keys, ordering, functions, and frames; runtime partition and spill counters under ANALYZE. |
 | `having-filter`          | A `HAVING` clause, after aggregation | `<expr>` |
 | `sort`                   | An `ORDER BY` that the scan order does not satisfy | `<col> ASC/DESC, ...` |
 | `topk`                   | An `ORDER BY` bounded by a `LIMIT`. It keeps only `offset + limit` rows and never spills. See [Vector search](/docs/vector-search). | `k: <n>, <col> ASC/DESC, ...` |

@@ -309,7 +309,7 @@ memory: 512 statements permit 512 times the size of the largest accepted
 request.
 
 Inline SQL is also checked against
-[max_statement_bytes](/docs/configuration#request-resource-limits) in UTF-8
+[max_statement_bytes](/docs/settings-reference#request-resource-limits) in UTF-8
 before parsing, including PREPARE. This does not replace the smaller retained
 prepared-statement limit or its UTF-16 accounting.
 

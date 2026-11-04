@@ -85,6 +85,10 @@ earlier read. CamusDB protects the rows and scanned ranges you read, including
 against new matching rows appearing (phantoms). Conflicting work may wait or
 fail with a retryable error.
 
+Secondary-index reads protect fetched rows too, including equality/range
+lookups and GIN candidates. This prevents changes to unindexed columns from
+bypassing a Serializable read's protection.
+
 An ordinary autocommit `SELECT` uses one snapshot for the whole statement under
 either isolation level. It does not protect a write in a later request.
 
@@ -148,6 +152,9 @@ Choose the strategy before any data statement. It is separate from isolation:
 Keep the default unless you have a reason to change it. For lock escalation,
 conflict resolution, and configuration, see
 [Transactions and locking internals](/docs/transactions-locking-internals).
+
+A failed statement [aborts its explicit transaction](/docs/sql-transactions#failed-statements).
+Earlier writes cannot be committed afterward; roll back and begin again.
 
 ## Handle conflicts and limits
 

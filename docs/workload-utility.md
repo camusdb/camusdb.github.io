@@ -158,7 +158,7 @@ Run options:
 | `--init-if-missing` | `false` | Create and seed the data set before the run if it is absent. Setup still stays outside the measurement. |
 | `--locking` | `optimistic` | Write-transaction locking: `optimistic` or `pessimistic`. |
 | `--isolation` | `read_committed` | Write-transaction isolation: `read_committed` or `serializable`. The utility sets it on each write transaction, so its default replaces the server default, which is `serializable`. |
-| `--workload` | `accounts` | Write shape: `accounts`, `bank`, `fanout`, or `append`. |
+| `--workload` | `accounts` | Write shape: `accounts`, `bank`, `fanout`, `append`, `rw`, `predicate`, or `tokens`. |
 | `--append-keys` | `10` | Append workload only: number of active list keys. Fewer keys create more contention and more dependency edges. |
 | `--append-max-writes-per-key` | `64` | Append workload only: rotate to a new key after this many appends, which keeps each list short enough for the checker. |
 | `--append-max-txn-length` | `4` | Append workload only: maximum number of read or append steps in one transaction. |
@@ -206,6 +206,38 @@ bank transfer invariant can prove that money was not created or destroyed; an
 Elle list-append history can expose dependency cycles such as lost updates,
 write skew, read skew, dirty reads, or reads of aborted writes.
 
+### Register and predicate histories
+
+Use `--workload rw` to test blind writes and point reads of single-value
+registers, and `--workload predicate` to test group reads against inserts and
+updates. A predicate read records every key in the group's known universe,
+including absent keys, so the checker can detect newly appearing rows. Both
+produce histories for Elle's `rw-register` checker; `append` uses `list-append`.
+
+For example, adapt the endpoint and dataset options from the run command above:
+
+```bash
+dotnet run -c Release --project CamusDB.Workload -- run \
+  --endpoint http://localhost:5096 --protocol grpc --database workload \
+  --workload rw --rw-access join --isolation serializable --duration 60s \
+  --mode closed --workers 8 --output runs/rw-join
+```
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `--txn-mode` | `explicit` | For `append`, `rw`, and `predicate`: `explicit` uses BEGIN and COMMIT; `autocommit` makes every step its own transaction; `pipeline` sends transaction frames with BEGIN first and commit last. |
+| `--elle-key-distribution` | `uniform` for append; `exponential` for rw/predicate | Choose uniformly among active slots, or concentrate work on hot keys. |
+| `--rw-keys`, `--rw-max-writes-per-key`, `--rw-max-txn-length` | `10`, `32`, `4` | Active registers, writes before rotating a key, and maximum steps per transaction. |
+| `--rw-key-type` | `int64` | Also accepts `string` and `numeric`. |
+| `--rw-access` | `pk` | `pk`, `secondary` (unindexed copy of the key), `index`, or `join`. Pipeline mode supports `pk` and `join`. |
+| `--predicate-groups`, `--predicate-group-size` | `8`, `8` | Active groups and the number of possible keys in each group. |
+| `--predicate-max-writes-per-group`, `--predicate-max-txn-length` | `12`, `3` | Writes before rotating a group, and maximum steps per transaction. |
+| `--predicate-read` | `index` | `index` reads by indexed group, `scan` by unindexed group, or `range` by primary-key bounds. |
+
+Autocommit forces transaction length to one, so it cannot test multi-statement
+invariants. `--txn-mode` is separate from `--pipeline`, which controls the
+accounts, bank, and fanout workloads. Compare runs with the same wire mode.
+
 `--no-row-attribution` makes transfer reconciliation cheaper by checking the
 aggregate sum only. It can miss two opposite leaked writes that cancel each
 other out, so use it only when the full before/after row scan is too expensive.
@@ -234,12 +266,20 @@ A successful run writes these artifacts:
 When `--scan-probe-interval` is enabled, the run also writes `scan-probe.csv`
 with the in-window scan results.
 
-When `--workload append` is enabled, the run also writes `history.edn` and
-`elle.json`. `history.edn` is a Jepsen/Elle list-append history. `elle.json`
-records the model, the history file name, the isolation and locking modes, the
-append key settings, the run tag, and the counts of `ok`, `fail`, and `info`
-operations. The workload utility records the history; run the Elle checker as a
-separate step.
+The `append`, `rw`, and `predicate` workloads also write `history.edn` and
+`elle.json`, with the model, wire mode, isolation, locking, key distribution,
+and operation outcomes. The utility records the history; run the appropriate
+Elle checker separately to analyze transaction dependencies.
+
+After draining in-flight work, these workloads read final state and compare it
+with the ledger of attempted writes. The verdict is included in
+`reconciliation.json`: it checks for lost acknowledged writes, refused writes
+that became visible, duplicate or unrecognized values, and access-path
+mismatches. An unresolved write is allowed either outcome. A predicate COUNT-versus-rows
+comparison is graded only when both reads share one transaction snapshot;
+separate Read Committed or autocommit statements may legitimately see a
+concurrent change. A final-state check
+complements Elle; it does not replace history analysis.
 
 When `--metrics-endpoint` is set, the run also writes `node-metrics.csv`,
 `node-metrics-meta.json`, `bottleneck-report.md`, and the last scrape files used

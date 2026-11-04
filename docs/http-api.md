@@ -89,7 +89,7 @@ For large ordinary reads, use `/execute-sql-query-stream` or pagination.
 Writes with RETURNING and other writable reads can still buffer before commit,
 so changing transport does not always remove the result cap. These limits,
 client-connection caps, and transaction caps are described in
-[configuration](/docs/configuration#request-resource-limits). They are node
+[configuration](/docs/settings-reference#request-resource-limits). They are node
 resource bounds, not per-client rate limits or statement timeouts.
 
 ## Cancellation
@@ -167,6 +167,7 @@ CamusDB serializes a `ColumnType` as the numeric value of its enum:
 | `10` | array |
 | `11` | uuid |
 | `12` | numeric |
+| `13` | jsonb |
 
 ```json
 { "type": 3, "strValue": "R2-D2", "longValue": 0, "floatValue": 0, "boolValue": false }
@@ -181,6 +182,7 @@ CamusDB serializes a `ColumnType` as the numeric value of its enum:
 { "type": 10, "arrayElementType": 2, "arrayValues": [{ "type": 2, "longValue": 42 }] }
 { "type": 11, "strValue": "550e8400-e29b-41d4-a716-446655440000", "longValue": 0, "uuidHigh": 0 }
 { "type": 12, "strValue": "12345678901234567890.123456789" }
+{ "type": 13, "strValue": "{\"kind\": \"login\", \"user\": {\"id\": 7}}" }
 ```
 
 SQL literals write bytes in hexadecimal form, `X'...'`. JSON uses base64
@@ -197,6 +199,19 @@ For a numeric value in a request, pass decimal text in `strValue`. CamusDB parse
 it as `NUMERIC`, rounds to nine fractional digits when necessary, and rejects a
 value outside the supported range. A response exposes the canonical decimal text
 as `numericValue`.
+
+For a `JSONB` value in a request, pass the JSON text in `strValue`. A plain
+string written to a `JSONB` column also works. In result rows, a `JSONB` cell is
+the document itself as native JSON, and numbers keep all their digits. A JSON
+`null` document and a SQL `NULL` cell are then both `null`. To tell them apart,
+set `"jsonbAsText": true` in the request body. Each `JSONB` cell is then a JSON
+string that holds the document text. See
+[JSON null over HTTP](/docs/json#json-null-over-http).
+
+Non-finite float cells use JSON strings `"Infinity"`, `"-Infinity"`, and
+`"NaN"` while retaining their float column type. Typed float parameters accept
+the same spellings in `floatValue`. See
+[Floating-point values](/docs/data-types#floating-point-values).
 
 ## Health
 
@@ -661,6 +676,10 @@ name, an operator, and a `ColumnValue`.
 }
 ```
 
+The `values` objects of `/insert` and `/update` must target each column once.
+Repeated JSON keys, including names differing only in case, fail with HTTP 400
+and `CADB0403` before writes begin.
+
 ### `POST /insert`
 
 ```json
@@ -703,6 +722,10 @@ name, an operator, and a `ColumnValue`.
   "id": "507f1f77bcf86cd799439011"
 }
 ```
+
+Both `/update` and `/delete` require at least one filter. Missing or empty
+filters fail with HTTP 400 and `CADB0400`; an explicit transaction is aborted
+too. Use SQL with `WHERE TRUE` when changing every row is intentional.
 
 ### `POST /update`
 

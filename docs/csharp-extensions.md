@@ -526,7 +526,8 @@ privileges as the statement that invoked the extension:
 An error from nested SQL makes the transaction rollback-only even when the
 extension catches the exception. There are no savepoints. Returning after such
 an error fails the statement with `CADB0823`, and attempting to commit the
-transaction fails with `CADB0824`.
+transaction rolls it back with `CADB0824`. Later statements are refused too,
+following the general [failed-statement rule](/docs/sql-transactions#failed-statements).
 
 ## Supported values
 

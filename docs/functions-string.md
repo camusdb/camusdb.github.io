@@ -18,7 +18,7 @@ otherwise. They return `NULL` when a required argument is `NULL`, except
 | `rtrim(text)` | `STRING` | Removes trailing whitespace. |
 | `substring(text, start)` | `STRING` | Returns the text from the start position to the end. Positions start at 1. |
 | `substring(text, start, length)` | `STRING` | Returns at most `length` characters from the start position. Positions start at 1. |
-| `replace(text, search, replacement)` | `STRING` | Replaces every ordinal match of `search` with `replacement`. |
+| `replace(text, search, replacement)` | `STRING` | Replaces every ordinal match of `search` with `replacement`. An empty search leaves the text unchanged. |
 | `contains(text, search)` | `BOOL` | Whether `text` contains `search`, using ordinal comparison. |
 | `starts_with(text, prefix)` | `BOOL` | Whether `text` starts with `prefix`, using ordinal comparison. |
 | `ends_with(text, suffix)` | `BOOL` | Whether `text` ends with `suffix`, using ordinal comparison. |

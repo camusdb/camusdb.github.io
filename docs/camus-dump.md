@@ -477,15 +477,16 @@ filters.
 Most stored values have an exact SQL literal form. `camus-dump` reports any
 value it cannot restore exactly.
 
-Non-finite floats have no CamusSQL literal:
+Non-finite floats are preserved as casts, for example
+`CAST('NaN' AS FLOAT64)` or `CAST('-Infinity' AS FLOAT32)`. The dump prints a
+compatibility note: restoring requires a server that supports these
+[floating-point values](/docs/data-types#floating-point-values). Older dump
+versions replaced them with NULL; use a current build to preserve them.
 
-- `NaN`
-- `+Infinity`
-- `-Infinity`
-
-By default, the dump writes `NULL` for such a value, adds a warning comment to
-the dump, and prints a count to standard error at the end. Use `--strict` to
-fail instead.
+REST dumps containing these values require CamusDB.Client 0.17.2 or later.
+Version 0.17.1 reads them as text, which can prevent mixed float arrays from
+loading. Current dump builds use the updated client; gRPC also carries their
+native float representation.
 
 `DATETIME` values keep their full precision. Sub-millisecond values are written
 with seven fractional digits.

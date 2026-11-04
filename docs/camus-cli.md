@@ -396,6 +396,10 @@ result. Operator boxes show their detail and estimated cost, arrows show row
 estimates, and joins show their right input beside the operator. `EXPLAIN
 (ANALYZE)` adds measured rows and flags large estimate misses.
 
+Set-operation plans draw both inputs to `UNION`, `INTERSECT`, and `EXCEPT`,
+including nested operations. Window nodes show each partition/order group on
+its own line, and `gin-scan` identifies its JSONB index.
+
 Use `\plan table` for the raw rows and `\plan flow` to return to the diagram.
 `/plan` is an alias. Vertical output, `--format json|yaml`, and the TUI retain
 the raw table representation.
@@ -510,7 +514,10 @@ rows emits no document.
 Values keep their useful types: integers, floats, and booleans stay scalar;
 `NULL` stays null; `NUMERIC` is written as a string to avoid losing precision;
 `BYTES` is base64; arrays are arrays. The `\G` vertical-output suffix has no
-effect in JSON or YAML mode.
+effect in JSON or YAML mode. JSONB cells are emitted as documents, preserving
+all numeric digits, rather than strings containing JSON. YAML uses flow syntax
+for documents; CSV exports use document text. In tables and the TUI, JSONB is
+shown in its PostgreSQL text form.
 
 ## Prepared statements
 
@@ -701,6 +708,9 @@ pages for statement semantics:
 The shell intercepts only a small set of client-side commands, such as `use`,
 `source`, `show prepared`, `backup`, `clear`, `exit`, and `quit`.
 
+JSONB operators `#>`, `#>>`, and `#-` remain part of the SQL, rather than
+starting a shell comment. Other `#` line comments, including `#---`, still work.
+
 ## Vertical output
 
 End a query with `\G` instead of `;` to print each row vertically. This helps
@@ -757,7 +767,9 @@ The interactive editor highlights:
 - supported function names
 
 The keyword and function lists are built into the shell. They control CLI
-coloring only and do not affect which SQL the server supports.
+coloring only and do not affect which SQL the server supports. Current builds
+include JSONB types/operators/functions, GIN index phrases, `OVER`, window
+functions, and frame syntax.
 
 The current highlighter follows the newer CamusSQL vocabulary, including
 `NUMERIC`/`DECIMAL`, `SERIAL`/`BIGSERIAL`, arrays, UUIDs, blobs, temporal
@@ -808,6 +820,12 @@ The shell loads relation names with `SHOW TABLES`, `SHOW VIEWS`, and
 `SHOW MATERIALIZED VIEWS`. It loads sequence names with `SHOW SEQUENCES`. It
 loads configuration keys with `SHOW VARIABLES` and omits restart-only keys from
 the completion list.
+
+`DROP INDEX` completes `table.index` targets, and `ALTER TABLE table DROP
+INDEX` completes that table's indexes, with optional `IF EXISTS`. After
+`CREATE [UNIQUE|INVERTED] INDEX name ON` or `DROP INDEX name ON`, completion
+offers table names. Internal indexes whose names begin with `~` are omitted
+from drop suggestions.
 
 It refreshes those names at startup, after `use <database>`, and after any
 statement that changes the set of relations:

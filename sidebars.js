@@ -45,6 +45,11 @@ const sidebars = {
         },
         'data-types',
         {
+          type: 'doc',
+          id: 'json',
+          label: 'JSON documents',
+        },
+        {
           type: 'category',
           label: 'Schema',
           collapsed: false,
@@ -252,6 +257,11 @@ const sidebars = {
             'kubernetes-operator',
             'key-range-sharding',
             'configuration',
+            {
+              type: 'doc',
+              id: 'settings-reference',
+              label: 'Settings reference',
+            },
             {
               type: 'doc',
               id: 'runtime-cluster-settings',

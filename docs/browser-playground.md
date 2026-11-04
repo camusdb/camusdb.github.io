@@ -71,7 +71,9 @@ resets on reload or **Reset data center**.
 The SQL console is available immediately. Once the engines are ready, use
 **Run query** or **Cmd/Ctrl + Enter** to run SQL through the selected server.
 The console includes examples for filtering, joins, subqueries, branching,
-returning, foreign keys, indexes, updates, schema inspection, and functions. The
+returning, JSONB documents, foreign keys, indexes, updates, schema inspection,
+and functions. The JSONB example creates a GIN index, filters documents, and
+updates a field; you can run it repeatedly. The
 sample library (15 books and 7 authors) loads on startup and on reset.
 
 The **Create a table** example creates a `quick_notes` table and inserts a row;

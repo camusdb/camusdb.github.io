@@ -102,6 +102,11 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       image: 'img/camusdb-social-card.png',
+      docs: {
+        sidebar: {
+          hideable: true,
+        },
+      },
       algolia: {
         appId: 'SPBBUBI3JT',
         // Search-only key. Safe to commit; never put the crawler key here.

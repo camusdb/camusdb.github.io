@@ -30,7 +30,7 @@ the CPU.
 
 ## Storage strategies
 
-Each `STRING`, `BYTES`/`BLOB`, and `ARRAY` column has a storage strategy.
+Each `STRING`, `BYTES`/`BLOB`, `JSONB`, and `ARRAY` column has a storage strategy.
 
 | Strategy | Compresses | Stores out of line | Use it for |
 | --- | --- | --- | --- |

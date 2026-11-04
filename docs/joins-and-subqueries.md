@@ -176,6 +176,19 @@ ORDER BY u.amount;
 Prefer an explicit `JOIN ... ON` in new code. It separates the join condition
 from the filters, which makes both easier to read and change.
 
+### Serializable transactions and join indexes
+
+In a Serializable read-write transaction, joins and subquery reads protect
+matching rows and absent keys, just as single-table reads do. The locks last
+until the transaction ends, including protection against new matching rows.
+
+A join input whose filter cannot use an index scans and locks the whole table's
+row range, holding back writers. Index the filtered join columns to narrow that
+protection. Parameters are resolved during join planning, so an indexed
+`WHERE j.key = @key` can use a bounded lookup. This applies under both
+pessimistic and optimistic Serializable locking. Read-only snapshots take no
+such locks. See [Transactions and isolation](/docs/serializable-transactions).
+
 ## Current join limits
 
 CamusDB does not support `FULL JOIN`, `FULL OUTER JOIN`, `NATURAL JOIN`, or
@@ -186,7 +199,24 @@ A query with an outer join keeps the join order the statement declares. Neither
 the heuristic planner nor the cost-based join-order search reorders a tree that
 contains an outer join.
 
-## Subqueries in WHERE
+## Subqueries {#subqueries-in-where}
+
+A subquery lets SQL use another query's answer without a separate application
+request. An **uncorrelated** subquery does not reference the enclosing row;
+CamusDB evaluates it once before reading the outer rows. A **correlated**
+subquery references an outer column and depends on that row.
+
+| Position | Supported subqueries |
+| --- | --- |
+| SELECT list, HAVING, JOIN ON | Uncorrelated scalar, EXISTS, IN/NOT IN, and quantified comparisons. |
+| SELECT WHERE | The same uncorrelated forms, plus correlated EXISTS/NOT EXISTS. |
+| INSERT VALUES, UPDATE SET/WHERE, DELETE WHERE, ON CONFLICT DO UPDATE | Uncorrelated forms. |
+| GROUP BY or ORDER BY | Subqueries are refused with `CADB0400`. |
+
+These rules also apply inside expressions: a `CASE` branch, function argument,
+comparison, `IS NULL` test, or `BETWEEN` bound. Existing restrictions on
+[CHECK definitions](/docs/check-constraints) and
+[RETURNING](/docs/sql-writes#returning) still apply.
 
 ### Scalar subqueries
 
@@ -200,6 +230,41 @@ ORDER BY name;
 ```
 
 Zero rows give `NULL`. More than one row is an error.
+
+### Subqueries in projections and writes
+
+Compare each product with the highest price using one statement:
+
+```camussql
+SELECT id, price, (SELECT MAX(price) FROM products) - price AS price_gap
+FROM products;
+```
+
+Use a subquery to supply an inserted value:
+
+```camussql
+INSERT INTO counters (name, value)
+VALUES ('orders', (SELECT COUNT(*) FROM orders));
+```
+
+An `EXISTS` can also produce a boolean in the select list or a `CASE` branch:
+
+```camussql
+SELECT id,
+       CASE WHEN EXISTS (SELECT 1 FROM stock_alerts WHERE active = true)
+            THEN 'check stock' ELSE 'ready' END AS status
+FROM products;
+```
+
+These inner queries run once, not once per product. Uncorrelated subqueries
+can also appear in a derived table's projection or a view body. A correlated
+`EXISTS` outside a SELECT's WHERE is refused with `CADB0533`
+(`FeatureNotSupported`), naming the unsupported position. Correlated scalar,
+IN/NOT IN, and quantified subqueries are unsupported.
+
+`EXPLAIN` evaluates uncorrelated subqueries while preparing the plan, so even
+plain `EXPLAIN` can read data for an inner query. It does not run the outer
+query. See [EXPLAIN](/docs/explain).
 
 ### IN and NOT IN
 
@@ -244,6 +309,11 @@ WHERE EXISTS (
 )
 ORDER BY email;
 ```
+
+A correlated EXISTS is supported only in a SELECT's WHERE. It can appear at
+any depth, including inside a CASE or a comparison, rather than only directly
+under AND/OR/NOT. In a join, it is evaluated where all referenced outer aliases
+are available.
 
 For a correlated `EXISTS`, CamusDB uses an index on the inner table when the
 inner `WHERE` clause pins the index's leading columns with equalities. The other

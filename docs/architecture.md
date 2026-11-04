@@ -183,8 +183,8 @@ cluster.
 
 Kahuna can also use SQLite, a managed [Solarium](https://solariumdb.github.io/) backend for the KV state or
 Raft WAL, and an in-memory backend for development and tests only. Solarium
-avoids the native RocksDB library but places its caches inside the managed
-heap; see [Solarium configuration](/docs/configuration#solarium-storage-engine).
+avoids the native RocksDB library. Its data-block cache and memtable entries
+use native memory, while index/filter partitions and handles use managed memory; see [Solarium configuration](/docs/configuration#solarium-storage-engine).
 See [Storage](/docs/storage#the-rocksdb-backend) for the backend settings, and
 [Kahuna's storage overview](https://kahunakv.github.io/docs/storage/overview/)
 for lower-level details.

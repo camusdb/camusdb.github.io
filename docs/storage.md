@@ -70,8 +70,9 @@ across a crash.
 Use [Solarium](https://solariumdb.github.io/) by selecting `solarium` for `kahuna.storage`,
 `kahuna.wal_storage`, or both when you
 want managed storage without a native RocksDB dependency. CamusDB includes the
-engine integration. Its cache and memtables consume managed heap, unlike
-RocksDB's native allocations, so heap and cache budgets must be sized together.
+engine integration. Since Solarium 0.1.4, cached data blocks and memtable entries
+use native memory. Shared budgets are sized from machine/container memory;
+managed index/filter partitions and handles still use the .NET heap.
 
 The two engines cannot read each other's files. Moving data between them
 requires a [logical dump and reimport](/docs/logical-dump-and-reimport).
