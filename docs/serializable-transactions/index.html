@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.eb840b9f.js" defer="defer"></script>
-<script src="/assets/js/main.319ab6d7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.b4f599e9.js" defer="defer"></script>
+<script src="/assets/js/main.28514073.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -55,6 +55,9 @@ resuming the same transaction ID.</p>
 earlier read. CamusDB protects the rows and scanned ranges you read, including
 against new matching rows appearing (phantoms). Conflicting work may wait or
 fail with a retryable error.</p>
+<p>Secondary-index reads protect fetched rows too, including equality/range
+lookups and GIN candidates. This prevents changes to unindexed columns from
+bypassing a Serializable read&#x27;s protection.</p>
 <p>An ordinary autocommit <code>SELECT</code> uses one snapshot for the whole statement under
 either isolation level. It does not protect a write in a later request.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="read-committed-snapshots-and-limits">Read Committed snapshots and limits<a href="#read-committed-snapshots-and-limits" class="hash-link" aria-label="Direct link to Read Committed snapshots and limits" title="Direct link to Read Committed snapshots and limits" translate="no">​</a></h3>

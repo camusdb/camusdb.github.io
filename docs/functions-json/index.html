@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.eb840b9f.js" defer="defer"></script>
-<script src="/assets/js/main.319ab6d7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.b4f599e9.js" defer="defer"></script>
+<script src="/assets/js/main.28514073.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -30,6 +30,9 @@ validates documents on write, supports the PostgreSQL operators and <code>jsonb_
 functions, and can use a GIN index. The functions on this page read a <code>JSONB</code>
 argument as its text.</p></div></div>
 <table><thead><tr><th>Function</th><th>Returns</th><th>Description</th></tr></thead><tbody><tr><td><code>json_valid(json)</code></td><td><code>BOOL</code></td><td>Whether <code>json</code> is valid JSON text.</td></tr><tr><td><code>json_type(json)</code></td><td><code>STRING</code></td><td>Returns <code>object</code>, <code>array</code>, <code>string</code>, <code>number</code>, <code>boolean</code>, or <code>null</code>. Invalid JSON returns <code>NULL</code>.</td></tr><tr><td><code>json_extract(json, path)</code></td><td><code>STRING</code></td><td>The JSON text at <code>path</code>. A missing path or invalid JSON returns <code>NULL</code>.</td></tr><tr><td><code>json_value(json, path)</code></td><td>A typed scalar</td><td>The scalar value at <code>path</code>, as <code>STRING</code>, <code>INT64</code>, <code>FLOAT64</code>, <code>BOOL</code>, or <code>NULL</code>. Objects and arrays return <code>NULL</code>.</td></tr><tr><td><code>json_array_length(json)</code></td><td><code>INT64</code></td><td>The length of the root JSON array. Returns <code>NULL</code> when the root is not an array.</td></tr><tr><td><code>json_array_length(json, path)</code></td><td><code>INT64</code></td><td>The length of the array at <code>path</code>. Returns <code>NULL</code> when the path is missing or the value is not an array.</td></tr><tr><td><code>json_contains(value, candidate)</code></td><td><code>BOOL</code></td><td>Whether <code>value</code> structurally contains <code>candidate</code>.</td></tr></tbody></table>
+<p>JSON text in a STRING is limited to 64 nesting levels by these functions.
+A JSONB argument supports the document limit of 512 levels. Use JSONB for
+deeply nested documents rather than converting them to text first.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="json-paths">JSON paths<a href="#json-paths" class="hash-link" aria-label="Direct link to JSON paths" title="Direct link to JSON paths" translate="no">​</a></h2>
 <p>The supported path syntax is small and predictable by design:</p>
 <ul>

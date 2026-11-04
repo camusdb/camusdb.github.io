@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.eb840b9f.js" defer="defer"></script>
-<script src="/assets/js/main.319ab6d7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.b4f599e9.js" defer="defer"></script>
+<script src="/assets/js/main.28514073.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -183,9 +183,9 @@ inside larger expressions. They cannot nest or appear in <code>WHERE</code>, <co
 <p>Named windows (<code>OVER name</code> or <code>WINDOW name AS (...)</code>), <code>GROUPS</code> frames,
 <code>EXCLUDE</code>, aggregate <code>FILTER</code>, and extension aggregates with <code>OVER</code> are
 unsupported. <code>SELECT DISTINCT *</code> with a window call only in <code>ORDER BY</code> is also
-refused. Existing subquery restrictions apply: a window query cannot be the
-source of a scalar subquery in the select list or a correlated, multi-source
-<code>EXISTS</code> subquery. An uncorrelated window subquery in <code>WHERE</code> is supported.</p>
+refused. Uncorrelated subqueries can read a window query, including from an
+outer select list. Correlated EXISTS with a multi-source inner query remains
+unsupported. See <a class="" href="/docs/joins-and-subqueries/#subqueries-in-where">subquery restrictions</a>.</p>
 <p><code>OVER</code> is reserved; quote it with backticks when using it as an identifier.
 Frame words such as <code>ROWS</code>, <code>PARTITION</code>, and <code>PRECEDING</code> remain valid identifiers.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="sort-the-rows-and-divide-them-into-pages">Sort and paginate<a href="#sort-the-rows-and-divide-them-into-pages" class="hash-link" aria-label="Direct link to Sort and paginate" title="Direct link to Sort and paginate" translate="no">​</a></h2>

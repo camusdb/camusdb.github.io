@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.eb840b9f.js" defer="defer"></script>
-<script src="/assets/js/main.319ab6d7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.b4f599e9.js" defer="defer"></script>
+<script src="/assets/js/main.28514073.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -112,6 +112,9 @@ ascending or descending.</p>
 <p><code>QueryById</code>, <code>UpdateById</code>, and <code>DeleteById</code> each take the key value as a string.
 The server resolves the actual primary-key column from the table schema, so the
 primary key doesn&#x27;t have to be named <code>id</code>.</p>
+<p>Row value maps reject column names that differ only in case with <code>CADB0403</code>.
+Identical duplicate wire keys are collapsed by the Protobuf map decoder before
+the engine sees them; clients must send each map key once.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="value-encoding">Value encoding<a href="#value-encoding" class="hash-link" aria-label="Direct link to Value encoding" title="Direct link to Value encoding" translate="no">​</a></h2>
 <p>Every parameter, row value, filter, and result cell uses the Protobuf <code>Value</code>
 message, a typed <code>oneof</code> that follows the CamusDB column types:</p>

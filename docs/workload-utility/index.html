@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.eb840b9f.js" defer="defer"></script>
-<script src="/assets/js/main.319ab6d7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.b4f599e9.js" defer="defer"></script>
+<script src="/assets/js/main.28514073.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -132,7 +132,10 @@ Elle checker separately to analyze transaction dependencies.</p>
 with the ledger of attempted writes. The verdict is included in
 <code>reconciliation.json</code>: it checks for lost acknowledged writes, refused writes
 that became visible, duplicate or unrecognized values, and access-path
-mismatches. An unresolved write is allowed either outcome. A final-state check
+mismatches. An unresolved write is allowed either outcome. A predicate COUNT-versus-rows
+comparison is graded only when both reads share one transaction snapshot;
+separate Read Committed or autocommit statements may legitimately see a
+concurrent change. A final-state check
 complements Elle; it does not replace history analysis.</p>
 <p>When <code>--metrics-endpoint</code> is set, the run also writes <code>node-metrics.csv</code>,
 <code>node-metrics-meta.json</code>, <code>bottleneck-report.md</code>, and the last scrape files used

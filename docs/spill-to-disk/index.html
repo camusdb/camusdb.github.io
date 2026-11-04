@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.eb840b9f.js" defer="defer"></script>
-<script src="/assets/js/main.319ab6d7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.b4f599e9.js" defer="defer"></script>
+<script src="/assets/js/main.28514073.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -66,6 +66,13 @@ partition at a time. Spilling its rows does not bound all memory use: the
 window&#x27;s input values and computed results still grow with that partition&#x27;s
 row count. <code>EXPLAIN (ANALYZE)</code> reports spilled partition buffers in the
 <a class="" href="/docs/explain/#window-functions"><code>window</code> node</a>.</p>
+<p>JSONB aggregate states (<code>jsonb_agg</code> and <code>jsonb_object_agg</code>) count their retained
+bytes as they grow inside a group, so byte-based spilling can trigger even
+with few groups. The per-document size limit still applies; spilling does not
+allow an oversized aggregate result.</p>
+<p>GIN scans also use the row and byte thresholds to bound candidate collection,
+even with spill disabled. They switch to a table scan rather than spilling
+candidate IDs. See <a class="" href="/docs/json/#how-a-gin-scan-works">JSONB indexes</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="delete-and-update">DELETE and UPDATE<a href="#delete-and-update" class="hash-link" aria-label="Direct link to DELETE and UPDATE" title="Direct link to DELETE and UPDATE" translate="no">​</a></h2>
 <p><code>DELETE</code> and <code>UPDATE</code> collect every matching row before they apply any
 mutation, because they cannot safely change rows during the scan. Changing a

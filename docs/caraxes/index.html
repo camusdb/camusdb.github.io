@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.eb840b9f.js" defer="defer"></script>
-<script src="/assets/js/main.319ab6d7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.b4f599e9.js" defer="defer"></script>
+<script src="/assets/js/main.28514073.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -122,7 +122,7 @@ dependency cycles that the isolation level forbids.</p>
 which has a known defect in its read-write register checker. <code>build.sh</code> refuses
 any jar without the fixed version. The host needs only Docker.</p>
 <p>What fails the run, by isolation level:</p>
-<table><thead><tr><th>Level</th><th>Forbidden</th></tr></thead><tbody><tr><td>Read committed</td><td>G0, G1a, G1b, G1c (write cycles, aborted reads, intermediate reads, and circular information flow).</td></tr><tr><td>Serializable</td><td>All of the above, plus G-single, G2-item, G2, lost updates, internal inconsistency, and a predicate <code>COUNT(*)</code> mismatch.</td></tr><tr><td>Every level</td><td>Final-state errors (see below).</td></tr></tbody></table>
+<table><thead><tr><th>Level</th><th>Forbidden</th></tr></thead><tbody><tr><td>Read committed</td><td>G0, G1a, G1b, G1c (write cycles, aborted reads, intermediate reads, and circular information flow).</td></tr><tr><td>Serializable</td><td>All of the above, plus G-single, G2-item, G2, lost updates, internal inconsistency, and a predicate <code>COUNT(*)</code> mismatch when both reads share one transaction snapshot.</td></tr><tr><td>Every level</td><td>Final-state errors (see below).</td></tr></tbody></table>
 <p>The default model is <code>serializable</code>, not <code>strict-serializable</code>. A read-only
 snapshot can lag a write that already returned. Set
 <code>elle.consistency_models: strict-serializable</code> only when real-time order is the
@@ -252,7 +252,7 @@ each other. Each is a different baseline.</p>
 <p><code>baseline</code> fails when the spread between runs is above 10 percent.
 <code>CamusDB.Workload compare</code> refuses to compare two runs from different builds or
 workload shapes. See <a class="" href="/docs/workload-utility/">Workload Utility</a>.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="matrix-sweeps">Matrix sweeps<a href="#matrix-sweeps" class="hash-link" aria-label="Direct link to Matrix sweeps" title="Direct link to Matrix sweeps" translate="no"> ​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="matrix-sweeps">Matrix sweeps<a href="#matrix-sweeps" class="hash-link" aria-label="Direct link to Matrix sweeps" title="Direct link to Matrix sweeps" translate="no">​</a></h2>
 <p>A matrix runs every combination of settings and writes one report:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">dotnet run </span><span class="token parameter variable" style="color:#60a5fa">--project</span><span class="token plain"> Caraxes -- matrix </span><span class="token parameter variable" style="color:#60a5fa">--matrix</span><span class="token plain"> scenarios/matrix-resilience.yml</span><br></div></code></pre></div></div>
 <p>A matrix file has base <code>cluster</code>, <code>workload</code>, and <code>checks</code> blocks plus <code>axes</code>.

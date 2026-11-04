@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.eb840b9f.js" defer="defer"></script>
-<script src="/assets/js/main.319ab6d7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.b4f599e9.js" defer="defer"></script>
+<script src="/assets/js/main.28514073.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -178,7 +178,10 @@ so you can read the <code>jsonb_each</code> columns by name.</p>
 <table><thead><tr><th>Aggregate</th><th>Result</th></tr></thead><tbody><tr><td><code>jsonb_agg(value)</code> (<code>json_agg</code>)</td><td>An array of the values in the group. A SQL <code>NULL</code> value becomes JSON <code>null</code>.</td></tr><tr><td><code>jsonb_object_agg(key, value)</code> (<code>json_object_agg</code>)</td><td>An object. A <code>NULL</code> key is an error. The last value of a repeated key wins.</td></tr></tbody></table>
 <p>A group with no rows returns SQL <code>NULL</code>. <code>ORDER BY</code> inside the call, as in
 <code>jsonb_agg(x ORDER BY y)</code>, is not supported. The elements come in the order the
-rows reach the aggregate.</p>
+rows reach the aggregate. These aggregates charge retained state growth to
+<code>spill_threshold_bytes</code> row by row when grouping can spill. A result larger
+than 268,435,455 bytes fails with <code>CADB0422</code> (<code>JsonbValueTooLarge</code>); it does not
+produce a partial document.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> customer_id</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">jsonb_agg</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token function" style="color:#7dd3fc">jsonb_build_object</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token string" style="color:#86efac">&#x27;id&#x27;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> id</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;total&#x27;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> total</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">AS</span><span class="token plain"> orders</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> orders</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">GROUP</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> customer_id</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="text-json-functions">Text JSON functions<a href="#text-json-functions" class="hash-link" aria-label="Direct link to Text JSON functions" title="Direct link to Text JSON functions" translate="no">​</a></h3>
 <p>The older <a class="" href="/docs/functions-json/">JSON functions</a> (<code>json_valid</code>, <code>json_type</code>,
@@ -206,6 +209,10 @@ candidate rows. The entries do not keep array positions, so a candidate can
 hold every entry and still fail the operator. For this reason, CamusDB always
 checks the full predicate on each candidate. The index can return extra rows,
 but it never misses a matching row.</p>
+<p>GIN candidate collection is bounded by <code>spill_threshold_rows</code> and
+<code>spill_threshold_bytes</code>. If candidates exceed either active cap, the query
+continues as a table scan with the same filter. This fallback also applies
+when spill is disabled and requires no temporary files.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="filters-that-use-a-gin-index">Filters that use a GIN index<a href="#filters-that-use-a-gin-index" class="hash-link" aria-label="Direct link to Filters that use a GIN index" title="Direct link to Filters that use a GIN index" translate="no">​</a></h3>
 <p>The planner uses a GIN index for these top-level <code>WHERE</code> conditions when the
 other operand is a constant: a literal, a parameter, or an expression without
@@ -246,12 +253,14 @@ statement over the limit fails. The index never leaves entries out.</li>
 <p><code>CREATE INDEX</code> on an existing table fills the index in batches while writes
 continue.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="locks-under-serializable-isolation">Locks under serializable isolation<a href="#locks-under-serializable-isolation" class="hash-link" aria-label="Direct link to Locks under serializable isolation" title="Direct link to Locks under serializable isolation" translate="no">​</a></h3>
-<p>Under serializable isolation, a GIN scan locks each range of index entries that
-it reads. A concurrent transaction that writes a matching row writes an entry
-into one of those ranges, so it waits or retries. This keeps the result correct,
-but a very common entry, such as a key that every document has, covers a large
-range and can block more writers. See
-<a class="" href="/docs/serializable-transactions/">Serializable transactions</a>.</p>
+<p>In a Serializable read-write transaction, a GIN scan holds shared locks on
+its index ranges and each fetched row, including candidates discarded by the
+recheck. Row locks matter even when a concurrent update leaves the indexed
+JSON unchanged: that update must still respect the read. Locks last until the
+transaction ends, under both pessimistic and optimistic locking.</p>
+<p>Common entries can cover large ranges and hold back more writers. Read-only
+snapshots do not take these read locks. See
+<a class="" href="/docs/serializable-transactions/">Transactions and isolation</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="storage">Storage<a href="#storage" class="hash-link" aria-label="Direct link to Storage" title="Direct link to Storage" translate="no">​</a></h2>
 <p>CamusDB stores each document in a compact binary form (canonical
 <a href="https://www.rfc-editor.org/rfc/rfc8949" target="_blank" rel="noopener noreferrer" class="">CBOR</a>), not as text. Numbers are stored
@@ -284,7 +293,7 @@ string that holds the document text. SQL <code>NULL</code> stays the token <code
 know the option ignores it and sends the default form. A string document such
 as <code>&quot;abc&quot;</code> is valid in both forms, so the mark is the only safe test.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="limits">Limits<a href="#limits" class="hash-link" aria-label="Direct link to Limits" title="Direct link to Limits" translate="no">​</a></h2>
-<table><thead><tr><th>Limit</th><th>Value</th></tr></thead><tbody><tr><td>Nesting depth</td><td>512 levels. A deeper document fails with <code>JsonNestingTooDeep</code> (<code>CADB0419</code>). The limit is fixed, not a setting.</td></tr><tr><td>Number size</td><td>131,072 digits before the decimal point and a scale of 16,383, the PostgreSQL <code>numeric</code> limits.</td></tr><tr><td>Document size</td><td>The large-value and transaction limits that apply to any cell.</td></tr></tbody></table>
+<table><thead><tr><th>Limit</th><th>Value</th></tr></thead><tbody><tr><td>Nesting depth</td><td>512 levels. A deeper document fails with <code>JsonNestingTooDeep</code> (<code>CADB0419</code>). The limit is fixed, not a setting.</td></tr><tr><td>Number size</td><td>131,072 digits before the decimal point and a scale of 16,383, the PostgreSQL <code>numeric</code> limits.</td></tr><tr><td>Built document size</td><td>268,435,455 bytes (2²⁸ − 1). Oversized JSON aggregates fail with <code>CADB0422</code>; large-value, transaction, and request limits also apply.</td></tr></tbody></table>
 <p>A stored cell that does not decode fails with <code>JsonbValueCorrupt</code> (<code>CADB0559</code>).
 CamusDB never returns part of a document.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="differences-from-postgresql">Differences from PostgreSQL<a href="#differences-from-postgresql" class="hash-link" aria-label="Direct link to Differences from PostgreSQL" title="Direct link to Differences from PostgreSQL" translate="no">​</a></h2>
