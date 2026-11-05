@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.b4f599e9.js" defer="defer"></script>
-<script src="/assets/js/main.28514073.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.77d5494b.js" defer="defer"></script>
+<script src="/assets/js/main.231e19e8.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -66,13 +66,15 @@ with an error. It does not silently treat the statement as a plain <code>EXPLAIN
 that subquery once and materializes it. <code>EXPLAIN</code> on such a statement
 therefore reads storage for the inner query. A plain <code>EXPLAIN</code> never executes
 the outer query.</li>
-<li class=""><strong><code>SELECT</code> without <code>FROM</code>.</strong> Such a <a class="" href="/docs/sql-fromless-select/">statement</a>
-has no plan tree, so a plain <code>EXPLAIN</code> renders a fixed shape: a
+<li class=""><strong><code>SELECT</code> without <code>FROM</code> or <code>WHERE</code>.</strong> Such a
+<a class="" href="/docs/sql-fromless-select/">statement</a> has no plan tree, so a plain
+<code>EXPLAIN</code> renders a fixed shape: a
 <code>constant-source</code>, then a <code>project</code>, then a <code>limit</code> if there is one. It
 renders no costed plan. CamusDB rejects <code>EXPLAIN (ANALYZE)</code> for it, because
 there is no table access to measure; use the plain form. Unlike running the
-real query, <code>EXPLAIN</code> on such a statement does not materialize the subqueries
-in its projection first. They appear only as their output column names.</li>
+real query, <code>EXPLAIN</code> on this unfiltered form does not materialize the
+projection subqueries. With WHERE, it instead plans a <code>function-scan</code> of
+<code>*single_row*</code>, and EXPLAIN (ANALYZE) is supported.</li>
 </ul>
 <p>All EXPLAIN forms use the query&#x27;s read view. In a Read Committed transaction,
 storage reads during planning or execution use one statement timestamp.</p>

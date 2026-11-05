@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.b4f599e9.js" defer="defer"></script>
-<script src="/assets/js/main.28514073.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.77d5494b.js" defer="defer"></script>
+<script src="/assets/js/main.231e19e8.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -112,6 +112,12 @@ backend.</p>
 <p>The WAL improves recovery because it separates two states: &quot;consensus accepted
 this entry&quot; and &quot;the KV backend materialized this entry later&quot;.</p>
 <table><thead><tr><th>Failure</th><th>Recovery result</th></tr></thead><tbody><tr><td>Crash before commit</td><td>CamusDB does not apply the entry at restore. The entry stays in the log until the partition leader commits or replaces it.</td></tr><tr><td>Crash after commit, but before the KV flush</td><td>CamusDB replays the committed WAL entry and queues it again for KV persistence.</td></tr><tr><td>Node restart</td><td>The node restores its partitions&#x27; committed logs, rebuilds the materialized KV state where needed, then rejoins leader election or replication.</td></tr><tr><td>Leader failure</td><td>Another eligible replica can lead the partition, but only from a log state that satisfies Raft&#x27;s safety rules.</td></tr><tr><td>Stale or superseded proposal</td><td>CamusDB skips rolled-back entries during restore, and applies no entry that is only proposed.</td></tr></tbody></table>
+<p>These restart paths assume the required persisted data is intact. If recovery
+finds lost acknowledged entries, the default policy quarantines the replica
+instead of letting it vote or lead with that log. A single-replica partition
+cannot repair from a peer. Detected RocksDB damage also stops service from the
+store; normal replay does not repair damaged files. See
+<a class="" href="/docs/configuration/#storage-damage-and-lost-log-entries">storage damage and lost log entries</a>.</p>
 <p>For transactions, CamusDB relies on two mechanisms: the
 <a href="https://kahunakv.github.io/" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> transaction protocol, and the committed
 log order from <a href="https://kahunakv.github.io/kommander.github.io/" target="_blank" rel="noopener noreferrer" class="">Kommander</a>.</p>
