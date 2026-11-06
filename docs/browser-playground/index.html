@@ -13,8 +13,8 @@
 
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.5e01fc3d.css">
-<script src="/assets/js/runtime~main.77d5494b.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea5be07a.css">
+<script src="/assets/js/runtime~main.d9586f20.js" defer="defer"></script>
 <script src="/assets/js/main.231e19e8.js" defer="defer"></script>
 </head>
 <body>
@@ -56,13 +56,18 @@ rows again to verify that the data survives membership changes. A newly joined
 or restarted node may need time to converge its schema before it serves a
 query. After a removal, leader hints can also take time to refresh; retry any
 query made during convergence.</p>
-<p><strong>Simulate node failure</strong> stops an actual engine. <strong>Restart node</strong> brings back
-an empty engine that catches up from the surviving peers. You cannot stop a node
-if that would leave fewer than a <a class="" href="/docs/concepts/#majority">majority</a> (more than
-half) of the nodes running, because the cluster would then stop committing.
-Membership changes wait until all existing engines are running voters. Three
-replicas tolerate one unavailable replica per data partition; adding nodes does
-not increase a partition&#x27;s fault tolerance.</p>
+<p><strong>Simulate node failure</strong> stops an actual server. You can stop multiple servers
+to explore larger outages. A partition that keeps a <a class="" href="/docs/concepts/#majority">majority</a>
+(more than half) of its replicas elects a new leader within seconds, and the
+playground retries statements during that election. A partition without a majority
+has no leader, so it cannot serve reads or commit writes. A statement that needs
+such a partition fails after about 15 seconds, while data on other partitions
+stays available, sometimes with a few seconds of delay.
+<strong>Restart node</strong> brings back an empty server that catches up from surviving
+peers; use <strong>Reset data center</strong> to start fresh if the cluster cannot recover.
+Adding or removing servers, including automatic scaling, waits until all existing
+servers are running voters. Three replicas tolerate one unavailable replica per
+data partition; adding nodes does not increase a partition&#x27;s fault tolerance.</p>
 <p><strong>Follow simulated demand</strong> optionally picks a recommended cluster size from
 synthetic traffic units, with a target of 4,000 units per node, 10% tolerance,
 and bounds of 4–9 nodes. It waits four seconds before growing and ten before
@@ -77,6 +82,8 @@ resets on reload or <strong>Reset data center</strong>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="sql-and-data">SQL and data<a href="#sql-and-data" class="hash-link" aria-label="Direct link to SQL and data" title="Direct link to SQL and data" translate="no">​</a></h2>
 <p>The SQL console is available immediately. Once the engines are ready, use
 <strong>Run query</strong> or <strong>Cmd/Ctrl + Enter</strong> to run SQL through the selected server.
+A stopped server cannot run queries, so the console offers to switch to a running
+server or to restart the stopped one.
 The console includes examples for filtering, joins, subqueries, branching,
 returning, JSONB documents, foreign keys, indexes, updates, schema inspection,
 and functions. The JSONB example creates a GIN index, filters documents, and
