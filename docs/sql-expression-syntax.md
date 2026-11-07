@@ -11,6 +11,7 @@ SQL and migration scripts:
 | --- | --- | --- |
 | Window functions | `row_number() OVER (PARTITION BY customer_id ORDER BY id)` | [Ranks rows without grouping them into one result](/docs/sql-queries#window-functions). |
 | Digit separators | `200_000` | The number `200000`. |
+| `^` | `2 ^ 3` | [Power, the same as `pow(2, 3)`](#power). |
 | `%` | `i % 3` | The remainder of `i / 3`, the same as `mod(i, 3)`. |
 | `::` | `x::text` | The same as `CAST(x AS text)`. |
 | Subscript | `tags[1]` | The first element of an array. |
@@ -28,6 +29,23 @@ SELECT
   (ARRAY['paid', 'shipped', 'delivered'])[1 + i % 3]
 FROM series;
 ```
+
+## Characters and statement boundaries
+
+Unknown characters outside a literal, quoted identifier, or comment fail with
+CADB0406, including their line and column. They are no longer silently ignored.
+For example, an unexpected backslash or `$` is an error. A non-breaking space
+(U+00A0) or byte-order mark (U+FEFF) is not SQL whitespace; check copied SQL
+when an invisible character causes a syntax error.
+
+Whitespace accepts spaces, tabs, line breaks, form feeds, and vertical tabs.
+Unquoted identifiers use ASCII letters, digits, and underscores. Raw line
+breaks and tabs inside a literal or quoted identifier are refused; use an
+escape string such as `E'line\nnext'` for those characters.
+
+A server SQL request contains one statement. Repeated trailing semicolons are
+accepted, but not a second statement after them. Clients that run scripts
+split them into separate requests.
 
 ## Digit separators
 
@@ -70,6 +88,98 @@ SELECT 17 % 5 % 3;
 
 Because `%` is stored as a call, `SHOW CREATE VIEW`, `CHECK` constraints, and
 `EXPLAIN` can render it as `mod(a, b)`. The two forms are equivalent.
+
+## Power {#power}
+
+`a ^ b` is the same as `pow(a, b)` and returns FLOAT64. It means power,
+not XOR; use `#` for XOR. Its precedence follows PostgreSQL:
+
+| Expression | Result | Interpretation |
+| --- | --- | --- |
+| `2 * 3 ^ 2` | 18 | Power binds before multiplication. |
+| `-2 ^ 2` | 4 | Unary minus binds before power: `(-2) ^ 2`. |
+| `2 ^ 3 ^ 2` | 64 | Powers group left to right: `(2 ^ 3) ^ 2`. |
+
+Write `-(2 ^ 2)` for -4 and `2 ^ (3 ^ 2)` for 512. NULL and numeric errors
+follow [POW](/docs/functions-math).
+
+## Operator precedence
+
+Operators bind from tightest to loosest as follows. Each left-associative row
+groups from left to right; use parentheses to make a mixed expression clear.
+
+| Operators | Grouping |
+| --- | --- |
+| `::`, array subscripts | Left |
+| Unary `-`, prefix `~` | Right |
+| `^` | Left |
+| `*`, `/`, `%` | Left |
+| `+`, `-` | Left |
+| Concatenation, bitwise, regex, and JSONB operators | Left, all at one level |
+| BETWEEN, IN, LIKE, ILIKE, and their NOT forms | Non-associative |
+| `<`, `>`, `<=`, `>=`, `=`, `<>`, `!=` | Non-associative |
+| IS | Non-associative |
+| NOT | Right |
+| AND | Left |
+| OR | Left |
+
+This follows PostgreSQL, except prefix `~` binds like unary minus in CamusDB.
+For example, `1 + 1 IS NULL` is `(1 + 1) IS NULL`, and
+`6 | 1 & 3` is `(6 | 1) & 3`, yielding 3. Comparison chains such as
+`a = b = c` fail with CADB0406; write explicit comparisons joined by AND.
+
+Stored views and CHECK constraints retain their earlier grouping because
+their saved SQL contains parentheses. Inspect SHOW CREATE VIEW or SHOW CREATE
+TABLE, and recreate a definition if you want the new grouping. For example,
+an old `a = b IS NULL` can remain `a = (b IS NULL)`.
+
+## LIKE and ILIKE patterns
+
+LIKE matches the entire string. `%` matches any run of characters, including
+none; `_` matches one Unicode code point, including an emoji. ILIKE uses
+case-insensitive matching. Newlines are ordinary characters in either form.
+
+Backslash escapes the next pattern character. Plain string literals retain
+backslashes; escape strings need a doubled backslash:
+
+```camussql
+SELECT 'a_' LIKE 'a\_';              -- true
+SELECT 'ab' LIKE 'a_';               -- true
+SELECT 'a%' LIKE E'a\\%';            -- true
+SELECT 'a_' LIKE 'a#_' ESCAPE '#';    -- true
+SELECT 'a\b' LIKE 'a\b' ESCAPE '';    -- true; disable escaping
+```
+
+ESCAPE works with LIKE, ILIKE, NOT LIKE, and NOT ILIKE. It accepts one code
+point, an empty string to disable escaping, or NULL for an unknown result.
+It can be a parameter or column; a longer escape string fails with CADB0400.
+ESCAPE remains usable as an identifier. The parser represents this clause
+as `like_escape(pattern, escape)`, which SHOW CREATE and EXPLAIN can display.
+
+A pattern ending with its escape character fails with CADB0400 only if
+matching reaches that character. For example, `'b' LIKE 'a\'` is false, while
+`'a\' LIKE 'a\'` fails. SHOW ... LIKE uses the same matching rules.
+
+**Existing stored patterns take the new rules on their next evaluation.**
+Older builds treated `_` and backslash as literals. A CHECK can now reject a
+previously accepted value, and a view's results can change. Materialized views
+keep their rows until refreshed. Escape literal underscores and backslashes
+in stored patterns where needed; mixed server versions can disagree during
+an upgrade.
+
+## IN-list values
+
+IN and NOT IN lists can contain columns as well as literals and parameters:
+
+```camussql
+SELECT id FROM orders WHERE status IN (preferred_status, 'pending');
+```
+
+Each column item uses the current row. Constant lists can be hashed once and
+used for index probes; a row-dependent list is evaluated per row and is not
+converted into an index seek. General expressions inside a list, such as
+`IN (quantity + 1, 2)`, remain syntax errors. Use a subquery or explicit
+comparisons for those shapes.
 
 ## The `::` cast
 
@@ -287,10 +397,10 @@ WHERE payload @> '{"kind": "login"}'
   AND payload ->> 'deleted_at' IS NULL;
 ```
 
-These operators bind tighter than comparisons, `IS`, and `IN`, and less tightly
-than unary minus and `::`. PostgreSQL puts them at the level of `||`. CamusDB
-gives them their own level because it binds `IS` tighter than every binary
-operator, and `doc ->> 'k' IS NULL` must still test the result of `->>`.
+These operators share the precedence of concatenation, bitwise, and regex
+operators, following PostgreSQL. Arithmetic binds more tightly; comparisons,
+IS, and IN bind less tightly. Parenthesize an extraction when concatenating
+it: `'kind=' || (payload ->> 'kind')`. See [operator precedence](#operator-precedence).
 
 `#-` with no space between the two characters is the delete-path operator.
 Before `JSONB`, `x #-1` meant `x XOR -1`. It now deletes a path. For XOR, write

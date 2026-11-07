@@ -24,20 +24,26 @@ queries, or performs the database operations its MCP credentials allow.
 
 | Skill | Use it to |
 | --- | --- |
-| `camusdb-schema-design` | Design or review tables, keys, indexes, data types, constraints, sequences, and TTL. |
-| `camusdb-sql` | Write CamusSQL and port SQL from PostgreSQL or MySQL. |
-| `camusdb-transactions` | Choose transaction modes and implement correct conflict retries. |
-| `camusdb-query-performance` | Diagnose queries with plans, statistics, indexes, and the result cache. |
-| `camusdb-troubleshooting` | Diagnose `CADBxxxx` errors and slow or stuck workloads. |
-| `camusdb-dotnet` | Use CamusDB through ADO.NET, Dapper, and Entity Framework Core. |
+| `camusdb-schema-design` | Review keys, data types, JSONB and GIN indexes, constraints, sequences, TTL, and sharding placement. |
+| `camusdb-sql` | Write CamusSQL, including upserts, set operations, window functions, and JSONB queries; port PostgreSQL or MySQL SQL. |
+| `camusdb-transactions` | Choose transaction modes, use locking reads and upserts, handle failed statements, and retry conflicts. |
+| `camusdb-query-performance` | Diagnose plans and distributed queries using statistics, index usage, covering indexes, and the result cache. |
+| `camusdb-troubleshooting` | Diagnose `CADBxxxx` errors, request limits, statement statistics, and slow or stuck workloads. |
+| `camusdb-dotnet` | Use ADO.NET, Dapper, EF Core, JSONB mapping, pipelines, and OpenTelemetry. |
 | `camusdb-typescript` | Use the TypeScript connector or call the HTTP API. |
 | `camusdb-vector-search` | Store embeddings and write nearest-neighbor queries. |
 | `camusdb-migrations-and-recovery` | Rehearse schema changes, recover data, and back up or restore a database. |
-| `camusdb-local-dev` | Run CamusDB locally, use `camus-cli`, and connect the MCP server. |
+| `camusdb-local-dev` | Configure local nodes and clusters, choose storage backends including Solarium, use `camus-cli`, and connect MCP. |
 
 An agent reads the short description of each installed skill and loads the full
 instructions when a task matches. You do not need to load every skill into the
 conversation.
+
+The 0.2.0 plugin refreshes all ten skills for the engine and client changes
+through November 4, 2026. Detailed references now cover JSONB/GIN, set and
+window queries, locking reads and upserts, planner behavior, and current MCP
+tools. For example, ask the agent to review a JSONB index or fix code that
+catches a statement error and continues an already-aborted transaction.
 
 ## Install for Claude Code
 

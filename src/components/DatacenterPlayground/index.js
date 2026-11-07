@@ -32,6 +32,9 @@ export default function DatacenterPlayground() {
   const failed = nodes.filter((n) => !n.running).map((n) => n.index);
   const inspect = Math.max(0, Math.min(selected, count - 1));
   const node = nodes[inspect];
+  const selectedDown = !!node && !node.running;
+  const selectedRestarting = selectedDown && lab.joiningNode === inspect;
+  const alternative = nodes.find((n) => n.running && n.role === 'Voter');
   const partitions = (cluster?.partitions ?? [])
     .filter((p) => p.state !== 'Removed')
     .map((p) => {
@@ -69,6 +72,7 @@ export default function DatacenterPlayground() {
           ? 'Degraded · awaiting recovery'
           : 'Cluster online';
   const canResize = !!cluster && !busy && online === count;
+  const resizeBlockedByRecovery = !!cluster && !starting && online < count;
   return (
     <div className={styles.app}>
       <header className={styles.header}>
@@ -112,11 +116,23 @@ export default function DatacenterPlayground() {
               <button
                 className={styles.primaryAction}
                 disabled={busy || lab.startup !== 'ready' || !node?.running || !lab.sql.trim()}
+                aria-describedby={selectedDown ? 'console-server-notice' : undefined}
                 onClick={() => lab.query(inspect)}
               >
-                {starting ? 'Starting cluster…' : 'Run query'}
+                {starting ? 'Starting cluster…' : selectedRestarting ? 'Restarting…' : selectedDown ? 'Server down' : 'Run query'}
               </button>
             </div>
+            {selectedDown && <div id="console-server-notice" className={styles.serverNotice} role="status">
+              {selectedRestarting
+                ? <p><strong>{nodeName(inspect)} is restarting.</strong> You can run queries on it after it rejoins the cluster.</p>
+                : <>
+                  <p><strong>{nodeName(inspect)} is down, so it cannot run queries.</strong> Use a running server, or restart this one.</p>
+                  <div>
+                    {alternative && <button onClick={() => setSelected(alternative.index)}>Use {nodeName(alternative.index)}</button>}
+                    <button disabled={busy} onClick={() => lab.fault(inspect)}>Restart {nodeName(inspect)}</button>
+                  </div>
+                </>}
+            </div>}
             <div className={styles.examples}>
               <span>SQL examples</span>
               {defaultExamples.map((example) => (
@@ -232,11 +248,12 @@ export default function DatacenterPlayground() {
                     const joining = lab.joiningNode === p.id || (nodes[p.id]?.running && nodes[p.id]?.role !== 'Voter');
                     const preparing = starting && p.id < MIN;
                     const visible = preparing || joining || p.id < count;
-                    const down = failed.includes(p.id);
-                    return <div key={p.id} className={styles.serverPosition} style={{left: p.x, top: p.y}}>
+                    const down = failed.includes(p.id) && !joining;
+                    return <div key={p.id} className={styles.serverPosition} style={{left: p.x, top: p.y, '--bounce-delay': `${-p.id * 230}ms`}}>
                       {visible ? <>
+                        {(joining || preparing) && <span className={styles.startingPad} aria-hidden="true" />}
                         <button
-                          className={`${styles.server} ${inspect === p.id && !preparing ? styles.selectedServer : ''} ${down ? styles.failedServer : ''} ${joining ? styles.joiningServer : ''} ${preparing ? styles.preparingServer : ''}`}
+                          className={`${styles.server} ${inspect === p.id && !preparing ? styles.selectedServer : ''} ${down ? styles.failedServer : ''} ${joining ? styles.joiningServer : ''} ${preparing ? styles.preparingServer : ''} ${joining || preparing ? styles.startingServer : ''}`}
                           data-preparing={preparing || undefined}
                           style={{'--reveal-delay': `${p.id * 70}ms`}}
                           data-joining={joining || undefined}
@@ -355,12 +372,19 @@ export default function DatacenterPlayground() {
                       <span>{count} servers</span>
                       <button
                         aria-label="Add one node"
+                        aria-describedby={resizeBlockedByRecovery ? 'cluster-resize-notice' : undefined}
                         disabled={!canResize || count >= MAX}
                         onClick={() => lab.resize(1)}
                       >
                         +
                       </button>
                     </div>
+                    {resizeBlockedByRecovery && <div id="cluster-resize-notice" className={styles.decision} role="status">
+                      <strong>Adding servers is paused for safety.</strong>{' '}
+                      {failed.length
+                        ? 'Restart unavailable servers and wait for them to rejoin. This playground requires every server to be healthy before changing cluster size.'
+                        : 'Wait for all servers to finish joining or recovering before changing cluster size.'}
+                    </div>}
                     <p className={styles.note}>
                       New servers join as learners and catch up. Removal asks
                       CamusDB to drain the highest ordinal before stopping it.
@@ -431,9 +455,12 @@ export default function DatacenterPlayground() {
                   replicated across the committed roster. Data resets on reload.
                 </p>
               </section>
-              <section className={styles.panel} aria-label="Node inspector">
+              <section className={`${styles.panel} ${styles.selectedPanel}`} data-down={selectedDown || undefined} aria-label="Node inspector">
                 <div className={styles.panelTitle}>
-                  <h2>{nodeName(inspect)}</h2>
+                  <div>
+                    <span className={styles.selectedBadge}>Selected server</span>
+                    <h2>{nodeName(inspect)}</h2>
+                  </div>
                   <span
                     className={
                       failed.includes(inspect) ? styles.danger : styles.healthy
@@ -442,6 +469,7 @@ export default function DatacenterPlayground() {
                     {node?.role ?? (busy ? 'Starting' : 'Offline')}
                   </span>
                 </div>
+                <span className={styles.note}>Click another server in the scene to inspect it.</span>
                 <span className={styles.note}>SERVER-REPORTED STATE</span>
                 <dl>
                   <div>
@@ -493,11 +521,7 @@ export default function DatacenterPlayground() {
                   className={
                     `${styles.primaryAction} ${failed.includes(inspect) ? styles.recover : styles.fault}`
                   }
-                  disabled={
-                    busy ||
-                    !cluster ||
-                    (!!node?.running && online - 1 < Math.floor(count / 2) + 1)
-                  }
+                  disabled={busy || !cluster}
                   onClick={() => lab.fault(inspect)}
                 >
                   {failed.includes(inspect)
@@ -506,8 +530,8 @@ export default function DatacenterPlayground() {
                 </button>
                 <p className={styles.note}>
                   Stop a node to exercise real failover. Restart brings back an
-                  empty server to recover from peers. Keep a connected majority
-                  online.
+                  empty server to recover from peers. Stopping a majority can
+                  make queries unavailable; restart servers or reset the data center.
                 </p>
               </section>
             </aside>

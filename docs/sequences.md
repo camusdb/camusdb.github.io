@@ -198,7 +198,9 @@ the insert omits the column. If an insert supplies a value, CamusDB writes it
 and does not advance the sequence.
 
 CamusDB also accepts `SERIAL` and `BIGSERIAL` as shorthand for an `INT64`
-column backed by an owned sequence:
+column backed by an owned sequence. Both are 64-bit, unlike PostgreSQL SERIAL.
+A sequence on a SMALLINT or INT column keeps its own bounds; a generated value
+outside the column range fails the write with CADB0420.
 
 ```camussql
 CREATE TABLE invoices (
@@ -317,6 +319,13 @@ nodes), but they are still counters. Keep these properties in mind:
 These are normal sequence semantics, similar to PostgreSQL's, and they are why
 sequences suit external numbers but are not ideal as the physical key of
 high-write tables.
+
+COALESCE, IFNULL, and NVL stop evaluating at their first non-NULL value.
+A NEXTVAL after a non-NULL literal or parameter proven to be returned draws
+nothing: `COALESCE(1, nextval('s'))` does not advance `s`. If the statement
+cannot prove a call unreachable, it can reserve a value that is never used,
+leaving a gap. A sequence call in a nested FROM-less SELECT is refused with
+CADB0547. See [conditional evaluation](/docs/functions-null#evaluation-order).
 
 ## Branches, backups, and drops
 

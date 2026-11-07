@@ -10,7 +10,7 @@ otherwise. They return `NULL` when a required argument is `NULL`, except
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `length(text)` | `INT64` | The number of UTF-16 code units in `text`. A character outside the Basic Multilingual Plane, such as an emoji, counts as 2. `length(bytes)` returns the number of bytes. |
+| `length(text)` | `INT64` | The number of Unicode code points in `text`; an emoji counts as one. `length(bytes)` returns the number of bytes. |
 | `lower(text)` | `STRING` | The text in lowercase, using invariant casing rules. |
 | `upper(text)` | `STRING` | The text in uppercase, using invariant casing rules. |
 | `trim(text)` | `STRING` | Removes leading and trailing whitespace. |
@@ -18,6 +18,9 @@ otherwise. They return `NULL` when a required argument is `NULL`, except
 | `rtrim(text)` | `STRING` | Removes trailing whitespace. |
 | `substring(text, start)` | `STRING` | Returns the text from the start position to the end. Positions start at 1. |
 | `substring(text, start, length)` | `STRING` | Returns at most `length` characters from the start position. Positions start at 1. |
+| `substr(text, start [, length])` | `STRING` | Alias for `substring`; both also accept BYTES and return BYTES. |
+| `strpos(text, search)` | `INT64` | The 1-based code-point position of the first match, or 0 if absent. `POSITION(search IN text)` is equivalent. |
+| `like_escape(pattern, escape)` | `STRING` | Converts a LIKE pattern with a custom escape to backslash-escaped form. See [LIKE patterns](/docs/sql-expression-syntax#like-and-ilike-patterns). |
 | `replace(text, search, replacement)` | `STRING` | Replaces every ordinal match of `search` with `replacement`. An empty search leaves the text unchanged. |
 | `contains(text, search)` | `BOOL` | Whether `text` contains `search`, using ordinal comparison. |
 | `starts_with(text, prefix)` | `BOOL` | Whether `text` starts with `prefix`, using ordinal comparison. |
@@ -48,9 +51,24 @@ SELECT concat('robot-', 7, '-', true);
 
 ## substring rules
 
-`substring` counts positions from 1. A start position below `1` or a negative
-length is invalid. If the start position is past the end of the string, the
-function returns an empty string.
+`substring` and `substr` count positions from 1. Text counts code points;
+BYTES counts bytes. A start below 1 uses up that part of the requested length,
+following PostgreSQL:
+
+```camussql
+SELECT substr('abcde', 0, 2);    -- 'a'
+SELECT substring('abcde', -1, 3); -- 'a'
+SELECT substring('x🙂y', 2, 1);   -- '🙂'
+```
+
+Without a length, a start below 1 returns the entire value. A start past the
+end returns an empty value. Negative lengths fail with CADB0400, including
+when the start is past the end. A NULL argument returns NULL.
+
+TRIM, LTRIM, and RTRIM accept an optional set of characters to remove, counted
+by code point: `ltrim('🙂x', '😀')` leaves `🙂x` unchanged. See
+[Unicode text](/docs/data-types#characters-and-valid-unicode) for input validation
+and the difference between code points and regex matching.
 
 ## concat rules
 

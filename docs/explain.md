@@ -76,13 +76,15 @@ Note:
   that subquery once and materializes it. `EXPLAIN` on such a statement
   therefore reads storage for the inner query. A plain `EXPLAIN` never executes
   the outer query.
-- **`SELECT` without `FROM`.** Such a [statement](/docs/sql-fromless-select)
-  has no plan tree, so a plain `EXPLAIN` renders a fixed shape: a
+- **`SELECT` without `FROM` or `WHERE`.** Such a
+  [statement](/docs/sql-fromless-select) has no plan tree, so a plain
+  `EXPLAIN` renders a fixed shape: a
   `constant-source`, then a `project`, then a `limit` if there is one. It
   renders no costed plan. CamusDB rejects `EXPLAIN (ANALYZE)` for it, because
   there is no table access to measure; use the plain form. Unlike running the
-  real query, `EXPLAIN` on such a statement does not materialize the subqueries
-  in its projection first. They appear only as their output column names.
+  real query, `EXPLAIN` on this unfiltered form does not materialize the
+  projection subqueries. With WHERE, it instead plans a `function-scan` of
+  `*single_row*`, and EXPLAIN (ANALYZE) is supported.
 
 All EXPLAIN forms use the query's read view. In a Read Committed transaction,
 storage reads during planning or execution use one statement timestamp.

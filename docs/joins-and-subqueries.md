@@ -289,7 +289,9 @@ result first.
 
 `NOT IN` follows SQL null semantics. A single `NULL` in the inner result makes
 every non-matching row evaluate to unknown. CamusDB drops those rows, and the
-query commonly returns zero rows. Use `NOT EXISTS` when the inner column accepts
+query commonly returns zero rows. An empty inner result makes NOT IN true,
+even for a NULL outer value; the inner WHERE determines whether that result
+is empty. Use `NOT EXISTS` when the inner column accepts
 `NULL`.
 
 CamusDB rejects multi-column and correlated `IN` or `NOT IN` subqueries.
@@ -309,6 +311,17 @@ WHERE EXISTS (
 )
 ORDER BY email;
 ```
+
+For an ordinary EXISTS body, the select list, DISTINCT, GROUP BY, and ORDER BY
+are discarded because only row existence matters. For example,
+`EXISTS (SELECT 1 / 0 FROM posts)` does not divide by zero. Unknown names and
+known type mistakes in discarded clauses still fail. Aggregates, HAVING,
+OFFSET, and LIMIT 0 can change whether a row exists, so they retain their
+meaning; LIMIT 0 returns false without reading rows.
+
+A correlated EXISTS refuses aggregates, HAVING, OFFSET, and LIMIT expressions
+other than a nonnegative constant with CADB0533. LIMIT 0 is false and a
+positive constant limit does not change the existence check.
 
 A correlated EXISTS is supported only in a SELECT's WHERE. It can appear at
 any depth, including inside a CASE or a comparison, rather than only directly

@@ -53,6 +53,12 @@ certificate, UDP, and platform QUIC library requirements.
 
 ## Status and errors
 
+The SQL query, streaming-query, non-query, and DDL endpoints return CADB0400
+for malformed JSON bodies, including escaped lone surrogate halves. The
+message gives the JSON path and byte position. This behavior does not yet
+cover every administrative endpoint. Valid JSON containing invalid SQL text
+or parameters follows the [engine's validation rules](/docs/data-types#characters-and-valid-unicode).
+
 Successful responses use:
 
 ```json

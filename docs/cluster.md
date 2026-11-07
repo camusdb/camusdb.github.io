@@ -16,19 +16,22 @@ reads and writes when one node fails, and no committed write is lost.
 
 Use cluster mode when one of these needs applies:
 
-- **High availability.** The application must continue to work when a machine
-  fails, restarts for maintenance, or loses its network. A three-node cluster
-  continues to commit while one node is down.
+- **No single point of failure.** With one database server, one failed machine,
+  disk, or network link stops the application. A cluster has no primary node to
+  lose: any node serves requests, and each partition has copies on several
+  nodes. When a node fails or restarts for maintenance, the remaining replicas
+  elect new leaders for the partitions it led. A three-node cluster continues to
+  commit while one node is down.
 - **Durability on more than one machine.** A write must survive the loss of a
   disk or a whole server. CamusDB confirms a commit only after a
   [majority](/docs/concepts#majority) of the nodes holds the change. By default
   every node holds every partition. When you set `kahuna.replication_factor`,
   each partition lives on that many nodes, and the majority is of those
   [replicas](/docs/concepts#replica-and-replication-factor).
-- **More capacity.** One machine has a limit on CPU, memory, and disk. A cluster
-  spreads the data and the work across several machines. See
-  [Key-range sharding](/docs/key-range-sharding) and
-  [Distributed queries](/docs/distributed-queries).
+- **Room to grow.** One machine has a limit on CPU, memory, and disk. A cluster
+  can grow past three nodes to survive more failures, or to spread the data and
+  the work across more machines. See
+  [Choose the number of nodes](#choose-the-number-of-nodes).
 
 You do not need cluster mode for local development, tutorials, or quick tests.
 A standalone node is enough, and it starts with one command. SQL and transaction
@@ -39,6 +42,72 @@ If you expect to grow from one machine, start in cluster mode now. A standalone
 node refuses joins; the SQL can stay the same when moving, but the data needs
 export and reimport. See [Grow a one-node cluster](/docs/growing-a-one-node-cluster)
 for the join sequence and quorum considerations.
+
+### Choose the number of nodes
+
+Three nodes is the smallest cluster that survives a node failure. It is a
+starting point, not a limit: CamusDB has no configured maximum number of nodes.
+Size the cluster for your workload, and load test at the size you plan to run.
+
+What more nodes give you depends on `kahuna.replication_factor`. These layouts
+are examples, not a list of supported sizes:
+
+| Cluster | Replicas per partition | Nodes that can fail | What you get |
+| --- | --- | --- | --- |
+| 3 nodes, default | 3 | 1 | The smallest layout with no single point of failure. |
+| 5 nodes, default | 5 | 2 | More failures survived. Each node still stores all the data, and each write waits for 3 of the 5 replicas. |
+| 5 or more nodes, `replication_factor: 3` | 3 | 1. If 2 fail together, only the partitions with 2 replicas on those nodes stop. | Each new node takes a share of the partitions, and each node stores less. |
+
+So choose by goal:
+
+- **To survive more failures, add replicas.** Keep the number odd: four replicas
+  tolerate one failure, the same as three.
+- **To add capacity, add nodes and set a replication factor below the node
+  count.** With the default full replication, a new node is one more copy of
+  everything, so it adds no storage or write capacity.
+
+For a larger cluster with a replication factor, set these keys on each node:
+
+```yaml
+kahuna:
+  replication_factor: 3
+  enable_placement_rebalancer: true
+  zone: rack-1
+```
+
+- `replication_factor` is the number of replicas of each partition. If you set
+  it on a cluster that already uses full replication, the rebalancer reduces the
+  existing partitions to that number. Without the rebalancer, they stay on every
+  node.
+- `enable_placement_rebalancer` moves replicas to new nodes and repairs ranges
+  that lost a replica. It is off by default.
+- `zone` is the rack or availability zone of the node. CamusDB tries to spread
+  each range's replicas across zones, so that one zone outage leaves a majority.
+  The spread is best effort, because the balance of replicas between nodes can
+  take priority. Check the result with [`SHOW RANGES`](/docs/show-ranges). Use
+  three or more zones: with two, one zone must hold a majority of the replicas.
+
+The number of partitions also limits how far a cluster spreads. With a factor of
+3, three partitions have nine replicas in total, so a tenth node has no data to
+host. `initial_partitions` is fixed at creation, so plan for the size you expect.
+By default, one table lives on one partition, so more nodes do not help a single
+busy table. See [Key-range sharding](/docs/key-range-sharding) and
+[Distributed queries](/docs/distributed-queries).
+
+Two more points keep a failure from stopping your application:
+
+- Put the nodes on separate machines, and preferably in separate racks or zones.
+  Nodes that share a machine or a power supply fail together.
+- Give the application more than one way to reach the cluster. List several
+  endpoints in the driver's connection string or use a load balancer, because
+  one fixed node address is also a single point of failure. A request that was
+  running on the failed node can fail, so handle that error in the application.
+  See [Connection model](/docs/connection-model).
+
+You can add nodes to a running cluster. Each new node joins as a
+[learner](/docs/concepts#learner-and-voter), catches up, and then becomes a
+voter. See [Grow a one-node cluster](/docs/growing-a-one-node-cluster), or
+[scale with the Kubernetes Operator](/docs/kubernetes-operator#scale-manually).
 
 ## How cluster mode works
 
@@ -76,6 +145,31 @@ Use standalone mode for local tutorials, quick experiments, and single-node
 development.
 
 ## Run a local cluster
+
+### Start with Aspire
+
+For an easy way to try a cluster or develop an application against it, use the
+[.NET Aspire integrations](/docs/aspire#run-a-local-cluster). The AppHost starts
+three containers, configures peers and Raft certificates, creates your
+database, and passes the node endpoints to your service. You can inspect
+health and stop or restart nodes from the Aspire dashboard.
+
+The ready-to-run Notes example needs Docker and the .NET 10 SDK:
+
+```bash
+git clone https://github.com/camusdb/camusdb-aspire.git
+cd camusdb-aspire
+dotnet run --project examples/ClusterExample/ClusterExample.AppHost
+```
+
+Open the API's **Notes** URL in the dashboard after the resources become
+healthy. Add notes, stop one node, and check that the other two still serve
+requests; restart it to watch it catch up. Each node has its own persistent
+volume, but all nodes run on your machine, so this is a development setup.
+See the [Aspire example](/docs/aspire#try-the-three-node-notes-example) for
+startup, connection, and persistence details.
+
+### Run nodes manually
 
 To try replication on one machine, run three nodes of the `CamusDB.Server`
 tool, each in its own terminal. Install the tool as shown in
@@ -322,6 +416,23 @@ Configuration uses the same machinery. CamusDB commits each
 its own partition, so every node applies settings in the same order, and a node
 that was down catches up on replay. There is no rolling restart, and no node
 keeps a stale value.
+
+## Check storage health
+
+Use `GET /v1/cluster/health` to keep a node with detected storage damage out of
+service. A reported store or partition storage fault makes `ready` false and
+the endpoint returns HTTP 503. Inspect the response body as well as its status.
+
+The `storageFault` field contains the engine's fault message;
+`partitionStorageFaults` lists faults for hosted partitions. These messages can
+include file paths. With authentication enabled, only superusers see these
+details; other callers still receive the readiness result.
+
+A read reporting `CADB0837 StorageCorrupted` fails with HTTP 500 or gRPC
+`DATA_LOSS`. It is not retryable and must not be treated as an empty result.
+Detection and reporting cover RocksDB and Solarium; see
+[backend limits and recovery policy](/docs/configuration#storage-damage-and-lost-log-entries).
+This endpoint does not perform an integrity scan or repair damaged storage.
 
 ## Transfer partition leadership
 

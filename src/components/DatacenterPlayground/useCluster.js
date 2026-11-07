@@ -123,7 +123,12 @@ export default function useCluster(active) {
         const seeded = JSON.parse(await api.current.ExecuteOnNodeAsync(0, defaultSeedScript, 'playground'));
         const failure = seeded.find((outcome) => !outcome.ok);
         if (failure) throw new Error(`Sample library could not load: ${failure.message}`);
-        accept(JSON.parse(await api.current.ClusterStatusAsync()));
+        const seededStatus = JSON.parse(await api.current.ClusterStatusAsync());
+        // A server reads the database catalog when it first opens the database, and that read needs
+        // the catalog's partition. Open it on every server now, so a later failure cannot block it.
+        for (const node of seededStatus.nodes)
+          await api.current.ExecuteOnNodeAsync(node.index, 'SELECT 1;', 'playground');
+        accept(seededStatus);
         log(
           'Four real nodes started · eight data partitions · replication factor 3',
         );
@@ -138,6 +143,10 @@ export default function useCluster(active) {
         ? 'Joining a new server as a learner; waiting for voter promotion…'
         : 'Draining the highest ordinal and committing its removal…',
       async () => {
+        // Check the latest snapshot after any pending status poll completes.
+        if (!previous.current?.nodes.length || previous.current.nodes.some((node) => !node.running || node.role !== 'Voter')) {
+          throw new Error('Restart unavailable servers and wait for them to rejoin before changing cluster size.');
+        }
         if (direction > 0) {
           setJoiningNode(previous.current.nodes.length);
           // Paint the pending server before the engine begins its join operation.
@@ -167,24 +176,47 @@ export default function useCluster(active) {
   function fault(id) {
     return action('Changing node availability…', async () => {
       const restarting = !cluster.nodes[id].running;
-      accept(
-        JSON.parse(
-          await api.current[restarting ? 'StartNodeAsync' : 'StopNodeAsync'](
-            id,
+      if (restarting) {
+        setJoiningNode(id);
+        // Paint the starting server before the engine begins its restart.
+        await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+      }
+      try {
+        accept(
+          JSON.parse(
+            await api.current[restarting ? 'StartNodeAsync' : 'StopNodeAsync'](
+              id,
+            ),
           ),
-        ),
-      );
-      log(
-        `camusdb-${id} ${restarting ? 'restarted empty; server catches up from peers' : 'stopped; surviving servers handle failover'}`,
-      );
+        );
+        log(
+          `camusdb-${id} ${restarting ? 'restarted empty; server catches up from peers' : 'stopped'}`,
+        );
+      } finally {
+        if (mounted.current) setJoiningNode(null);
+      }
     });
+  }
+  // The engine names servers by endpoint. The page names them by rack label.
+  function withServerNames(text) {
+    return (previous.current?.nodes ?? []).reduce(
+      (named, node) => named.replaceAll(node.endpoint, `camusdb-${node.index}`),
+      text ?? '',
+    );
   }
   function query(id) {
     return action(`Running SQL through camusdb-${id}…`, async () => {
       const outcomes = JSON.parse(
         await api.current.ExecuteOnNodeAsync(id, sql, 'playground'),
       );
-      if (mounted.current) setResults(outcomes.map((outcome) => ({...outcome, servedBy: id})));
+      if (mounted.current)
+        setResults(
+          outcomes.map((outcome) => ({
+            ...outcome,
+            servedBy: id,
+            ...(outcome.ok ? {} : {message: withServerNames(outcome.message)}),
+          })),
+        );
       log(
         `camusdb-${id} returned ${outcomes.some((o) => !o.ok) ? 'a SQL error' : 'query results'}`,
       );

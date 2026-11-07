@@ -370,6 +370,32 @@ same disk is also handling Raft WAL fsyncs. Set it to `true` when you need
 RocksDB reads to bypass the page cache and rely on the RocksDB block cache
 alone.
 
+### Storage damage and lost log entries
+
+With RocksDB or Solarium, a store that detects damage stops serving data. The node gives
+up leadership and withholds candidacy; it does not rewrite the damaged files.
+Reads that surface `CADB0837 StorageCorrupted` have failed, rather than found
+no rows. Do not retry this error as a transient transaction conflict. See
+[storage health](/docs/cluster#check-storage-health) for monitoring.
+
+After a restart, `kahuna.raft_lost_acknowledged_entries_policy` controls a
+replica that discovers it lost log entries it had acknowledged:
+
+| Value | Behavior |
+| --- | --- |
+| `quarantine` (default) | The replica neither votes nor campaigns until its leader repairs it. With one replica there is no peer to repair from, so the partition stays leaderless and emits a Critical log. |
+| `accept_and_log` | Accepts and logs the loss, disabling this safety fence. It does not restore entries; with one replica the loss is permanent. |
+
+Changing the policy requires a restart. It is separate from repairing damaged
+storage or restoring a [backup](/docs/backup-and-restore).
+
+Solarium's adapter now implements the storage-damage contract, including
+stopping service and reporting a fault when corruption is detected. These
+protections remain backend-specific: SQLite lacks page checksums, and its WAL
+replay can stop at a damaged frame.
+Its Raft metadata uses `synchronous=NORMAL` regardless of `wal_sync_writes`.
+A healthy endpoint alone does not verify every stored byte.
+
 ### Solarium storage engine
 
 [Solarium](https://solariumdb.github.io/) is a managed key/value engine that can store the KV state, the Raft
@@ -660,6 +686,7 @@ explicitly or reduce WAL shard sizing.
 | A parser-cache limit is below 0, or its sweep interval is below 1 | `InvalidConfig` |
 | Unknown `kahuna` key | `InvalidConfig` |
 | Unknown `kahuna.storage` or `kahuna.wal_storage` | `InvalidConfig` |
+| Invalid `kahuna.raft_lost_acknowledged_entries_policy` (expected `quarantine` or `accept_and_log`) | `InvalidConfig` |
 | Invalid `kahuna.solarium_environment`, or negative compaction pacing/concurrency | `InvalidConfig` |
 | `kahuna.start_election_timeout_ms` is at or above `kahuna.end_election_timeout_ms` | `InvalidConfig` |
 | Effective `kahuna.recent_heartbeat_ms` is at or above effective `kahuna.heartbeat_interval_ms` | `InvalidConfig` |

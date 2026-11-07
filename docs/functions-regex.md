@@ -155,7 +155,14 @@ groups. It does not support named POSIX classes such as `[[:alpha:]]`. Use
 - A capture group that did not participate returns `NULL`.
 - The function returns `NULL` when there is no match.
 
-`regexp_instr` and `regexp_substr` count positions from 1:
+Regex start arguments and returned positions count Unicode code points from 1.
+Matching itself uses UTF-16 units: `regexp_count('🙂', '.')` is 2 and
+`regexp_like('🙂', '^.$')` is false, unlike PostgreSQL. A result containing
+half a surrogate pair, or a position inside a pair, fails with CADB0400
+instead of returning invalid text. Name the character in the pattern when
+possible, for example `regexp_replace('a🙂', '🙂', 'b')` returns `ab`.
+
+`regexp_instr` and `regexp_substr` use these position rules:
 
 - `start` must be `1` or more.
 - `N` must be `1` or more.

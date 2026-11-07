@@ -183,7 +183,7 @@ message, a typed `oneof` that follows the CamusDB column types:
 | `NULL` | `null_value` | Explicit typed NULL sentinel. |
 | `ID` / `OID` | `id_value` | 24 lowercase ObjectId hex characters. |
 | `INT64` | `int64_value` | Signed 64-bit integer. |
-| `STRING` | `string_value` | UTF-8 string. |
+| `STRING` | `string_value` | UTF-8 string. Protobuf clients can replace invalid surrogate halves with U+FFFD before sending; validate text before encoding. See [Unicode validation](/docs/data-types#characters-and-valid-unicode). |
 | `BOOL` | `bool_value` | Boolean. |
 | `FLOAT64` | `float64_value` | IEEE-754 double, including infinity and NaN. |
 | `FLOAT32` | `float32_value` | IEEE-754 float, including infinity and NaN. |

@@ -23,7 +23,7 @@ FROM robots;
 | Function | Returns | Description |
 | --- | --- | --- |
 | `to_string(value)` | `STRING` | Converts `STRING`, `OID`, `UUID`, `INT64`, `FLOAT64`, `FLOAT32`, `NUMERIC`, `BOOL`, `DATE`, `DATETIME`, or `BYTES` to text. A UUID becomes canonical lowercase text with hyphens. A boolean becomes `true` or `false`. A `DATETIME` becomes ISO-8601 text in UTC, and `BYTES` becomes `\x` followed by lowercase hex. |
-| `to_int64(value)` | `INT64` | Converts `INT64`, `FLOAT64`, `NUMERIC`, `BOOL`, or integer text. Floats are truncated toward zero. `NUMERIC` values round half away from zero. A boolean becomes `1` or `0`. |
+| `to_int64(value)` | `INT64` | Converts `INT64`, `FLOAT64`, `FLOAT32`, `NUMERIC`, `BOOL`, or integer text. Floats and `NUMERIC` round half away from zero. A boolean becomes `1` or `0`. |
 | `to_float64(value)` | `FLOAT64` | Converts `FLOAT64`, `INT64`, `NUMERIC`, `BOOL`, or numeric text. A boolean becomes `1.0` or `0.0`. |
 | `to_float32(value)` | `FLOAT32` | Converts a numeric value or numeric text to single precision. |
 | `to_bool(value)` | `BOOL` | Converts a `BOOL`, or the text `true` or `false` in any case. |
@@ -40,9 +40,11 @@ FROM robots;
 | Target | Result type |
 | --- | --- |
 | `string`, `char`, `varchar`, `text` | `STRING` |
-| `int`, `int64`, `integer`, `smallint` | `INT64` |
+| `int64`, `bigint` | `INT64` |
+| `int`, `integer` | `INT64` value, checked against the signed 32-bit range |
+| `smallint` | `INT64` value, checked against the signed 16-bit range |
 | `numeric`, `decimal` | `NUMERIC` |
-| `float`, `float64`, `double` | `FLOAT64` |
+| `float`, `float64`, `double`, `double precision` | `FLOAT64` |
 | `float32`, `real` | `FLOAT32` |
 | `bool`, `boolean` | `BOOL` |
 | `oid`, `id`, `object_id` | `OID` |
@@ -50,6 +52,10 @@ FROM robots;
 | `date` | `DATE` |
 | `datetime`, `timestamp` | `DATETIME` |
 | `bytes`, `blob` | `BYTES` |
+
+See [integer type names](/docs/data-types#integer-type-names) and
+[float-to-integer rounding](/docs/data-types#casting-floats-to-integers) for
+range errors and differences from PostgreSQL.
 
 ## Examples
 

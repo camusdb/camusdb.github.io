@@ -199,10 +199,13 @@ SELECT id FROM events WHERE payload ->> 'kind' IN ('login', 'logout');
 SELECT id FROM events WHERE payload -> 'user' ->> 'id' = '7';
 ```
 
-PostgreSQL puts these operators at the level of `||`. CamusDB gives them their
-own level because CamusDB binds `IS` tighter than every binary operator. At the
-PostgreSQL level, `doc ->> 'k' IS NULL` would read as `doc ->> ('k' IS NULL)`.
-See [Expression syntax](/docs/sql-expression-syntax#jsonb-operators).
+JSONB operators now share the precedence of concatenation, bitwise, and regex
+operators, following PostgreSQL. They group left to right:
+`'x' || payload ->> 'kind'` means `('x' || payload) ->> 'kind'`.
+Use `'x' || (payload ->> 'kind')` to concatenate extracted text. Arithmetic
+binds more tightly, so `payload -> 0 + 1` selects element 1. See
+[operator precedence](/docs/sql-expression-syntax#operator-precedence) and its
+notes on definitions stored by older versions.
 
 ### Operators next to placeholders and XOR
 
@@ -525,7 +528,7 @@ CamusDB never returns part of a document.
 | --- | --- | --- |
 | `json` type | Keeps the input text: whitespace, key order, and duplicate keys. | An alias of `JSONB`. The text is canonical. |
 | `jsonb_path_ops` | A smaller index that serves only `@>`. | The same index as `jsonb_ops`. It serves every GIN operator. |
-| Operator precedence | The JSONB operators are at the level of `\|\|`. | Their own level, above `IS` and `IN`. See [Operator precedence](#operator-precedence). |
+| Operator precedence | The JSONB operators are at the level of `\|\|`. | The same. See [Operator precedence](#operator-precedence). |
 | `x #-1` | Path delete. | Path delete. Before `JSONB`, it was XOR with `-1`. |
 | A text column as a document operand | Rejected. The operator needs `jsonb`. | Parsed as a document, like a literal. |
 | Invalid JSON text compared with a document | The literal is rejected. | Equal to no document. |

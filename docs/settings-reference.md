@@ -396,7 +396,8 @@ value.
 | `kahuna.storage_compaction_rate_mbps` | unset | integer MB/s | KV flush/compaction pacing for RocksDB or Solarium; 0 means unlimited. |
 | `kahuna.storage_max_background_compactions` | unset | int | KV compaction concurrency; 0 uses the engine default. |
 | `kahuna.wal_revision` | `v2` | string | On-disk layout revision of the Raft log. |
-| `kahuna.wal_sync_writes` | `true` (Kahuna default) | bool | Syncs each Raft log write to disk. With `false`, an operating system crash or power loss can lose recent log entries. |
+| `kahuna.wal_sync_writes` | `true` (Kahuna default) | bool | Controls Raft log write syncing for backends that honor it. With `false`, an operating system crash or power loss can lose recent log entries. SQLite Raft metadata uses `synchronous=NORMAL` regardless of this flag. |
+| `kahuna.raft_lost_acknowledged_entries_policy` | `quarantine` | `quarantine`, `accept_and_log` | Restart-only policy when recovery finds lost acknowledged log entries. See [storage damage and lost log entries](/docs/configuration#storage-damage-and-lost-log-entries) before changing it. |
 | `kahuna.wal_group_commit_linger_ms` | `0` (Kahuna default) | ms | How long a log writer waits to group more commits into one fsync. `0` turns the wait off. |
 | `kahuna.wal_single_fsync_commit` | `true` | bool | Acknowledges an autocommit write once a majority has stored it, and writes its commit marker with the next flush. This removes one fsync from the commit path. |
 | `kahuna.wal_shard_write_buffer_size_mb` | unset (`64`) | MiB | See [Raft WAL shard column families](/docs/configuration#raft-wal-shard-column-families) for this key and the next seven. `1` to `65536`. |

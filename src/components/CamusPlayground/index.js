@@ -244,7 +244,7 @@ const sqlKeywords = new Set([
   'COMMENT', 'COMMIT', 'COMMITTED', 'CONCURRENTLY', 'CONFLICT', 'CONNECTIONS', 'CONSTRAINT',
   'CONTINUE', 'CREATE', 'CRITICAL', 'CROSS', 'CURRENT', 'CYCLE', 'DATA', 'DATABASE', 'DATABASES',
   'DEFAULT', 'DEFERRABLE', 'DEFERRED', 'DELETE', 'DESC', 'DESCRIBE', 'DISTINCT', 'DO', 'DROP',
-  'ELSE', 'END', 'ENGINE', 'EVICT', 'EXCEPT', 'EXCLUDED', 'EXISTS', 'EXIT', 'EXPLAIN', 'EXTENDED',
+  'ELSE', 'END', 'ENGINE', 'ESCAPE', 'EVICT', 'EXCEPT', 'EXCLUDED', 'EXISTS', 'EXIT', 'EXPLAIN', 'EXTENDED',
   'EXTENSION', 'EXTENSIONS', 'EXTERNAL', 'FALSE', 'FLUSH', 'FOLLOWING', 'FOR', 'FORCE',
   'FORCE_INDEX', 'FOREIGN', 'FROM', 'FULL', 'GENERATED', 'GIN', 'GRANT', 'GRANTS', 'GROUP',
   'HAVING', 'HIGH', 'IDENTIFIED', 'IDENTITY', 'IF', 'ILIKE', 'IMMEDIATE', 'IN', 'INCLUDE',
@@ -265,8 +265,8 @@ const sqlKeywords = new Set([
   'WRITE',
 ]);
 const sqlTypes = new Set([
-  'ARRAY', 'BIGSERIAL', 'BLOB', 'BOOL', 'BOOLEAN', 'BYTES', 'CHAR', 'DATE', 'DATETIME', 'DECIMAL',
-  'DOUBLE', 'FLOAT', 'FLOAT32', 'FLOAT64', 'GUID', 'INT', 'INT64', 'INTEGER', 'JSON', 'JSONB',
+  'ARRAY', 'BIGINT', 'BIGSERIAL', 'BLOB', 'BOOL', 'BOOLEAN', 'BYTES', 'CHAR', 'DATE', 'DATETIME', 'DECIMAL',
+  'DOUBLE', 'DOUBLE PRECISION', 'FLOAT', 'FLOAT32', 'FLOAT64', 'GUID', 'INT', 'INT64', 'INTEGER', 'JSON', 'JSONB',
   'NUMERIC', 'OBJECT_ID', 'OID', 'REAL', 'SERIAL', 'SMALLINT', 'STRING', 'TEXT', 'TIMESTAMP',
   'UUID', 'VARCHAR',
 ]);
@@ -289,7 +289,7 @@ const sqlFunctions = new Set([
   'JSON_BUILD_OBJECT', 'JSON_CONTAINS', 'JSON_EACH', 'JSON_EACH_TEXT', 'JSON_EXTRACT',
   'JSON_EXTRACT_PATH', 'JSON_EXTRACT_PATH_TEXT', 'JSON_OBJECT', 'JSON_OBJECT_AGG',
   'JSON_OBJECT_KEYS', 'JSON_STRIP_NULLS', 'JSON_TYPE', 'JSON_TYPEOF', 'JSON_VALID', 'JSON_VALUE',
-  'L2_DISTANCE', 'LAG', 'LASTVAL', 'LAST_DAY', 'LAST_VALUE', 'LEAD', 'LENGTH', 'LN', 'LOG', 'LOWER',
+  'L2_DISTANCE', 'LAG', 'LASTVAL', 'LAST_DAY', 'LAST_VALUE', 'LEAD', 'LENGTH', 'LIKE_ESCAPE', 'LN', 'LOG', 'LOG10', 'LOWER',
   'LTRIM', 'MAKEDATE', 'MAKE_DATE', 'MAKE_TIMESTAMP', 'MAX', 'MD5', 'MIN', 'MINUTE', 'MOD', 'MONTH',
   'MONTHNAME', 'NEXTVAL', 'NOW', 'NTH_VALUE', 'NTILE', 'NULLIF', 'NVL', 'OCTET_LENGTH',
   'PERCENT_RANK', 'PI', 'POSITION', 'POW', 'POWER', 'QUARTER', 'RAND', 'RANDOM', 'RANK',
@@ -363,10 +363,10 @@ function tokenizeSql(sql) {
       continue;
     }
 
-    const word = /^[A-Za-z_][A-Za-z0-9_]*/.exec(rest);
+    const word = /^(?:DOUBLE\s+PRECISION\b|[A-Za-z_][A-Za-z0-9_]*)/i.exec(rest);
     if (word) {
       const value = word[0];
-      const upper = value.toUpperCase();
+      const upper = value.toUpperCase().replace(/\s+/g, ' ');
       const after = sql.slice(index + value.length).trimStart();
       let kind = 'plain';
       if (sqlTypes.has(upper)) kind = 'type';

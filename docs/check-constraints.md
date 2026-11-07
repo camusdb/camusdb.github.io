@@ -160,6 +160,11 @@ CamusDB rejects a check definition that uses a subquery, an aggregate function,
 a volatile function (such as `now()`, `gen_id()`, `gen_uuid_v4()`, or
 `gen_uuid_v7()`), or a reference to an unknown column.
 
+CREATE TABLE and ADD CONSTRAINT reject a non-boolean condition, an unknown
+function, a wrong argument count, or a known operand-type mismatch before
+scanning rows. Existing stored checks are not revalidated merely by loading
+them. See [statement checks](/docs/data-types#errors-before-reading-rows).
+
 While evaluating a check, CamusDB can coerce a string literal to a compatible
 typed value, such as `UUID`, `OID`, `DATE`, or `DATETIME`. An incompatible
 value fails with `CADB0303 CheckConstraintViolation`.

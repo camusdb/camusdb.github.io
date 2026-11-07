@@ -146,6 +146,13 @@ this entry" and "the KV backend materialized this entry later".
 | Leader failure | Another eligible replica can lead the partition, but only from a log state that satisfies Raft's safety rules. |
 | Stale or superseded proposal | CamusDB skips rolled-back entries during restore, and applies no entry that is only proposed. |
 
+These restart paths assume the required persisted data is intact. If recovery
+finds lost acknowledged entries, the default policy quarantines the replica
+instead of letting it vote or lead with that log. A single-replica partition
+cannot repair from a peer. Detected RocksDB or Solarium damage also stops service from the
+store; normal replay does not repair damaged files. See
+[storage damage and lost log entries](/docs/configuration#storage-damage-and-lost-log-entries).
+
 For transactions, CamusDB relies on two mechanisms: the
 [Kahuna](https://kahunakv.github.io/) transaction protocol, and the committed
 log order from [Kommander](https://kahunakv.github.io/kommander.github.io/).

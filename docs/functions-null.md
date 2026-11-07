@@ -64,8 +64,25 @@ a non-null score is converted too. `COALESCE(1, 'fallback')` fails.
 `COALESCE(date_column, '2026-01-01')` returns `DATE`, but a string column
 needs an explicit cast to combine with a date.
 
-`COALESCE`, `IFNULL`, and `NVL` evaluate every argument. Use `CASE` or `IF`
-when an unused expression must not run.
+## Evaluation order
+
+COALESCE, IFNULL, and NVL evaluate arguments from left to right and stop at
+the first non-NULL value. NULLIF still evaluates both arguments.
+
+```camussql
+SELECT COALESCE(1, 1 / 0); -- 1; the fallback does not run
+SELECT COALESCE(NULL, 2);  -- 2
+```
+
+Short-circuiting does not skip known type errors: `COALESCE(1, upper('a'))`
+fails because STRING and INT64 have no common type. Built-in calls with known
+argument types also determine the common result: `COALESCE(1, sqrt(4.0))`
+returns FLOAT64.
+
+Subqueries, aggregates, and window results can be computed before the row
+expression, so an unused fallback does not guard errors in them. For example,
+`COALESCE(1, (SELECT id FROM orders))` can still fail if the subquery returns
+multiple rows. Guard their inputs or restructure the query instead.
 
 ## Examples
 

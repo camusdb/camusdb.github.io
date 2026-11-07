@@ -6,26 +6,27 @@ sidebar_position: 7.3
 
 The CamusDB [Aspire](https://aspire.dev/) integrations let you run a database alongside your services
 and pass its connection details through the application model. The AppHost
-starts a standalone CamusDB container and creates the databases you declare.
+starts a standalone container or a local CamusDB cluster and creates the
+databases you declare.
 Service integrations register the .NET driver or EF Core context, with health
 checks, tracing, and metrics.
 
 Use these packages to give your local application a repeatable database setup
 without manually coordinating ports, connection strings, and startup order.
-Source, tests, and a runnable AppHost/API example are in
+Source, tests, and runnable standalone and cluster examples are in
 [camusdb-aspire](https://github.com/camusdb/camusdb-aspire).
 
 ## Choose a package
 
 | Package | Install in | Purpose | Target frameworks |
 | --- | --- | --- | --- |
-| `CamusDB.Aspire.Hosting` | AppHost | Runs the container, creates databases, and supplies connection strings. | .NET 8 |
+| `CamusDB.Aspire.Hosting` | AppHost | Runs a standalone server or cluster, creates databases, and supplies connection strings. | .NET 8 |
 | `CamusDB.Aspire.Client` | Service | Registers ADO.NET connections, health checks, and driver telemetry. | .NET 8, 9, 10 |
 | `CamusDB.Aspire.EntityFrameworkCore` | Service | Registers a pooled EF Core context with retries, health checks, and telemetry. | .NET 10 |
 
-The repository uses Aspire 13.6.3 and CamusDB client libraries 0.16.1. Its
+The repository uses Aspire 13.6.4 and CamusDB client libraries 0.17.2. Its
 AppHost example needs the .NET 10 SDK and a container runtime. The hosting
-package defaults to server image `docker.io/camusdb/camusdb:0.15.3`; select
+package defaults to server image `docker.io/camusdb/camusdb:0.17.0`; select
 another image tag when your application needs a different server version.
 
 ## Add CamusDB to the AppHost
@@ -60,8 +61,8 @@ Replace `Projects.ApiService` with the generated project type for your service.
 recreation. Omit it for a disposable container, or use
 `WithDataBindMount(path)` to store data in a host folder.
 
-The AppHost checks the server's HTTP `/health` endpoint, then creates each
-`AddDatabase` database if it does not exist. A database resource becomes
+For a standalone server, the AppHost checks the HTTP `/health` endpoint, then
+creates each `AddDatabase` database if it does not exist. A database resource becomes
 healthy only after creation succeeds. `WaitFor(appDb)` therefore waits for the
 database, while `WithReference(appDb)` supplies the service's connection string.
 
@@ -77,6 +78,67 @@ flowchart TD
 
 This creates the database, not application tables or migrations. Manage those
 through your application or migration workflow.
+
+## Run a local cluster
+
+Use `AddCamusDBCluster` to develop against replication and try node failures
+without configuring peers or exporting certificates yourself. It defaults to
+three nodes. Replace the standalone resource in your AppHost with:
+
+```csharp
+var camus = builder.AddCamusDBCluster("camus", nodes: 3)
+    .WithDataVolume();
+var appDb = camus.AddDatabase("appdb");
+
+builder.AddProject<Projects.ApiService>("api")
+    .WithReference(appDb)
+    .WaitFor(appDb);
+```
+
+The dashboard shows a cluster resource and three containers: `camus-1`,
+`camus-2`, and `camus-3`. Each node gets its own data volume. Alternatively,
+`WithDataBindMount(path)` uses a subfolder per node, such as `path/camus-1`.
+The AppHost generates a cluster CA and node certificates on each run; Raft
+uses TLS on the container network, without publishing its port to the host.
+Client HTTP and gRPC endpoints remain plaintext, so this setup is for local
+development. Stopping your machine stops every node.
+
+### Readiness and connections
+
+Each node checks `/v1/cluster/health`. On first startup, all nodes must be
+healthy before the AppHost creates databases and releases services waiting
+for them. After startup, the cluster resource stays healthy while a majority
+is healthy, allowing dependent services to restart with one of three nodes
+down. The health description reports the count. Without a majority it is
+unhealthy; after all nodes stop, startup again requires every node.
+
+A database connection string lists every node's endpoint. The .NET client
+rotates requests across the pool and skips an unreachable node for 30 seconds.
+The request that discovers the failure can still fail; endpoint rotation does
+not replay it. Follow the [driver's retry rules](/docs/dotnet-driver) for your
+operation. With gRPC, `BackupEndpoint` points to the first node's HTTP endpoint.
+
+`WithProtocol(CamusDBProtocol.Grpc)` and `WithAuthentication()` also work on
+clusters. Authentication shares the token key and node secret across nodes
+and enables mutual TLS between Raft peers. Cluster connection properties
+provide endpoint lists in `Uri` and `GrpcUri`, plus `Database` for a database
+resource; there is no single `Host`, `Port`, or `GrpcPort`.
+
+### Configure every node
+
+Apply common image or environment settings through `ConfigureNodes`:
+
+```csharp
+builder.AddCamusDBCluster("camus", nodes: 3)
+    .ConfigureNodes(node => node
+        .WithImageTag("0.17.0")
+        .WithEnvironment("CAMUS_INITIAL_PARTITIONS", "8"));
+```
+
+Keep the image and settings consistent across nodes. Nodes default to the
+`dev` memory profile. Prefer an odd node count: three tolerate one unavailable
+node, and five tolerate two. `nodes: 1` runs in cluster mode but offers no
+redundancy; see [growing a one-node cluster](/docs/growing-a-one-node-cluster).
 
 ## Register the ADO.NET client
 
@@ -192,7 +254,7 @@ The generated connection string selects the gRPC endpoint, sets
 `Protocol=grpc`, and includes the HTTP endpoint as `BackupEndpoint` for REST
 backup administration. The gRPC endpoint uses plaintext HTTP/2.
 
-Referenced resources also expose connection properties such as `Host`,
+Standalone resources also expose connection properties such as `Host`,
 `Port`, `GrpcPort`, `Uri`, `GrpcUri`, and `Database` as environment variables
 (for example, `APPDB_HOST`). Authentication adds `Username` and `Password`.
 
@@ -226,7 +288,7 @@ environment variables:
 
 ```csharp
 builder.AddCamusDB("camus")
-    .WithImageTag("0.15.3")
+    .WithImageTag("0.17.0")
     .WithEnvironment("CAMUS_LOG_LEVEL", "Debug")
     .WithEnvironment("CAMUS_INITIAL_PARTITIONS", "8");
 ```
@@ -284,9 +346,31 @@ cd camusdb-aspire
 dotnet run --project playground/CamusDB.AppHost
 ```
 
-The playground accepts `Playground:Authentication`, `Playground:Grpc`, and
-`Playground:Ephemeral` flags. For example:
+The playground accepts `Playground:Authentication`, `Playground:Grpc`,
+`Playground:Ephemeral` (omit data volumes), and `Playground:ClusterNodes`.
+The node count defaults to 0 for standalone mode; set it to 3 for a cluster:
 
 ```bash
 dotnet run --project playground/CamusDB.AppHost -- --Playground:Authentication=true
+dotnet run --project playground/CamusDB.AppHost -- --Playground:ClusterNodes=3
 ```
+
+### Try the three-node Notes example
+
+The repository also includes a
+[cluster example](https://github.com/camusdb/camusdb-aspire/tree/main/examples/ClusterExample)
+with a page that adds notes and reads the note count through each node.
+With Docker and the .NET 10 SDK installed, run this from the repository root:
+
+```bash
+dotnet run --project examples/ClusterExample/ClusterExample.AppHost
+```
+
+In the Aspire dashboard, wait for healthy resources and open the API's
+**Notes** URL. Stop `camus-3`, reload the page, and add a note: two nodes still
+form a majority. Restart the node to watch it catch up. Stopping a second
+node removes the majority, making the cluster unhealthy.
+
+The example keeps data in three volumes across runs. Stop the AppHost and
+wait for its containers to exit before running it again, so two containers
+do not try to open the same node's data.

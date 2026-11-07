@@ -51,6 +51,10 @@ A key that you commented out in `config.yml` shows its built-in default, and a
 key that an environment variable overrode shows the override. The output is
 what the node runs.
 
+The optional LIKE pattern uses the same [wildcards and escaping](/docs/sql-expression-syntax#like-and-ilike-patterns)
+as a query. To match a literal underscore in a variable name, escape it:
+`SHOW VARIABLES LIKE 'ttl\_%'`.
+
 ## Columns
 
 | Column     | Meaning |

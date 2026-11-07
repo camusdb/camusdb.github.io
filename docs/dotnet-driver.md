@@ -281,7 +281,7 @@ The ADO.NET driver covers CamusDB's current scalar types and its array type:
 | `OID`, `OBJECT_ID` | `ColumnType.Id` | `string`, `Guid`, `CamusObjectIdValue` |
 | `UUID`, `GUID` | `ColumnType.Uuid` | `Guid` |
 | `STRING`, `STRING(N)` | `ColumnType.String` | `string` |
-| `INT64`, `INT`, `INTEGER` | `ColumnType.Integer64` | `long`, `int`, `short` |
+| `INT64`, `BIGINT`, `INT`, `INTEGER`, `SMALLINT` | `ColumnType.Integer64` | `long`, `int`, `short` |
 | `NUMERIC`, `DECIMAL` | `ColumnType.Numeric` | `decimal`, exact decimal `string` |
 | `FLOAT64` | `ColumnType.Float64` | `double` |
 | `FLOAT32`, `REAL` | `ColumnType.Float32` | `float` |
@@ -291,6 +291,9 @@ The ADO.NET driver covers CamusDB's current scalar types and its array type:
 | `DATETIME`, `TIMESTAMP` | `ColumnType.DateTime` | `DateTime`, `DateTimeOffset` |
 | `JSONB`, `JSON` | `ColumnType.Jsonb` | JSON text on read; `JsonDocument`, `JsonElement`, `JsonNode`, or typed text on write. |
 | `ARRAY(T)` | `ColumnType.Array` | `object?[]` on read, `IEnumerable` on write |
+
+Integer declarations share `ColumnType.Integer64` and the same wire values;
+the server enforces the [declared column range](/docs/data-types#integer-type-names).
 
 Store UUIDs in a native `UUID` column, not as text in a `STRING`. The native
 type is more compact in memory and on disk, and it compares as a fixed-width

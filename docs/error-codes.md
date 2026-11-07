@@ -36,7 +36,7 @@ Unary and streaming gRPC calls carry the same domain code in the
 - `CADB051x`: authentication, authorization, users, and grants
 - `CADB06xx`: startup or configuration validation errors
 - `CADB07xx`: backup and point-in-time-recovery operations
-- `CADB08xx`: C# extension loading, functions, triggers, and procedures
+- `CADB08xx`: C# extension loading, functions, triggers, procedures, and detected storage damage (`CADB0837`)
 
 Some codes are ordinary errors that users see. Others mostly report corruption,
 an unexpected internal state, or an inconsistency in the storage layer.
@@ -59,13 +59,13 @@ an unexpected internal state, or an inconsistency in the storage layer.
 | `CADB0304` | `ForeignKeyViolation` | A child `INSERT` or `UPDATE` has no parent row, or `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY` finds an existing child row without a parent. |
 | `CADB0305` | `ForeignKeyRestrictDelete` | A `DELETE` would remove a parent key that a child row still references. |
 | `CADB0306` | `ForeignKeyRestrictUpdate` | An `UPDATE` would change a parent key that a child row still references. |
-| `CADB0400` | `InvalidInput` | The request shape is invalid: missing names, invalid DDL/DML parameters, malformed query structure, invalid check definitions, invalid regex patterns, unsupported function arguments, invalid casts, malformed UUID input, duplicate aliases, invalid transaction priority, invalid table settings such as row-level TTL options, invalid index rename inputs, invalid `INSERT INTO ... SELECT` column counts, invalid CTAS projections, invalid `GROUP BY` / `HAVING` / `DISTINCT` combinations, and similar user mistakes. |
+| `CADB0400` | `InvalidInput` | Also covers non-boolean predicates, unpaired UTF-16 surrogates in SQL parameters, malformed JSON on SQL endpoints, invalid LIKE escape values, and constant division by zero. The request shape is invalid: missing names, invalid DDL/DML parameters, malformed query structure, invalid check definitions, invalid regex patterns, unsupported function arguments, invalid casts, malformed UUID input, duplicate aliases, invalid transaction priority, invalid table settings such as row-level TTL options, invalid index rename inputs, invalid `INSERT INTO ... SELECT` column counts, invalid CTAS projections, invalid `GROUP BY` / `HAVING` / `DISTINCT` combinations, and similar user mistakes. |
 | `CADB0401` | `UnknownType` | CamusDB is asked to encode, decode, cast, or evaluate a type it does not understand in that context. |
 | `CADB0402` | `DuplicatePrimaryKey` | Reserved for duplicate primary-key violations. The current storage path usually reports uniqueness failures as `CADB0300`. |
 | `CADB0403` | `DuplicateColumn` | A schema definition, INSERT target list, UPDATE SET list, ON CONFLICT update arm, or typed row write repeats a column name, ignoring case; also a column rename targeting an existing name. Repeated write targets are refused before writing. HTTP 400. |
 | `CADB0404` | `UnknownColumn` | A statement references or renames a column name that is not present or not currently visible in the schema state. |
 | `CADB0405` | `UnknownKey` | Query planning or scanning expected a known row or index key shape but received a key it could not map correctly. This is uncommon for ordinary SQL and usually points to an internal query/storage mismatch. |
-| `CADB0406` | `SqlSyntaxError` | The SQL parser cannot parse the statement text. |
+| `CADB0406` | `SqlSyntaxError` | The SQL parser cannot parse the statement text, including unknown characters or unsupported whitespace; the scanner reports the line and column. |
 | `CADB0407` | `InvalidAstStmt` | The parser succeeded, but the resulting AST shape is invalid, unsupported, or semantically unusable for the requested executor path. |
 | `CADB0408` | `SchemaLimitExceeded` | A database, table, column, or index name is longer than `max_identifier_length`, or a schema operation would exceed `max_columns_per_table`, `max_indexes_per_table`, or `max_tables_per_database`. |
 | `CADB0409` | `InvalidAsOfSystemTime` | An `AS OF SYSTEM TIME` query uses a malformed value, a future or non-positive timestamp, an incompatible parameter, or a transaction shape that cannot be pinned to an arbitrary historical snapshot. |
@@ -231,6 +231,7 @@ mistake.
 | `CADB0099` | `InvalidInternalOperation` | CamusDB reached an unexpected internal state: impossible planner state, invalid replicated index shape, row disappearance during update, unexpected forwarder response, or other invariants that should not fail in normal use. |
 | `CADB0540` | `LargeValueCorrupt` | A compressed or out-of-line value failed to decompress or did not match the checksum recorded in the row. |
 | `CADB0541` | `LargeValueNotResolved` | An internal read path attempted to decode an out-of-line value that was not fetched first. Report it. |
+| `CADB0837` | `StorageCorrupted` | The storage engine reports damage. HTTP 500 / gRPC DATA_LOSS. Not retryable; never interpret it as an empty result. See [storage health](/docs/cluster#check-storage-health). |
 
 ## Retry guidance
 

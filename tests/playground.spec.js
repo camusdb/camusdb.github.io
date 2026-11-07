@@ -209,3 +209,37 @@ test('JSONB sample filters, updates and displays documents and can run twice', a
     await expect(documents).not.toContainText('[object Object]');
   }
 });
+
+test('SQL highlighting recognizes integer aliases, double precision, logarithms and power', async ({page}) => {
+  await page.goto('/playground/');
+  const editor = page.getByRole('textbox', {name: 'Data center SQL', exact: true});
+  const sql = `SELECT 1::BIGINT, CAST(2 AS DOUBLE PRECISION), log10(100), 2 ^ 3,
+       precision, bigint_value, 'a_' LIKE 'a#_' ESCAPE '#', like_escape('a#_', '#'),
+       'BIGINT log10 ^'; -- DOUBLE PRECISION`;
+  await editor.fill(sql);
+  const highlighted = editor.locator('..').locator('pre');
+  for (const name of ['BIGINT', 'DOUBLE PRECISION']) {
+    await expect(highlighted.locator('span').filter({hasText: new RegExp(`^${name}$`)}))
+      .toHaveAttribute('class', /type/);
+  }
+  await expect(highlighted.locator('span').filter({hasText: /^ESCAPE$/}))
+    .toHaveAttribute('class', /keyword/);
+  await expect(highlighted.locator('span').filter({hasText: /^like_escape$/}))
+    .toHaveAttribute('class', /function/);
+  await expect(highlighted.locator('span').filter({hasText: /^log10$/}))
+    .toHaveAttribute('class', /function/);
+  await expect(highlighted.locator('span').filter({hasText: /^\^$/}))
+    .toHaveAttribute('class', /operator/);
+  for (const name of ['precision', 'bigint_value']) {
+    await expect(highlighted.locator('span').filter({hasText: new RegExp(`^${name}$`)}))
+      .toHaveCount(0);
+  }
+  await expect(highlighted.locator('span').filter({hasText: /^'BIGINT log10 \^'$/}))
+    .toHaveAttribute('class', /string/);
+  await expect(highlighted.locator('span').filter({hasText: /^-- DOUBLE PRECISION$/}))
+    .toHaveAttribute('class', /comment/);
+  await expect(highlighted.locator('code')).toHaveText(sql);
+
+  await page.goto('/docs/data-types/');
+  await expect(page.locator('code .token.builtin').filter({hasText: /^BIGINT$/}).first()).toBeVisible();
+});

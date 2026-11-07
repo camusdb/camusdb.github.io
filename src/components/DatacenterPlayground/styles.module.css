@@ -92,6 +92,14 @@
 .app dl > div { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .app dt { font-weight: 400; color: var(--muted); }
 .app dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+/* The ring and the badge repeat the selected rack's colors, which links this panel to that rack. */
+.app .selectedPanel { --selected-color: #2d70f0; border-color: var(--selected-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--selected-color) 18%, transparent); }
+.app .selectedPanel[data-down] { --selected-color: #b42348; }
+.selectedBadge { display: inline-block; margin-bottom: 6px; padding: 2px 8px; border-radius: 4px; background: var(--selected-color); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .5px; line-height: 16px; text-transform: uppercase; }
+.serverNotice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; font-size: 13px; color: #8f1d36; background: #fff1f4; border: 1px solid #f3c4cf; border-left: 3px solid #b42348; border-radius: 6px; padding: 10px 12px; margin: 0 0 16px; }
+.serverNotice p { flex: 1 1 260px; margin: 0; }
+.serverNotice > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.serverNotice button { white-space: nowrap; }
 .decision { font-size: 12px; background: #edf4ff; border-left: 2px solid #2d70f0; color: #2457a3; padding: 10px; margin: 14px 0 8px; }
 .note { font-size: 11px; color: var(--muted); line-height: 1.7; display: block; }
 .panel p.note { margin: 10px 0 0; }
@@ -227,27 +235,63 @@
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 
 /* Translucent faces preserve the rack's depth; opacity on its parent flattens 3D. */
-.app .joiningServer { --rack-edge: #6096ee; outline: 2px dashed #78a8ef; outline-offset: 8px; background: #2d70f00d; box-shadow: 0 0 22px #2d70f025; }
-.joiningServer > span { background: #b7d5ff55; border-style: dashed; animation: joiningGlow 1.8s ease-in-out infinite; }
+.app .joiningServer { --rack-edge: #6096ee; outline: none; background: #2d70f00d; box-shadow: none; }
+.joiningServer > span { background: #b7d5ff55; border-style: dashed; }
 .joiningServer .serverTop span { color: #1459db; font-weight: 800; letter-spacing: .5px; }
 .joiningServer .drive { background: #729ed34d; box-shadow: none; }
 .joiningServer .drive b { background: #729ed366; }
 .joiningServer .serverName { background: #eef5ffb3; color: #2457a3; }
 .joiningNotice { display: flex; align-items: center; gap: 10px; color: #2457a3; font-size: 12px; margin: 0 0 12px; }
 .joiningNotice .spinner { width: 16px; height: 16px; border-width: 2px; }
-@keyframes joiningGlow { 50% { border-color: #b8d3ff; background-color: #dceaff33; } }
 .queryResponse + .queryResponse { margin-top: 16px; }
 .responseSource { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 6px; font-size: 11px; }
 .responseSource strong { color: #1459db; font-weight: 600; }
 .responseSource span { color: var(--muted); }
-@media (prefers-reduced-motion: reduce) { .joiningServer > span { animation: none; } }
 
 /* Fade individual faces so the rack keeps its three-dimensional geometry. */
 .server > span { transition: opacity .7s ease var(--reveal-delay, 0ms), border-color .7s ease; }
-.app .preparingServer { --rack-edge: #90b9f2; background: #2d70f00a; box-shadow: 0 0 18px #559aff18; outline: 1px dashed #76a6e566; outline-offset: 8px; }
+.app .preparingServer { --rack-edge: #90b9f2; background: #2d70f00a; box-shadow: none; outline: none; }
 .preparingServer > span { opacity: .22; border-style: dashed; transition-delay: 0ms; }
 .preparingServer .serverTop { opacity: .55; background: #daeaff88; }
 .preparingServer .serverTop span { color: #365c90; font-weight: 700; font-size: 7px; letter-spacing: .3px; }
 .preparingServer .drive { background: #547eae55; color: #b6d4f9; }
 .preparingServer .drive i { box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .server > span { transition: none; } }
+
+/* A starting server bounces on the floor and turns more transparent in the air. Only transform and
+   opacity animate, so the browser can keep the motion running while the engine holds the main thread.
+   The keyframes share one timeline. Each server starts at its own point through --bounce-delay. */
+.app .server { animation: serverSettle .45s ease-out; }
+.app .startingServer { animation: serverBounce 1.4s var(--bounce-delay, 0ms) infinite; }
+.startingServer > span { animation: serverPhase 1.4s var(--bounce-delay, 0ms) ease-in-out infinite; }
+.startingPad { position: absolute; inset: -6px; border: 1.5px dashed #78a8ef; border-radius: 6px; background: #2d70f014; box-shadow: 0 0 22px #2d70f025; pointer-events: none; animation: startingPadPulse 1.4s var(--bounce-delay, 0ms) infinite; }
+@keyframes serverBounce {
+  0%, 100% { transform: translateZ(0) scale3d(1.04, 1.04, .92); animation-timing-function: cubic-bezier(.2, .7, .4, 1); }
+  45% { transform: translateZ(46px) scale3d(.98, .98, 1.04); animation-timing-function: cubic-bezier(.6, 0, .8, .4); }
+  72% { transform: translateZ(0) scale3d(1.03, 1.03, .95); animation-timing-function: cubic-bezier(.2, .7, .4, 1); }
+  84% { transform: translateZ(12px) scale3d(1, 1, 1); animation-timing-function: cubic-bezier(.6, 0, .8, .4); }
+}
+@keyframes serverPhase {
+  0%, 72%, 100% { opacity: .85; }
+  45% { opacity: .3; }
+  84% { opacity: .6; }
+}
+@keyframes startingPadPulse {
+  0%, 72%, 100% { transform: translateZ(1px) scale(1); opacity: 1; animation-timing-function: cubic-bezier(.2, .7, .4, 1); }
+  45% { transform: translateZ(1px) scale(.82); opacity: .4; animation-timing-function: cubic-bezier(.6, 0, .8, .4); }
+  84% { transform: translateZ(1px) scale(.95); opacity: .8; animation-timing-function: cubic-bezier(.6, 0, .8, .4); }
+}
+/* A server that finishes starting takes this animation when it loses .startingServer, so it lands
+   softly and does not jump to the floor from the air. */
+@keyframes serverSettle {
+  0% { transform: translateZ(10px); }
+  65% { transform: translateZ(0) scale3d(1.03, 1.03, .95); }
+  100% { transform: translateZ(0) scale3d(1, 1, 1); }
+}
+.scene[data-motion-paused='true'] .startingServer,
+.scene[data-motion-paused='true'] .startingServer > span,
+.scene[data-motion-paused='true'] .startingPad { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .app .server, .app .startingServer, .startingServer > span { animation: none; }
+  .startingPad { animation: none; transform: translateZ(1px); }
+}

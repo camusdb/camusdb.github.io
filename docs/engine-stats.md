@@ -128,6 +128,8 @@ These metrics are useful starting points:
 | `raft.wal.batch_size` | WAL batch efficiency. A mean near 1 means no coalescing happens. |
 | `raft.heartbeat_delay_ms` | Scheduling pressure on the leader. A value well above the heartbeat interval means a CPU shortage. |
 | `raft.elections_started_total` | Leadership churn. |
+| `raft.transport.channel_rebuilds_total` | Rebuilds of inter-node gRPC channels that stayed in TransientFailure. A growing count points to repeated transport recovery. |
+| `raft.transport.channels_in_transient_failure` | Current inter-node channels in TransientFailure, tagged by peer; use it to identify an unreachable or stuck peer. |
 | `kahuna.kv.write.batches` and `kahuna.kv.write.entries` | Write aggregator effectiveness. Entries divided by batches is the average coalescing factor. |
 
 ## Permissions

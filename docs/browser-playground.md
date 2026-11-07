@@ -45,13 +45,18 @@ or restarted node may need time to converge its schema before it serves a
 query. After a removal, leader hints can also take time to refresh; retry any
 query made during convergence.
 
-**Simulate node failure** stops an actual engine. **Restart node** brings back
-an empty engine that catches up from the surviving peers. You cannot stop a node
-if that would leave fewer than a [majority](/docs/concepts#majority) (more than
-half) of the nodes running, because the cluster would then stop committing.
-Membership changes wait until all existing engines are running voters. Three
-replicas tolerate one unavailable replica per data partition; adding nodes does
-not increase a partition's fault tolerance.
+**Simulate node failure** stops an actual server. You can stop multiple servers
+to explore larger outages. A partition that keeps a [majority](/docs/concepts#majority)
+(more than half) of its replicas elects a new leader within seconds, and the
+playground retries statements during that election. A partition without a majority
+has no leader, so it cannot serve reads or commit writes. A statement that needs
+such a partition fails after about 15 seconds, while data on other partitions
+stays available, sometimes with a few seconds of delay.
+**Restart node** brings back an empty server that catches up from surviving
+peers; use **Reset data center** to start fresh if the cluster cannot recover.
+Adding or removing servers, including automatic scaling, waits until all existing
+servers are running voters. Three replicas tolerate one unavailable replica per
+data partition; adding nodes does not increase a partition's fault tolerance.
 
 **Follow simulated demand** optionally picks a recommended cluster size from
 synthetic traffic units, with a target of 4,000 units per node, 10% tolerance,
@@ -70,6 +75,8 @@ resets on reload or **Reset data center**.
 
 The SQL console is available immediately. Once the engines are ready, use
 **Run query** or **Cmd/Ctrl + Enter** to run SQL through the selected server.
+A stopped server cannot run queries, so the console offers to switch to a running
+server or to restart the stopped one.
 The console includes examples for filtering, joins, subqueries, branching,
 returning, JSONB documents, foreign keys, indexes, updates, schema inspection,
 and functions. The JSONB example creates a GIN index, filters documents, and

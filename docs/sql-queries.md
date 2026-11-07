@@ -156,12 +156,19 @@ WHERE year BETWEEN 2001 AND 2004;
 | Membership | `IN (...)`, `NOT IN (...)`, `IN (SELECT ...)`, `NOT IN (SELECT ...)` |
 | Existence | `EXISTS (SELECT ...)` |
 
+WHERE, HAVING, and JOIN ON require boolean or NULL conditions; numbers and
+text are not implicitly truthy. See [statement checks](/docs/data-types#errors-before-reading-rows).
+
 `BETWEEN` is inclusive, so `year BETWEEN 2001 AND 2004` matches 2001, 2004, and
 every year in between.
 
 ### Pattern matching
 
-`LIKE` and `ILIKE` use the wildcards `%` and `_`. `ILIKE` is case-insensitive.
+`LIKE` and `ILIKE` match the whole value: `%` matches any number of characters
+and `_` matches one Unicode code point. ILIKE ignores case, including cased
+non-ASCII letters. Backslash escapes a wildcard, and ESCAPE can select another
+escape character. See [LIKE patterns](/docs/sql-expression-syntax#like-and-ilike-patterns)
+for examples and the behavior of existing stored patterns.
 
 Use a regular expression operator when wildcards are not enough:
 
@@ -237,6 +244,9 @@ FROM robots;
 ```
 
 ### GROUP BY
+
+HAVING can also use qualified group keys, aggregate aliases, and IN/NOT IN
+checks such as `HAVING COUNT(*) IN (1, 2)`.
 
 `GROUP BY` accepts columns and expressions:
 
@@ -440,7 +450,10 @@ that the `SELECT` list does not project.
 
 CamusDB refuses two `ORDER BY` shapes with `CADB0400 InvalidInput`:
 
-- An aggregate function in `ORDER BY` without a `GROUP BY` clause.
+- A bare input column in ORDER BY for a global aggregate (an aggregate without
+  GROUP BY). Use an output alias, aggregate expression, or 1-based output
+  position; these are accepted without sorting the single result row.
+  Invalid references are rejected even with LIMIT 0.
 - In a grouped query, a computed expression that is in neither the `SELECT` list
   nor the `GROUP BY` clause. A grouped query sorts after projection, so the base
   columns the expression names no longer exist at that point. Project the value
