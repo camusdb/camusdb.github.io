@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea5be07a.css">
-<script src="/assets/js/runtime~main.6fb05764.js" defer="defer"></script>
-<script src="/assets/js/main.af972bd3.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.8e707ceb.js" defer="defer"></script>
+<script src="/assets/js/main.20748f78.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -115,7 +115,7 @@ this entry&quot; and &quot;the KV backend materialized this entry later&quot;.</
 <p>These restart paths assume the required persisted data is intact. If recovery
 finds lost acknowledged entries, the default policy quarantines the replica
 instead of letting it vote or lead with that log. A single-replica partition
-cannot repair from a peer. Detected RocksDB damage also stops service from the
+cannot repair from a peer. Detected RocksDB or Solarium damage also stops service from the
 store; normal replay does not repair damaged files. See
 <a class="" href="/docs/configuration/#storage-damage-and-lost-log-entries">storage damage and lost log entries</a>.</p>
 <p>For transactions, CamusDB relies on two mechanisms: the

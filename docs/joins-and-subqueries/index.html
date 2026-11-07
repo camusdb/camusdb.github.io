@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea5be07a.css">
-<script src="/assets/js/runtime~main.6fb05764.js" defer="defer"></script>
-<script src="/assets/js/main.af972bd3.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.8e707ceb.js" defer="defer"></script>
+<script src="/assets/js/main.20748f78.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -153,13 +153,24 @@ column:</p>
 result first.</p>
 <p><code>NOT IN</code> follows SQL null semantics. A single <code>NULL</code> in the inner result makes
 every non-matching row evaluate to unknown. CamusDB drops those rows, and the
-query commonly returns zero rows. Use <code>NOT EXISTS</code> when the inner column accepts
+query commonly returns zero rows. An empty inner result makes NOT IN true,
+even for a NULL outer value; the inner WHERE determines whether that result
+is empty. Use <code>NOT EXISTS</code> when the inner column accepts
 <code>NULL</code>.</p>
 <p>CamusDB rejects multi-column and correlated <code>IN</code> or <code>NOT IN</code> subqueries.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="exists">EXISTS<a href="#exists" class="hash-link" aria-label="Direct link to EXISTS" title="Direct link to EXISTS" translate="no">​</a></h3>
 <p><code>EXISTS</code> works with or without correlation. Only whether a row exists matters, so
 the inner projection can be <code>*</code>, one column, or several columns:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> email</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> app_users</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">EXISTS</span><span class="token plain"> </span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> </span><span class="token operator" style="color:#94a3b8">*</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> posts</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> posts</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">user_id </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> app_users</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">id</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ORDER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> email</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
+<p>For an ordinary EXISTS body, the select list, DISTINCT, GROUP BY, and ORDER BY
+are discarded because only row existence matters. For example,
+<code>EXISTS (SELECT 1 / 0 FROM posts)</code> does not divide by zero. Unknown names and
+known type mistakes in discarded clauses still fail. Aggregates, HAVING,
+OFFSET, and LIMIT 0 can change whether a row exists, so they retain their
+meaning; LIMIT 0 returns false without reading rows.</p>
+<p>A correlated EXISTS refuses aggregates, HAVING, OFFSET, and LIMIT expressions
+other than a nonnegative constant with CADB0533. LIMIT 0 is false and a
+positive constant limit does not change the existence check.</p>
 <p>A correlated EXISTS is supported only in a SELECT&#x27;s WHERE. It can appear at
 any depth, including inside a CASE or a comparison, rather than only directly
 under AND/OR/NOT. In a join, it is evaluated where all referenced outer aliases

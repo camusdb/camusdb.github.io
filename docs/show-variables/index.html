@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea5be07a.css">
-<script src="/assets/js/runtime~main.6fb05764.js" defer="defer"></script>
-<script src="/assets/js/main.af972bd3.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.8e707ceb.js" defer="defer"></script>
+<script src="/assets/js/main.20748f78.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -50,6 +50,9 @@ value differs from the file&#x27;s text. The engine obeys the resolved value.</p
 <p>A key that you commented out in <code>config.yml</code> shows its built-in default, and a
 key that an environment variable overrode shows the override. The output is
 what the node runs.</p>
+<p>The optional LIKE pattern uses the same <a class="" href="/docs/sql-expression-syntax/#like-and-ilike-patterns">wildcards and escaping</a>
+as a query. To match a literal underscore in a variable name, escape it:
+<code>SHOW VARIABLES LIKE &#x27;ttl\_%&#x27;</code>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="columns">Columns<a href="#columns" class="hash-link" aria-label="Direct link to Columns" title="Direct link to Columns" translate="no">​</a></h2>
 <table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>variable</code></td><td>The key in <code>snake_case</code>, as you write it in <code>config.yml</code>. Keys in the nested <code>kahuna:</code> section, which configures the embedded <a class="" href="/docs/concepts/#kahuna">Kahuna</a> storage layer, appear in dotted form, such as <code>kahuna.wal_sync_writes</code>.</td></tr><tr><td><code>value</code></td><td>The effective value. It is SQL <code>NULL</code> when the setting is genuinely unset, which differs from an empty string. An unset <code>kahuna.*</code> key shows <code>NULL</code> in <code>value</code> and <code>default</code>. The node then applies the default that the <a class="" href="/docs/settings-reference/#kahuna-keys">kahuna keys reference</a> gives: either a CamusDB baseline or a default of Kahuna itself.</td></tr><tr><td><code>type</code></td><td><code>bool</code>, <code>int</code>, <code>long</code>, <code>double</code>, <code>string</code>, <code>enum</code>, <code>duration_ms</code>, or <code>list</code>.</td></tr><tr><td><code>default</code></td><td>The value the setting would hold without an override. A value that differs from <code>default</code> is one that somebody configured.</td></tr><tr><td><code>source</code></td><td>The layer that supplied the value: <code>default</code>, <code>config</code>, <code>env</code>, <code>cli</code>, or <code>cluster</code>. Precedence is cluster first, then cli, then env, then config, then default.</td></tr><tr><td><code>mutability</code></td><td><code>runtime</code> means a new value takes effect without restarting the node. <code>restart</code> means the component reads the value once, when CamusDB constructs it. The column describes the reader, not a preference. You can change a <code>restart</code> key, but the running node obeys the old value until it restarts.</td></tr><tr><td><code>scope</code></td><td><code>cluster</code> means every node must agree, because a difference between nodes would change the transaction behavior users see. <code>node</code> means differences between nodes are the point, as with traces or local cache sizes.</td></tr></tbody></table>
 <p>CamusDB renders each value as you would spell it in <code>config.yml</code>, so you can

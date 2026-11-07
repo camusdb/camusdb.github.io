@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea5be07a.css">
-<script src="/assets/js/runtime~main.6fb05764.js" defer="defer"></script>
-<script src="/assets/js/main.af972bd3.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.8e707ceb.js" defer="defer"></script>
+<script src="/assets/js/main.20748f78.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -55,6 +55,11 @@ transport used between the client and the node.</p>
 <p>See <a class="" href="/docs/configuration/#http3-on-the-https-port">Configuration</a> for the
 certificate, UDP, and platform QUIC library requirements.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="status-and-errors">Status and errors<a href="#status-and-errors" class="hash-link" aria-label="Direct link to Status and errors" title="Direct link to Status and errors" translate="no">​</a></h2>
+<p>The SQL query, streaming-query, non-query, and DDL endpoints return CADB0400
+for malformed JSON bodies, including escaped lone surrogate halves. The
+message gives the JSON path and byte position. This behavior does not yet
+cover every administrative endpoint. Valid JSON containing invalid SQL text
+or parameters follows the <a class="" href="/docs/data-types/#characters-and-valid-unicode">engine&#x27;s validation rules</a>.</p>
 <p>Successful responses use:</p>
 <div class="language-json codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-json codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token punctuation" style="color:#94a3b8">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token property" style="color:#7dd3fc">&quot;status&quot;</span><span class="token operator" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;ok&quot;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token punctuation" style="color:#94a3b8">}</span><br></div></code></pre></div></div>
 <p>A failed response includes a CamusDB error code when one is available.</p>

@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea5be07a.css">
-<script src="/assets/js/runtime~main.6fb05764.js" defer="defer"></script>
-<script src="/assets/js/main.af972bd3.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.8e707ceb.js" defer="defer"></script>
+<script src="/assets/js/main.20748f78.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -161,6 +161,12 @@ of about five seconds, so stale cached blocks cannot keep issuing values.</li>
 <p>These are normal sequence semantics, similar to PostgreSQL&#x27;s, and they are why
 sequences suit external numbers but are not ideal as the physical key of
 high-write tables.</p>
+<p>COALESCE, IFNULL, and NVL stop evaluating at their first non-NULL value.
+A NEXTVAL after a non-NULL literal or parameter proven to be returned draws
+nothing: <code>COALESCE(1, nextval(&#x27;s&#x27;))</code> does not advance <code>s</code>. If the statement
+cannot prove a call unreachable, it can reserve a value that is never used,
+leaving a gap. A sequence call in a nested FROM-less SELECT is refused with
+CADB0547. See <a class="" href="/docs/functions-null/#evaluation-order">conditional evaluation</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="branches-backups-and-drops">Branches, backups, and drops<a href="#branches-backups-and-drops" class="hash-link" aria-label="Direct link to Branches, backups, and drops" title="Direct link to Branches, backups, and drops" translate="no">​</a></h2>
 <p>Dropping a database removes its sequence counters.</p>
 <p>Branching a database gives the branch its own counters, seeded above the

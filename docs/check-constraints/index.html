@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.ea5be07a.css">
-<script src="/assets/js/runtime~main.6fb05764.js" defer="defer"></script>
-<script src="/assets/js/main.af972bd3.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.8e707ceb.js" defer="defer"></script>
+<script src="/assets/js/main.20748f78.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -90,6 +90,10 @@ use:</p>
 <p>CamusDB rejects a check definition that uses a subquery, an aggregate function,
 a volatile function (such as <code>now()</code>, <code>gen_id()</code>, <code>gen_uuid_v4()</code>, or
 <code>gen_uuid_v7()</code>), or a reference to an unknown column.</p>
+<p>CREATE TABLE and ADD CONSTRAINT reject a non-boolean condition, an unknown
+function, a wrong argument count, or a known operand-type mismatch before
+scanning rows. Existing stored checks are not revalidated merely by loading
+them. See <a class="" href="/docs/data-types/#errors-before-reading-rows">statement checks</a>.</p>
 <p>While evaluating a check, CamusDB can coerce a string literal to a compatible
 typed value, such as <code>UUID</code>, <code>OID</code>, <code>DATE</code>, or <code>DATETIME</code>. An incompatible
 value fails with <code>CADB0303 CheckConstraintViolation</code>.</p>
