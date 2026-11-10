@@ -14,8 +14,8 @@
 
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.696298a7.css">
-<script src="/assets/js/runtime~main.23a13b91.js" defer="defer"></script>
-<script src="/assets/js/main.828dfe53.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.9aa5237b.js" defer="defer"></script>
+<script src="/assets/js/main.cef6a47c.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -30,7 +30,9 @@ SQL and migration scripts:</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="characters-and-statement-boundaries">Characters and statement boundaries<a href="#characters-and-statement-boundaries" class="hash-link" aria-label="Direct link to Characters and statement boundaries" title="Direct link to Characters and statement boundaries" translate="no">​</a></h2>
 <p>Unknown characters outside a literal, quoted identifier, or comment fail with
 CADB0406, including their line and column. They are no longer silently ignored.
-For example, an unexpected backslash or <code>$</code> is an error. A non-breaking space
+For example, an unexpected backslash or a bare <code>$</code> is an error. Dollar-quoted
+C# bodies (<code>$$ ... $$</code> or <code>$tag$ ... $tag$</code>) are accepted in
+<a class="" href="/docs/csharp-extensions/#inline-functions">inline function and trigger definitions</a>. A non-breaking space
 (U+00A0) or byte-order mark (U+FEFF) is not SQL whitespace; check copied SQL
 when an invisible character causes a syntax error.</p>
 <p>Whitespace accepts spaces, tabs, line breaks, form feeds, and vertical tabs.
