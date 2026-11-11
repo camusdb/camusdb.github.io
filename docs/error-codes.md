@@ -4,14 +4,20 @@ sidebar_position: 6
 
 # Error codes
 
-CamusDB reports a structured error code in three places: `CamusDBException`,
-HTTP API error responses, and gRPC error metadata.
+The [.NET](/docs/dotnet-driver), [TypeScript](/docs/typescript-connector), and
+[Python](/docs/python-driver#errors-and-administration) drivers expose CamusDB
+error codes through their exception/error objects. Each driver decodes its
+transport's error responses for you. Use [retry helpers](/docs/serializable-retries) for
+retryable conflicts.
 
 Base your application logic on the code, not the message text. The code
 identifies the condition; the message is for people. For example, replay a
-transaction from `BEGIN` on `CADB0502` or `CADB0504`, and show the user a
+transaction through a retry helper on `CADB0502` or `CADB0504`, and show the user a
 validation error on a `CADB03xx` constraint failure. Use this page to look up a
 code you see in a log or a response.
+
+<details>
+<summary>Error envelopes for protocol clients</summary>
 
 A failed HTTP response looks like this:
 
@@ -26,6 +32,8 @@ A failed HTTP response looks like this:
 Unary and streaming gRPC calls carry the same domain code in the
 `camus-error-code` trailer. A gRPC batch operation carries the code inside its
 `BatchError` message.
+
+</details>
 
 ## How to read them
 
@@ -59,7 +67,7 @@ an unexpected internal state, or an inconsistency in the storage layer.
 | `CADB0304` | `ForeignKeyViolation` | A child `INSERT` or `UPDATE` has no parent row, or `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY` finds an existing child row without a parent. |
 | `CADB0305` | `ForeignKeyRestrictDelete` | A `DELETE` would remove a parent key that a child row still references. |
 | `CADB0306` | `ForeignKeyRestrictUpdate` | An `UPDATE` would change a parent key that a child row still references. |
-| `CADB0400` | `InvalidInput` | Also covers non-boolean predicates, unpaired UTF-16 surrogates in SQL parameters, malformed JSON on SQL endpoints, invalid LIKE escape values, and constant division by zero. The request shape is invalid: missing names, invalid DDL/DML parameters, malformed query structure, invalid check definitions, invalid regex patterns, unsupported function arguments, invalid casts, malformed UUID input, duplicate aliases, invalid transaction priority, invalid table settings such as row-level TTL options, invalid index rename inputs, invalid `INSERT INTO ... SELECT` column counts, invalid CTAS projections, invalid `GROUP BY` / `HAVING` / `DISTINCT` combinations, and similar user mistakes. |
+| `CADB0400` | `InvalidInput` | Also covers negative LIMIT/OFFSET, ambiguous ORDER BY output names, non-boolean predicates, unpaired UTF-16 surrogates in SQL parameters, malformed JSON on SQL endpoints, invalid LIKE escape values, and constant division by zero. The request shape is invalid: missing names, invalid DDL/DML parameters, malformed query structure, invalid check definitions, invalid regex patterns, unsupported function arguments, invalid casts, malformed UUID input, duplicate aliases, invalid transaction priority, invalid table settings such as row-level TTL options, invalid index rename inputs, invalid `INSERT INTO ... SELECT` column counts, invalid CTAS projections, invalid `GROUP BY` / `HAVING` / `DISTINCT` combinations, and similar user mistakes. |
 | `CADB0401` | `UnknownType` | CamusDB is asked to encode, decode, cast, or evaluate a type it does not understand in that context. |
 | `CADB0402` | `DuplicatePrimaryKey` | Reserved for duplicate primary-key violations. The current storage path usually reports uniqueness failures as `CADB0300`. |
 | `CADB0403` | `DuplicateColumn` | A schema definition, INSERT target list, UPDATE SET list, ON CONFLICT update arm, or typed row write repeats a column name, ignoring case; also a column rename targeting an existing name. Repeated write targets are refused before writing. HTTP 400. |
@@ -212,6 +220,23 @@ for deployment and transaction behavior.
 | `CADB0834` | `ExtensionNotLoadedOnNode` | This node does not load the installed name, version, and SHA-256; statements using that extension fail. |
 | `CADB0835` | `ExtensionClusterMismatch` | A responding cluster node does not load the target build for an install or update. |
 | `CADB0836` | `TriggerRowMappingInvalid` | A typed trigger row class does not fit its table; the message lists the mapping problems. |
+
+## Inline C# errors
+
+These cover [inline functions and triggers](/docs/csharp-extensions#inline-functions).
+Compilation/policy errors name the offending source positions where available.
+
+| Code | Name | Meaning |
+| --- | --- | --- |
+| `CADB0838` | `InlineFunctionCompileFailed` | Compilation failed or exceeded its deadline. HTTP 400. |
+| `CADB0839` | `InlineFunctionRefused` | Source or signature is outside the allowed subset. HTTP 400. |
+| `CADB0840` | `InlineFunctionBudgetExceeded` | A call/fire exceeded a resource budget. HTTP 400. |
+| `CADB0841` | `InlineFunctionsDisabled` | The relevant creation flag is off, or the build lacks a compiler. HTTP 400. |
+| `CADB0842` | `FunctionAlreadyExists` | A function exists or a function name collides. HTTP 409. |
+| `CADB0843` | `FunctionNotFound` | Function DDL or SHOW CREATE named a missing inline function. HTTP 404. |
+| `CADB0844` | `FunctionHasDependents` | Dependents prevent dropping a function or changing its signature. HTTP 409. |
+| `CADB0845` | `InlineFunctionUnavailableOnNode` | This node cannot compile required inline code. HTTP 503. |
+| `CADB0846` | `TriggerOwnerMissing` | The trigger owner's account no longer exists. HTTP 403. |
 
 ## Corruption and internal-state errors
 

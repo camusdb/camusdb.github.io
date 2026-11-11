@@ -122,6 +122,29 @@ same builds on every node; see
 Every other key is YAML only. The [settings reference](/docs/settings-reference)
 lists them all.
 
+## Inline C# functions and triggers
+
+Inline definitions let database users create C# functions and row triggers
+without deploying DLLs. Both creation features are off by default and enabled
+independently:
+
+```yaml
+inline_functions_enabled: true
+inline_triggers_enabled: true
+```
+
+Restart after changing these settings, and use the same cluster-scope values
+on every node. Disabling a feature prevents new definitions; existing
+functions remain callable and existing triggers still fire. See
+[C# inline functions](/docs/csharp-extensions#inline-functions),
+[inline triggers](/docs/csharp-extensions#inline-triggers), and the
+[budget settings](/docs/settings-reference#inline-c-functions-and-triggers).
+
+Inline bodies are checked against an allowlist and execute with resource
+budgets. Checks happen between framework operations; a process heap hard
+limit is the memory backstop. See
+[memory-proportional cache defaults](#cache-defaults-proportional-to-memory).
+
 ## HTTP/3 on the HTTPS port
 
 The REST API can also serve HTTP/3 over QUIC. HTTP/3 is off by default; to

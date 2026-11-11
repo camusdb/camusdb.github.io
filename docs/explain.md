@@ -42,15 +42,6 @@ You do not need `EXPLAIN` for a query that is already fast enough. If you are
 new to query plans, start with [Query planning](/docs/query-planning), then use
 this page as the reference for each node and output column.
 
-:::note Stability
-
-`EXPLAIN` output is diagnostic only, and it can change while the query planner
-is an alpha feature. The node names, column names, and detail formats on this
-page are stable within a minor version, and the changelog names any change that
-breaks them. Do not build production logic that parses this output.
-
-:::
-
 ## Syntax
 
 ```camussql

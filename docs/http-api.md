@@ -2,41 +2,32 @@
 sidebar_position: 3
 ---
 
-# HTTP API
+# HTTP/JSON protocol reference
 
-The HTTP API lets any program run SQL on CamusDB with a plain HTTP request and
-a JSON body. You need no driver and no special library. A shell script with
-`curl` is enough.
+For application code, start with the [.NET driver](/docs/dotnet-driver),
+[TypeScript driver](/docs/typescript-connector), or
+[Python driver](/docs/python-driver). Bind parameters and read results through
+the library; it handles request serialization, response decoding, and
+transaction handles. Use its [retry helpers](/docs/serializable-retries) for
+repeatable units of work.
 
-The endpoints speak JSON and suit automation and application integrations.
-All request and response properties use camel case.
+This reference is for authors of drivers and integrations, direct HTTP
+clients in languages without a driver, and endpoint-level diagnostics.
+Application developers can use CamusDB without reading the request formats
+below. For interactive SQL and scripts, use [camus-cli](/docs/camus-cli) or
+the [Web Console](/docs/web-console).
 
 ## When to use the HTTP API
 
-Use the HTTP API when:
+Direct requests are useful for health probes, testing an endpoint with curl,
+or implementing a client. The examples below describe that protocol-level
+work. A .NET, TypeScript, or Python script can use its driver just like a
+service does.
 
-- A script, CI job, or automation tool needs to run SQL or check a node's
-  health.
-- Your language has no CamusDB driver.
-- You want to test a request quickly from a terminal.
-- A load balancer or monitoring system needs to call a node.
-
-For application code, use the [.NET driver](/docs/dotnet-driver),
-[TypeScript connector](/docs/typescript-connector), or
-[Python driver](/docs/python-driver) for typed parameters, transactions, and
-retry helpers. Python provides DB-API and asyncio interfaces over REST;
-.NET and TypeScript also support gRPC and learned routing. For an interactive
-session, use [camus-cli](/docs/camus-cli).
-
-| | [HTTP API](/docs/http-api) | [gRPC API](/docs/grpc-api) |
-| --- | --- | --- |
-| Format | JSON text | Protobuf, a compact binary format |
-| What a client needs | Any HTTP client, such as `curl` | Bindings that you generate from the `.proto` file |
-| Good for | Scripts, automation, health checks, quick tests, and languages without a CamusDB driver | High request rates, long result streams, and many statements over one duplex stream |
-| Default port | `5095` | `5096` |
-
-Both APIs reach the same engine, with the same SQL, the same transactions, and
-the same errors.
+The HTTP API carries JSON on port 5095 by default. It reaches the same engine
+as gRPC, with the same SQL and transactional behavior. The .NET and TypeScript
+drivers support both transports; Python currently uses REST. All JSON request
+and response properties use camel case.
 
 ## Transport
 
@@ -112,7 +103,8 @@ remaining work as abandoned and cleans up the query.
 
 ## Authentication
 
-When authentication is enabled, call `/login` to get a bearer token:
+Driver users configure credentials in the library. A direct HTTP client
+exchanges them for a bearer token through `/login`:
 
 ```http
 POST /login

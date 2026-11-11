@@ -252,6 +252,7 @@ const sidebars = {
           label: 'Deployment',
           collapsed: false,
           items: [
+            'server-installation',
             'cluster',
             'growing-a-one-node-cluster',
             'kubernetes-operator',
@@ -392,8 +393,15 @@ const sidebars = {
         'workload-utility',
         'caraxes',
         'error-codes',
-        'http-api',
-        'grpc-api',
+        {
+          type: 'category',
+          label: 'Protocol reference',
+          collapsed: true,
+          items: [
+            {type: 'doc', id: 'http-api', label: 'HTTP/JSON protocol'},
+            {type: 'doc', id: 'grpc-api', label: 'gRPC protocol'},
+          ],
+        },
       ],
     },
   ],

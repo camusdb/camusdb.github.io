@@ -34,7 +34,9 @@ CREATE TABLE IF NOT EXISTS orders_empty AS SELECT * FROM orders WITH NO DATA;
 
 The source is an ordinary `SELECT`. Joins, `GROUP BY`, `DISTINCT`, subqueries,
 `ORDER BY`, `LIMIT`, `OFFSET`, and parameters work exactly as they do in a
-standalone query.
+standalone query. The source can also be a plain [view](/docs/views), including
+when CTAS uses WITH NO DATA. Reading a view as a source does not make the
+view itself writable.
 
 ## INSERT INTO ... SELECT
 
@@ -131,6 +133,19 @@ becomes `id2`, then `id3`, and so on.
 CamusDB never reuses a projected column as the key. A projection does not have
 to be unique; joins and projections without `DISTINCT` both repeat values, and
 the copy would then fail partway through with a duplicate key.
+
+Scalar subqueries preserve their declared output type even when their result
+is NULL. For example, this creates a correctly typed column when `payments`
+is empty:
+
+```camussql
+CREATE TABLE payment_summary AS
+SELECT (SELECT MAX(amount) FROM payments) AS largest_payment;
+```
+
+A scalar subquery can inherit its inner name; expressions such as MAX still
+need an alias to give the destination a usable name. A plain untyped
+`SELECT NULL AS x` remains unsupported.
 
 ### Rejected projections
 

@@ -45,7 +45,10 @@ The same rule applies to INSERT ... SELECT target lists and typed row writes.
 
 Uncorrelated subqueries can supply INSERT values, UPDATE assignments, and
 write filters, including inside CASE or function calls. They are evaluated
-once before writing. See [subquery rules](/docs/joins-and-subqueries#subqueries-in-where).
+once before writing. Correlated scalar, EXISTS, IN/NOT IN, and quantified
+subqueries also work in UPDATE SET/WHERE and DELETE WHERE. Their outer scope
+is the target row, and their reads use the statement timestamp. See
+[subquery rules](/docs/joins-and-subqueries#subqueries-in-where).
 
 ### Defaults
 

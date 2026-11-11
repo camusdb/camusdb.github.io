@@ -1,6 +1,10 @@
 ---
 sidebar_position: 1
+description: "Install CamusDB and run your first SQL: create a database and a table, insert and query rows, and add an index from camus-cli, the Web Console, or the browser playground."
 ---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
 import CamusPlayground, {tutorialExamples} from '@site/src/components/CamusPlayground';
 
@@ -8,8 +12,8 @@ import CamusPlayground, {tutorialExamples} from '@site/src/components/CamusPlayg
 
 This tutorial takes you from install to working SQL. You start a CamusDB node,
 create a database and a table, insert and query rows, add an index, rename
-objects, and update and delete data. You do it all from `camus-cli`, the
-interactive SQL shell, and you can try every step in your browser first.
+objects, and update and delete data. Use the `camus-cli` terminal shell or
+the Web Console, or try every step in the embedded browser playground first.
 
 CamusDB is an open-source distributed SQL database with a full relational
 engine, not a thin SQL layer over a key/value store. The SQL in this tutorial
@@ -51,92 +55,109 @@ can also edit the SQL before running it.
 
 ## Start CamusDB
 
-CamusDB ships as a .NET global tool. Install the
-[.NET runtime](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) first,
-then install the server and start a standalone node:
+Choose one installation method. Each starts a standalone node with the HTTP
+API on port `5095` and gRPC on `5096`. For service setup, data locations, and
+updates, see [Server installation](/docs/server-installation).
+
+<Tabs groupId="camusdb-install" defaultValue="nuget">
+<TabItem value="nuget" label="NuGet tool">
+
+Install the [.NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/10.0),
+then install the server as a global tool and start it:
 
 ```bash
-$ dotnet tool install --global CamusDB.Server
-$ camusdb
+dotnet tool install --global CamusDB.Server
+camusdb
 ```
 
-When no configuration file exists, `camusdb` starts with its built-in defaults.
-It stores data in your user data directory and listens on HTTP port `5095` and
-gRPC port `5096`:
+</TabItem>
+<TabItem value="homebrew" label="Homebrew">
+
+On macOS or Linux, install with [Homebrew](https://brew.sh). The server package
+includes its .NET runtime; no separate .NET installation is needed to run it:
 
 ```bash
-   ____                          ____  ____
-  / ___|__ _ _ __ ___  _   _ ___|  _ \| __ )
- | |   / _` | '_ ` _ \| | | / __| | | |  _ \
- | |__| (_| | | | | | | |_| \__ \ |_| | |_) |
-  \____\__,_|_| |_| |_|\__,_|___/____/|____/
-
-Configuration: built-in defaults (no configuration file found)
-Data directory: /Users/runner/.local/share/camusdb
+brew install camusdb/tap/camusdb
+camusdb
 ```
 
-Update the installed server:
+</TabItem>
+<TabItem value="docker" label="Docker">
+
+With Docker running, start the published image:
 
 ```bash
-$ dotnet tool update --global CamusDB.Server
+docker run --rm \
+  -p 5095:5095 \
+  -p 5096:5096 \
+  -v camus-data:/data \
+  --name camusdb camusdb/camusdb:latest
 ```
 
-To create a starter configuration file that you own, run:
+The named `camus-data` volume preserves data after the container exits.
+Stop it with Ctrl+C.
+
+</TabItem>
+</Tabs>
+
+## Connect with a SQL client {#connect-with-the-sql-shell}
+
+Choose the terminal shell or the browser-based Web Console. Both connect to
+the node you started above and run the same SQL. The tool installation commands
+below require the .NET 10 SDK, including when the server runs through Homebrew
+or Docker.
+
+<Tabs groupId="camusdb-client" defaultValue="cli">
+<TabItem value="cli" label="camus-cli">
+
+Install the [SQL shell](/docs/camus-cli) and open it in another terminal:
 
 ```bash
-$ camusdb init
+dotnet tool install --global CamusDB.SqlSh
+camus-cli
 ```
 
-This writes `~/.camusdb/config.yml` and creates the default data directory.
-Edit the file, then run `camusdb` again.
+The shell connects to the local server, trying gRPC on port `5096` first and
+REST on `5095` as a fallback. A `camus>` prompt means you can enter SQL.
 
-You can also start CamusDB with Docker:
+</TabItem>
+<TabItem value="webconsole" label="Web Console">
+
+Install the [Web Console](/docs/web-console) and point it at the local server:
 
 ```bash
-$ docker run --rm \
-        -p 5095:5095 \
-        -p 5096:5096 \
-        -v camus-data:/data \
-        --name camusdb camusdb/camusdb:latest
+dotnet tool install --global CamusDB.WebConsole
+camusdb-webconsole --endpoint http://localhost:5095
 ```
 
-Install the SQL shell:
+The console opens your browser at `http://127.0.0.1:5164`. Enter SQL in the
+editor and click **Run statement**, or press Ctrl/Cmd+Enter. Use **Run script**
+(Alt+X) to execute several statements in order. Results appear in tabs.
 
-```bash
-$ dotnet tool install --global CamusDB.SqlSh
-```
+Use **Configure** to change the endpoint, protocol, database, or credentials.
+If you prefer to run the console without installing .NET, follow the
+[Docker instructions](/docs/web-console#run-it-with-docker).
 
-Then open the SQL shell in another terminal:
-
-```bash
-$ camus-cli
-```
-
-An interactive prompt appears:
-
-```text
-CamusDB SQL Shell 0.16.0
-
-Connected to http://localhost:5096 over gRPC, database: (none)
-
-camus>
-```
+</TabItem>
+</Tabs>
 
 ## Create a database
 
-You must create a database explicitly before you can use it. Create one, then
-switch the shell to it:
+Create the tutorial database in your chosen client's SQL editor or prompt:
 
 ```camussql
-camus> CREATE DATABASE factory;
-Query OK, 0 rows affected (00:00:00.0711685)
-
-camus> use factory;
-Database changed to factory
+CREATE DATABASE factory;
 ```
 
-You can also start the shell with `camus-cli factory`, but the first time you
-use that database name you still need to run `CREATE DATABASE factory;`.
+Then select it for the remaining steps:
+
+- **camus-cli:** run `USE factory;`. For later sessions, you can start the
+  shell with `camus-cli factory`.
+- **Web Console:** click `factory` in the database sidebar, or select it in
+  **Configure** as the session database.
+
+The database must exist before you select it. The statements below run in
+`factory` in either client.
 
 ## Create a table
 
@@ -369,8 +390,9 @@ subqueries, and derived tables.
 
 Use the [.NET driver](/docs/dotnet-driver),
 [TypeScript connector](/docs/typescript-connector), or
-[Python driver](/docs/python-driver). Python supports DB-API 2.0 and asyncio
-over REST; the .NET and TypeScript clients also support gRPC.
+[Python driver](/docs/python-driver). They provide parameter binding, query
+results, and transaction APIs, with helpers for retryable conflicts. The
+libraries handle the HTTP/JSON or gRPC messages behind those APIs.
 
 ## Ready for more?
 

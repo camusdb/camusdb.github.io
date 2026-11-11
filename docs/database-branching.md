@@ -1,5 +1,6 @@
 ---
 sidebar_position: 1.6
+description: "Clone a CamusDB database at a point in time without copying rows. Test migrations, reproduce bugs, or try data fixes with no risk to the source database."
 ---
 
 # Database branching
@@ -37,9 +38,6 @@ Common uses:
 - Giving each developer and each test run its own isolated database clone.
 
 ![CamusDB database branching diagram](/img/database_branching.png)
-
-CamusDB is in production use, but branching is still an alpha feature. Its APIs
-and storage formats can change between versions.
 
 ## Create a branch
 

@@ -1,5 +1,6 @@
 ---
 sidebar_position: 5
+description: "How CamusDB works from SQL to disk: a relational SQL layer on top of a distributed transactional key/value storage layer that handles partitioning, consensus, and persistence."
 ---
 
 # Architecture
@@ -19,9 +20,6 @@ layer stores those entries and handles [partitioning](/docs/concepts#partition),
 persistence. Nothing above the KV mapping knows which node owns a key, and
 nothing below it knows what a table is. That split is why the same SQL runs on
 one node or on a cluster.
-
-CamusDB is in production use, but cluster mode is still an alpha feature. Its
-APIs and storage formats can change between versions.
 
 ## Overview
 

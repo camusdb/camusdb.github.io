@@ -1,5 +1,6 @@
 ---
 sidebar_position: 7.1
+description: "CamusDB.Client is the ADO.NET provider for CamusDB. Connect .NET applications with standard connections, commands, data readers, and transactions over HTTP/JSON or gRPC."
 ---
 
 # .NET driver
@@ -11,7 +12,9 @@ so ADO.NET code you wrote for another database reads the same with CamusDB.
 
 The driver is the foundation of the other .NET packages. It also gives you
 direct access to CamusDB features such as the gRPC transport, learned routing,
-prepared statements, serializable retries, and backups.
+prepared statements, serializable retries, and backups. You use ADO.NET
+methods and .NET values; the driver handles HTTP/JSON or gRPC encoding,
+authentication messages, and transaction handles.
 
 ## Which .NET package to use
 

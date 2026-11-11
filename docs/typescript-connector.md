@@ -1,5 +1,6 @@
 ---
 sidebar_position: 7.3
+description: "The camusdb npm package connects Node.js applications to CamusDB from TypeScript or JavaScript, with typed parameters and automatic retries of serializable conflicts."
 ---
 
 # TypeScript
@@ -11,7 +12,8 @@ you, and in a multi-node cluster learned routing can send a statement straight
 to the node that leads its data. It works from TypeScript and JavaScript.
 
 For an interactive SQL session, use [camus-cli](/docs/camus-cli). For a script
-that needs no library, use the [HTTP API](/docs/http-api).
+or automation job, use this same driver. The [HTTP protocol reference](/docs/http-api)
+is available for custom clients and diagnostics.
 
 The connector also supports REST and gRPC transports, transaction pipelines,
 automatic prepared statements, authentication, database branches, query result

@@ -412,8 +412,6 @@ sequential pipeline.
   the plan it measured, not the plan of a run without measurement.
 - Fragmented plans bypass the plan cache, because their shape depends on the
   live placement.
-- Distribution is an alpha feature, like [cluster mode](/docs/cluster) itself.
-  APIs and behavior can change between versions.
 
 ## Related pages
 

@@ -2,34 +2,25 @@
 sidebar_position: 4
 ---
 
-# gRPC API
+# gRPC protocol reference
 
-CamusDB exposes a gRPC API for clients alongside the JSON REST API. The gRPC
-endpoint uses HTTP/2 on its own port and reaches the same engine as the HTTP
-endpoints: the same SQL, transactions, and row operations.
+For application code, use the [.NET driver](/docs/dotnet-driver),
+[TypeScript driver](/docs/typescript-connector), or
+[Python driver](/docs/python-driver). The libraries expose connections,
+parameters, queries, and transactions through their own APIs. You do not need
+to generate Protobuf bindings or manage stream messages to use CamusDB.
 
-[gRPC](https://grpc.io/) is a protocol for calls between programs. A client
-calls typed methods that a `.proto` file defines. The messages travel in a
-compact binary format over HTTP/2, so each call costs less than the same call
-with JSON.
+The .NET and TypeScript drivers support gRPC as a transport option; Python
+currently uses REST. Selecting gRPC in a supported driver leaves encoding,
+authentication metadata, transaction handles, and stream management to the
+library. Use the [retry helpers](/docs/serializable-retries) for retryable work.
 
 ## When to use the gRPC API
 
-Most applications do not call this API directly. The
-[.NET driver](/docs/dotnet-driver) and the
-[TypeScript connector](/docs/typescript-connector) already speak gRPC. Set
-their protocol option to `grpc`. Use this page when you write a client in a
-language without a CamusDB driver, or when you want to know what a driver does.
-
-| | [HTTP API](/docs/http-api) | [gRPC API](/docs/grpc-api) |
-| --- | --- | --- |
-| Format | JSON text | Protobuf, a compact binary format |
-| What a client needs | Any HTTP client, such as `curl` | Bindings that you generate from the `.proto` file |
-| Good for | Scripts, automation, health checks, quick tests, and languages without a CamusDB driver | High request rates, long result streams, and many statements over one duplex stream |
-| Default port | `5095` | `5096` |
-
-Both APIs reach the same engine, with the same SQL, the same transactions, and
-the same errors.
+This page documents the public protocol for driver authors, custom clients,
+and transport diagnostics. It describes the wire contract behind the driver
+APIs. The client endpoint uses HTTP/2 on port 5096 by default and reaches the
+same SQL engine as the [HTTP API](/docs/http-api).
 
 ## Enable and configure the endpoint
 
@@ -47,7 +38,8 @@ certificate of the node's internal cluster port. Without either certificate,
 the listener uses plaintext HTTP/2, which suits local development and private
 test networks.
 
-When authentication is enabled, use the `CamusAuth` service to exchange a user
+Driver users configure credentials in their connection settings. A custom
+gRPC client uses the `CamusAuth` service to exchange a user
 name and password for a bearer token. gRPC clients then send that token in the
 request metadata:
 
@@ -73,7 +65,7 @@ The protocol defines three services:
 | `CamusRows` | Typed row CRUD without building SQL text. |
 | `CamusAuth` | Login and logout for authenticated gRPC clients. |
 
-Use `CamusSql` for most application and ORM work. Use `CamusRows` only when
+A driver or ORM integration normally uses `CamusSql`. Use `CamusRows` when
 the client already holds structured row values, filters, and ordering, and
 should not build SQL text.
 
@@ -490,7 +482,8 @@ with the details in trailer metadata:
 Batch operations use a `BatchError` message inside the stream, because a
 trailer belongs to a whole call, not to one operation.
 
-Base retries on `camus-error-code`, not on the message text:
+The official libraries expose these as driver errors and provide retry
+helpers. Custom protocol clients base retries on `camus-error-code`:
 
 | Code | Retry rule |
 | --- | --- |

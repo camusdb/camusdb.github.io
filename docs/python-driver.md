@@ -1,5 +1,6 @@
 ---
 sidebar_position: 7.4
+description: "camusdb-py connects Python applications to CamusDB through a DB-API 2.0 interface and a native asyncio interface, with named parameters and explicit transactions."
 ---
 
 # Python driver
@@ -7,7 +8,9 @@ sidebar_position: 7.4
 `camusdb-py` connects Python applications to CamusDB through a familiar DB-API
 2.0 interface: connections, cursors, named parameters, and transactions. It
 also provides a native asyncio interface for services that use asynchronous
-I/O. Both interfaces use the REST API through `httpx`.
+I/O. The driver handles HTTP requests, value encoding, and transaction handles
+for both interfaces. Bind Python values and use the DB-API or asyncio methods;
+the REST message format is an implementation detail.
 
 Use it for Python services, scripts, and data-processing jobs that need typed
 SQL values and explicit transaction control. The package name is
@@ -27,7 +30,7 @@ For HTTP/2 over HTTPS, install `pip install 'camusdb-py[http2]'` and pass
 
 ## Create a database and query it
 
-Start CamusDB with the [installation guide](/docs/intro). This example uses
+Start CamusDB with the [installation guide](/docs/server-installation). This example uses
 its default REST port, 5095:
 
 ```python

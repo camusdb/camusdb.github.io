@@ -57,9 +57,12 @@ SELECT upper(trim(name)) AS display_name FROM robots;
 You can project any scalar expression, including function calls and
 arithmetic.
 
-`AS` names the output column. Without `AS`, CamusDB derives the output name from
-the expression itself. See [Functions](/docs/functions) for the
-available scalar functions.
+`AS` names the output column. A bare column keeps its name, and a scalar
+subquery inherits its inner output name. Other unaliased expressions,
+including functions and aggregates, use their zero-based select-list position
+as the name. This differs from PostgreSQL, which can use the function name or
+`?column?`. Give computed results an alias when another query, a view, or a
+client will refer to them. See [Functions](/docs/functions) for scalar functions.
 
 ### DISTINCT
 
@@ -432,7 +435,10 @@ LIMIT 25 OFFSET 50;
 ```
 
 `ASC` is the default. `LIMIT` and `OFFSET` accept a literal integer or a
-placeholder, such as `LIMIT @limit`.
+placeholder, such as `LIMIT @limit`. Counts must be nonnegative integers.
+Negative literals fail during binding; negative parameters fail when the
+clause is read, with CADB0400. The rule also applies to nested queries,
+FROM-less SELECTs, and UPDATE/DELETE pagination.
 
 In a grouped query, `ORDER BY` can reference a selected aggregate's alias, an
 aggregate expression, or a grouped expression.
@@ -445,6 +451,10 @@ ORDER BY cnt DESC, role;
 ```
 
 An alias in `ORDER BY` takes precedence over a base column with the same name.
+If two output columns have that name but different expressions, a bare
+ORDER BY name is ambiguous and fails with CADB0400, even with LIMIT 0. Use
+unique aliases or a 1-based output position such as ORDER BY 2. Repeating
+the same input column in the output does not make its name ambiguous.
 In a query without `GROUP BY`, an `ORDER BY` expression can also read a column
 that the `SELECT` list does not project.
 

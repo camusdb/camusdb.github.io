@@ -4,6 +4,12 @@ sidebar_position: 6
 
 # The connection model
 
+Applications connect through the [.NET](/docs/dotnet-driver),
+[TypeScript](/docs/typescript-connector), or [Python](/docs/python-driver)
+driver. Those libraries manage requests and transaction handles. This page
+explains the server and driver implementation for capacity planning and
+deployment; its wire details are not part of the application programming model.
+
 Clients talk to CamusDB through two APIs: REST with JSON over HTTP, and gRPC
 over HTTP/2. Neither API gives a connection its own process or thread. A
 connection is just a socket, and the server does work per request, not per
@@ -244,14 +250,12 @@ function holds an open REST transaction, or one from the unary gRPC
 that need those rows wait or fail.
 
 - Prefer autocommit statements for single writes.
-- Send a short transaction in one gRPC `BatchExecute` frame with
-  `COMMIT_IF_OK`, so the client can't stop between its statements. See
-  [Batch stream frames](/docs/grpc-api#batch-stream-frames).
-- Otherwise, start and commit the transaction in the same invocation, with no
-  slow external calls in between.
-- Send every statement of a REST transaction to the node that started it. A
-  load balancer without node affinity can send a statement to another node,
-  which rejects the handle.
+- Use the driver's [transaction and retry helpers](/docs/serializable-retries)
+  to finish the unit of work in the same invocation, with no slow external
+  calls in between. The .NET and TypeScript clients also provide pipeline
+  APIs for reducing round trips.
+- Let the driver keep an explicit transaction on its originating node. Custom
+  protocol clients must preserve that affinity themselves.
 - For functions with short timeouts, lower `transaction_idle_timeout_ms`. It
   needs a restart and the same value on every node.
 

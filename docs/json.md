@@ -1,5 +1,6 @@
 ---
 sidebar_position: 2.21
+description: "Store, query, and index JSON documents in CamusDB JSONB columns, with the PostgreSQL jsonb operators, functions, and GIN indexes."
 ---
 
 # JSON documents
@@ -185,7 +186,7 @@ SELECT id, details -> 'items' -> 0 ->> 'sku' AS first_sku FROM orders;
 -- Mark an order as reviewed, and remove a temporary field
 UPDATE orders
 SET details = (details || '{"reviewed": true}') - 'draft_note'
-WHERE id = 42;
+WHERE id = 17;
 ```
 
 ### Operator precedence
@@ -474,6 +475,26 @@ percentage of the minified JSON text:
 
 ## Client APIs
 
+Use the driver to bind documents and read results. The libraries handle the
+JSON/HTTP or gRPC representation:
+
+| Driver | Application API |
+| --- | --- |
+| [.NET](/docs/dotnet-driver#json-documents) | Bind `JsonDocument`, `JsonElement`, or `JsonNode`; use `ColumnType.Jsonb` for raw JSON text. Read JSON text or a typed JSON value. |
+| [TypeScript](/docs/typescript-connector#json-documents) | Bind a plain object or `camus.jsonb(value)`. Results default to parsed JavaScript values; choose `jsonb: 'text'` to preserve decimal digits and distinguish JSON null from SQL NULL. |
+| [Python](/docs/python-driver#json-documents) | Bind a dict, or use `Typed` for JSON text or a JSON array document. Results are JSON text; JSON null is `'null'`, while SQL NULL is `None`. |
+
+The .NET driver's text result distinguishes JSON null (`"null"`) from SQL
+NULL (`DBNull`). Use current driver and server versions for this behavior;
+older REST servers can return both as the same null value. JSONB support and
+exact numeric decoding vary by driver; the linked guides describe the choices.
+
+<details>
+<summary>HTTP and gRPC encoding for client implementers</summary>
+
+The driver handles these fields and decoding rules. They are needed when
+implementing a custom client or inspecting raw responses.
+
 | API | Form |
 | --- | --- |
 | HTTP | By default, the document itself, as native JSON in the row. Numbers keep all their digits. The column type is `13`. A parameter is `{"type": 13, "strValue": "<json text>"}`, or a plain string written to a `JSONB` column. |
@@ -483,7 +504,7 @@ A gRPC client built before `json_value` existed reads every `JSONB` cell as
 `NULL`, with no error. Update the client before you read `JSONB` columns over
 gRPC.
 
-### JSON null over HTTP
+#### JSON null over HTTP
 
 In the default HTTP form, a JSON `null` document and a SQL `NULL` cell are both
 the token `null`. A client cannot tell them apart, and if it writes the value
@@ -510,6 +531,9 @@ The response marks each `JSONB` column that uses the text form:
 Decode a cell as text only when its column has this mark. A server that does not
 know the option ignores it and sends the default form. A string document such
 as `"abc"` is valid in both forms, so the mark is the only safe test.
+
+
+</details>
 
 ## Limits
 

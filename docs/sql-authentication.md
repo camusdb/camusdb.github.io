@@ -88,6 +88,19 @@ There is no default user and no default password.
 
 ## Login and logout
 
+For application code, configure the user and password in your
+[.NET](/docs/dotnet-driver#authentication),
+[TypeScript](/docs/typescript-connector#authentication), or
+[Python](/docs/python-driver#authentication) driver. The library handles login,
+token reuse and renewal, and authentication headers. An access token supplied
+by your own token service has its own lifecycle; see the driver's options.
+
+The operator still creates users, grants privileges, and configures TLS.
+Applications use their normal query and transaction methods after connecting.
+
+<details>
+<summary>Login and token protocol for custom clients</summary>
+
 Use `/login` to exchange a user name and password for a bearer token:
 
 ```http
@@ -189,6 +202,8 @@ Authentication and authorization errors map to ordinary gRPC status codes:
 | The login rate limit or the KDF limit is reached | `RESOURCE_EXHAUSTED` |
 
 See [gRPC API](/docs/grpc-api) for the service reference.
+
+</details>
 
 ## TLS
 

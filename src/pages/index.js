@@ -25,7 +25,7 @@ const heroProofs = [
   },
   {
     title: 'In-process C# extensions',
-    detail: 'Run reviewed .NET functions, triggers, and procedures inside the server.',
+    detail: 'Define C# functions and triggers inline, or load reviewed .NET assemblies.',
   },
 ];
 
@@ -60,7 +60,7 @@ const outcomes = [
     label: 'Extensibility',
     title: 'Run business logic next to the data',
     detail:
-      'Load reviewed C# code into the server as SQL functions, row triggers, and transactional procedures. Every microservice and every operator session then follows the same rules.',
+      'Define C# functions and triggers directly in SQL, or deploy reviewed assemblies for functions, triggers, and procedures. Keep shared business rules close to the data.',
     link: '/docs/csharp-extensions',
     linkLabel: 'See C# extensions',
   },
@@ -85,10 +85,10 @@ COMMIT;`,
   },
   {
     id: 'extensions',
-    label: 'C# extensions',
-    title: 'Call C# code from SQL',
+    label: 'C# assemblies',
+    title: 'Call an external C# assembly from SQL',
     detail:
-      'Load a reviewed C# assembly into the server, then use its members as scalar functions, row triggers, and transactional procedures. The code runs in the database process, in the same transaction as the statement that invoked it.',
+      'Deploy a reviewed .NET assembly to add SQL functions, row triggers, and transactional procedures. Functions and triggers can also be defined inline in SQL, without deploying a DLL.',
     link: '/docs/csharp-extensions',
     linkLabel: 'Read the extensions guide',
     code: `-- slugify() is a C# method marked [CamusFunction].
@@ -102,6 +102,30 @@ EXTERNAL NAME 'MyCompany.Ext.AuditTrigger';
 
 -- Run a multi-statement C# procedure atomically.
 CALL transfer('alice', 'bob', 30);`,
+  },
+  {
+    id: 'inline-trigger',
+    label: 'Inline trigger',
+    title: 'Normalize every product write',
+    detail:
+      'Define a C# trigger body directly in SQL. This BEFORE trigger derives a product slug on every insert or update, so every client gets the same normalization without an extension assembly.',
+    link: '/docs/csharp-extensions#inline-triggers',
+    linkLabel: 'Read the inline trigger guide',
+    code: `-- Set inline_triggers_enabled: true and restart the server.
+CREATE TABLE products (
+  sku STRING PRIMARY KEY,
+  title STRING NOT NULL,
+  slug STRING
+);
+
+CREATE TRIGGER product_slug ON products
+BEFORE INSERT, UPDATE LANGUAGE csharp AS $$
+    if (NEW!.title is { } title)
+        NEW.slug = title.Trim().ToLowerInvariant().Replace(' ', '-');
+$$;
+
+INSERT INTO products (sku, title) VALUES ('book-1', 'New Book');
+SELECT sku, slug FROM products; -- book-1, new-book`,
   },
   {
     id: 'optimizer',
@@ -350,7 +374,7 @@ function HomepageHeader() {
               <span className={styles.statusDot} aria-hidden="true" />
               <Link className={styles.statusLink} href="https://github.com/camusdb/camusdb-caraxes">Jepsen-tested with Caraxes</Link>
               <span aria-hidden="true">·</span>
-              Actively used in production — some features are alpha
+              Actively used in production — some features are still young
             </p>
           </div>
           <PyramidNetwork className={styles.heroNetwork} />
@@ -548,7 +572,7 @@ export default function Home() {
   return (
     <Layout
       title={siteConfig.title}
-      description="Explore CamusDB, an open-source distributed SQL database with partitioned writes, Serializable transactions, database branching, recoverable drops, and in-process C# extensions.">
+      description="Explore CamusDB, an open-source distributed SQL database with partitioned writes, Serializable transactions, database branching, recoverable drops, and C# functions and triggers defined inline or loaded from assemblies.">
       <HomepageHeader />
       <main>
         <OutcomeSection />

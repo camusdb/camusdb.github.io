@@ -1,5 +1,6 @@
 ---
 sidebar_position: 7.2
+description: "Let AI agents list, explain, and query CamusDB data through the Model Context Protocol. With authentication on, the server enforces the grants of the CamusDB user it connects as."
 ---
 
 # MCP server

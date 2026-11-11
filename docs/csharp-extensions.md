@@ -1,5 +1,6 @@
 ---
 sidebar_position: 8.5
+description: "Extend CamusDB with C# scalar functions, table functions, aggregates, triggers, and transactional procedures that you call from SQL, with no extra network service."
 ---
 
 # C# extensions
@@ -20,10 +21,15 @@ Use extensions for:
   statements behind one `CALL`, reducing client orchestration while keeping all
   database changes in one transaction.
 
-Extensions are best for small, reviewed pieces of domain logic that benefit
-from running with the data. They execute inside the CamusDB server process, so
-they are an operator-managed deployment feature, not arbitrary code uploaded by
-database users.
+Choose [inline functions](#inline-functions) or [inline triggers](#inline-triggers)
+for C# bodies defined directly in SQL, without deploying a DLL. The operator
+enables each feature separately; users with the required database or table
+privileges can then create them. Inline code is checked against an allowlist
+and runs with resource budgets.
+
+DLL extensions remain the option for table functions, aggregates, procedures,
+and code outside the inline subset. They are reviewed, operator-managed
+assemblies that execute inside the server process.
 
 | Extension | SQL surface | Best use |
 | --- | --- | --- |
@@ -32,6 +38,139 @@ database users.
 | Aggregate function | `SELECT geomean(price) FROM items` | Summarize rows with domain-specific logic. |
 | Trigger | `CREATE TRIGGER ... EXTERNAL NAME ...` | React automatically to each inserted, updated, or deleted row. |
 | Procedure | `CALL my_procedure(...)` | Run a named, multi-statement transactional operation. |
+
+## Inline functions
+
+Define a reusable SQL calculation without building or distributing an assembly.
+First enable creation in `config.yml` on every node and restart:
+
+```yaml
+inline_functions_enabled: true
+```
+
+Then run this in an existing database:
+
+```camussql
+CREATE FUNCTION slugify(s STRING) RETURNS STRING LANGUAGE csharp AS $$
+    return s.Trim().ToLowerInvariant().Replace(' ', '-');
+$$;
+
+SELECT slugify('  New Book  '); -- 'new-book'
+SHOW FUNCTIONS;
+SHOW CREATE FUNCTION slugify;
+```
+
+The body is the statements of one C# 12 method. It uses the parameter names
+and case from the declaration. System, collections, globalization, LINQ,
+text, and regex namespaces are imported. Dollar quotes preserve body text,
+including semicolons and quotes; use `$body$ ... $body$` if it contains `$$`.
+FUNCTION, RETURNS, CALLED, INPUT, LANGUAGE, and csharp remain usable as
+identifiers. The browser playground does not include the inline compiler.
+
+### Types and NULLs
+
+Parameters and results accept INT64, FLOAT64, FLOAT32, BOOL, STRING, UUID,
+BYTES, DATETIME, and NUMERIC. Their C# types are `long`, `double`, `float`,
+`bool`, `string`, `Guid`, `byte[]`, `DateTime`, and `decimal`.
+ARRAY(E) accepts those element types except BYTES and uses
+`IReadOnlyList<T?>`; elements are nullable. NUMERIC values must also fit
+[.NET decimal](/docs/csharp-extensions#decimal-precision). OID, DATE, JSONB,
+and nested arrays are not supported in an inline signature.
+
+The default is RETURNS NULL ON NULL INPUT: a NULL argument returns SQL NULL
+without running the body. CALLED ON NULL INPUT passes nullable C# arguments
+instead. A return value can always be null:
+
+```camussql
+CREATE FUNCTION display_label(s STRING) RETURNS STRING
+CALLED ON NULL INPUT LANGUAGE csharp AS $$
+    return s ?? "untitled";
+$$;
+```
+
+### Change, inspect, or remove a function
+
+```camussql
+CREATE OR REPLACE FUNCTION slugify(s STRING) RETURNS STRING LANGUAGE csharp AS $$
+    return s.Trim().ToLowerInvariant().Replace(' ', '_');
+$$;
+
+ALTER FUNCTION slugify OWNER TO app_owner;
+DROP FUNCTION IF EXISTS slugify;
+```
+
+Names are case-insensitive and share the function namespace with built-ins
+and extension members. There are no overloads or default arguments.
+
+CREATE requires CREATE privilege on the database, or a superuser. The creator owns the
+function. Replacing it requires CREATE plus ownership, or a superuser;
+dropping it or changing its owner requires ownership or a superuser. The
+caller still needs database visibility. If the owner is dropped, only a
+superuser can change the function. Calling it does not acquire the owner's database privileges: the
+body cannot run SQL. SHOW FUNCTIONS and SHOW CREATE FUNCTION require SELECT
+or CREATE on the database.
+
+DROP, or a replacement that changes parameter/result types, is refused while
+a view, materialized view, or CHECK calls the function (CADB0844). A body-only
+replacement keeps the owner and dependencies. These objects use the new body
+in subsequent statements; a materialized view keeps stored rows until refresh.
+A deterministic column default is computed once at table creation and keeps
+that value. Inline-trigger bodies are not part of this dependency check;
+see [trigger recompilation](#trigger-recompilation-and-ownership).
+
+### Allowed code and resource budgets
+
+Inline functions are deterministic SQL functions. They support local
+variables, loops, local functions, lambdas, pattern matching, exceptions,
+strings, numeric operations, supported collections, and LINQ. Materialize a
+stored LINQ sequence with ToList or ToArray; a deferred chain kept in a local
+is refused. Regex calls must specify a match timeout.
+
+Every type and member must be allowed. Files, networking, processes,
+reflection, unsafe code, threads/tasks, async bodies, SQL calls, and calls to
+other SQL functions are refused. Functions also cannot use the clock, Random,
+or Guid.NewGuid. Some allocation, formatting, and deeply nested type shapes
+are restricted too. CADB0839 lists refused constructs and their body positions;
+CADB0838 reports compiler errors with line and column information. CANCEL QUERY
+does not interrupt a running inline function; use its call budget to limit it.
+
+Loops, local calls, and allocation run under [configurable budgets](/docs/settings-reference#inline-c-functions-and-triggers):
+
+| Limit | Default |
+| --- | --- |
+| Time per call or trigger fire | 1 second |
+| Managed allocation per call or fire | 16 MiB |
+| Elements in `new T[n]` | 1,048,576 |
+| Function source size | 64 KiB of UTF-8 |
+| Compile deadline, including slot wait | 10 seconds |
+| Concurrent compiles on one node | 2 |
+| Inline functions per database | 256 |
+
+Exceeding a runtime budget fails the statement with CADB0840. Recursion is
+checked against available stack space. Checks happen between framework calls,
+so one framework operation can finish before a limit is detected. Configure a
+[process heap limit](/docs/configuration#cache-defaults-proportional-to-memory) as
+the memory backstop; these bodies still execute inside the server process.
+
+Use ordinal string comparisons when results must agree across nodes, and keep
+server builds and globalization modes consistent. Culture-sensitive comparisons
+and the last bits of platform math can otherwise differ. Body replacement
+invalidates cached results that depend on the function.
+
+### Compilation across nodes
+
+Run function DDL on the database's schema leader. Creation validates the body
+there; the schema replicates source and its hash, not a DLL. Each node compiles
+and caches code at first use. SHOW FUNCTIONS includes signature, NULL rule,
+owner, generation, source hash, rule revision, and node-local compilation state.
+It lists database inline functions, not the functions provided by extension
+DLLs. States include `not compiled`, `compiled`, and a failure reason; `unloading`
+rows describe replaced/dropped code still held by a running statement.
+
+A node that cannot compile required code fails its statement with CADB0845.
+Upgrade every node before using APIs newly allowed by a server build.
+Turning off `inline_functions_enabled` blocks new CREATE FUNCTION statements;
+existing functions remain callable.
 
 ## Create an extension project
 
@@ -46,7 +185,7 @@ Create a class library and reference `CamusDB.Extensions.Abstractions`. Target
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="CamusDB.Extensions.Abstractions" Version="0.16.*" />
+    <PackageReference Include="CamusDB.Extensions.Abstractions" Version="0.17.*" />
   </ItemGroup>
 </Project>
 ```
@@ -353,8 +492,10 @@ EXTERNAL NAME 'MyCompany.Ext.NormalizeTrigger';
 DROP TRIGGER audit ON orders;
 ```
 
-`EXTERNAL NAME` is the full CLR type name. Creating or dropping a trigger
-requires the table's `ALTER` privilege. In a cluster, run trigger DDL on the
+`EXTERNAL NAME` is the full CLR type name for a DLL trigger. Inline bodies use
+[LANGUAGE csharp](#inline-triggers) instead. Creation requires ALTER on the
+table; dropping requires ALTER or a superuser, with an additional owner rule
+for inline triggers. In a cluster, run trigger DDL on the
 database's schema leader: the node that currently
 [leads](/docs/concepts#leader) schema changes for that database. Other nodes
 reject trigger DDL instead of forwarding it, and the error names the current
@@ -385,7 +526,7 @@ SQL issued by either trigger type shares the statement's transaction.
   passed foreign-key checks. It sees the final rows and cannot change them.
 
 `context.Old` and `context.New` contain every column, including large values.
-One trigger instance is shared by concurrent statements in an engine, so do not
+One DLL trigger instance is shared by concurrent statements in an engine, so do not
 keep per-statement state in instance or static fields.
 
 Triggers fire for SQL `INSERT`, `UPDATE`, and `DELETE`, including `RETURNING`
@@ -405,7 +546,100 @@ stale-row hazard with `CADB0825`.
 
 Triggers can be created only on plain tables. A recovered dropped table has
 no triggers; recreate them after recovery. Each trigger follows the version
-selected by its database's installed extension.
+selected by its database's installed extension when it uses EXTERNAL NAME.
+
+### Inline triggers
+
+Put normalization, validation, or audit logic directly on a table without an
+extension assembly. Enable creation separately from inline functions, on
+every node, then restart:
+
+```yaml
+inline_triggers_enabled: true
+```
+
+With `slugify` defined above, create a post table and its audit log:
+
+```camussql
+CREATE TABLE posts (id INT64 PRIMARY KEY, title STRING, slug STRING);
+CREATE TABLE post_audit (
+  id OID PRIMARY KEY DEFAULT (gen_id()), op STRING, post_id INT64
+);
+
+CREATE TRIGGER normalize ON posts BEFORE INSERT, UPDATE LANGUAGE csharp AS $$
+    if (NEW!.title is { } title)
+        NEW.slug = slugify(title);
+$$;
+
+CREATE TRIGGER audit ON posts AFTER INSERT, UPDATE, DELETE LANGUAGE csharp AS $$
+    await Sql.Set("op", Operation.ToString()).Set("id", (OLD ?? NEW)!.id)
+        .ExecuteAsync("INSERT INTO post_audit (op, post_id) VALUES (@op, @id)");
+$$;
+
+INSERT INTO posts (id, title) VALUES (1, 'New Book');
+SELECT slug FROM posts WHERE id = 1;
+SELECT op, post_id FROM post_audit;
+```
+
+Inline and DLL triggers share the same timing, transaction, and creation-order
+rules. NEW properties can be changed only in a BEFORE INSERT/UPDATE trigger;
+OLD is read-only, and AFTER rows are read-only.
+
+| Name in the body | Use |
+| --- | --- |
+| `NEW`, `OLD` | Generated nullable row properties, typed from the table. NEW is null for DELETE; OLD is null for INSERT. |
+| `Operation`, `Timing`, `TableName`, `TriggerName` | The event and trigger metadata. |
+| `Sql` | Bind typed parameters with Set, then await ExecuteAsync or QueryAsync. Parameters are cleared after that SQL operation. |
+| `Context` | The ITriggerContext row API, including columns without generated properties. |
+| Database inline-function names | Call an inline function as a C# method, with that function's NULL rule and budget. |
+
+A C# keyword column uses a verbatim property, such as `NEW.@class`. Columns
+that collide with context names, start with `__camus`, or have no supported
+property type use the row API instead, for example
+`Context.New!.GetString("Timing")` or `Context.New!.Set("Timing", "x")`.
+
+A trigger can await only Sql operations; Task.Run, Task.Delay, and awaits
+inside lambdas/local functions are refused. Unlike functions, triggers may
+use DateTime.UtcNow and Guid.NewGuid. Other inline-code restrictions apply.
+
+Each row's fire has the same time, allocation, and array budgets as an inline
+function. Time and memory spent in nested SQL are excluded from the C# body
+budget; SQL resource limits and the transaction mutation limit still apply.
+A throw fails the statement with CADB0818; catching a nested SQL failure does
+not make it committable (CADB0823).
+
+### Trigger recompilation and ownership
+
+The first fire after a table or inline-function change recompiles the body on
+each node. Adding a column or replacing a function is picked up automatically.
+DROP COLUMN and DROP FUNCTION do not inspect inline-trigger bodies. If a body
+still references the removed member, subsequent writes that fire it fail with
+CADB0845 until you drop and recreate the trigger with a valid body.
+
+An inline trigger's SQL runs with its creator's privileges, rather than the
+writer's. Its owner must hold the grants needed by that SQL; the writer does
+not need those extra grants. BEFORE changes to NEW remain part of the writer's
+own operation. If the owner is dropped, firing fails with CADB0846; a new
+account with the same name does not inherit ownership.
+
+The owner can drop an inline trigger after losing ALTER, provided the owner
+still has a grant making the database visible. ALTER holders and superusers
+can also drop it. A trigger created with authentication off has no owner:
+its SQL uses the writer's privileges, and dropping it requires ALTER or a
+superuser. DLL triggers also use the writer's privileges.
+
+```camussql
+SHOW TRIGGERS ON posts;
+SHOW CREATE TRIGGER normalize ON posts;
+DROP TRIGGER normalize ON posts;
+```
+
+SHOW TRIGGERS optionally lists all tables when ON is omitted. It reports both
+forms, with timing, events, form, owner, and source hash where applicable.
+SHOW CREATE TRIGGER returns EXTERNAL NAME for a DLL trigger or dollar-quoted
+C# for an inline trigger. Both statements require SELECT or ALTER on the
+database. Turning off `inline_triggers_enabled` blocks creation but does not
+stop existing triggers from firing.
 
 ### Typed trigger rows
 
@@ -695,7 +929,8 @@ whole transaction.
   oversized statement fails with `CADB0826`.
 - Cancellation is cooperative, and a write is not cancellable after writing
   begins in this version.
-- CamusDB cannot stop an extension method that never returns.
+- CamusDB cannot stop a DLL extension method that never returns. Inline bodies
+  have the separate instrumented budgets described above.
 - Table functions return one column and do not support `LATERAL`.
 - Window functions, `DISTINCT` aggregate arguments, and distributed partial
   aggregation for extension aggregates are unsupported.
@@ -764,3 +999,12 @@ quick start with .NET SDK 10 or later and CamusDB 0.16.1 or later.
 | `CADB0834` | This node does not load the database's installed extension build. |
 | `CADB0835` | A responding cluster node does not load the target build for an install or update. |
 | `CADB0836` | A typed trigger row class does not fit its table. |
+| `CADB0838` | Inline function or trigger compilation failed or timed out. |
+| `CADB0839` | Inline source or a function signature uses a refused construct. |
+| `CADB0840` | An inline call or trigger fire exceeded a time, allocation, array, or stack budget. |
+| `CADB0841` | Creation is disabled by its inline feature flag, or this server build lacks the compiler. |
+| `CADB0842` | A function exists or its name collides with another function/member. |
+| `CADB0843` | DROP/ALTER/SHOW CREATE FUNCTION named a missing function. |
+| `CADB0844` | Dependent views or CHECK constraints prevent a function drop or signature change. |
+| `CADB0845` | This node cannot compile a required function or trigger. |
+| `CADB0846` | An inline trigger's owner no longer exists; its SQL cannot run. |

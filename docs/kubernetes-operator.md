@@ -1,5 +1,6 @@
 ---
 sidebar_position: 6.1
+description: "Run a self-managed CamusDB cluster on Kubernetes. Describe the cluster in one short YAML file, and the CamusDB Kubernetes Operator creates it and keeps it in that state."
 ---
 
 # Kubernetes Operator
@@ -21,9 +22,9 @@ creates and operates CamusDB clusters through the `CamusDBCluster` custom
 resource. A custom resource is a new kind of Kubernetes object, which the
 operator adds to your Kubernetes cluster.
 
-:::caution Alpha
+:::caution Early stage
 
-The operator and the `camusdb.io/v1alpha1` API are alpha. Review the
+The operator and the `camusdb.io/v1alpha1` API are still young. Review the
 [current limitations](#current-limitations) before using them for production
 data.
 

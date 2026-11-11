@@ -31,9 +31,6 @@ one of them):
 5. Restarts and leader changes lose no committed schema work.
 6. A rename changes metadata only. It does not rewrite rows.
 
-CamusDB is in production use, but cluster mode is still an alpha feature. Its
-APIs and storage formats can change between versions.
-
 ## Why this exists
 
 Schema changes are harder in a distributed database than on a single node. Two

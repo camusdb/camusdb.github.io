@@ -1,5 +1,6 @@
 ---
 sidebar_position: 4
+description: "How CamusDB uses two-phase commit so a transaction commits on every partition or aborts on every partition. In a cluster, a transaction behaves like one on a single node."
 ---
 
 # Distributed transactions and HLC
@@ -312,9 +313,6 @@ This page describes CamusDB's current transaction model over Kahuna:
 - Lock and write intent tracking protects the atomic distributed commit.
 - Serializable is the default isolation level.
 - Read Committed is available as an explicit opt-out.
-
-CamusDB is in production use, but distributed transaction support is still an
-alpha feature. Its APIs and behavior can change between versions.
 
 ## See also
 

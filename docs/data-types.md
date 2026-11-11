@@ -1,5 +1,6 @@
 ---
 sidebar_position: 2.2
+description: "CamusDB column types: exact NUMERIC decimals for money, native UUID keys, arrays, JSONB documents, and BYTES columns for vector embeddings."
 ---
 
 # Data types
@@ -23,11 +24,16 @@ CamusDB type. You declare a column's type in `CREATE TABLE` or in
 `ALTER TABLE ... ADD COLUMN`. CamusDB then uses that type for storage,
 comparisons, indexes, casts, defaults, and JSON values.
 
+For application parameters and results, use the [.NET](/docs/dotnet-driver),
+[TypeScript](/docs/typescript-connector), or [Python](/docs/python-driver)
+type mappings. Drivers convert application values to the server's transport
+format; SQL types below describe the values and rules your application uses.
+
 ## Type reference
 
 | SQL type | Stores | Indexable | Notes |
 | --- | --- | --- | --- |
-| `OID` | A 12-byte ObjectId | Yes | The native identifier type. SQL also accepts `OBJECT_ID`. HTTP table definitions call the type `id`. |
+| `OID` | A 12-byte ObjectId | Yes | The native identifier type. SQL also accepts `OBJECT_ID`. |
 | `UUID` | A 128-bit UUID | Yes | The native UUID or GUID type. CamusDB also accepts `GUID`. |
 | `INT64` | A 64-bit signed integer | Yes | Alias: `BIGINT`. Narrower declarations have their own range limits below. |
 | `SMALLINT` | A signed 16-bit range, stored as `INT64` | Yes | Values from -32768 to 32767. |
@@ -186,11 +192,22 @@ but division by zero, `sqrt` of a negative value, and `sign(NaN)` fail with
 `CADB0400`. Casting infinity or NaN to `INT64` raises `CADB0420`; `NUMERIC`
 cannot hold either value.
 
+Use your driver's numeric types and typed parameters. The
+[.NET driver](/docs/dotnet-driver#infinity-and-nan) supports native infinity
+and NaN values. Check the [TypeScript](/docs/typescript-connector) and
+[Python](/docs/python-driver) mappings before using non-finite parameters;
+Python currently rejects them.
+
+<details>
+<summary>Non-finite float encoding for client implementers</summary>
+
 HTTP JSON represents non-finite floats as strings: `"Infinity"`, `"-Infinity"`,
 and `"NaN"`. The column type remains `FLOAT64` or `FLOAT32`; finite values,
 including negative zero, remain JSON numbers. Float parameters accept the same
 strings, for example `{"type": 5, "floatValue": "NaN"}`. gRPC carries the native
 IEEE value in its float or double field.
+
+</details>
 
 **Existing float indexes:** rebuild indexes containing negative zero or NaN
 that were created before the new encoding. Negative zero now shares zero's key,
@@ -292,7 +309,7 @@ Previously stored replacement characters (U+FFFD) remain unchanged.
 The [HTTP SQL API](/docs/http-api#status-and-errors) rejects malformed JSON,
 including escaped surrogate halves. Protobuf clients can replace a surrogate
 half with U+FFFD before sending gRPC; the server receives valid replacement
-text and cannot detect that change. Validate text before encoding it.
+text and cannot detect that change. Validate text at application boundaries.
 [Regex matching](/docs/functions-regex#matching-rules) still operates on
 UTF-16 units and can therefore differ from PostgreSQL for emoji.
 

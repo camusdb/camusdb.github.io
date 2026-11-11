@@ -1,5 +1,6 @@
 ---
 sidebar_position: 8.35
+description: "Spread one large or busy CamusDB table across several partitions of a cluster with key-range sharding, so one partition leader does not coordinate every write."
 ---
 
 # Key-range sharding
@@ -186,6 +187,47 @@ Use a CamusDB build with Kahuna 1.14.6 or later before running range splits
 under write load. Kahuna 1.14.3 and 1.14.5 could lose acknowledged writes if a
 range move's write-quiesce TTL expired before cutover. Version 1.14.6 refuses
 that expired move instead of switching routing away from those writes.
+
+## Split a range manually
+
+Use `POST /v1/cluster/split-range` when you need to trigger a split at a
+controlled point, for example in a cluster recovery test. Automatic splitting
+remains the normal way to respond to growth or load.
+
+```bash
+curl -X POST http://localhost:5095/v1/cluster/split-range \
+  -H 'Content-Type: application/json' \
+  -d '{"database":"shop","table":"orders","maxKeys":1000000}'
+```
+
+This scans the relation's row key space and chooses a median key that is not
+already a range start. Omit `index` for rows, or add an index name to split
+its key space instead; `primary` and `<table>_pkey` name the primary index.
+The endpoint chooses the key because stored row-id ordering cannot be derived
+from application column values. There is no caller-supplied split key.
+
+`maxKeys` defaults to 1,000,000 and must be at least 2. If the space exceeds
+that bound, the request is refused rather than split from a partial scan.
+Hash-routed or unavailable range maps return NoRange. The split can also be
+refused when the backend cannot divide the range or place the child.
+
+With authentication enabled, the caller must be a superuser; otherwise the
+endpoint accepts loopback requests only. A successful split returns HTTP 200;
+a refused split outcome returns 409, and invalid input returns 400. Inspect
+the response body:
+
+| Field | Meaning |
+| --- | --- |
+| `success`, `status`, `reason` | Whether the split completed, the outcome name, and explanatory detail. |
+| `keySpace`, `splitKey`, `keysSeen` | The selected space, opaque boundary, and number of keys scanned. |
+| `descriptorsBefore`, `newPartitionId` | The range count before the attempt and the new child's partition on success. |
+| `leaderHint` | Leader information when the request reaches a node that cannot perform the split. |
+| `determinate` | False when the range map may still change after the response. |
+
+On NotLeader, use the hint to locate the key-space leader. If `determinate`
+is false (for example, QuiesceFailed or TransferFailed), re-read SHOW RANGES
+and compare with `descriptorsBefore` before deciding whether to try again;
+the outcome is not proof that the map stayed unchanged.
 
 ## Reading split activity
 

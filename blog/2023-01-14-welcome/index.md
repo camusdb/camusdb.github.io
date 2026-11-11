@@ -5,6 +5,7 @@ date: 2026-07-03
 authors: [andresgutierrez]
 tags: [camusdb]
 image: /img/why-camus.jpg
+description: "Why CamusDB exists: years of distributed SQL in game backends, why it is built in .NET, the storage and consensus layers under it, and features such as database branching."
 ---
 
 > Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away.

@@ -1,5 +1,6 @@
 ---
 sidebar_position: 7.2
+description: "Use CamusDB with Entity Framework Core. Define your data as C# classes, query it with LINQ, and let the CamusDB.EntityFrameworkCore provider write the SQL."
 ---
 
 # EF Core provider

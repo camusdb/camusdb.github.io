@@ -20,7 +20,7 @@ Suppose `orders` has a million rows and an index on `customer_id`:
 ```camussql
 SELECT customer_id, total
 FROM orders
-WHERE customer_id = 42
+WHERE customer_id = 17
 ORDER BY total DESC
 LIMIT 10;
 ```
@@ -222,7 +222,7 @@ INCLUDE (status, total);
 
 SELECT customer_id, status, total
 FROM orders
-WHERE customer_id = 42;
+WHERE customer_id = 17;
 ```
 
 The key column `customer_id` drives the lookup. CamusDB stores the included
@@ -576,6 +576,20 @@ index order.
 
 `SELECT DISTINCT *` falls back to hash distinct, as does `SELECT DISTINCT` over
 an unindexed or nullable column.
+
+## Correlated subqueries
+
+Correlated scalar, EXISTS, IN/NOT IN, and quantified bodies are prepared for
+the outer query and evaluated with each row's referenced values. A simple
+indexed EXISTS can use a seek; more complex bodies use the full query
+pipeline, including joins and aggregation.
+
+Within one statement, a bounded cache can reuse a subquery result when the
+same outer values recur, reducing repeated work in joins. It is not shared
+across executions. Volatile bodies, some references through enclosing query
+levels, and the simple indexed EXISTS path bypass this cache. Index useful
+inner predicates and check the plan rather than assuming every repeated body
+will be cached. See [supported forms](/docs/joins-and-subqueries#subqueries-in-where).
 
 ## Derived tables and subqueries
 

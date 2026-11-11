@@ -1,5 +1,6 @@
 ---
 sidebar_position: 1.6
+description: "Undo an accidental DROP TABLE or DROP DATABASE in CamusDB. A dropped object stays recoverable for a configurable retention window, and RELINK brings it back without a full restore."
 ---
 
 # Recover dropped objects

@@ -239,27 +239,27 @@ ORDER BY robots DESC;`,
 const numericTypes = new Set(['Integer64', 'Float64', 'Float32', 'Numeric']);
 const sqlKeywords = new Set([
   'ACTION', 'ADD', 'AFTER', 'ALL', 'ALTER', 'ALWAYS', 'ANALYZE', 'ANCESTORS', 'AND', 'ANY', 'AS',
-  'ASC', 'BACKGROUND', 'BEFORE', 'BEGIN', 'BETWEEN', 'BRANCH', 'BRANCHES', 'BY', 'CACHE', 'CALL',
+  'ASC', 'BACKGROUND', 'BEFORE', 'BEGIN', 'BETWEEN', 'BRANCH', 'BRANCHES', 'BY', 'CACHE', 'CALL', 'CALLED',
   'CANCEL', 'CASCADE', 'CASCADED', 'CASE', 'CAST', 'CHECK', 'CLEAR', 'CLUSTER', 'COLUMN', 'COLUMNS',
   'COMMENT', 'COMMIT', 'COMMITTED', 'CONCURRENTLY', 'CONFLICT', 'CONNECTIONS', 'CONSTRAINT',
   'CONTINUE', 'CREATE', 'CRITICAL', 'CROSS', 'CURRENT', 'CYCLE', 'DATA', 'DATABASE', 'DATABASES',
   'DEFAULT', 'DEFERRABLE', 'DEFERRED', 'DELETE', 'DESC', 'DESCRIBE', 'DISTINCT', 'DO', 'DROP',
   'ELSE', 'END', 'ENGINE', 'ESCAPE', 'EVICT', 'EXCEPT', 'EXCLUDED', 'EXISTS', 'EXIT', 'EXPLAIN', 'EXTENDED',
   'EXTENSION', 'EXTENSIONS', 'EXTERNAL', 'FALSE', 'FLUSH', 'FOLLOWING', 'FOR', 'FORCE',
-  'FORCE_INDEX', 'FOREIGN', 'FROM', 'FULL', 'GENERATED', 'GIN', 'GRANT', 'GRANTS', 'GROUP',
+  'FORCE_INDEX', 'FOREIGN', 'FROM', 'FULL', 'FUNCTION', 'FUNCTIONS', 'GENERATED', 'GIN', 'GRANT', 'GRANTS', 'GROUP',
   'HAVING', 'HIGH', 'IDENTIFIED', 'IDENTITY', 'IF', 'ILIKE', 'IMMEDIATE', 'IN', 'INCLUDE',
-  'INCREMENT', 'INDEX', 'INDEXES', 'INITIALLY', 'INLINE', 'INNER', 'INSERT', 'INTERSECT', 'INTO',
-  'INVERTED', 'IS', 'ISOLATION', 'JOIN', 'KEY', 'LEFT', 'LEVEL', 'LIKE', 'LIMIT', 'LOCAL', 'LOCKED',
+  'INCREMENT', 'INDEX', 'INDEXES', 'INITIALLY', 'INLINE', 'INNER', 'INPUT', 'INSERT', 'INTERSECT', 'INTO',
+  'INVERTED', 'IS', 'ISOLATION', 'JOIN', 'KEY', 'LANGUAGE', 'LEFT', 'LEVEL', 'LIKE', 'LIMIT', 'LOCAL', 'LOCKED',
   'LOCKING', 'LOGICAL', 'LOW', 'MAIN', 'MATCH', 'MATERIALIZED', 'MAXVALUE', 'MINVALUE', 'MONITOR',
   'NAME', 'NATURAL', 'NO', 'NORMAL', 'NOT', 'NOTHING', 'NOWAIT', 'NULL', 'OF', 'OFFSET', 'ON',
   'ONLY', 'OPTIMISTIC', 'OPTION', 'OR', 'ORDER', 'ORPHAN', 'OUTER', 'OVER', 'OWNED', 'OWNER',
   'PARTIAL', 'PARTITION', 'PASSWORD', 'PESSIMISTIC', 'PHYSICAL', 'PLAIN', 'PRECEDING', 'PRIMARY',
   'PRIORITY', 'PRIVILEGES', 'QUERIES', 'QUERY', 'QUIT', 'RANGE', 'RANGES', 'READ', 'REFERENCES',
-  'REFRESH', 'RELINK', 'RENAME', 'REPLACE', 'RESET', 'RESTART', 'RESTRICT', 'RETURNING', 'REVOKE',
+  'REFRESH', 'RELINK', 'RENAME', 'REPLACE', 'RESET', 'RESTART', 'RESTRICT', 'RETURNING', 'RETURNS', 'REVOKE',
   'REWRITE', 'RIGHT', 'ROLLBACK', 'ROW', 'ROWS', 'SELECT', 'SEQUENCE', 'SEQUENCES', 'SERIALIZABLE',
   'SESSIONS', 'SET', 'SETTING', 'SETTINGS', 'SHARE', 'SHOW', 'SIMPLE', 'SKIP', 'SLOW', 'SOME',
   'SOURCE', 'START', 'STATEMENT', 'STATISTICS', 'STATS', 'STORAGE', 'STRICT', 'SYSTEM', 'TABLE',
-  'TABLES', 'THEN', 'TIME', 'TO', 'TRANSACTION', 'TRIGGER', 'TRUE', 'TRUNCATE', 'TTL', 'UNBOUNDED',
+  'TABLES', 'THEN', 'TIME', 'TO', 'TRANSACTION', 'TRIGGER', 'TRIGGERS', 'TRUE', 'TRUNCATE', 'TTL', 'UNBOUNDED',
   'UNION', 'UNIQUE', 'UPDATE', 'UPSERT', 'USAGE', 'USE', 'USER', 'USERS', 'USING', 'VALID',
   'VALIDATE', 'VALUES', 'VARIABLES', 'VERSION', 'VIEW', 'VIEWS', 'WHEN', 'WHERE', 'WITH', 'WITHOUT',
   'WRITE',
@@ -332,6 +332,17 @@ function tokenizeSql(sql) {
   while (index < sql.length) {
     const rest = sql.slice(index);
     const char = sql[index];
+
+    if (char === '$') {
+      const quote = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.exec(rest);
+      if (quote) {
+        const end = sql.indexOf(quote[0], index + quote[0].length);
+        const next = end === -1 ? sql.length : end + quote[0].length;
+        tokens.push({kind: 'string', value: sql.slice(index, next)});
+        index = next;
+        continue;
+      }
+    }
 
     if (rest.startsWith('--')) {
       const end = sql.indexOf('\n', index);
@@ -871,7 +882,7 @@ export default function CamusPlayground({
               onKeyDown={(event) => {
                 if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
                   event.preventDefault();
-                  if (event.shiftKey) {
+                  if (event.shiftKey && !guided) {
                     runSelected();
                   } else {
                     run();
@@ -889,12 +900,14 @@ export default function CamusPlayground({
               disabled={!engine || busy || !sql.trim()}>
               Run <kbd>{runKey}</kbd>
             </button>
-            <button
-              type="button"
-              onClick={runSelected}
-              disabled={!engine || busy || !selectedSql}>
-              Run selected <kbd>Shift {runKey}</kbd>
-            </button>
+            {!guided && (
+              <button
+                type="button"
+                onClick={runSelected}
+                disabled={!engine || busy || !selectedSql}>
+                Run selected <kbd>Shift {runKey}</kbd>
+              </button>
+            )}
             <button type="button" onClick={reset} disabled={!engine || busy}>
               Reset data
             </button>

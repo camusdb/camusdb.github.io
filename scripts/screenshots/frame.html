@@ -41,6 +41,15 @@
     --bar-border: rgba(255, 255, 255, 0.04);
   }
 
+  /* A dark terminal on the dark canvas loses its edges, so terminal shots get a lighter canvas. */
+  :root[data-kind="terminal"][data-theme="dark"] {
+    --bg: #2a4a8c;
+    --glow-a: rgba(96, 165, 250, 0.85);
+    --glow-b: rgba(139, 92, 246, 0.75);
+    --edge: rgba(255, 255, 255, 0.16);
+    --shadow: 0 40px 90px rgba(4, 10, 30, 0.60), 0 12px 30px rgba(4, 10, 30, 0.40);
+  }
+
   html, body {
     margin: 0;
     padding: 0;

@@ -79,10 +79,12 @@ fails because STRING and INT64 have no common type. Built-in calls with known
 argument types also determine the common result: `COALESCE(1, sqrt(4.0))`
 returns FLOAT64.
 
-Subqueries, aggregates, and window results can be computed before the row
-expression, so an unused fallback does not guard errors in them. For example,
-`COALESCE(1, (SELECT id FROM orders))` can still fail if the subquery returns
-multiple rows. Guard their inputs or restructure the query instead.
+Uncorrelated subqueries, aggregates, and window results can be computed before
+the row expression, so an unused fallback does not guard errors in them.
+For example, `COALESCE(1, (SELECT id FROM orders))` can still fail if the
+uncorrelated subquery returns multiple rows. Guard its inputs or restructure
+the query instead. A correlated subquery's value error is raised only when
+the expression uses that value; an unused fallback can skip it.
 
 ## Examples
 

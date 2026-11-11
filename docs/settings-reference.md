@@ -65,6 +65,22 @@ otherwise (`_seconds`, `_mb`).
 | `extension_assemblies` | `[]` | list of paths | restart | node | [C# extension](/docs/csharp-extensions) DLLs loaded with the safe-assembly checks. |
 | `unsafe_extension_assemblies` | `[]` | list of paths | restart | node | Reviewed extension DLLs loaded without the safe-assembly checks. |
 
+## Inline C# functions and triggers
+
+All keys below require a restart. See [inline C# definitions](/docs/csharp-extensions#inline-functions).
+
+| Key | Default | Type | Change | Scope | Description |
+| --- | --- | --- | --- | --- | --- |
+| `inline_functions_enabled` | `false` | bool | restart | cluster | Accept CREATE FUNCTION. Existing functions still run when disabled. |
+| `inline_triggers_enabled` | `false` | bool | restart | cluster | Accept CREATE TRIGGER ... LANGUAGE csharp. Existing triggers still fire when disabled. |
+| `inline_function_call_timeout_ms` | `1000` | ms | restart | cluster | Time budget per function call or trigger fire, excluding nested trigger SQL. Zero or less disables it. |
+| `inline_function_allocation_limit_bytes` | `16777216` (16 MiB) | bytes | restart | cluster | Managed allocation per call/fire, excluding nested SQL. Zero or less disables it. |
+| `inline_function_array_limit` | `1048576` | elements | restart | cluster | Maximum elements in `new T[n]`. Zero or less disables it; other allocations still use the memory budget. |
+| `inline_function_source_limit_bytes` | `65536` | UTF-8 bytes | restart | cluster | Maximum source body size; must be positive. |
+| `inline_function_compile_timeout_ms` | `10000` | ms | restart | node | Compile deadline, including wait for a compile slot; must be positive. |
+| `inline_function_compile_concurrency` | `2` | int | restart | node | Concurrent inline compiles on this node; must be positive. |
+| `max_inline_functions_per_database` | `256` | int | restart | cluster | Maximum inline functions in one database. Zero or less disables it. |
+
 ## Network, TLS, and client protocols
 
 | Key | Default | Type | Change | Scope | Description |

@@ -1,5 +1,6 @@
 ---
 sidebar_position: 3
+description: "CamusDB uses Serializable isolation by default, so committed transactions have the same effect as running one at a time. This protects balances, inventory, and reservations."
 ---
 
 # Transactions and isolation
@@ -176,17 +177,24 @@ wait cannot finish within its budget, the statement can return retryable
 
 Transactions provide atomic writes, durable commits, and no dirty reads.
 Writes spanning several [partitions](/docs/concepts#partition), or slices of
-the database, also commit atomically. The isolation
-choices apply on a single node and across a cluster, but distributed
-transaction support is still an alpha feature; its APIs and behavior may change.
+the database, also commit atomically. The isolation choices apply on a single node and across a cluster.
 See [Distributed transactions](/docs/distributed-transactions).
 
-To read your previous write when requests can reach different nodes, carry the
-last commit's **causal token** into the next autocommit query or transaction's
-`BEGIN`. The token sets a minimum snapshot timestamp. Pass the complete token;
-changing it after a transaction starts does not advance that transaction's
-snapshot floor. See the [HTTP API](/docs/http-api#explicit-transactions) and
-[gRPC causal tokens](/docs/grpc-api#causal-tokens).
+For cross-node read-your-writes, use the session behavior provided by your
+driver. The .NET and TypeScript gRPC clients propagate causal tokens for you;
+application queries do not need to construct or copy token fields. Python
+currently does not track causal tokens; see its [cluster limits](/docs/python-driver#current-limits).
+
+<details>
+<summary>Causal tokens for custom protocol clients</summary>
+
+A direct client forwards the last commit's complete causal token to the next
+autocommit query or BEGIN. It sets a minimum snapshot timestamp; changing it
+after a transaction starts does not advance that transaction's snapshot floor.
+See the [HTTP](/docs/http-api#explicit-transactions) and
+[gRPC](/docs/grpc-api#causal-tokens) protocol references.
+
+</details>
 
 Transaction timestamps order work logically; they do not guarantee ordering
 against wall-clock time. See

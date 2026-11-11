@@ -34,7 +34,9 @@ FROM series;
 
 Unknown characters outside a literal, quoted identifier, or comment fail with
 CADB0406, including their line and column. They are no longer silently ignored.
-For example, an unexpected backslash or `$` is an error. A non-breaking space
+For example, an unexpected backslash or a bare `$` is an error. Dollar-quoted
+C# bodies (`$$ ... $$` or `$tag$ ... $tag$`) are accepted in
+[inline function and trigger definitions](/docs/csharp-extensions#inline-functions). A non-breaking space
 (U+00A0) or byte-order mark (U+FEFF) is not SQL whitespace; check copied SQL
 when an invisible character causes a syntax error.
 
@@ -256,8 +258,9 @@ SELECT id, EXISTS (SELECT 1 FROM stock_alerts WHERE active = true) AS has_alerts
 FROM products;
 ```
 
-The inner query runs once. Correlated EXISTS is supported only in the WHERE
-of a SELECT; other correlated forms remain unsupported. See
+This uncorrelated query runs once. Correlated scalar, EXISTS, IN/NOT IN, and
+quantified subqueries also work in SELECT WHERE, eligible SELECT lists,
+UPDATE SET/WHERE, and DELETE WHERE. See
 [subquery positions and examples](/docs/joins-and-subqueries#subqueries-in-where).
 
 ## Quantified comparisons
@@ -298,9 +301,9 @@ CREATE TABLE runs (
 );
 ```
 
-A subquery on the right must not reference outer query columns. CamusDB runs the
-subquery once before the outer scan starts, so an outer column has no value to
-read. `IN (SELECT ...)` already follows the same rule.
+An uncorrelated subquery runs once before the outer scan starts. A correlated
+subquery reads each outer row's values, with possible reuse for repeated values
+within the same statement, in the supported [subquery positions](/docs/joins-and-subqueries#subqueries-in-where). `IN (SELECT ...)` already follows the same rule.
 
 A subquery on the right is not an array, so array element-type rules do not
 apply to it, and the rows it returns can hold more than one type. Each row is

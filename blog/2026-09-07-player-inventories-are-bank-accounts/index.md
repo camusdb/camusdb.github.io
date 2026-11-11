@@ -4,6 +4,8 @@ title: Player inventories are bank accounts
 date: 2026-09-07
 authors: [andresgutierrez]
 tags: [camusdb, video-games, distributed-transactions, game-backends]
+description: "Why we treat every player inventory and wallet as a small bank account, and why that leads a game backend to distributed transactions, not away from them."
+image: /img/cyberpunk.png
 ---
 
 # Player inventories are bank accounts

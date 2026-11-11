@@ -1,5 +1,6 @@
 ---
 sidebar_position: 1.5
+description: "Keep applications, environments, or customers apart on one CamusDB node or cluster. Each database has its own tables, schema objects, and grants."
 ---
 
 # Databases

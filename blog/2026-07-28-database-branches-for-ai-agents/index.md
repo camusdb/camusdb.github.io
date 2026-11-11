@@ -4,6 +4,7 @@ title: When every experiment needs its own database
 date: 2026-07-28
 authors: [andresgutierrez]
 tags: [camusdb, database-branching, ai-agents]
+description: "AI agents explore several solutions in parallel, and each one needs a realistic database. Copy-on-write branches give every experiment an isolated database that is fast to create and drop."
 ---
 
 # When every experiment needs its own database

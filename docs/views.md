@@ -151,6 +151,19 @@ SELECT open_orders.customer FROM open_orders;   -- the view name is the default 
 SELECT o.customer FROM open_orders o;           -- an explicit alias wins
 ```
 
+A view can also be the source of CTAS, INSERT ... SELECT, or a materialized
+view body. It expands and reads with the same rules as an ordinary SELECT;
+the destination receives the query's output types:
+
+```camussql
+CREATE TABLE open_copy AS SELECT id, customer FROM open_orders;
+INSERT INTO archived_orders (id, customer)
+SELECT id, customer FROM open_orders;
+```
+
+Writing directly to a view still fails with CADB0525. See
+[copying query results](/docs/insert-select-and-ctas).
+
 Subqueries in the body's `WHERE`, including within a derived table or a
 set-operation operand, run through the same binding rules as a top-level
 query. That includes `IN`, `NOT IN`, scalar predicates, and correlated or
@@ -167,6 +180,12 @@ reader:
 CREATE VIEW v AS SELECT id FROM no_such_table;
 -- CADB0011: table 'no_such_table' does not exist
 ```
+
+Binding does not execute the body or its subqueries. For example,
+`CREATE VIEW deferred AS SELECT (SELECT 1 / 0) AS x` succeeds; reading it
+fails when the expression runs. Unknown names and known type mistakes still
+fail at creation. A materialized view follows the same binding rule, then
+executes its query in a separate population step unless WITH NO DATA is used.
 
 ### Every output column needs a name
 

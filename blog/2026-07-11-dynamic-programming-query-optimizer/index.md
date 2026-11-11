@@ -4,6 +4,7 @@ title: Teaching CamusDB to choose better query plans
 date: 2026-07-11
 authors: [andresgutierrez]
 tags: [camusdb, query-optimizer, sql]
+description: "How the CamusDB query optimizer uses dynamic programming and table statistics to choose a join order, and why the search space grows so fast."
 ---
 
 # Teaching CamusDB to choose better query plans

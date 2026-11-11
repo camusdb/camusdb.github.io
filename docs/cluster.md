@@ -1,5 +1,6 @@
 ---
 sidebar_position: 4
+description: "Run CamusDB on several nodes that act as one database. Each write is kept on more than one node, so reads and writes continue when one node fails."
 ---
 
 # Cluster mode

@@ -1,5 +1,6 @@
 ---
 sidebar_position: 2.44
+description: "Semantic search, recommendations, and LLM retrieval in CamusDB. Store embeddings in ordinary tables and filter on regular columns in the same query."
 ---
 
 # Vector search
@@ -37,6 +38,14 @@ run this against a very large table.
 
 ## How a vector is stored
 
+A vector is stored as BYTES. Use the .NET or TypeScript vector helpers to
+pack your embedding, then bind it as a parameter; the driver handles the
+transport encoding. Python binds packed bytes. See
+[parameter examples](#send-the-query-vector-as-a-parameter).
+
+<details>
+<summary>Binary layout for custom vector producers</summary>
+
 A vector is a `BYTES` value with this layout:
 
 1. The elements are IEEE-754 float32 numbers.
@@ -50,6 +59,11 @@ This layout is the full contract, and the schema does not record it. A value one
 client writes is readable by another only because both follow the same layout.
 For example, the float32 value `1.0` is `0x3F800000`, which goes on the wire as
 the four bytes `00 00 80 3F`, low byte first.
+
+</details>
+
+A 768-dimension embedding occupies 3,072 bytes. Enforce that dimension in the
+schema:
 
 ```camussql
 CREATE TABLE docs (
@@ -198,6 +212,29 @@ Send the query vector as a bind parameter. A 768-dimension vector written as a
 hexadecimal literal adds about 6 KB of text to every statement, and gives every
 query a different statement text, which prevents plan reuse.
 
+Use the application API for your language:
+
+| Driver | Bind an embedding |
+| --- | --- |
+| [.NET](/docs/dotnet-driver) | `CamusVector.ToBytes(embedding)`, passed as a `ColumnType.Bytes` parameter. Dapper also offers `CamusValue.Vector(embedding)`. |
+| [TypeScript](/docs/typescript-connector) | `camus.vector(embedding)`, passed in the named parameter object. |
+| [Python](/docs/python-driver) | Bind packed float32 bytes as a Python `bytes` value. Python currently has no vector-packing helper. |
+
+For example, with an existing TypeScript client and an embedding of the same
+dimension as the stored vectors:
+
+```ts
+const rows = await client.query(
+  'SELECT id FROM docs ORDER BY l2_distance(embedding, @q) LIMIT 10',
+  { q: camus.vector(embedding) },
+);
+```
+
+The driver converts the parameter to the appropriate HTTP or gRPC form.
+
+<details>
+<summary>Parameter encoding for client implementers</summary>
+
 | Transport | Encoding |
 | --- | --- |
 | SQL text | Hexadecimal, with an `X'...'` literal |
@@ -217,9 +254,11 @@ query a different statement text, which prevents plan reuse.
 The value above is the two-element vector `[0.0, 1.0]`. A real 768-dimension
 embedding is 4,096 base64 characters.
 
+</details>
+
 The statement text never changes, so a thousand different query vectors share
-one cached plan. Prepared statements work the same way: prepare the statement
-once, then execute it with a different vector each time. See
+one cached plan. The .NET and TypeScript drivers can prepare repeated statements automatically;
+you keep supplying named parameters. See
 [Parameters and prepared statements](/docs/prepared-statements).
 
 The server logs the statement text but never the parameter values, so embeddings

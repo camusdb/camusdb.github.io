@@ -1,5 +1,6 @@
 ---
 sidebar_position: 2
+description: "Use familiar SQL with CamusDB. It accepts common PostgreSQL expression forms, so SQL from ORMs and PostgreSQL tools usually needs few changes."
 ---
 
 # SQL overview
@@ -9,6 +10,12 @@ with a relational database carry over. CamusDB accepts common
 [PostgreSQL expression forms](/docs/sql-expression-syntax), such as `::` casts,
 so SQL that an ORM or a PostgreSQL tool generates usually needs few changes.
 Where CamusDB differs, these pages say so.
+
+Run SQL from application code with the [.NET](/docs/dotnet-driver),
+[TypeScript](/docs/typescript-connector), or [Python](/docs/python-driver)
+driver. They bind values and handle the transport; the SQL reference does not
+require knowledge of JSON requests or gRPC messages. For interactive use,
+choose [camus-cli](/docs/camus-cli) or the [Web Console](/docs/web-console).
 
 The dialect covers what you expect from a relational database, plus a few
 additions:
@@ -171,7 +178,7 @@ number, write `10 - -5`, with a space.
 | PostgreSQL-style casts, arrays, and expression forms | [PostgreSQL Expression Syntax](/docs/sql-expression-syntax) |
 | Scalar functions | [Functions](/docs/functions) |
 | Generate rows with `generate_series` | [Set-Returning Functions](/docs/functions-set-returning) |
-| Custom C# functions, row triggers, and `CALL` procedures | [C# Extensions](/docs/csharp-extensions) |
+| Inline C# `CREATE FUNCTION` and `CREATE TRIGGER`, extension DLLs, and `CALL` procedures | [C# Extensions](/docs/csharp-extensions) |
 | Vectors and nearest neighbor search | [Vector Search](/docs/vector-search) |
 | Row expiry | [Row-Level TTL](/docs/row-level-ttl) |
 

@@ -1,5 +1,6 @@
 ---
 sidebar_position: 2.6
+description: "Query CamusDB data as it was at a past moment with AS OF SYSTEM TIME. Investigate incidents, check reports, or find what an accidental write overwrote."
 ---
 
 # Time-travel reads

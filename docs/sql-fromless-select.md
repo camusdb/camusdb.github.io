@@ -127,10 +127,10 @@ SELECT (
 ) > 0;
 ```
 
-A `SELECT` without a `FROM` clause has no outer row, so these subqueries are
+A top-level `SELECT` without a `FROM` clause has no outer row, so these subqueries are
 never correlated. A SELECT with a FROM clause also supports uncorrelated
-projection subqueries. Correlated EXISTS is limited to the WHERE of a SELECT;
-see [subquery positions](/docs/joins-and-subqueries#subqueries-in-where).
+projection subqueries. When used inside another statement, a FROM-less
+subquery can read outer columns too; see [subquery positions](/docs/joins-and-subqueries#subqueries-in-where).
 
 ## Inside another statement
 
@@ -146,11 +146,15 @@ CREATE VIEW readiness AS SELECT 'ready' AS status;
 
 The same WHERE, LIMIT, and OFFSET rules apply. Aggregates and ORDER BY remain
 unsupported, and a sequence call in a nested SELECT is refused with CADB0547.
-A FROM-less subquery cannot reference an outer column yet.
+A FROM-less subquery can reference an outer column in supported correlated
+positions, for example `SELECT u.id FROM app_users u WHERE EXISTS
+(SELECT 1 WHERE u.active = true)`.
 
 CREATE VIEW binds a plain expression without evaluating it: a body such as
-`SELECT 1 / 0 AS x` is accepted, and reading the view fails. A subquery in a
-view body can still execute while the body is bound.
+`SELECT 1 / 0 AS x` is accepted, and reading the view fails. Subqueries in the
+body are also bound without execution; unknown names and known type errors
+still fail CREATE VIEW. A materialized view executes its body during its
+separate data-population step, unless WITH NO DATA is specified.
 
 ## Rejected shapes
 

@@ -1,19 +1,72 @@
 ---
 sidebar_position: 2.75
+toc_max_heading_level: 2
 ---
 
 # Parameters and prepared statements
 
-You register a prepared statement once, then execute it many times with
-different values. Neither the SQL text nor the parameter names travel again on
-each execution. The bigger benefit is elsewhere: the server stops parsing the
-statement on every request, a parse it did only to decide the route.
+Bind values as parameters to keep SQL separate from application data and reuse
+the same statement with different inputs. Use the [.NET](/docs/dotnet-driver),
+[TypeScript](/docs/typescript-connector), or [Python](/docs/python-driver)
+driver; each binds named parameters and handles value encoding.
 
-Both transports support prepared statements: gRPC over the duplex
-`BatchExecute` stream, and REST over `/prepare-sql-statement` alongside the
-normal SQL endpoints.
+## Use parameters through your driver
 
-## What it saves
+### The .NET client
+
+With an open `CamusConnection`:
+
+```csharp
+await using var command = connection.CreateCamusCommand(
+    "SELECT name FROM robots WHERE year = @year");
+command.Parameters.Add("@year", ColumnType.Integer64, 1977L);
+await using var reader = await command.ExecuteReaderAsync();
+```
+
+### The TypeScript connector
+
+With a configured client:
+
+```ts
+const rows = await client.query(
+  'SELECT name FROM robots WHERE year = @year', { year: 1977 },
+);
+```
+
+### The Python driver
+
+With an open Python connection:
+
+```python
+rows = conn.execute(
+    "SELECT name FROM robots WHERE year = @year", {"year": 1977},
+).fetchall()
+```
+
+The .NET and TypeScript drivers automatically prepare repeated statements,
+manage their server handles, and recover expired registrations. Explicit
+preparation is optional: use `CamusCommand.PrepareAsync()` or
+`client.prepare(sql)` when you want to prepare before the first execution.
+See the [.NET](/docs/dotnet-driver#prepared-statements) and
+[TypeScript](/docs/typescript-connector#prepared-statements) APIs for tuning.
+
+Python currently binds parameters without server-side prepared statements.
+Its query API stays the same; it does not expose prepared handles.
+
+Preparing avoids repeated SQL transmission and transport-level parsing.
+Isolation, retries, and query results remain the same. Parameters do not
+replace transaction [retry helpers](/docs/serializable-retries).
+
+## Protocol reference for client implementers
+
+<details>
+<summary>Messages, handle ownership, and recovery</summary>
+
+The sections below describe registration messages, handle ownership, and
+recovery for a client that implements the protocol directly. Driver users do
+not need to perform these steps.
+
+### What it saves
 
 Every inline request pays two costs before the engine starts any work:
 
@@ -41,7 +94,7 @@ From that point on, execution is identical. A prepared execution builds the
 same ticket and takes the same path through the engine. Isolation, retries,
 and cache hint behavior are all the same.
 
-## Handle lifetimes
+### Handle lifetimes
 
 |  | gRPC | REST |
 |---|---|---|
@@ -64,7 +117,7 @@ On both transports, a handle belongs to one node. CamusDB never replicates
 handles, and a handle is never valid on any node except the one that created
 it.
 
-## Parameters bind by position
+### Parameters bind by position
 
 `PREPARE` replies with the statement's distinct placeholder names in binding
 order, first occurrence first. Each name is verbatim and keeps its leading `@`.
@@ -93,7 +146,7 @@ A property that matches no parameter is an error, and so is a parameter with no
 property. Neither one silently becomes `NULL`, because a spelling mistake must
 not silently become a wrong answer.
 
-## What you can prepare
+### What you can prepare
 
 You can prepare `SELECT`, `INSERT`, `UPDATE`, `DELETE`, and `SHOW` statements.
 This includes [SELECT FOR UPDATE](/docs/sql-queries#for-update): preparing it
@@ -109,7 +162,7 @@ gains anything from a handle.
 `/execute-sql-ddl` and the unary gRPC RPCs reject a handle outright rather than
 ignoring it.
 
-## gRPC
+### gRPC
 
 Prepared statements live only on the duplex `BatchExecute` stream. A unary
 call has no stream to hold a handle.
@@ -137,63 +190,9 @@ ends. However, a long stream that prepares many different statements must
 close what it no longer needs to stay under
 `grpc_max_prepared_statements_per_stream`.
 
-### The .NET client
+### REST
 
-The client hides handles and streams completely:
-
-```csharp
-await using CamusConnection connection = CamusConnection.Connect("https://localhost:5001");
-
-await using CamusPreparedStatement insert = await connection.PrepareAsync(
-    "productiondb", "INSERT INTO robots (id, name, year) VALUES (gen_id(), @name, @year)");
-
-await insert.ExecuteNonQueryAsync(["optimus", 1984L]);          // by ordinal
-await insert.ExecuteNonQueryAsync(new { name = "wall-e", year = 2008L });   // or by name
-
-await using CamusPreparedStatement select = await connection.PrepareAsync(
-    "productiondb", "SELECT name FROM robots WHERE year = @year");
-QueryResult result = await select.ExecuteQueryAsync([2008L]);
-
-// Inside a transaction: the statement registers itself on the session's pinned stream.
-CamusTransactionSession txn = await connection.BeginTransactionAsync("productiondb");
-await txn.ExecuteNonQueryAsync(insert, ["bumblebee", 1985L]);
-await txn.CommitAsync();
-```
-
-A `CamusPreparedStatement` represents the statement, not a single server-side
-handle. The client multiplexes autocommit work across a pool of streams, so
-the statement registers itself lazily on whichever stream an execution
-reaches.
-
-A stream can fault and the client can rebuild it, and the stream's handles die
-with it. The client notices this by comparing the registration's transport
-identity immediately before a write, then registers the statement again
-without your help. You never see an unknown statement error.
-
-### The TypeScript connector
-
-The TypeScript connector also hides prepared handles. It prepares repeated
-statements automatically and lets you prepare a hot statement explicitly:
-
-```ts
-await client.prepare('SELECT * FROM robots WHERE year = @year');
-
-client.isPrepared('SELECT * FROM robots WHERE year = @year');
-client.preparedStatementCount;
-```
-
-Parameters still bind by name:
-
-```ts
-await client.query('SELECT * FROM robots WHERE year = @year', { year: 1977 });
-```
-
-Set `maxAutoPrepare: 0`, or `MaxAutoPrepare=0` in a connection string, to turn
-automatic preparation off.
-
-## REST
-
-### Prepare
+#### Prepare
 
 ```http
 POST /prepare-sql-statement
@@ -210,7 +209,7 @@ just as it does for an inline statement.
 So a prepare reveals only one fact: whether the SQL parses. A statement that
 does not parse fails here, not at some later execution.
 
-### Execute
+#### Execute
 
 Three endpoints accept a `statementId` and a `positionalParameters` array:
 `/execute-sql-query`, `/execute-sql-query-stream`, and
@@ -234,7 +233,7 @@ Every other request field behaves exactly as it does inline, including
 
 The `sql`, `databaseName`, and `parameters` fields must be absent.
 
-### Close
+#### Close
 
 ```http
 POST /close-sql-statement
@@ -245,7 +244,7 @@ Repeating a close is harmless. You can safely skip the close, because the idle
 handle reaper collects abandoned handles. Still, a client that prepares an
 unbounded number of different statements will reach its cap.
 
-### How to handle CADB0520
+#### How to handle CADB0520
 
 `CADB0520` is normal, not a bug.
 
@@ -285,6 +284,8 @@ registration per node.
 
 On the streaming endpoint, CamusDB resolves the handle before it writes any
 bytes, so a 404 arrives as a normal JSON error, not in the middle of a stream.
+
+</details>
 
 ## Limits
 
@@ -341,5 +342,7 @@ that collides.
 
 - [gRPC API](/docs/grpc-api) for the wire protocol, including `BatchExecute`
   frames and retry classes.
-- [.NET Driver](/docs/dotnet-driver) for the .NET client API.
+- [.NET driver](/docs/dotnet-driver) for the .NET client API.
 - [TypeScript](/docs/typescript-connector) for the Node.js client.
+
+- [Python driver](/docs/python-driver) for DB-API and asyncio parameters.

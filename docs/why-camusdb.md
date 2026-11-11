@@ -250,7 +250,8 @@ Clients and tools:
 - An **ADO.NET provider**, a **Dapper adapter**, and an **EF Core provider**.
 - A **TypeScript connector** for Node.js.
 - A **Python driver** with DB-API 2.0 and asyncio interfaces over REST.
-- [HTTP](/docs/http-api) and [gRPC](/docs/grpc-api) APIs.
+- [HTTP](/docs/http-api) and [gRPC](/docs/grpc-api) protocol references for
+  custom client implementations and diagnostics.
 - [`camus-cli`](/docs/camus-cli), a browser [Web Console](/docs/web-console),
   and `camus-dump` for backup and restore.
 

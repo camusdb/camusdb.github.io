@@ -208,9 +208,9 @@ subquery references an outer column and depends on that row.
 
 | Position | Supported subqueries |
 | --- | --- |
-| SELECT list, HAVING, JOIN ON | Uncorrelated scalar, EXISTS, IN/NOT IN, and quantified comparisons. |
-| SELECT WHERE | The same uncorrelated forms, plus correlated EXISTS/NOT EXISTS. |
-| INSERT VALUES, UPDATE SET/WHERE, DELETE WHERE, ON CONFLICT DO UPDATE | Uncorrelated forms. |
+| SELECT list (without grouping, aggregates, or window functions), SELECT WHERE | Scalar, EXISTS, IN/NOT IN, and quantified comparisons; correlated or uncorrelated. |
+| UPDATE SET/WHERE, DELETE WHERE | The same correlated and uncorrelated forms, using the target row as the outer scope. |
+| HAVING, JOIN ON, INSERT VALUES, ON CONFLICT DO UPDATE | Uncorrelated forms only. |
 | GROUP BY or ORDER BY | Subqueries are refused with `CADB0400`. |
 
 These rules also apply inside expressions: a `CASE` branch, function argument,
@@ -256,11 +256,43 @@ SELECT id,
 FROM products;
 ```
 
-These inner queries run once, not once per product. Uncorrelated subqueries
-can also appear in a derived table's projection or a view body. A correlated
-`EXISTS` outside a SELECT's WHERE is refused with `CADB0533`
-(`FeatureNotSupported`), naming the unsupported position. Correlated scalar,
-IN/NOT IN, and quantified subqueries are unsupported.
+These uncorrelated queries run once, not once per product. Subqueries can
+also appear in a derived table's projection or a view body. Correlated
+subqueries in HAVING, JOIN ON, ON CONFLICT DO UPDATE, or a grouped,
+aggregate, or windowed SELECT list are refused with CADB0533.
+
+### Correlated values
+
+A correlated subquery can compute a value for each outer row without a
+separate request from your application:
+
+```camussql
+SELECT u.id,
+       (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id) AS post_count,
+       EXISTS (SELECT 1 FROM posts p WHERE p.user_id = u.id) AS has_posts
+FROM app_users u;
+
+UPDATE app_users
+SET post_count = (SELECT COUNT(*) FROM posts p WHERE p.user_id = app_users.id)
+WHERE active = true;
+```
+
+Correlated scalar subqueries return NULL for no rows and fail if more than
+one row is read. IN/NOT IN and ANY/SOME/ALL also accept correlated bodies,
+with their usual [NULL and empty-set rules](/docs/sql-expression-syntax#null-rules).
+A scalar subquery inherits its inner output name, but an explicit alias
+makes the result clearer to callers and stored definitions.
+
+Names resolve in the nearest query first, then in enclosing queries. An
+inner column or alias can hide an outer name; qualify columns to make the
+intended scope clear. In UPDATE and DELETE, correlated bodies read the target
+and other tables at the statement timestamp, so they do not observe changes
+made earlier by the same statement.
+
+A correlated subquery's value error is raised only if the surrounding
+expression uses that value. An unused CASE branch or COALESCE fallback can
+therefore skip that error. Name and known type errors still fail before rows
+are read.
 
 `EXPLAIN` evaluates uncorrelated subqueries while preparing the plan, so even
 plain `EXPLAIN` can read data for an inner query. It does not run the outer
@@ -268,8 +300,8 @@ query. See [EXPLAIN](/docs/explain).
 
 ### IN and NOT IN
 
-`IN` and `NOT IN` accept an uncorrelated subquery that returns exactly one
-column:
+`IN` and `NOT IN` accept a correlated or uncorrelated subquery that returns
+exactly one column:
 
 ```camussql
 SELECT email
@@ -294,7 +326,9 @@ even for a NULL outer value; the inner WHERE determines whether that result
 is empty. Use `NOT EXISTS` when the inner column accepts
 `NULL`.
 
-CamusDB rejects multi-column and correlated `IN` or `NOT IN` subqueries.
+CamusDB rejects multi-column IN or NOT IN subqueries. Correlated forms run
+against each outer row; the semi-/anti-join rewrite above is for eligible
+uncorrelated forms.
 
 ### EXISTS
 
@@ -319,14 +353,15 @@ known type mistakes in discarded clauses still fail. Aggregates, HAVING,
 OFFSET, and LIMIT 0 can change whether a row exists, so they retain their
 meaning; LIMIT 0 returns false without reading rows.
 
-A correlated EXISTS refuses aggregates, HAVING, OFFSET, and LIMIT expressions
-other than a nonnegative constant with CADB0533. LIMIT 0 is false and a
-positive constant limit does not change the existence check.
+A correlated EXISTS body can use joins, views, derived tables, set operations,
+aggregates, GROUP BY, HAVING, window functions, OFFSET, and nested subqueries.
+It can also omit FROM and read only outer values. LIMIT 0 is false; negative
+LIMIT or OFFSET is an error.
 
-A correlated EXISTS is supported only in a SELECT's WHERE. It can appear at
-any depth, including inside a CASE or a comparison, rather than only directly
-under AND/OR/NOT. In a join, it is evaluated where all referenced outer aliases
-are available.
+These bodies work in SELECT WHERE and eligible SELECT lists, UPDATE SET/WHERE,
+and DELETE WHERE. They can appear inside a CASE or comparison. An outer name
+inside a table-function argument is not supported. In a join, correlation is
+evaluated where all referenced outer aliases are available.
 
 For a correlated `EXISTS`, CamusDB uses an index on the inner table when the
 inner `WHERE` clause pins the index's leading columns with equalities. The other
@@ -345,9 +380,10 @@ WHERE EXISTS (
 );
 ```
 
-The index only narrows the candidate rows; the full inner predicate still runs
-after the seek. Without a suitable index, the result is identical, but CamusDB
-scans the inner table once per outer row.
+For a simple one-table EXISTS body, the index narrows candidate rows and the
+full predicate still runs after the seek. More complex bodies use the full
+query pipeline. Results may be reused for repeated outer values within one
+statement; see [correlated subquery planning](/docs/query-planning#correlated-subqueries).
 
 ## Derived tables
 

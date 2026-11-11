@@ -59,9 +59,7 @@ a group of nodes, configured as peers, that act as one database. You can send
 SQL to any node of a cluster.
 
 CamusDB runs standalone by default: one node, one data partition, no peers.
-Cluster mode (`mode: cluster`) is an alpha feature, so its APIs and storage
-formats can change between versions. The SQL and the transaction guarantees are
-the same in both modes. See [Cluster mode](/docs/cluster).
+The SQL and the transaction guarantees are the same in both modes. See [Cluster mode](/docs/cluster).
 
 ### Partition {#partition}
 

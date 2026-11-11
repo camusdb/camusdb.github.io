@@ -1,5 +1,6 @@
 ---
 sidebar_position: 2.8
+description: "CamusDB materialized views store the rows of a query and answer reads from that copy until you refresh it, for faster reads in exchange for freshness."
 ---
 
 # Materialized views
@@ -135,6 +136,9 @@ write instead of accepting the row and erasing it later.
 
 CamusDB derives the column list from the query when you create the
 materialized view. A refresh reuses that list instead of deriving it again.
+The body can read a plain view, and scalar-subquery columns keep their
+declared type even when the subquery has no value. Binding the definition
+runs no subqueries; the data-population step executes the query.
 
 So a new base table column does not widen an existing materialized view. Plain
 views follow the same rule for the same reason.

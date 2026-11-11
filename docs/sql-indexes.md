@@ -119,7 +119,7 @@ INCLUDE (status, total);
 
 SELECT customer_id, status, total
 FROM orders
-WHERE customer_id = 42;
+WHERE customer_id = 17;
 ```
 
 `orders_customer_idx` can answer the query above: `customer_id` is the key, and
@@ -131,7 +131,7 @@ included column:
 ```camussql
 SELECT customer_id, status, note
 FROM orders
-WHERE customer_id = 42;
+WHERE customer_id = 17;
 ```
 
 CamusDB can still use the index to find the matching rows, but it must fetch
@@ -145,7 +145,7 @@ Use `EXPLAIN (ANALYZE)` to confirm the covered path:
 EXPLAIN (ANALYZE)
 SELECT customer_id, status, total
 FROM orders
-WHERE customer_id = 42;
+WHERE customer_id = 17;
 ```
 
 For a covered lookup or a covered range scan, the scan node reports
