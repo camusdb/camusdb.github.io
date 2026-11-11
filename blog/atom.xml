@@ -1236,7 +1236,7 @@ afternoon many times before.</p>]]></content>
         <id>https://camusdb.github.io/blog/player-inventories-are-bank-accounts/</id>
         <link href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/"/>
         <updated>2026-09-07T00:00:00.000Z</updated>
-        <summary type="html"><![CDATA[Cyberpunk game economy scene]]></summary>
+        <summary type="html"><![CDATA[Why we treat every player inventory and wallet as a small bank account, and why that leads a game backend to distributed transactions, not away from them.]]></summary>
         <content type="html"><![CDATA[<p><img decoding="async" loading="lazy" alt="Cyberpunk game economy scene" src="https://camusdb.github.io/assets/images/cyberpunk-4cd6cd8554ed760d1b010711f5b88131.png" width="1672" height="941" class="img_ev3q"></p>
 <p>A player spends forty hours to earn a sword. Another player pays real money for
 a bundle of skins. A guild saves gold for three weeks to buy a fortress.</p>
@@ -1668,7 +1668,7 @@ and already decided we can accept.</p>]]></content>
         <id>https://camusdb.github.io/blog/database-branches-for-ai-agents/</id>
         <link href="https://camusdb.github.io/blog/database-branches-for-ai-agents/"/>
         <updated>2026-07-28T00:00:00.000Z</updated>
-        <summary type="html"><![CDATA[Software is starting to work at a different rhythm.]]></summary>
+        <summary type="html"><![CDATA[AI agents explore several solutions in parallel, and each one needs a realistic database. Copy-on-write branches give every experiment an isolated database that is fast to create and drop.]]></summary>
         <content type="html"><![CDATA[<p>Software is starting to work at a different rhythm.</p>
 <p>A developer may test one idea at a time, but an AI agent can explore several
 possible solutions in parallel. One path may try a schema migration. Another
@@ -1855,7 +1855,7 @@ move faster without giving up control.</p>]]></content>
         <id>https://camusdb.github.io/blog/dynamic-programming-query-optimizer/</id>
         <link href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/"/>
         <updated>2026-07-11T00:00:00.000Z</updated>
-        <summary type="html"><![CDATA[One of the most interesting parts of building CamusDB is the query optimizer.]]></summary>
+        <summary type="html"><![CDATA[How the CamusDB query optimizer uses dynamic programming and table statistics to choose a join order, and why the search space grows so fast.]]></summary>
         <content type="html"><![CDATA[<p>One of the most interesting parts of building CamusDB is the query optimizer.
 It might also be one of the most complex pieces of machinery in the whole
 database.</p>
@@ -2059,7 +2059,7 @@ makes sense?"</p>
         <id>https://camusdb.github.io/blog/welcome/</id>
         <link href="https://camusdb.github.io/blog/welcome/"/>
         <updated>2026-07-03T00:00:00.000Z</updated>
-        <summary type="html"><![CDATA[Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away.]]></summary>
+        <summary type="html"><![CDATA[Why CamusDB exists: years of distributed SQL in game backends, why it is built in .NET, the storage and consensus layers under it, and features such as database branching.]]></summary>
         <content type="html"><![CDATA[<blockquote>
 <p>Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away.</p>
 <p>— Antoine de Saint-Exupéry</p>
