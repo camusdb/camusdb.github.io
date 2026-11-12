@@ -19,12 +19,10 @@ You will see where the CamusDB default configuration was slower, which row
 lock caused it, and what an experimental setting changes. If you are
 evaluating CamusDB for transactional workloads, the tables and the open
 issues show what to expect today.</p>
-<p>Performance is a fundamental aspect of any database. In a distributed
-database, achieving high performance is particularly challenging because
-writes and strongly consistent reads require coordination across multiple
-nodes. Getting high throughput is far from easy when every write must be
-synchronously replicated to other nodes, wait for a majority to persist and
-acknowledge it, and only then return a confirmation to the client.</p>
+<p>In a distributed database, writes and strongly consistent reads require
+coordination across multiple nodes, which limits throughput. Every write must
+be synchronously replicated to other nodes, wait for a majority to persist
+and acknowledge it, and only then return a confirmation to the client.</p>
 <p>Reads face similar challenges. The system needs to verify that the node
 serving the results is still the leader to avoid inconsistencies. On top of
 that, network latency, buffers, and queues can all become bottlenecks as the
@@ -35,17 +33,14 @@ similar problems. Traditional single-node databases like PostgreSQL and MySQL
 don't face these same challenges. They make different architectural
 tradeoffs, favoring single-node performance over some of the guarantees and
 capabilities of distributed systems.</p>
-<p>Throughout CamusDB's development, the goal has always been to find the right
-balance between performance and strong consistency, with consistency being
-non-negotiable.</p>
+<p>Throughout CamusDB's development, the goal has been to improve performance
+without weakening strong consistency.</p>
 <p>To understand how CamusDB performs against established databases, I decided
 to benchmark it against CockroachDB (a distributed SQL database written in
 Go). This felt like a more apples-to-apples comparison. Comparing it with
 PostgreSQL or MySQL wouldn't be entirely fair, since they're designed to
 solve similar problems but take fundamentally different architectural
 approaches.</p>
-<p>The results were surprising and provided some valuable insights, lessons
-learned, and clear next steps for continuing to improve CamusDB.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="results-in-brief">Results in brief<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#results-in-brief" class="hash-link" aria-label="Direct link to Results in brief" title="Direct link to Results in brief" translate="no">​</a></h2>
 <p>Both databases ran on one 16-core laptop, three nodes each, at the
 Serializable isolation level. Serializable is the strictest level: the result
@@ -61,11 +56,11 @@ failed transfer.</li>
 already validates those reads at commit. The new setting removes the lock for
 single-row reads. It is off by default because of the
 <a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#open-issues-that-keep-the-setting-off-by-default" class="">open issues</a> below.</p>
-<p>I wouldn't focus too much on CockroachDB's numbers. Running three nodes on
-the same machine is probably far from ideal. Its settings might not be
-properly tuned for maximum performance, (probably ignorance on my end)
-or its defaults might be optimized
-for different types of workloads. That's not the point of this post.</p>
+<p>Read CockroachDB's numbers with care. Running three nodes on the same machine
+is probably far from ideal. Its settings might not be properly tuned for
+maximum performance (probably ignorance on my end), or its defaults might be
+optimized for different types of workloads. This post focuses on the CamusDB
+default and the new setting.</p>
 <p>This is one workload on one host. The <a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#limits-of-the-comparison" class="">limits</a>
 are listed below.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="workload-and-setup">Workload and setup<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#workload-and-setup" class="hash-link" aria-label="Direct link to Workload and setup" title="Direct link to Workload and setup" translate="no">​</a></h2>
@@ -176,7 +171,7 @@ versions for this workload.</li>
 explanation yet.</li>
 <li class=""><strong>Transfers run out of attempts during a stall.</strong> See the read wait below.</li>
 </ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="two-more-changes">Two more changes<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#two-more-changes" class="hash-link" aria-label="Direct link to Two more changes" title="Direct link to Two more changes" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="client-streams-read-waits-and-read-committed">Client streams, read waits, and Read Committed<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#client-streams-read-waits-and-read-committed" class="hash-link" aria-label="Direct link to Client streams, read waits, and Read Committed" title="Direct link to Client streams, read waits, and Read Committed" translate="no">​</a></h2>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="more-client-streams">More client streams<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#more-client-streams" class="hash-link" aria-label="Direct link to More client streams" title="Direct link to More client streams" translate="no">​</a></h3>
 <p>The CamusDB client sent all 64 logical connections over two network streams.
 A raise of the default to eight streams (client 0.18.1) cut read p50 from
@@ -216,7 +211,7 @@ memory flags. An expert could likely tune both databases further.</li>
 <li class=""><strong>Single runs.</strong> Same-build noise on this workload is about 0.5% for
 CamusDB. The CockroachDB run was not repeated.</li>
 </ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="next-steps">Next steps<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#next-steps" class="hash-link" aria-label="Direct link to Next steps" title="Direct link to Next steps" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="planned-work-on-the-setting-and-the-comparison">Planned work on the setting and the comparison<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#planned-work-on-the-setting-and-the-comparison" class="hash-link" aria-label="Direct link to Planned work on the setting and the comparison" title="Direct link to Planned work on the setting and the comparison" translate="no">​</a></h2>
 <ul>
 <li class="">Rewrite the six "refused at the write" tests as outcome tests that hold in
 both modes, and add the four missing cases.</li>
@@ -241,10 +236,10 @@ default for Serializable with optimistic locking.</li>
         <updated>2026-11-06T00:00:00.000Z</updated>
         <summary type="html"><![CDATA[About 5.4 million operations per night, 23 to 39 million in each daily two-hour fault soak, what each harness checks, how often the nightly jobs fail, and what the numbers do not prove.]]></summary>
         <content type="html"><![CDATA[<p><img decoding="async" loading="lazy" alt="A dark pyramid with glowing blue cracks under a night sky and a large planet" src="https://camusdb.github.io/assets/images/cybernetic-pyramid-c04f0dea143f053352e99838b439552a.webp" width="1400" height="788" class="img_ev3q"></p>
-<p>CamusDB is a young database, so you have a fair question: how much evidence stands behind it? Our answer has three parts: about <strong>5.4 million operations per night</strong>, <strong>23 to 39 million operations in each daily two-hour fault soak</strong>, and more than 21,000 automated tests. This post shows where these numbers come from and what they do not prove.</p>
+<p>This post shows how much testing stands behind CamusDB: about <strong>5.4 million operations per night</strong>, <strong>23 to 39 million operations in each daily two-hour fault soak</strong>, and more than 21,000 automated tests. You will see where these numbers come from and what they do not prove.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="test-volume-per-night">Test volume per night<a href="https://camusdb.github.io/blog/how-much-we-test-camusdb/#test-volume-per-night" class="hash-link" aria-label="Direct link to Test volume per night" title="Direct link to Test volume per night" translate="no">​</a></h2>
 <table><thead><tr><th>Source</th><th>What runs</th><th>Volume per night</th><th>Basis</th></tr></thead><tbody><tr><td>Caraxes nightly</td><td>94 scenarios, most with Elle history checks</td><td>5.1M operations</td><td>Counted on November 6</td></tr><tr><td>SQL fuzzer</td><td>5 oracles, 60 seconds each</td><td>172,112 statements</td><td>Counted on November 6</td></tr><tr><td>Kahuna Jepsen</td><td>26 jobs</td><td>100,167 operations</td><td>Counted on November 6</td></tr><tr><td>Kommander Jepsen</td><td>13 jobs</td><td>About 20,000 operations</td><td>Counted in 6 jobs, estimated for the rest</td></tr><tr><td><strong>Total per night</strong></td><td></td><td><strong>About 5.4M</strong></td><td></td></tr></tbody></table>
-<p>These counts describe the current schedule, not a history. The nightly Elle matrix started on November 3 and the scheduled SQL fuzzer started on November 4, so you cannot multiply these numbers by the age of the project.</p>
+<p>These counts describe the current schedule. The nightly Elle matrix started on November 3 and the scheduled SQL fuzzer started on November 4, so you cannot multiply these numbers by the age of the project.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-fault-soak-volume">The fault soak: volume<a href="https://camusdb.github.io/blog/how-much-we-test-camusdb/#the-fault-soak-volume" class="hash-link" aria-label="Direct link to The fault soak: volume" title="Direct link to The fault soak: volume" translate="no">​</a></h2>
 <p>A <strong>soak</strong> is a long run that shows what a short run cannot: memory that creeps, logs that grow, and recovery that gets slower. <a class="" href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/">Caraxes</a>, our database test tool, runs a bank soak for two hours every day, and we also use it to accept new versions of the storage stack.</p>
 <p>The bank workload moves money between accounts in a table of 2,000 rows, so transactions collide on purpose. After the run, the total balance must be exactly the same as at the start.</p>
@@ -261,7 +256,7 @@ default for Serializable with optimistic locking.</li>
 <p>The soak gives volume, but a total balance check cannot see every kind of anomaly. So the nightly jobs check less data more closely.</p>
 <table><thead><tr><th>Job</th><th>What it checks</th><th>Last count (November 6)</th></tr></thead><tbody><tr><td>Caraxes Elle matrix</td><td>3 transaction shapes, 1 and 3 nodes, each isolation level, locking mode and wire mode</td><td>76 scenarios, 4.7M operations</td></tr><tr><td>Caraxes append and bank scenarios</td><td>No faults, partitions, kills, clock jumps, leader transfers, range splits, replica moves</td><td>18 scenarios, 348,000 operations</td></tr><tr><td><a class="" href="https://camusdb.github.io/blog/what-a-sql-fuzzer-catches/">SQL fuzzer</a></td><td>The same query must give the same answer under every plan</td><td>1,672 rounds, 172,112 statements, 56,622 checks</td></tr><tr><td>Kahuna Jepsen</td><td>The transactional storage layer under CamusDB, with faults</td><td>26 jobs, 100,167 operations</td></tr><tr><td>Kommander Jepsen</td><td>The Raft consensus layer under Kahuna, with faults</td><td>13 jobs, about 20,000 operations</td></tr><tr><td>Kommander random search</td><td>Generated fault plans on real three-node clusters</td><td>38 seeds, 352 tests passed, 38 skipped</td></tr><tr><td>Plan quality</td><td>Query plans on two benchmark query sets, one of them the Join Order Benchmark</td><td>212 queries</td></tr></tbody></table>
 <p><strong>Elle</strong> reads the full history of a run and looks for isolation anomalies such as lost updates and write skew. Before any Elle scenario runs, the job gives Elle histories with known verdicts. A checker that passes a lost update would make every green result meaningless.</p>
-<p><strong>Jepsen</strong> is a widely used tool that tests distributed systems under faults. The Jepsen counts are small on purpose. The clients run at 10 requests per second each, because the cost of the check grows quickly with the size of the history. A short history that a checker can fully judge is worth more than a long one that it cannot. These two harnesses test the layers under CamusDB, not its SQL.</p>
+<p><strong>Jepsen</strong> is a widely used tool that tests distributed systems under faults. The Jepsen counts are small on purpose. The clients run at 10 requests per second each, because the cost of the check grows quickly with the size of the history, and a checker can fully judge a short history. These two harnesses test the layers under CamusDB, not its SQL.</p>
 <p>A weekly job adds a long arm: 12 Elle scenarios, each of which must reach one million committed transactions or fail. Its first scheduled run is on November 8, so the totals above do not include it.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-test-suites">The test suites<a href="https://camusdb.github.io/blog/how-much-we-test-camusdb/#the-test-suites" class="hash-link" aria-label="Direct link to The test suites" title="Direct link to The test suites" translate="no">​</a></h2>
 <p>Each push to a main branch runs the full test suite of that repository. The last run of each suite on November 6 had these totals:</p>
@@ -271,20 +266,20 @@ default for Serializable with optimistic locking.</li>
 <table><thead><tr><th>Job</th><th>Since</th><th>Runs</th><th>Passed</th><th>Failed or cancelled</th></tr></thead><tbody><tr><td>Kahuna Jepsen</td><td>August 5</td><td>94</td><td>57</td><td>37</td></tr><tr><td>Kommander Jepsen</td><td>August 13</td><td>86</td><td>76</td><td>10</td></tr><tr><td>Kommander random search</td><td>September 4</td><td>64</td><td>48</td><td>16</td></tr><tr><td>Caraxes append and bank scenarios</td><td>September 25</td><td>43</td><td>33</td><td>10</td></tr><tr><td>Plan quality</td><td>October 15</td><td>23</td><td>22</td><td>1</td></tr><tr><td>Caraxes Elle matrix</td><td>November 3</td><td>4</td><td>3</td><td>1</td></tr><tr><td>SQL fuzzer</td><td>November 4</td><td>3</td><td>3</td><td>0</td></tr></tbody></table>
 <p>A failed night means "download the results and look". It is not always a database defect, because these jobs run on shared CI machines and a slow machine can also fail a run. We did not classify each failure for this post. The defects that these jobs and Caraxes did find are in the <a class="" href="https://camusdb.github.io/blog/what-the-dragon-found/">dragon series</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="three-defects-the-soak-found-this-week">Three defects the soak found this week<a href="https://camusdb.github.io/blog/how-much-we-test-camusdb/#three-defects-the-soak-found-this-week" class="hash-link" aria-label="Direct link to Three defects the soak found this week" title="Direct link to Three defects the soak found this week" translate="no">​</a></h2>
-<p>Volume matters only if it finds something. On November 4 and 5, three soaks in a row each found a new problem. These runs added kills of 2 and 4 minutes to the fault schedule. After a long kill, a replica can fall too far behind to catch up from the log. It then needs a <strong>snapshot install</strong>: a full copy of the data from the leader.</p>
+<p>On November 4 and 5, three soaks in a row each found a new problem. These runs added kills of 2 and 4 minutes to the fault schedule. After a long kill, a replica can fall too far behind to catch up from the log. It then needs a <strong>snapshot install</strong>: a full copy of the data from the leader.</p>
 <table><thead><tr><th>Soak</th><th>What happened</th><th>Fix</th></tr></thead><tbody><tr><td>First, November 4</td><td>A restarted replica could not rejoin. Its install took 53 to 130 seconds instead of 4 to 24. The leader kept sending log entries that the replica could not apply, about 2 million during one install, and the node ran out of memory at every limit we tried.</td><td><a href="https://github.com/kahunakv/kommander/commit/d44cf2f" target="_blank" rel="noopener noreferrer" class="">Kommander</a> refuses these entries during an install. <a href="https://github.com/kahunakv/kahuna/commit/c38f66b2" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> times each install phase and releases the old state before it builds the new state.</td></tr><tr><td>Second, November 4</td><td>No node died, but one install took 205 seconds, and 174 of them were in a step that waited with no deadline. The leader also removed 2.4 million log entries that the replica still needed, so a second install followed. With only two voting replicas left, a 30-second pause of the leader became a 29-second outage.</td><td><a href="https://github.com/kahunakv/kahuna/commit/53edc178" target="_blank" rel="noopener noreferrer" class="">Kahuna</a> removes that wait from the install. <a href="https://github.com/kahunakv/kommander/commit/6ebb69d" target="_blank" rel="noopener noreferrer" class="">Kommander</a> keeps the log entries until the install ends, and waits 10 minutes before it removes a dead member.</td></tr><tr><td>Third, November 5</td><td>After a 2-minute kill of the leader, the new leader's connection to the returned node stayed broken for 53 minutes, with about 45,000 log lines per minute. With the third voting replica down, the two survivors kept repeating elections. The cause was <a href="https://github.com/grpc/grpc-dotnet/issues/2734" target="_blank" rel="noopener noreferrer" class="">a timing defect in the .NET gRPC client</a>.</td><td><a href="https://github.com/kahunakv/kommander/commit/a7a9078" target="_blank" rel="noopener noreferrer" class="">Kommander</a> moves to a gRPC version with the upstream fix, replaces a connection that stays failed for 30 seconds, and limits the log lines.</td></tr></tbody></table>
 <p>The balance checks passed in the first two runs, so those defects cost availability and recovery time, not data. The first defect needs a store that is about an hour old, and a ten-minute run never has one. The third needs a timeout to fire in a narrow gap between two connection attempts. Hand-written tests rarely reach states like these. Later soaks on the fixed versions confirmed all of these fixes.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="limits-of-these-numbers">Limits of these numbers<a href="https://camusdb.github.io/blog/how-much-we-test-camusdb/#limits-of-these-numbers" class="hash-link" aria-label="Direct link to Limits of these numbers" title="Direct link to Limits of these numbers" translate="no">​</a></h2>
 <ul>
-<li class=""><strong>Volume is not coverage.</strong> Millions of transfers over 2,000 rows repeat one shape many times. The nightly jobs and the fuzzer exist to reach other shapes.</li>
+<li class=""><strong>High volume covers few shapes.</strong> Millions of transfers over 2,000 rows repeat one shape many times. The nightly jobs and the fuzzer exist to reach other shapes.</li>
 <li class=""><strong>Most of the soak volume has a simple check.</strong> The soak checks totals and row ledgers. The stronger Elle check applies to the nightly histories, about 5 million transactions per night.</li>
 <li class=""><strong>This is not a production cluster.</strong> These runs use one self-hosted machine or shared CI machines. They say little about a large table, a database larger than memory, or a real network between regions.</li>
 </ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="benefits-of-the-testing">Benefits of the testing<a href="https://camusdb.github.io/blog/how-much-we-test-camusdb/#benefits-of-the-testing" class="hash-link" aria-label="Direct link to Benefits of the testing" title="Direct link to Benefits of the testing" translate="no">​</a></h2>
-<p>These tests catch regressions and, more importantly, they find new edge cases. An edge case might appear only once in 2 million transactions, so a short test run rarely meets it. Each one we find is a chance to improve the system, try a better design or rethink an existing approach.</p>
-<p>Even at this scale, the tests cannot prove that CamusDB has no bugs or that no area is left to improve. A green run says only that these checks found no defect in these runs. What the tests give us is greater confidence that we are building a solid system, and a steady way to make CamusDB more robust.</p>
-<p>We also plan to add new test shapes that exercise the database from other angles, with a wider range of scenarios and combinations of features.</p>
-<p>You do not have to take our word for most of this. The nightly runs are public on GitHub, and the harnesses are open: <a href="https://github.com/camusdb/camusdb-caraxes" target="_blank" rel="noopener noreferrer" class="">Caraxes</a>, <a href="https://github.com/kahunakv/kahuna-jepsen" target="_blank" rel="noopener noreferrer" class="">Kahuna Jepsen</a> and <a href="https://github.com/kahunakv/kommander-jepsen" target="_blank" rel="noopener noreferrer" class="">Kommander Jepsen</a>. You can read the scenarios and run them against your own build.</p>]]></content>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="edge-cases-planned-tests-and-public-harnesses">Edge cases, planned tests, and public harnesses<a href="https://camusdb.github.io/blog/how-much-we-test-camusdb/#edge-cases-planned-tests-and-public-harnesses" class="hash-link" aria-label="Direct link to Edge cases, planned tests, and public harnesses" title="Direct link to Edge cases, planned tests, and public harnesses" translate="no">​</a></h2>
+<p>These tests catch regressions and find new edge cases. An edge case might appear only once in 2 million transactions, so a short test run rarely meets it.</p>
+<p>The tests cannot prove that CamusDB has no bugs. A green run says only that these checks found no defect in these runs.</p>
+<p>We plan to add new test shapes that exercise the database from other angles, with a wider range of scenarios and combinations of features.</p>
+<p>The nightly runs are public on GitHub, and the harnesses are open: <a href="https://github.com/camusdb/camusdb-caraxes" target="_blank" rel="noopener noreferrer" class="">Caraxes</a>, <a href="https://github.com/kahunakv/kahuna-jepsen" target="_blank" rel="noopener noreferrer" class="">Kahuna Jepsen</a> and <a href="https://github.com/kahunakv/kommander-jepsen" target="_blank" rel="noopener noreferrer" class="">Kommander Jepsen</a>. You can read the scenarios and run them against your own build.</p>]]></content>
         <author>
             <name>Andres Gutierrez</name>
             <uri>https://github.com/andresgutierrez</uri>
@@ -301,12 +296,12 @@ default for Serializable with optimistic locking.</li>
         <updated>2026-11-03T00:00:00.000Z</updated>
         <summary type="html"><![CDATA[How the CamusDB SQL fuzzer finds wrong rows with no error, without a second database, and which defects it can catch in the future.]]></summary>
         <content type="html"><![CDATA[<p><img decoding="async" loading="lazy" alt="SQLFuzz" src="https://camusdb.github.io/assets/images/sqlfuzz-01060c6d540fb1206b832ed518882b12.png" width="1536" height="1024" class="img_ev3q"></p>
-<p>Your database can return the wrong rows and report no error. A hand-written test catches only the cases its author thought of. A SQL fuzzer catches cases nobody thought of, and it runs every night on its own. This post shows how the CamusDB fuzzer works, which defects it can catch, and what it cannot see. You need no knowledge of fuzzers or of database internals.</p>
+<p>This post shows how the CamusDB SQL fuzzer finds queries that return the wrong rows with no error, which defects it can catch, and what it cannot see. A hand-written test covers the cases its author thought of. The fuzzer generates cases nobody wrote, and it runs every night on its own. You need no knowledge of fuzzers or of database internals.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-fuzzer-that-needs-no-second-database">A fuzzer that needs no second database<a href="https://camusdb.github.io/blog/what-a-sql-fuzzer-catches/#a-fuzzer-that-needs-no-second-database" class="hash-link" aria-label="Direct link to A fuzzer that needs no second database" title="Direct link to A fuzzer that needs no second database" translate="no">​</a></h2>
-<p>A fuzzer makes random inputs and feeds them to the software under test. For a database, the inputs are tables, rows and SQL statements. The hard part is not to make a random query. The hard part is to know its correct answer.</p>
-<p>One way is to run the same query on a second database, for example PostgreSQL, and compare the two answers. That needs a second database, and the two must agree on every rule of SQL. The CamusDB fuzzer takes another way. It does not know the correct answer. It knows that two different queries must give the same answer. The name for this is a <strong>metamorphic</strong> test. Each such rule is an <strong>oracle</strong>.</p>
+<p>A fuzzer makes random inputs and feeds them to the software under test. For a database, the inputs are tables, rows and SQL statements. The hard part is to know the correct answer of a random query.</p>
+<p>One way is to run the same query on a second database, for example PostgreSQL, and compare the two answers. That needs a second database, and the two must agree on every rule of SQL. The CamusDB fuzzer takes another way: it checks that two different queries give the same answer, with no need to know the correct one. The name for this is a <strong>metamorphic</strong> test. Each such rule is an <strong>oracle</strong>.</p>
 <p>Here is an example. SQL has three truth values: a filter on a row is true, false or unknown, and unknown comes from NULL. So the rows where a filter is true, the rows where it is false and the rows where it is unknown add up to the whole table. The fuzzer runs the four queries and checks the sum. If the results do not agree, one of them is wrong. The fuzzer does not need to know which one.</p>
-<p>The oracles are the ones of <a href="https://github.com/sqlancer/sqlancer" target="_blank" rel="noopener noreferrer" class="">SQLancer</a>, an open tool for database tests, written again in C#. They run in the same process as the engine. No driver, no network, no second database.</p>
+<p>The oracles are the ones of <a href="https://github.com/sqlancer/sqlancer" target="_blank" rel="noopener noreferrer" class="">SQLancer</a>, an open tool for database tests, written again in C#. They run in the same process as the engine, with no driver, no network and no second database.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-five-steps-of-a-round">The five steps of a round<a href="https://camusdb.github.io/blog/what-a-sql-fuzzer-catches/#the-five-steps-of-a-round" class="hash-link" aria-label="Direct link to The five steps of a round" title="Direct link to The five steps of a round" translate="no">​</a></h2>
 <p>The fuzzer works in rounds. Each round does five things:</p>
 <ol>
@@ -320,7 +315,7 @@ default for Serializable with optimistic locking.</li>
 <p>Every round takes its random numbers from a base seed and a round number. The same two numbers give the same schema, data and statements again. So a finding from the nightly job replays on a developer's machine with one command.</p>
 <p>A time limit applies to every statement. A statement past the limit is a finding too. If it does not stop on cancellation, the fuzzer discards the engine and starts a new one.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-defects-it-can-catch">The defects it can catch<a href="https://camusdb.github.io/blog/what-a-sql-fuzzer-catches/#the-defects-it-can-catch" class="hash-link" aria-label="Direct link to The defects it can catch" title="Direct link to The defects it can catch" translate="no">​</a></h2>
-<p>A <strong>plan</strong> is the engine's choice of how to run a query: which index to read, in which order to join the tables, and with which join algorithm. Most logic bugs hide in one plan and not in another. So the oracles make the engine take different paths to one answer. The table lists the five oracles, the rule each one enforces, and what a failure would point to.</p>
+<p>A <strong>plan</strong> is the engine's choice of how to run a query: which index to read, in which order to join the tables, and with which join algorithm. Most logic bugs appear in only one plan. So the oracles make the engine take different paths to one answer. The table lists the five oracles, the rule each one enforces, and what a failure would point to.</p>
 <table><thead><tr><th>Oracle</th><th>The rule</th><th>A failure would mean</th></tr></thead><tbody><tr><td>Error classification</td><td>Every error carries a specific CamusDB error code. Every statement finishes within a time limit. Every result row serializes to the JSON that the HTTP API sends.</td><td>A raw exception that reaches the client, such as an overflow or a null reference. An internal-error code. A statement that never finishes. A value that no client can receive.</td></tr><tr><td>Ternary logic partitioning</td><td>The three-way split from above: the rows where a filter is true, false and unknown add up to the rows with no filter. The same holds for MIN, MAX, SUM and COUNT, for DISTINCT, for GROUP BY and HAVING, and for the ON condition of a join.</td><td>A NULL compared the wrong way. A NaN or a negative zero that is true on one path and false on another. A comparison whose truth value changes with the path.</td></tr><tr><td>NoREC</td><td>The unoptimized form is the reference: <code>COUNT(*)</code> with a filter equals <code>SUM(CASE WHEN filter THEN 1 ELSE 0 END)</code> with no filter. The first form lets the planner use indexes. The second form tests the filter on every row of a full scan.</td><td>An index seek with wrong bounds. A lookup that loses a key. A filter pushed to the wrong side of a join.</td></tr><tr><td>Plan equivalence</td><td>One query returns the same rows under every plan: each index choice, each join algorithm, the heuristic planner, the spill-to-disk join, the plan cache, and both row decoders. The oracle reads the EXPLAIN of both plans to confirm that they differ.</td><td>An index or a join algorithm that returns other rows than a plain scan. A cached plan that gives wrong rows on its second use. A join that drops a row when it spills to disk.</td></tr><tr><td>DML integrity</td><td>After each INSERT, UPDATE, DELETE or UPSERT, the table holds exactly what the rule expects: the affected-row count, each value, no extra row, no lost row. The row store, every index and the values stored outside their rows agree. A failed statement changes nothing. In a transaction, one failure aborts the whole transaction.</td><td>Twin rows. An index entry with no row, or a row with no index entry. A column copy inside an index that did not follow an update. A lost out-of-row value. A wrong affected-row count. An UPSERT that skipped its insert or its update. A failed write that changed data.</td></tr></tbody></table>
 <p>A FLOAT64 sum gets a tolerance, because the order of the additions changes a float sum. Every other value compares exactly.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="defects-outside-its-reach">Defects outside its reach<a href="https://camusdb.github.io/blog/what-a-sql-fuzzer-catches/#defects-outside-its-reach" class="hash-link" aria-label="Direct link to Defects outside its reach" title="Direct link to Defects outside its reach" translate="no">​</a></h2>
@@ -332,7 +327,7 @@ default for Serializable with optimistic locking.</li>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="coverage-that-hand-written-tests-miss">Coverage that hand-written tests miss<a href="https://camusdb.github.io/blog/what-a-sql-fuzzer-catches/#coverage-that-hand-written-tests-miss" class="hash-link" aria-label="Direct link to Coverage that hand-written tests miss" title="Direct link to Coverage that hand-written tests miss" translate="no">​</a></h2>
 <p>A hand-written test checks one schema, one data set and one query. The fuzzer makes a new schema, a new data set and new statements in every round, and each night starts from a new seed. It reaches the shapes nobody writes by hand: a NULL in a join key, an index on a column with one distinct value, an UPDATE that changes every column of an index at once.</p>
 <p>This makes the two systems at the heart of CamusDB more robust. The query system must return the same rows under every plan, and the fuzzer forces every plan. The write system must leave rows, indexes and out-of-row values in agreement after every statement. The fuzzer checks that agreement after every write. A night with no finding is evidence that both rules hold. A finding arrives as a small failing test, before a user meets the same defect in production.</p>
-<p>A change inside the engine joins the test on its first night. A new join algorithm, a new index path or a new row decoder needs no new test. The same statements run, and the oracles judge the new path as before. So each change costs less to trust, and each release ships with more evidence behind it.</p>]]></content>
+<p>A change inside the engine joins the test on its first night. A new join algorithm, a new index path or a new row decoder needs no new test. The same statements run, and the oracles judge the new path as before.</p>]]></content>
         <author>
             <name>Andres Gutierrez</name>
             <uri>https://github.com/andresgutierrez</uri>
@@ -450,13 +445,11 @@ can be used independently, and together they make a distributed database.</p>
 <!-- -->
 <p>CamusDB turns SQL into key-value operations on Kahuna. Inside Kahuna, Nixie actors handle concurrency: each key and lock belongs to one single-threaded actor, so Kahuna avoids sharing mutable state between threads. Kahuna replicates its writes through Kommander. On each node, a storage engine writes both the key-value state and the Raft log to disk. Today that engine is RocksDB by default, and SolariumDB is the alternative.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="rocksdb-stays-the-default">RocksDB stays the default<a href="https://camusdb.github.io/blog/introducing-solariumdb/#rocksdb-stays-the-default" class="hash-link" aria-label="Direct link to RocksDB stays the default" title="Direct link to RocksDB stays the default" translate="no">​</a></h2>
-<p>SolariumDB is still young. Promising benchmarks are far from a reliable
-storage engine in production.</p>
+<p>SolariumDB is still young and has not yet proven itself in production.</p>
 <p><strong>RocksDB will remain CamusDB's default storage engine</strong> while we continue to
-test, benchmark, and harden SolariumDB. Durability, recovery, and predictable
-behavior are non-negotiable.</p>
-<p>Our goal is to mature SolariumDB into a strong alternative, and to gain the
-freedom to understand, modify, and optimize every layer of the system.</p>]]></content>
+test, benchmark, and harden SolariumDB for durability, recovery, and
+predictable behavior. Our goal is to mature SolariumDB into a strong
+alternative.</p>]]></content>
         <author>
             <name>Andres Gutierrez</name>
             <uri>https://github.com/andresgutierrez</uri>
@@ -485,8 +478,8 @@ system, we've reached 10K ops/sec.</p>
 per second for 45 minutes</strong>, completing 27.8 million operations after a two-minute
 warm-up. Every measured minute stayed above 9,700 ops/sec.</p>
 <p>All three nodes ran on <strong>one laptop</strong>, alongside the load generator and
-metrics collector. And the storage was memory-backed. Both details matter
-when interpreting the number.</p>
+metrics collector, on memory-backed storage. Both conditions limit what the
+number predicts; see <a class="" href="https://camusdb.github.io/blog/from-400-to-10k-ops/#latency-and-scope-of-the-result">Latency and scope of the result</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="definition-of-an-operation">Definition of an operation<a href="https://camusdb.github.io/blog/from-400-to-10k-ops/#definition-of-an-operation" class="hash-link" aria-label="Direct link to Definition of an operation" title="Direct link to Definition of an operation" translate="no">​</a></h2>
 <p>We used <a class="" href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/">Caraxes</a>, our database
 testing tool, to run a bank ledger with 2,000 accounts. Half the operations
@@ -532,8 +525,7 @@ roughly 30 GB of sustained writes.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="changes-that-produced-the-gains">Changes that produced the gains<a href="https://camusdb.github.io/blog/from-400-to-10k-ops/#changes-that-produced-the-gains" class="hash-link" aria-label="Direct link to Changes that produced the gains" title="Direct link to Changes that produced the gains" translate="no">​</a></h2>
 <p><strong>Send requests directly to the leader.</strong> Initially, the client could contact
 any node, which might forward the request. Teaching it which node led the
-data range removed that extra hop and produced a <strong>1.97× improvement</strong>.
-Before optimizing the work inside a request, we shortened its route.</p>
+data range removed that extra hop and produced a <strong>1.97× improvement</strong>.</p>
 <p><strong>Reduce the cost of agreement.</strong> CamusDB uses Raft, a protocol for keeping
 replicas in agreement. Improvements to replication and follower queues
 reduced a replication round from about 2.31 ms to 1.56 ms, adding 8–9% in
@@ -588,9 +580,8 @@ NVMe fault tests measured <strong>3,230–5,485 ops/sec</strong> under their con
 and 32 workers. The final result is 25.2× higher, combining software changes
 with increased concurrency. It is a milestone for this workload and setup.</p>
 <p>If you're profiling your own system, count the forwarding hops, log entries,
-queued tasks, and lookups behind each operation. Those repeated costs gave
-us concrete changes to make—and correctness checks told us whether the
-faster system still did the right work.</p>
+queued tasks, and lookups behind each operation, and run correctness checks
+to confirm that the faster system still does the right work.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="result-on-shared-commodity-hardware">Result on shared commodity hardware<a href="https://camusdb.github.io/blog/from-400-to-10k-ops/#result-on-shared-commodity-hardware" class="hash-link" aria-label="Direct link to Result on shared commodity hardware" title="Direct link to Result on shared commodity hardware" translate="no">​</a></h2>
 <p>Running three nodes on a single machine with commodity hardware is far from ideal and certainly not a recommended practice, since the shared hardware becomes a single point of failure for all three nodes. However, it demonstrates that even under these challenging conditions, the database can deliver performance that is more than adequate for the vast majority of transactional applications.</p>]]></content>
         <author>
@@ -602,7 +593,7 @@ faster system still did the right work.</p>
         <category label="distributed-systems" term="distributed-systems"/>
     </entry>
     <entry>
-        <title type="html"><![CDATA[A young database meets the Join Order Benchmark]]></title>
+        <title type="html"><![CDATA[Six planner changes for many-table joins, measured with the Join Order Benchmark]]></title>
         <id>https://camusdb.github.io/blog/join-order-benchmark/</id>
         <link href="https://camusdb.github.io/blog/join-order-benchmark/"/>
         <updated>2026-10-18T00:00:00.000Z</updated>
@@ -637,8 +628,8 @@ against every row.</p>
 hand. One query went from 10 seconds to 0.4 seconds. Another went from a
 timeout to 40 milliseconds. The planner did not find the order on its own.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="six-planner-changes">Six planner changes<a href="https://camusdb.github.io/blog/join-order-benchmark/#six-planner-changes" class="hash-link" aria-label="Direct link to Six planner changes" title="Direct link to Six planner changes" translate="no">​</a></h2>
-<p>Six changes made the difference. Each one stands on its own, and each one
-applies to every join query, not only to the benchmark.</p>
+<p>Six changes made the difference. Each one stands on its own and applies to
+every join query, including queries outside the benchmark.</p>
 <p><strong>The planner reads every condition on its own.</strong> A JOB query lists its tables
 with commas and puts all conditions in <code>WHERE</code>. The old planner grouped the
 conditions as the query wrote them. A table whose only link came through a
@@ -693,8 +684,8 @@ under 15 milliseconds.</p>
 <p>The <a class="" href="https://camusdb.github.io/docs/plan-quality-testing/#comparison-with-sqlite-and-postgresql">plan quality page</a>
 in the docs compares the three engines on the same rows with warm runs.
 CamusDB takes 1.5 seconds, SQLite 7.2 seconds and PostgreSQL 0.74 seconds.
-CamusDB runs as an embedded node on a transactional key-value store, so this
-is a reference and not a race. Before this work, 25 of these queries did not
+CamusDB runs as an embedded node on a transactional key-value store, so read
+these times as a reference point. Before this work, 25 of these queries did not
 finish at all.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="effect-on-queries-outside-the-benchmark">Effect on queries outside the benchmark<a href="https://camusdb.github.io/blog/join-order-benchmark/#effect-on-queries-outside-the-benchmark" class="hash-link" aria-label="Direct link to Effect on queries outside the benchmark" title="Direct link to Effect on queries outside the benchmark" translate="no">​</a></h2>
 <p>Each change answers a problem that real tables have. The benchmark only made
@@ -730,17 +721,16 @@ builder writes it in no order at all. The planner has to find it.</li>
 lookup can be a network round trip. A plan that looks up a thousand times
 where ten would do is slow by the latency of the cluster.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="six-properties-of-a-robust-optimizer">Six properties of a robust optimizer<a href="https://camusdb.github.io/blog/join-order-benchmark/#six-properties-of-a-robust-optimizer" class="hash-link" aria-label="Direct link to Six properties of a robust optimizer" title="Direct link to Six properties of a robust optimizer" translate="no">​</a></h2>
-<p>A benchmark win can hide a fragile optimizer. These are the properties I care
-about more than the time:</p>
+<p>These six properties keep the optimizer robust outside the benchmark:</p>
 <ol>
 <li class=""><strong>Results never change.</strong> SQLite checks every plan on every nightly run. A
-plan that changes results is a bug, not an optimization.</li>
+plan that changes results is a bug.</li>
 <li class=""><strong>The search is bounded.</strong> The step budget and the greedy fallback keep
 planning time small at any width. The 17-table queries plan in 9 to 16
 milliseconds.</li>
 <li class=""><strong>The same query gets the same plan.</strong> Two orders of equal cost keep the
 order the user wrote.</li>
-<li class=""><strong>No statistics means a fallback, not a failure.</strong> Without statistics the
+<li class=""><strong>Missing statistics lead to a fallback order.</strong> Without statistics the
 planner uses a simple order and still removes avoidable cross products.</li>
 <li class=""><strong>The plan is visible.</strong> <code>EXPLAIN (ANALYZE)</code> shows the order the search
 chose, its estimate next to the actual rows, and the lookups each join saved.</li>
@@ -752,10 +742,7 @@ pull request.</li>
 executor, not in the planner. The search considers one shape of plan, a chain
 that adds one table at a time. Plans that join two groups of tables, and a
 search below an outer join, are not there yet. The worst estimate error is
-still above 1,000x on one query.</p>
-<p>A young database does not win a benchmark. It learns from one. JOB told us
-where the optimizer was wrong, in a form we could measure and gate. That is
-the victory I want to keep.</p>]]></content>
+still above 1,000x on one query.</p>]]></content>
         <author>
             <name>Andres Gutierrez</name>
             <uri>https://github.com/andresgutierrez</uri>
@@ -766,7 +753,7 @@ the victory I want to keep.</p>]]></content>
         <category label="benchmarks" term="benchmarks"/>
     </entry>
     <entry>
-        <title type="html"><![CDATA[What the dragon found, part three]]></title>
+        <title type="html"><![CDATA[What the dragon found, part three: a two-hour fault test]]></title>
         <id>https://camusdb.github.io/blog/what-the-dragon-found-part-three/</id>
         <link href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/"/>
         <updated>2026-10-14T00:00:00.000Z</updated>
@@ -1038,8 +1025,8 @@ it, and in the latest soak the minute-104 pause hit the leader, which caught up
 from 188,000 entries behind to 3,000 in three minutes with no escalation.</p>
 <table><thead><tr><th>Run</th><th>Stack</th><th>Result</th><th>What it found</th></tr></thead><tbody><tr><td>fs11</td><td>Kahuna veto fix, local</td><td>Fail: 30 s with zero ops during a leader pause</td><td>A candidate discarded valid votes</td></tr><tr><td>fs12</td><td>Kommander vote fix, local</td><td>Pass</td><td></td></tr><tr><td>fs13</td><td>Kahuna 1.10.1, Kommander 1.9.0</td><td>Correct. Harness fail.</td><td>A health probe issued 0.28 s before the kill</td></tr><tr><td>r3a6</td><td>Kommander round pack, local</td><td>Fail: import ran out of memory</td><td>2.4x the throughput made a 30 s kill fall below the retention floor</td></tr><tr><td>rl4b</td><td>Kahuna 1.10.4, Kommander 1.9.2</td><td>Pass, both arms</td><td>The version band had the wrong unit</td></tr><tr><td>rl5</td><td>Kahuna 1.10.5, Kommander 1.9.3</td><td>Fail: node dead in an install loop</td><td>A 15 s chunk deadline the last chunk could not meet</td></tr><tr><td>sn1</td><td>Local snapshot packs</td><td>Fail: sum short by 4</td><td>A skipped install over a gap, then the node led</td></tr><tr><td>sn2</td><td>Local, skip fixed</td><td>Fail: sum short by 2. Control arm passed.</td><td>Restart replay left 82,536 values unresolved</td></tr><tr><td>sn3</td><td>Local, replay fixed</td><td>Pass</td><td>The recovery gate caught 10,773 unresolved records, nine minutes late</td></tr><tr><td>sn4</td><td>Local, gate at detection</td><td>Pass, both arms</td><td></td></tr><tr><td>rl6</td><td>Kahuna 1.11.5, Kommander 1.10.4</td><td>Pass, both arms</td><td>A paused follower re-seeded three times in four minutes</td></tr><tr><td>ps1</td><td>Local probe fix</td><td>Pass, both arms</td><td>The same pause repaired by backfill in 28 s</td></tr><tr><td>rl7</td><td>Kahuna 1.11.7, Kommander 1.10.7</td><td>One arm failed a harness rule</td><td>A client check on one 1-second sample</td></tr><tr><td>rl7b</td><td>Same</td><td>Pass</td><td>Two green verdicts on one published stack</td></tr></tbody></table>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="seven-false-alarms-from-the-test-setup">Seven false alarms from the test setup<a href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/#seven-false-alarms-from-the-test-setup" class="hash-link" aria-label="Direct link to Seven false alarms from the test setup" title="Direct link to Seven false alarms from the test setup" translate="no">​</a></h2>
-<p>Part two had a list of false alarms. Here is the new list. Every item cost
-us a wrong reading once, and every item is a check now.</p>
+<p>Each item below cost us one wrong reading and is now a check, as in the list
+from part two.</p>
 <ul>
 <li class=""><strong>Two false reports of a node that died on its own.</strong> In one run the health probe
 was issued 0.28 seconds before the scheduled SIGKILL, and the harness graded
@@ -1173,8 +1160,8 @@ double green.</p>
 the leader was skipped by the resolver bug listed above, which is fixed since.</p>
 <p>CamusDB today pins a Kahuna three releases past that pair. The pin is ahead of
 its evidence, as it was in part two, and the next soak closes that gap.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="lessons-long-runs-direct-measurement-one-variable">Lessons: long runs, direct measurement, one variable<a href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/#lessons-long-runs-direct-measurement-one-variable" class="hash-link" aria-label="Direct link to Lessons: long runs, direct measurement, one variable" title="Direct link to Lessons: long runs, direct measurement, one variable" translate="no">​</a></h2>
-<p>Some bugs need two hours. Every ten-minute run in part two plateaued at 3.3 to
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="three-more-rules-for-fault-testing">Three more rules for fault testing<a href="https://camusdb.github.io/blog/what-the-dragon-found-part-three/#three-more-rules-for-fault-testing" class="hash-link" aria-label="Direct link to Three more rules for fault testing" title="Direct link to Three more rules for fault testing" translate="no">​</a></h2>
+<p>Run long. Some bugs need two hours. Every ten-minute run in part two plateaued at 3.3 to
 3.9 GB and passed. In hindsight those plateaus were the memory wall, a few
 hundred megabytes away. Only a long run with the same budget proves a bound.</p>
 <p>Measure the quantity directly. The table-reader ratio of
@@ -1187,7 +1174,7 @@ things. The control arm with the settle path on, same pack, same schedule,
 passed, and that isolated the loss to the by-reference replay in one run.
 Three soaks died of memory, and the fix was one environment variable with no
 code change.</p>
-<p>Part two's third lesson held as well. The chain from the first soak to the
+<p>Part two's third rule held as well. The chain from the first soak to the
 latest is memory, then a wedge, then a divergence, then a livelock, then an
 install loop, then two lost writes, then a re-seed storm. Every fix uncovered
 the next failure when it removed the one in front of it.</p>
@@ -1204,7 +1191,7 @@ performance side.</p>]]></content>
         <category label="distributed-systems" term="distributed-systems"/>
     </entry>
     <entry>
-        <title type="html"><![CDATA[What the dragon found]]></title>
+        <title type="html"><![CDATA[What the dragon found: defects from a month of chaos testing]]></title>
         <id>https://camusdb.github.io/blog/what-the-dragon-found/</id>
         <link href="https://camusdb.github.io/blog/what-the-dragon-found/"/>
         <updated>2026-09-21T00:00:00.000Z</updated>
@@ -1437,10 +1424,8 @@ can fail a capacity run whose client had no headroom.</li>
 together with the process. A tool now splits it into cache, native, unused
 heap, and live data, so a growth curve says which component grew.</li>
 </ul>
-<p>Each of these produced a check. The checks are cheap, and they protect every
-later run from a false alarm we already paid for once.</p>
+<p>Each of these produced a check that now runs on every later run.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="group-commit-settings-that-changed-defaults">Group commit settings that changed defaults<a href="https://camusdb.github.io/blog/what-the-dragon-found/#group-commit-settings-that-changed-defaults" class="hash-link" aria-label="Direct link to Group commit settings that changed defaults" title="Direct link to Group commit settings that changed defaults" translate="no">​</a></h2>
-<p>One finding was a setting that nobody had changed.</p>
 <p>The write-ahead log on the leader never grouped commits. It wrote exactly one
 operation per batch at every concurrency from 32 to 256 workers. The group
 commit linger defaults to zero, and the cluster baseline never set it. So a
@@ -1480,17 +1465,16 @@ cluster in one process with link blocks and restarts. Caraxes found the
 failures at the level of a real cluster in Docker. These simulators reproduce
 them in milliseconds inside a unit test, so a fix comes with a test that fails
 on the old code.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="lessons-invariants-measurement-and-chained-fixes">Lessons: invariants, measurement, and chained fixes<a href="https://camusdb.github.io/blog/what-the-dragon-found/#lessons-invariants-measurement-and-chained-fixes" class="hash-link" aria-label="Direct link to Lessons: invariants, measurement, and chained fixes" title="Direct link to Lessons: invariants, measurement, and chained fixes" translate="no">​</a></h2>
-<p>Invariants beat logs. Every serious correctness bug in this post was found by a
-number that did not add up, and only then explained by a log. Engine-side
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="three-rules-for-fault-testing">Three rules for fault testing<a href="https://camusdb.github.io/blog/what-the-dragon-found/#three-rules-for-fault-testing" class="hash-link" aria-label="Direct link to Three rules for fault testing" title="Direct link to Three rules for fault testing" translate="no">​</a></h2>
+<p>Check invariants first. Every serious correctness bug in this post was found by
+a number that did not add up, and only then explained by a log. Engine-side
 analysis of the logs alone ran out of evidence more than once. A per-row ledger
 of every transfer, joined against the seeded baseline, is what turned a deficit
 we could count into a deficit we could attribute.</p>
-<p>The measurement is part of the system under test. A sleeping laptop, a busy
-host, a write cache, and a saturated load generator all produced findings that
-looked exactly like database defects. Each false alarm cost us time once. Each
-one now costs a check that runs on every run.</p>
-<p>A fix reveals the next bug. The chain from run R to run Z is eight fixes deep,
+<p>Test the measurement too. A sleeping laptop, a busy host, a write cache, and a
+saturated load generator all produced findings that looked exactly like
+database defects. Each one now has a check that runs on every run.</p>
+<p>Expect each fix to reveal the next bug. The chain from run R to run Z is eight fixes deep,
 and every fix uncovered the next failure by removing the one in front of it.</p>
 <p>Some scenarios in the notebooks still have open questions, and a few new
 faults are on the list.</p>]]></content>
@@ -1504,7 +1488,7 @@ faults are on the list.</p>]]></content>
         <category label="distributed-systems" term="distributed-systems"/>
     </entry>
     <entry>
-        <title type="html"><![CDATA[Player inventories are bank accounts]]></title>
+        <title type="html"><![CDATA[Game wallets and inventories need distributed transactions]]></title>
         <id>https://camusdb.github.io/blog/player-inventories-are-bank-accounts/</id>
         <link href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/"/>
         <updated>2026-09-07T00:00:00.000Z</updated>
@@ -1535,9 +1519,8 @@ instant.</li>
 <p>These are the rules a bank enforces. The amounts are smaller, and the number
 of accounts is often larger.</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">balance &gt;= 0</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">one item -&gt; one owner</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">one reward -&gt; granted once</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">a trade completes for both sides, or for neither</span><br></div></code></pre></div></div>
-<p>A bank enforces each rule on every day, because a single broken rule ends the
-trust of the customer. A player who loses one legendary item once tells
-everyone.</p>
+<p>A game backend must enforce each rule on every operation, as a bank does,
+because one broken rule costs the trust of the player.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-single-threaded-shard-argument">The single-threaded shard argument<a href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/#the-single-threaded-shard-argument" class="hash-link" aria-label="Direct link to The single-threaded shard argument" title="Direct link to The single-threaded shard argument" translate="no">​</a></h2>
 <p>There is a popular argument in the game backend world. It deserves a fair
 statement before we answer it.</p>
@@ -1647,8 +1630,6 @@ transaction that spans two ranges is still one transaction. See
 <a class="" href="https://camusdb.github.io/docs/key-range-sharding/">Key-range sharding</a> and
 <a class="" href="https://camusdb.github.io/docs/distributed-transactions/">Distributed transactions and HLC</a> for the
 details.</p>
-<p>You design your tables around your economy, and the database decides where
-the network round trip is necessary.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="example-a-trade-between-two-players">Example: a trade between two players<a href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/#example-a-trade-between-two-players" class="hash-link" aria-label="Direct link to Example: a trade between two players" title="Direct link to Example: a trade between two players" translate="no">​</a></h2>
 <p>Player 10 gives a sword and receives 500 gold. Player 20 gives 500 gold and
 receives the sword.</p>
@@ -1672,8 +1653,6 @@ application replays the loser from <code>BEGIN</code>.</li>
 </ul>
 <p>The two wallets and the item can live on three different partitions. The
 transaction still commits on all of them or on none of them.</p>
-<p>A retry is how the database reports a race. Without it, the application
-discovers the race in a support ticket.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-confirmed-commit-survives-a-node-failure">A confirmed commit survives a node failure<a href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/#a-confirmed-commit-survives-a-node-failure" class="hash-link" aria-label="Direct link to A confirmed commit survives a node failure" title="Direct link to A confirmed commit survives a node failure" translate="no">​</a></h2>
 <p>If CamusDB confirms a commit, that commit survives, even if the node that
 confirmed it dies one second later.</p>
@@ -1688,22 +1667,21 @@ and the application replays it.</li>
 <a class="" href="https://camusdb.github.io/docs/caraxes/">Caraxes</a>, runs money transfers between random accounts while
 it kills nodes, cuts the network, and fills disks. At the end, the total of
 all balances must be exactly the same as before. We wrote about that tool in
-<a class="" href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/">We built a dragon to attack our own database</a>.</p>
+<a class="" href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/">Caraxes: how we test CamusDB against real failures</a>.</p>
 <p>An in-memory engine that acknowledges a commit before the write is safe on a
-second machine gives you an impressive benchmark. It also gives you a window
-in which a player's purchase exists only in the memory of one process. An
-item that disappears in that window was paid for.</p>
+second machine benchmarks faster. It also leaves a window in which a player's
+purchase exists only in the memory of one process, and an item lost in that
+window was already paid for.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-cost-milliseconds-at-commit">The cost: milliseconds at commit<a href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/#the-cost-milliseconds-at-commit" class="hash-link" aria-label="Direct link to The cost: milliseconds at commit" title="Direct link to The cost: milliseconds at commit" translate="no">​</a></h2>
 <p>A distributed commit in CamusDB costs milliseconds. A local commit costs
 less. A single-threaded in-memory engine costs microseconds.</p>
 <p>A player clicks "accept trade". The round trip from the client to the server
 is tens of milliseconds, and the animation is half a second. The player
 cannot perceive the difference between three microseconds and three
-milliseconds at commit. The player will remember, for years, the sword that
-vanished.</p>
+milliseconds at commit.</p>
 <p>The engineering trade is a millisecond at commit against a saga per feature
-and a reconciliation job at night. For the simulation, choose the tick loop.
-For the ledger, choose the transaction.</p>
+and a reconciliation job at night. Keep the simulation in the tick loop, and
+keep the ledger in database transactions.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="five-requirements-for-a-game-database">Five requirements for a game database<a href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/#five-requirements-for-a-game-database" class="hash-link" aria-label="Direct link to Five requirements for a game database" title="Direct link to Five requirements for a game database" translate="no">​</a></h2>
 <p>We hold CamusDB to this list, and we suggest it for any database that holds
 player value:</p>
@@ -1729,7 +1707,7 @@ every build.</li>
         <category label="game-backends" term="game-backends"/>
     </entry>
     <entry>
-        <title type="html"><![CDATA[We built a dragon to attack our own database]]></title>
+        <title type="html"><![CDATA[Caraxes: how we test CamusDB against real failures]]></title>
         <id>https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/</id>
         <link href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/"/>
         <updated>2026-08-19T00:00:00.000Z</updated>
@@ -1762,13 +1740,10 @@ look the same:</p>
 frozen node wakes up by itself. A node behind a broken network can still
 think it is the leader (the node that accepts writes) and can still accept
 work.</p>
-<p>The cluster has to choose a reaction quickly, with missing information. A
-distributed database is a set of answers to that problem, and each answer is
-only as good as the conditions it was tested in.</p>
+<p>The cluster has to choose a reaction quickly, with missing information.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="silent-wrong-answers-are-the-dangerous-failure">Silent wrong answers are the dangerous failure<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#silent-wrong-answers-are-the-dangerous-failure" class="hash-link" aria-label="Direct link to Silent wrong answers are the dangerous failure" title="Direct link to Silent wrong answers are the dangerous failure" translate="no">​</a></h2>
-<p>A database that returns an error is annoying. A database that returns a wrong
-answer is dangerous, because nobody looks for a problem they were never told
-about. During a failure, these are the risks:</p>
+<p>A wrong answer does more harm than an error, because nobody looks for a
+problem they were never told about. During a failure, these are the risks:</p>
 <ul>
 <li class="">A write is confirmed, then lost when a new leader takes over.</li>
 <li class="">A deleted row comes back after an old copy of the data is promoted.</li>
@@ -1826,9 +1801,8 @@ fails.</p>
 <p>If we just killed a node, connections close while requests are still
 travelling, so a few client-side errors are normal. We count them and print
 them, but they alone do not fail a test that stayed correct and recovered in
-time.</p>
-<p>A test that reports a problem on every run gets ignored, and an ignored test
-protects nothing.</p>
+time. This keeps the test from failing on every run, which would teach us to
+ignore it.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="recovery-time-for-every-fault">Recovery time for every fault<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#recovery-time-for-every-fault" class="hash-link" aria-label="Direct link to Recovery time for every fault" title="Direct link to Recovery time for every fault" translate="no">​</a></h2>
 <p>Caraxes records every break and every repair with exact timestamps. The
 workload records each second: how many operations succeeded, how many failed,
@@ -1895,14 +1869,10 @@ still returns the same rows when one part disappears.</li>
 <li class="">Bigger clusters and much longer runs, because some bugs only appear after
 hours.</li>
 </ul>
-<p>Every item is a question with a yes or no answer and a number next to it.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="scope-of-chaos-testing">Scope of chaos testing<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#scope-of-chaos-testing" class="hash-link" aria-label="Direct link to Scope of chaos testing" title="Direct link to Scope of chaos testing" translate="no">​</a></h2>
-<p>People who run CamusDB in cluster mode will never read its source code. On
-the day a server dies during a busy afternoon, they will judge us on two
-things: was the data still there, and did the application keep working?</p>
-<p>Chaos testing does not prove a database is perfect. It makes sure that when
-the database fails, it fails in a way we already studied, measured, and
-decided we can accept.</p>]]></content>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="chaos-testing-covers-only-the-injected-failures">Chaos testing covers only the injected failures<a href="https://camusdb.github.io/blog/a-dragon-to-attack-our-own-database/#chaos-testing-covers-only-the-injected-failures" class="hash-link" aria-label="Direct link to Chaos testing covers only the injected failures" title="Direct link to Chaos testing covers only the injected failures" translate="no">​</a></h2>
+<p>For each failure that Caraxes injects, a passing run shows that the cluster
+kept the data correct and recovered in a time we measured and accept. Chaos
+testing cannot prove that the database has no other bugs.</p>]]></content>
         <author>
             <name>Andres Gutierrez</name>
             <uri>https://github.com/andresgutierrez</uri>
@@ -1913,7 +1883,7 @@ decided we can accept.</p>]]></content>
         <category label="distributed-systems" term="distributed-systems"/>
     </entry>
     <entry>
-        <title type="html"><![CDATA[When every experiment needs its own database]]></title>
+        <title type="html"><![CDATA[A database branch for every AI agent experiment]]></title>
         <id>https://camusdb.github.io/blog/database-branches-for-ai-agents/</id>
         <link href="https://camusdb.github.io/blog/database-branches-for-ai-agents/"/>
         <updated>2026-07-28T00:00:00.000Z</updated>
@@ -1927,7 +1897,7 @@ solutions in parallel: one tries a schema migration, another rewrites some
 data, a third reproduces a bug. Each one needs a realistic database, and none
 of them must damage the shared starting point.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="parallel-experiments-interfere-on-a-shared-database">Parallel experiments interfere on a shared database<a href="https://camusdb.github.io/blog/database-branches-for-ai-agents/#parallel-experiments-interfere-on-a-shared-database" class="hash-link" aria-label="Direct link to Parallel experiments interfere on a shared database" title="Direct link to Parallel experiments interfere on a shared database" translate="no">​</a></h2>
-<p>Imagine that an agent must improve the checkout flow of an online store. It
+<p>Consider an agent that must improve the checkout flow of an online store. It
 compares three approaches:</p>
 <ul>
 <li class="">Add a new status to the current table.</li>
@@ -2027,8 +1997,7 @@ also make reads slower, because the database checks several ancestors.</p>
 <li class="">Transactions cannot cross branches.</li>
 </ul>
 <p>A successful experiment must produce a reviewed migration, script, or
-application change, which you apply through the normal delivery process.</p>
-<p>The feature is still evolving, like the rest of the project.</p>]]></content>
+application change, which you apply through the normal delivery process.</p>]]></content>
         <author>
             <name>Andres Gutierrez</name>
             <uri>https://github.com/andresgutierrez</uri>
@@ -2057,7 +2026,7 @@ order in which to read the tables:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> u</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">email</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> p</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">title</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> c</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">body</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">users</span><span class="token plain"> u</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">JOIN</span><span class="token plain"> posts p </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ON</span><span class="token plain"> p</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">user_id </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> u</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">id</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">JOIN</span><span class="token plain"> comments c </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ON</span><span class="token plain"> c</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">post_id </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> p</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">id</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> u</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">active </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">true</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
 <p>The database decides the order.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="join-order-decides-how-much-data-a-query-reads">Join order decides how much data a query reads<a href="https://camusdb.github.io/blog/dynamic-programming-query-optimizer/#join-order-decides-how-much-data-a-query-reads" class="hash-link" aria-label="Direct link to Join order decides how much data a query reads" title="Direct link to Join order decides how much data a query reads" translate="no">​</a></h2>
-<p>Imagine this:</p>
+<p>Assume these three tables:</p>
 <ul>
 <li class=""><code>users</code> has many rows, but only a few are active.</li>
 <li class=""><code>posts</code> has many rows for each user.</li>
@@ -2182,9 +2151,7 @@ the data changes.</p>
 <p>CamusDB keeps the cost-based optimizer behind configuration flags:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">cost_based_access_path_enabled</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">cost_based_join_order_enabled</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">true</span><br></div></code></pre></div></div>
 <p>The rule-based planner remains stable and predictable. Enable the cost-based
-planner when you want CamusDB to compare more plans and use statistics.</p>
-<p>The optimizer will improve over time, as more query shapes, more statistics,
-and more execution strategies become available.</p>]]></content>
+planner when you want CamusDB to compare more plans and use statistics.</p>]]></content>
         <author>
             <name>Andres Gutierrez</name>
             <uri>https://github.com/andresgutierrez</uri>
@@ -2194,7 +2161,7 @@ and more execution strategies become available.</p>]]></content>
         <category label="sql" term="sql"/>
     </entry>
     <entry>
-        <title type="html"><![CDATA[Why CamusDB exists]]></title>
+        <title type="html"><![CDATA[The origins of CamusDB: Spanner, game backends, and .NET]]></title>
         <id>https://camusdb.github.io/blog/welcome/</id>
         <link href="https://camusdb.github.io/blog/welcome/"/>
         <updated>2026-07-03T00:00:00.000Z</updated>
@@ -2233,9 +2200,8 @@ AOT, and the standard libraries. Modern .NET is fast, mature, and capable of
 serious backend infrastructure workloads.</p>
 <p>I have worked with .NET for many years, and I know the ecosystem well. That
 lets me move fast and keep the system clean and understandable.</p>
-<p>Many people assume that infrastructure projects must be written in Go, Rust,
-C++, or Java. Those are great languages, and .NET has earned its place next
-to them.</p>
+<p>For infrastructure projects, .NET has earned its place next to Go, Rust, C++,
+and Java.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-layers-under-camusdb-kahuna-and-kommander">The layers under CamusDB: Kahuna and Kommander<a href="https://camusdb.github.io/blog/welcome/#the-layers-under-camusdb-kahuna-and-kommander" class="hash-link" aria-label="Direct link to The layers under CamusDB: Kahuna and Kommander" title="Direct link to The layers under CamusDB: Kahuna and Kommander" translate="no">​</a></h2>
 <p>For years I built the lower-level infrastructure that CamusDB needs.</p>
 <ul>
@@ -2260,25 +2226,17 @@ environments.</p>
 constantly need safe environments to validate economy changes, content
 updates, migrations, live event configurations, and backend behavior, with no
 effect on production data.</p>
-<p>I want CamusDB to be useful as well as technically interesting. It must solve
-practical problems for developers and teams.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-scope-of-a-distributed-sql-database">The scope of a distributed SQL database<a href="https://camusdb.github.io/blog/welcome/#the-scope-of-a-distributed-sql-database" class="hash-link" aria-label="Direct link to The scope of a distributed SQL database" title="Direct link to The scope of a distributed SQL database" translate="no">​</a></h2>
 <p>A distributed SQL database includes query planning, transactions, distributed
 execution, indexes, consistency, replication, schema changes, locking, fault
 tolerance, storage, and snapshots. Each of these can break in subtle ways.</p>
 <p>Every feature forces me to understand the system more deeply, and every
-design decision has a tradeoff. That process is one of the most rewarding
-parts of the work.</p>
+design decision has a tradeoff.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="current-state">Current state<a href="https://camusdb.github.io/blog/welcome/#current-state" class="hash-link" aria-label="Direct link to Current state" title="Direct link to Current state" translate="no">​</a></h2>
 <p>CamusDB is becoming a real database with real capabilities, on top of
 infrastructure that took years to design and implement. There is still a lot
-to do.</p>
-<p>CamusDB started from my experience with Spanner and from years of backend
-problems in video games. I believe that strong consistency and scalability
-should be more accessible, and that modern .NET is a great platform for
-serious infrastructure.</p>
-<p>I wanted to build the database I wish I had for many of the systems I have
-worked on.</p>]]></content>
+to do. The goal is to make strong consistency and scalability more
+accessible.</p>]]></content>
         <author>
             <name>Andres Gutierrez</name>
             <uri>https://github.com/andresgutierrez</uri>
