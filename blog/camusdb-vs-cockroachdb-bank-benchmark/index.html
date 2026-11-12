@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en" dir="ltr" class="blog-wrapper blog-post-page plugin-blog plugin-id-default" data-has-hydrated="false">
+<head>
+<meta charset="UTF-8">
+<meta name="generator" content="Docusaurus v3.10.2">
+<title data-rh="true">CamusDB and CockroachDB on the same host: a serializable bank benchmark | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docusaurus_tag" content="default"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docsearch:docusaurus_tag" content="default"><meta data-rh="true" property="og:title" content="CamusDB and CockroachDB on the same host: a serializable bank benchmark | CamusDB"><meta data-rh="true" name="description" content="A contended bank workload with serializable transactions on three-node CamusDB and CockroachDB clusters, why the CamusDB default was slower, and the experimental setting that followed."><meta data-rh="true" property="og:description" content="A contended bank workload with serializable transactions on three-node CamusDB and CockroachDB clusters, why the CamusDB default was slower, and the experimental setting that followed."><meta data-rh="true" property="og:type" content="article"><meta data-rh="true" property="article:published_time" content="2026-11-12T00:00:00.000Z"><meta data-rh="true" property="article:author" content="https://github.com/andresgutierrez"><meta data-rh="true" property="article:tag" content="camusdb,benchmarks,distributed-systems"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/" hreflang="x-default"><link data-rh="true" rel="preconnect" href="https://SPBBUBI3JT-dsn.algolia.net" crossorigin="anonymous"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","@id":"https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark","mainEntityOfPage":"https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark","url":"https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark","headline":"CamusDB and CockroachDB on the same host: a serializable bank benchmark","name":"CamusDB and CockroachDB on the same host: a serializable bank benchmark","description":"A contended bank workload with serializable transactions on three-node CamusDB and CockroachDB clusters, why the CamusDB default was slower, and the experimental setting that followed.","datePublished":"2026-11-12T00:00:00.000Z","author":{"@type":"Person","name":"Andres Gutierrez","description":"Creator of CamusDB","url":"https://github.com/andresgutierrez","image":"https://github.com/andresgutierrez.png"},"keywords":[],"isPartOf":{"@type":"Blog","@id":"https://camusdb.github.io/blog","name":"Blog"}}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
+<link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed">
+
+
+
+
+<link rel="search" type="application/opensearchdescription+xml" title="CamusDB" href="/opensearch.xml">
+
+
+<meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
+<meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.696298a7.css">
+<script src="/assets/js/runtime~main.8e7ca007.js" defer="defer"></script>
+<script src="/assets/js/main.5f309433.js" defer="defer"></script>
+</head>
+<body>
+<svg style="display: none;"><defs>
+<symbol id="theme-svg-external-link" viewBox="0 0 24 24"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
+</defs></svg>
+<script>!function(){var t=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();document.documentElement.setAttribute("data-theme",t||"light"),document.documentElement.setAttribute("data-theme-choice",t||"light")}(),function(){try{const c=new URLSearchParams(window.location.search).entries();for(var[t,e]of c)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="theme-layout-navbar navbar navbar--fixed-top"><div class="navbar__inner"><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/"><div class="navbar__logo"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">CamusDB</b></a><a class="navbar__item navbar__link" href="/docs/why-camusdb/">Docs</a><a class="navbar__item navbar__link" href="/docs/why-camusdb/">Why CamusDB?</a><a aria-current="page" class="navbar__item navbar__link navbar__link--active" href="/blog/">Blog</a><a class="navbar__item navbar__link" href="/playground/">Playground</a></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"></path></svg></button></div><div class="navbarSearchContainer_Bca1"><button type="button" class="DocSearch DocSearch-Button" aria-label="Search (Meta+k)" aria-keyshortcuts="Meta+k"><span class="DocSearch-Button-Container"><svg width="20" height="20" class="DocSearch-Search-Icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8" stroke="currentColor" fill="none" stroke-width="1.4"></circle><path d="m21 21-4.3-4.3" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg><span class="DocSearch-Button-Placeholder">Search</span></span><span class="DocSearch-Button-Keys"></span></button></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class="container margin-vert--lg"><div class="row"><aside class="col col--3"><nav class="sidebar_re4s thin-scrollbar" aria-label="Blog recent posts navigation"><div class="sidebarItemTitle_pO2u margin-bottom--md">Recent posts</div><div role="group"><h3 class="yearGroupHeading_rMGB">2026</h3><ul class="sidebarItemList_Yudw clean-list"><li class="sidebarItem__DBe"><a aria-current="page" class="sidebarItemLink_mo7H sidebarItemLinkActive_I1ZP" href="/blog/camusdb-vs-cockroachdb-bank-benchmark/">CamusDB and CockroachDB on the same host: a serializable bank benchmark</a></li><li class="sidebarItem__DBe"><a class="sidebarItemLink_mo7H" href="/blog/how-much-we-test-camusdb/">How much we test CamusDB</a></li><li class="sidebarItem__DBe"><a class="sidebarItemLink_mo7H" href="/blog/what-a-sql-fuzzer-catches/">What a SQL fuzzer catches</a></li><li class="sidebarItem__DBe"><a class="sidebarItemLink_mo7H" href="/blog/introducing-solariumdb/">Introducing SolariumDB: Taking Control of the Storage Layer in .NET</a></li><li class="sidebarItem__DBe"><a class="sidebarItemLink_mo7H" href="/blog/from-400-to-10k-ops/">From 400 to 10,000 operations per second in CamusDB</a></li></ul></div></nav></aside><main class="col col--7"><article class=""><header><h1 class="title_f1Hy">CamusDB and CockroachDB on the same host: a serializable bank benchmark</h1><div class="container_mt6G margin-vert--md"><time datetime="2026-11-12T00:00:00.000Z">November 12, 2026</time> · <!-- -->12 min read</div><div class="margin-top--md margin-bottom--sm row"><div class="col col--12 authorCol_Hf19"><div class="avatar margin-bottom--sm"><a href="https://github.com/andresgutierrez" target="_blank" rel="noopener noreferrer" class="avatar__photo-link"><img class="avatar__photo authorImage_XqGP" src="https://github.com/andresgutierrez.png" alt="Andres Gutierrez"></a><div class="avatar__intro authorDetails_lV9A"><div class="avatar__name"><a href="https://github.com/andresgutierrez" target="_blank" rel="noopener noreferrer"><span class="authorName_yefp" translate="no">Andres Gutierrez</span></a></div><small class="authorTitle_nd0D" title="Creator of CamusDB">Creator of CamusDB</small><div class="authorSocials_rSDt"></div></div></div></div></div></header><div id="__blog-post-container" class="markdown"><p>This post compares serializable transactions on three-node CamusDB and
+CockroachDB clusters, on one bank workload where transactions often collide.
+You will see where the CamusDB default configuration was slower, which row
+lock caused it, and what an experimental setting changes. If you are
+evaluating CamusDB for transactional workloads, the tables and the open
+issues show what to expect today.</p>
+<p>Performance is a fundamental aspect of any database. In a distributed
+database, achieving high performance is particularly challenging because
+writes and strongly consistent reads require coordination across multiple
+nodes. Getting high throughput is far from easy when every write must be
+synchronously replicated to other nodes, wait for a majority to persist and
+acknowledge it, and only then return a confirmation to the client.</p>
+<p>Reads face similar challenges. The system needs to verify that the node
+serving the results is still the leader to avoid inconsistencies. On top of
+that, network latency, buffers, and queues can all become bottlenecks as the
+workload increases.</p>
+<p>These challenges aren&#x27;t unique to CamusDB. Other strongly consistent
+distributed databases, such as Spanner and CockroachDB, have had to solve
+similar problems. Traditional single-node databases like PostgreSQL and MySQL
+don&#x27;t face these same challenges. They make different architectural
+tradeoffs, favoring single-node performance over some of the guarantees and
+capabilities of distributed systems.</p>
+<p>Throughout CamusDB&#x27;s development, the goal has always been to find the right
+balance between performance and strong consistency, with consistency being
+non-negotiable.</p>
+<p>To understand how CamusDB performs against established databases, I decided
+to benchmark it against CockroachDB (a distributed SQL database written in
+Go). This felt like a more apples-to-apples comparison. Comparing it with
+PostgreSQL or MySQL wouldn&#x27;t be entirely fair, since they&#x27;re designed to
+solve similar problems but take fundamentally different architectural
+approaches.</p>
+<p>The results were surprising and provided some valuable insights, lessons
+learned, and clear next steps for continuing to improve CamusDB.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="results-in-brief">Results in brief<a href="#results-in-brief" class="hash-link" aria-label="Direct link to Results in brief" title="Direct link to Results in brief" translate="no">​</a></h2>
+<p>Both databases ran on one 16-core laptop, three nodes each, at the
+Serializable isolation level. Serializable is the strictest level: the result
+is the same as if the transactions ran one at a time.</p>
+<ul>
+<li class="">CockroachDB v26.3.5 completed <strong>7,389 operations per second</strong>.</li>
+<li class="">CamusDB at its default settings completed <strong>6,857</strong>, and gave up on 0.3% of
+transfers.</li>
+<li class="">CamusDB with a new experimental setting completed <strong>13,128</strong>, with no
+failed transfer.</li>
+</ul>
+<p>At defaults, CamusDB locked every row it read, although its storage layer
+already validates those reads at commit. The new setting removes the lock for
+single-row reads. It is off by default because of the
+<a href="#open-issues-that-keep-the-setting-off-by-default" class="">open issues</a> below.</p>
+<p>I wouldn&#x27;t focus too much on CockroachDB&#x27;s numbers. Running three nodes on
+the same machine is probably far from ideal. Its settings might not be
+properly tuned for maximum performance, (probably ignorance on my end)
+or its defaults might be optimized
+for different types of workloads. That&#x27;s not the point of this post.</p>
+<p>This is one workload on one host. The <a href="#limits-of-the-comparison" class="">limits</a>
+are listed below.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="workload-and-setup">Workload and setup<a href="#workload-and-setup" class="hash-link" aria-label="Direct link to Workload and setup" title="Direct link to Workload and setup" translate="no">​</a></h2>
+<p>The workload is the bank test from the
+<a class="" href="/blog/from-400-to-10k-ops/">10K ops/sec post</a>: a table of 2,000 accounts.
+Half of the operations are single-row balance reads. The other half are
+transfers between two accounts:</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">BEGIN</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> balance</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">version</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> workload_accounts </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> id </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token variable" style="color:#60a5fa">@low_id</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">UPDATE</span><span class="token plain"> workload_accounts</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SET</span><span class="token plain"> balance </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token variable" style="color:#60a5fa">@low_balance</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">version</span><span class="token plain"> </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">version</span><span class="token plain"> </span><span class="token operator" style="color:#94a3b8">+</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">1</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> id </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token variable" style="color:#60a5fa">@low_id</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> balance</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">version</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> workload_accounts </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> id </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token variable" style="color:#60a5fa">@high_id</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">UPDATE</span><span class="token plain"> workload_accounts</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SET</span><span class="token plain"> balance </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token variable" style="color:#60a5fa">@high_balance</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">version</span><span class="token plain"> </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">version</span><span class="token plain"> </span><span class="token operator" style="color:#94a3b8">+</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">1</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> id </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token variable" style="color:#60a5fa">@high_id</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">COMMIT</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
+<p>256 concurrent workers on 2,000 rows make transfers collide often. When the
+database rejects a transfer because of a conflict, the client retries it, up
+to ten attempts.</p>
+<p>After each run, a reconciliation checks that the sum of balances is unchanged
+and that each row&#x27;s version matches the committed transfers.</p>
+<p>The host is a laptop with an Intel Core i7-13620H (16 logical cores) and
+31 GiB of memory. It runs the three nodes and the load generator. Each node
+keeps a full copy of the table (replication factor 3), and one node, the
+leader, orders the writes. Each node&#x27;s container is limited to 8,192 MiB,
+with data on a 6,144 MiB memory-backed file system (tmpfs). Each run has a
+6-minute warm-up and a 10-minute measured window.</p>
+<table><thead><tr><th></th><th>CamusDB</th><th>CockroachDB</th></tr></thead><tbody><tr><td>Version</td><td>Development build on Kahuna.Core 1.16.7, .NET 10</td><td>v26.3.5</td></tr><tr><td>Isolation</td><td>Serializable, optimistic locking</td><td>Serializable (default)</td></tr><tr><td>Layout</td><td>1 partition, one leader</td><td>16 ranges after load splitting, leases spread over 3 nodes</td></tr><tr><td>Client</td><td>CamusDB .NET client 0.18.1, 256 workers over 64 logical connections</td><td>Npgsql 9.0.4, 256 connections</td></tr><tr><td>Memory settings</td><td>Defaults for the limit</td><td><code>--cache=.25 --max-sql-memory=.25</code></td></tr></tbody></table>
+<p>Some terms in the table:</p>
+<ul>
+<li class=""><strong>Optimistic locking:</strong> a transaction works without waiting for other
+transactions. The database checks for conflicts and rejects the loser.</li>
+<li class=""><strong>Partition and range:</strong> a slice of a table with its own leader. CamusDB
+calls it a partition and CockroachDB calls it a range.</li>
+<li class=""><strong>Load splitting:</strong> CockroachDB divides a busy range into smaller ranges,
+and different nodes can lead them.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="results">Results<a href="#results" class="hash-link" aria-label="Direct link to Results" title="Direct link to Results" translate="no">​</a></h2>
+<table><thead><tr><th></th><th>CamusDB, default</th><th>CamusDB, new setting</th><th>CockroachDB</th></tr></thead><tbody><tr><td>Operations per second</td><td>6,857</td><td>13,128</td><td>7,389</td></tr><tr><td>Retries per transfer</td><td>0.412</td><td>0.109</td><td>0.079</td></tr><tr><td>Transfers that gave up after 10 attempts</td><td>6,203 (0.3%)</td><td>0</td><td>0</td></tr><tr><td>Read p50 / p95 / p99 (ms)</td><td>0.75 / 5.3 / 14.0</td><td>1.7 / 7.4 / 18.1</td><td>7.2 / 38.2 / 62.2</td></tr><tr><td>Transfer p50 / p95 / p99 (ms)</td><td>58.1 / 136.2 / 241.9</td><td>30.9 / 62.9 / 93.5</td><td>49.0 / 135.0 / 216.7</td></tr><tr><td>Cluster CPU per operation (ms)</td><td>1.38</td><td>0.85</td><td>1.98</td></tr><tr><td>Peak memory per node (GiB)</td><td>4.5 to 4.7</td><td>7.1 to 7.3</td><td>3.4 to 3.8</td></tr><tr><td>Reconciliation</td><td>Pass</td><td>Pass</td><td>Pass</td></tr></tbody></table>
+<p>p50, p95, and p99 are the latencies that 50%, 95%, and 99% of operations
+stayed under.</p>
+<p>A second run of the CamusDB default gave 6,828 operations per second.
+CockroachDB with load splitting disabled reached 8,132.</p>
+<ul>
+<li class=""><strong>CockroachDB was CPU-bound on this host.</strong> Its nodes used 14.6 of the 16
+cores, and the load generator used the same machine.</li>
+<li class=""><strong>CamusDB uses more memory.</strong> With the new setting, its nodes peak near
+twice CockroachDB&#x27;s figure, within about 0.7 GiB of the container limit.</li>
+<li class=""><strong>CockroachDB retries less.</strong> It retried one transfer in thirteen. The
+faster CamusDB configuration retried one in nine.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="row-locks-slowed-the-default-configuration">Row locks slowed the default configuration<a href="#row-locks-slowed-the-default-configuration" class="hash-link" aria-label="Direct link to Row locks slowed the default configuration" title="Direct link to Row locks slowed the default configuration" translate="no">​</a></h2>
+<p>Under Serializable, CamusDB took a shared lock on every row that a read-write
+transaction read. Many transactions can hold a shared lock on one row. To
+write the row, a transaction must upgrade to an exclusive lock, which only
+one transaction can hold. CamusDB took these locks with optimistic locking
+too. On this workload they had three costs.</p>
+<p><strong>A slower commit.</strong> A transaction on one partition can commit in one phase.
+A transaction that holds a row lock must use the two-phase commit, which adds
+a prepare round. 3,317,003 of 3,317,020 commits took the two-phase path, at
+26.0 ms on the server against 13.8 ms.</p>
+<p><strong>Upgrade conflicts.</strong> Two transfers that read the same row both hold a
+shared lock, and neither can upgrade while the other holds it. The younger
+one aborts. A retried transfer is always the youngest, so it tends to lose
+again. 6,203 transfers lost ten times in a row.</p>
+<!-- -->
+<p><strong>Polling.</strong> A transaction that waits for a lock sleeps 1, 2, 4, and up to
+50 ms, and asks again. One run recorded 3.0 million sleeps. A successful
+<code>UPDATE</code> averaged 11.6 ms, against 1.7 ms without the locks.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="commit-time-validation-already-covers-single-row-reads">Commit-time validation already covers single-row reads<a href="#commit-time-validation-already-covers-single-row-reads" class="hash-link" aria-label="Direct link to Commit-time validation already covers single-row reads" title="Direct link to Commit-time validation already covers single-row reads" translate="no">​</a></h2>
+<p>Kahuna, the key/value storage layer under CamusDB, records every read of an
+optimistic transaction with the row revision it saw, or the fact that the key
+was missing. At commit, it rejects the transaction if any of those reads is
+out of date. A key that is read and then written goes through the same check.</p>
+<p>A lock on the same key changes one thing: the conflict is reported earlier.</p>
+<p>A scan needs its lock. A row inserted into a scanned range is a new key, and
+a check of the keys the scan saw cannot find it. Scans keep their range
+locks.</p>
+<p>The setting <code>serializable_optimistic_point_locks: false</code> applies that split:
+single-row reads take no lock, and scans keep range locks.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="tests-of-the-new-setting">Tests of the new setting<a href="#tests-of-the-new-setting" class="hash-link" aria-label="Direct link to Tests of the new setting" title="Direct link to Tests of the new setting" translate="no">​</a></h2>
+<p><strong>Anomaly tests.</strong> Five interleavings in which a commit of both transactions
+breaks serializability:</p>
+<ul>
+<li class="">Write skew: two transactions read the same rows, and each writes a
+different row based on what it read.</li>
+<li class="">A lost update: two transactions read a row, and both write it.</li>
+<li class="">A decision on a row that another transaction then changed.</li>
+<li class="">A decision on a missing row that another transaction then inserted.</li>
+<li class="">A phantom: a row that another transaction inserts into a scanned table.</li>
+</ul>
+<p>At most one transaction commits in each, with the locks on and off.</p>
+<p><strong>Fault soak.</strong> A fault soak is a long run in which the test harness injects
+failures. This one ran 2 hours on durable storage with 14 faults: six leader
+kills (two of them for 2 and 4 minutes), pauses, and slow-disk windows.</p>
+<table><thead><tr><th></th><th>Serializable, new setting</th></tr></thead><tbody><tr><td>Verdict</td><td>Pass</td></tr><tr><td>Reconciliation</td><td>Exact: balances conserved, versions match</td></tr><tr><td>Operations per second</td><td>5,148</td></tr><tr><td>Retries per transfer</td><td>0.028</td></tr><tr><td>Leader failover after a kill</td><td>3 to 4 s</td></tr><tr><td>Nodes that died on their own</td><td>0</td></tr><tr><td>Peak memory per node</td><td>2.4 to 2.6 GiB of 4 GiB</td></tr><tr><td>Transfers that ran out of attempts</td><td>293 of 19 million</td></tr></tbody></table>
+<p>The 293 transfers come from the
+<a href="#reads-wait-for-an-uncommitted-write" class="">read wait</a> described below.</p>
+<p><strong>Full test suite.</strong> With the locks removed, five of six test projects pass
+unchanged. In the main project 13,879 tests pass and 15 fail, plus one that
+failed before this work. All 15 assert the old mechanism: nine check that a
+lock is held, and six check that a conflicting write is refused at the write
+statement.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="open-issues-that-keep-the-setting-off-by-default">Open issues that keep the setting off by default<a href="#open-issues-that-keep-the-setting-off-by-default" class="hash-link" aria-label="Direct link to Open issues that keep the setting off by default" title="Direct link to Open issues that keep the setting off by default" translate="no">​</a></h2>
+<ul>
+<li class=""><strong>A conflict is reported later.</strong> Without the locks, a reader no longer
+blocks a writer, and the reader is refused at its own commit. A long,
+read-heavy serializable transaction under write load is retried more often.</li>
+<li class=""><strong>Four kinds of read lack an outcome test.</strong> Rows read through a join, rows
+that an inverted-index read examined and dropped, <code>IN</code>-list reads, and
+large values are covered only by tests of the lock itself. Each needs a
+test that at most one transaction commits.</li>
+<li class=""><strong>Reconciliation proves less than serializability.</strong> It proves balances and
+versions for this workload.</li>
+<li class=""><strong>Memory.</strong> The peak near the container limit in the 10-minute run has no
+explanation yet.</li>
+<li class=""><strong>Transfers run out of attempts during a stall.</strong> See the read wait below.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="two-more-changes">Two more changes<a href="#two-more-changes" class="hash-link" aria-label="Direct link to Two more changes" title="Direct link to Two more changes" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="more-client-streams">More client streams<a href="#more-client-streams" class="hash-link" aria-label="Direct link to More client streams" title="Direct link to More client streams" translate="no">​</a></h3>
+<p>The CamusDB client sent all 64 logical connections over two network streams.
+A raise of the default to eight streams (client 0.18.1) cut read p50 from
+2.87 ms to 1.71 ms.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="reads-wait-for-an-uncommitted-write">Reads wait for an uncommitted write<a href="#reads-wait-for-an-uncommitted-write" class="hash-link" aria-label="Direct link to Reads wait for an uncommitted write" title="Direct link to Reads wait for an uncommitted write" translate="no">​</a></h3>
+<p>A writer that lost a race used to poll the winner&#x27;s uncommitted row. With
+Kahuna.Core 1.16.7, a read waits behind the uncommitted write and wakes when
+that write commits or aborts.</p>
+<!-- -->
+<p>The setting <code>optimistic_intent_wait_ms</code> (default 100) limits the wait.
+Measured at Read Committed, retries per transfer fell from 0.362 to 0.108.
+The 13,128 figure above includes this wait.</p>
+<p>The wait has one known cost. A retry now takes about 105 ms, so ten attempts
+are spent in about a second. When a server stalls for longer, the transfers
+queued behind the stalled writer give up: about 300 of 19 million in each
+fault soak, against 12 before. The remedy is not chosen. The candidates are a
+longer wait limit and a growing pause between attempts.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="read-committed-results">Read Committed results<a href="#read-committed-results" class="hash-link" aria-label="Direct link to Read Committed results" title="Direct link to Read Committed results" translate="no">​</a></h3>
+<p>Read Committed is a weaker isolation level that permits anomalies which
+Serializable forbids. On this workload, CamusDB at Read Committed with
+optimistic locking completes 12,870 operations per second. CockroachDB at
+Read Committed with <code>SELECT ... FOR UPDATE</code> completes 5,412. The two
+configurations do different things, so the Serializable results are the
+comparison.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="limits-of-the-comparison">Limits of the comparison<a href="#limits-of-the-comparison" class="hash-link" aria-label="Direct link to Limits of the comparison" title="Direct link to Limits of the comparison" translate="no">​</a></h2>
+<ul>
+<li class=""><strong>One host.</strong> Nodes and the load generator share 16 cores, which penalizes
+the system that uses more CPU. The 10-minute runs have no network latency
+and no durable disk.</li>
+<li class=""><strong>One workload, small data.</strong> 2,000 hot rows on one partition favor a
+single-leader layout. CockroachDB is built to spread ranges over many
+nodes, and this test gives it little to spread.</li>
+<li class=""><strong>Different clients.</strong> Npgsql with 256 connections, against a client that
+shares a few network streams.</li>
+<li class=""><strong>Defaults, lightly tuned.</strong> CockroachDB ran at defaults apart from the
+memory flags. An expert could likely tune both databases further.</li>
+<li class=""><strong>Single runs.</strong> Same-build noise on this workload is about 0.5% for
+CamusDB. The CockroachDB run was not repeated.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="next-steps">Next steps<a href="#next-steps" class="hash-link" aria-label="Direct link to Next steps" title="Direct link to Next steps" translate="no">​</a></h2>
+<ul>
+<li class="">Rewrite the six &quot;refused at the write&quot; tests as outcome tests that hold in
+both modes, and add the four missing cases.</li>
+<li class="">Decide whether readers that no longer block writers is acceptable as the
+default for Serializable with optimistic locking.</li>
+<li class="">Choose the remedy for transfers that run out of attempts during a stall.</li>
+<li class="">Explain the memory peak.</li>
+<li class="">Repeat the comparison on separate machines with durable disks.</li>
+</ul></div><footer class="docusaurus-mt-lg"><div class="row margin-top--sm theme-blog-footer-edit-meta-row"><div class="col"><b>Tags:</b><ul class="tags_jXut padding--none margin-left--sm"><li class="tag_QGVx"><a rel="tag" class="tag_zVej tagRegular_sFm0" href="/blog/tags/camusdb/">camusdb</a></li><li class="tag_QGVx"><a rel="tag" class="tag_zVej tagRegular_sFm0" href="/blog/tags/benchmarks/">benchmarks</a></li><li class="tag_QGVx"><a rel="tag" class="tag_zVej tagRegular_sFm0" href="/blog/tags/distributed-systems/">distributed-systems</a></li></ul></div></div><div class="row margin-top--sm theme-blog-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/blog/2026-11-12-camusdb-vs-cockroachdb-bank-benchmark/index.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="pagination-nav docusaurus-mt-lg" aria-label="Blog post page navigation"><a class="pagination-nav__link pagination-nav__link--next" href="/blog/how-much-we-test-camusdb/"><div class="pagination-nav__sublabel">Older post</div><div class="pagination-nav__label">How much we test CamusDB</div></a></nav></main><div class="col col--2"><div class="tableOfContents_bqdL thin-scrollbar"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#results-in-brief" class="table-of-contents__link toc-highlight">Results in brief</a></li><li><a href="#workload-and-setup" class="table-of-contents__link toc-highlight">Workload and setup</a></li><li><a href="#results" class="table-of-contents__link toc-highlight">Results</a></li><li><a href="#row-locks-slowed-the-default-configuration" class="table-of-contents__link toc-highlight">Row locks slowed the default configuration</a></li><li><a href="#commit-time-validation-already-covers-single-row-reads" class="table-of-contents__link toc-highlight">Commit-time validation already covers single-row reads</a></li><li><a href="#tests-of-the-new-setting" class="table-of-contents__link toc-highlight">Tests of the new setting</a></li><li><a href="#open-issues-that-keep-the-setting-off-by-default" class="table-of-contents__link toc-highlight">Open issues that keep the setting off by default</a></li><li><a href="#two-more-changes" class="table-of-contents__link toc-highlight">Two more changes</a><ul><li><a href="#more-client-streams" class="table-of-contents__link toc-highlight">More client streams</a></li><li><a href="#reads-wait-for-an-uncommitted-write" class="table-of-contents__link toc-highlight">Reads wait for an uncommitted write</a></li><li><a href="#read-committed-results" class="table-of-contents__link toc-highlight">Read Committed results</a></li></ul></li><li><a href="#limits-of-the-comparison" class="table-of-contents__link toc-highlight">Limits of the comparison</a></li><li><a href="#next-steps" class="table-of-contents__link toc-highlight">Next steps</a></li></ul></div></div></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/python-driver/">Python driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes Jepsen tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
+</body>
+</html>
