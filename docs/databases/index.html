@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.696298a7.css">
-<script src="/assets/js/runtime~main.1838716e.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.282b2a49.js" defer="defer"></script>
 <script src="/assets/js/main.5f309433.js" defer="defer"></script>
 </head>
 <body>
@@ -56,8 +56,7 @@ CamusDB never creates storage implicitly.</p>
 <li class=""><code>camus-cli app</code>.</li>
 <li class="">A <code>use app;</code> statement.</li>
 <li class="">A driver connection string.</li>
-<li class="">An HTTP request whose <code>databaseName</code> is <code>app</code>.</li>
-<li class="">A gRPC request whose <code>database</code> is <code>app</code>.</li>
+<li class="">A request to the <a class="" href="/docs/http-api/">HTTP API</a> or <a class="" href="/docs/grpc-api/">gRPC API</a> that names <code>app</code>.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="branch-a-database">Branch a database<a href="#branch-a-database" class="hash-link" aria-label="Direct link to Branch a database" title="Direct link to Branch a database" translate="no">​</a></h2>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">DATABASE</span><span class="token plain"> feature_checkout </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BRANCH</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> app</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>

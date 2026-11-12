@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.696298a7.css">
-<script src="/assets/js/runtime~main.1838716e.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.282b2a49.js" defer="defer"></script>
 <script src="/assets/js/main.5f309433.js" defer="defer"></script>
 </head>
 <body>
@@ -124,11 +124,9 @@ See <a class="" href="/docs/distributed-transactions/">Distributed transactions<
 driver. The .NET and TypeScript gRPC clients propagate causal tokens for you;
 application queries do not need to construct or copy token fields. Python
 currently does not track causal tokens; see its <a class="" href="/docs/python-driver/#current-limits">cluster limits</a>.</p>
-<details class="details_lb9f alert alert--info details_b_Ee" data-collapsed="true"><summary>Causal tokens for custom protocol clients</summary><div><div class="collapsibleContent_i85q"><p>A direct client forwards the last commit&#x27;s complete causal token to the next
-autocommit query or BEGIN. It sets a minimum snapshot timestamp; changing it
-after a transaction starts does not advance that transaction&#x27;s snapshot floor.
-See the <a class="" href="/docs/http-api/#explicit-transactions">HTTP</a> and
-<a class="" href="/docs/grpc-api/#causal-tokens">gRPC</a> protocol references.</p></div></div></details>
+<p>To pass causal tokens from your own client, see the
+<a class="" href="/docs/http-api/#explicit-transactions">HTTP</a> and
+<a class="" href="/docs/grpc-api/#causal-tokens">gRPC</a> references.</p>
 <p>Transaction timestamps order work logically; they do not guarantee ordering
 against wall-clock time. See
 <a class="" href="/docs/distributed-transactions/#how-hlc-timestamps-fit-in">Distributed transactions</a>

@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.696298a7.css">
-<script src="/assets/js/runtime~main.1838716e.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.282b2a49.js" defer="defer"></script>
 <script src="/assets/js/main.5f309433.js" defer="defer"></script>
 </head>
 <body>
@@ -91,6 +91,11 @@ write commits. Through <code>ExecuteNonQuery</code>, the reply carries <code>aff
 <code>returning_schema</code>, and <code>returning_rows</code>. Set <code>discard_returning_rows</code> on a
 no-rows call when the client only needs the count. See
 <a class="" href="/docs/sql-writes/#returning">RETURNING</a>.</p>
+<p><code>DdlReply</code> and <code>NonQueryReply</code> carry <code>affected_rows</code> and <code>warning</code>. A
+<code>CREATE TABLE ... AS SELECT</code> or <code>INSERT ... SELECT</code> time-travel copy that reads
+no rows sets <code>warning</code>. As proto3 requires, an absent warning is the empty
+string. See
+<a class="" href="/docs/insert-select-and-ctas/#row-counts-and-empty-copy-warnings">Copying query results</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="cancellation-and-backpressure">Cancellation and backpressure<a href="#cancellation-and-backpressure" class="hash-link" aria-label="Direct link to Cancellation and backpressure" title="Direct link to Cancellation and backpressure" translate="no">​</a></h2>
 <p>Cancelling a gRPC call, closing a stream, or letting the deadline expire
 propagates cancellation into the query pipeline. CamusDB stops scans, joins,
@@ -123,6 +128,8 @@ message, a typed <code>oneof</code> that follows the CamusDB column types:</p>
 <ul>
 <li class="">Send ObjectIds in <code>id_value</code>, not <code>string_value</code>.</li>
 <li class="">Send UUIDs as 16 bytes, not as strings.</li>
+<li class="">Send a vector as its packed float32 bytes in <code>bytes_value</code>. See
+<a class="" href="/docs/vector-search/#how-a-vector-is-stored">Vector search</a> for the layout.</li>
 <li class="">Send <code>DATE</code> and <code>DATETIME</code> as ticks, not ISO strings or Unix timestamps.</li>
 <li class="">Preserve <code>FLOAT32</code> and <code>FLOAT64</code> as separate wire fields.</li>
 <li class="">Include the array element type even when the array is empty.</li>
@@ -285,28 +292,41 @@ metrics to see the transport-level effect: <code>camus_batch_request_frames_tota
 counts request frames, and <code>camus_batch_request_frame_items</code> records the number
 of operations carried by each frame.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="prepared-statements">Prepared statements<a href="#prepared-statements" class="hash-link" aria-label="Direct link to Prepared statements" title="Direct link to Prepared statements" translate="no">​</a></h2>
-<p>Prepared statements are supported on <code>CamusSql.BatchExecute</code>.</p>
-<p>Send a <code>PREPARE</code> operation with the target database and the SQL text. The
-final message, a <code>PrepareReply</code>, returns:</p>
+<p>Prepared statements live only on the <code>CamusSql.BatchExecute</code> stream. Unary
+gRPC calls reject a prepared handle, because they have no stream to hold it.</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">PREPARE (database, sql)  -&gt; PrepareReply { statement_id, parameter_names[] }</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">QUERY | NON_QUERY (statement_id, positional_parameters[])</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">CLOSE (statement_id)     -&gt; CloseReply</span><br></div></code></pre></div></div>
+<p>The <code>PrepareReply</code> returns:</p>
 <ul>
-<li class=""><code>statement_id</code>: an integer handle scoped to that batch stream</li>
-<li class=""><code>parameter_names</code>: the positional binding order for placeholders</li>
+<li class=""><code>statement_id</code>: an <code>int32</code> handle scoped to that batch stream</li>
+<li class=""><code>parameter_names</code>: the distinct placeholder names in binding order, first
+occurrence first, each with its leading <code>@</code></li>
 </ul>
-<p>Then send a <code>QUERY</code> or <code>NON_QUERY</code> operation with the <code>statement_id</code> and
-<code>positional_parameters</code>. When you send a <code>statement_id</code>, don&#x27;t also send SQL
-text, a database name, or a named-parameter map.</p>
-<p>Send <code>CLOSE</code> to release a prepared statement id on the stream. A second <code>CLOSE</code>
-is harmless.</p>
-<p>A handle belongs to one stream. It disappears when the <code>BatchExecute</code> stream
-closes or the client rebuilds it.</p>
-<p>If an execution fails with <code>CADB0520</code> <code>UnknownPreparedStatement</code>, prepare the
+<p>The value at index i of <code>positional_parameters</code> binds to the name at index i.
+A name that appears more than once occupies one slot. The list includes
+placeholders inside subqueries. The number of values must equal the number of
+names. The names do not travel on the wire, so a client that binds by name maps
+its arguments to the ordinals locally.</p>
+<p>When you send a <code>statement_id</code>, don&#x27;t also send SQL text, a database name, or a
+named-parameter map. CamusDB refuses a request with both, rather than choosing
+one by a precedence rule.</p>
+<p>Wait for the <code>PrepareReply</code> before you send anything that references its id.
+<code>START</code> has the same contract. Operations on a stream run concurrently, so an
+execution sent before its registration is acknowledged can reach the server
+first.</p>
+<p>Send <code>CLOSE</code> to release an id. Repeating <code>CLOSE</code> is harmless, and closing an
+unknown id succeeds. You can skip the close, because the stream frees every
+handle when it ends, whether normally, by cancellation, or by a fault. However,
+a long stream that prepares many different statements must close what it no
+longer needs to stay under <code>grpc_max_prepared_statements_per_stream</code>.</p>
+<p>A handle belongs to one stream on one node. CamusDB never replicates it. It
+disappears when the <code>BatchExecute</code> stream closes or the client rebuilds it. If
+an execution fails with <code>CADB0520</code> <code>UnknownPreparedStatement</code>, prepare the
 statement again on the current stream and replay the operation once.</p>
-<p>Wait for the <code>PrepareReply</code> before you execute with its id. Otherwise, because
-batch requests can run concurrently, the execution can reach the server before
-the registration.</p>
-<p>Unary gRPC calls accept no prepared handle, because they have no stream scope.
-See <a class="" href="/docs/prepared-statements/">Prepared Statements</a> for supported statement
-types, binding rules, and configuration limits.</p>
+<p>A stream has a finite id space of 2^31 registrations. CamusDB tells a stream
+that uses them all to open a new stream, rather than handing out an id that
+would wrap to an unusable value, and eventually to one that collides.</p>
+<p>See <a class="" href="/docs/prepared-statements/">Prepared Statements</a> for the statements you can
+prepare and the configuration limits.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="errors-and-retries">Errors and retries<a href="#errors-and-retries" class="hash-link" aria-label="Direct link to Errors and retries" title="Direct link to Errors and retries" translate="no">​</a></h2>
 <p>Unary and server-streaming RPCs report domain errors as gRPC status errors,
 with the details in trailer metadata:</p>
@@ -318,6 +338,8 @@ helpers. Custom protocol clients base retries on <code>camus-error-code</code>:<
 <table><thead><tr><th>Code</th><th>Retry rule</th></tr></thead><tbody><tr><td><code>CADB0502</code> <code>TransactionConflict</code></td><td>Replay the whole transaction from a fresh <code>BEGIN</code>.</td></tr><tr><td><code>CADB0504</code> <code>TransactionMustRetry</code></td><td>Replay the whole transaction from a fresh <code>BEGIN</code>.</td></tr><tr><td><code>CADB0505</code> <code>TransactionLifetimeExceeded</code></td><td>Replay the whole transaction from a fresh <code>BEGIN</code>.</td></tr><tr><td><code>CADB0509</code> <code>TransactionFinalizeUnresolved</code></td><td>Retry the same <code>COMMIT</code> or <code>ROLLBACK</code> on the same transaction handle.</td></tr><tr><td><code>CADB0520</code> <code>UnknownPreparedStatement</code></td><td>Prepare again on the current node or stream, then replay the execution once.</td></tr></tbody></table>
 <p>Bad client input, including SQL syntax errors and <code>CADB0413</code>
 <code>StatementTooDeeplyNested</code>, maps to gRPC <code>INVALID_ARGUMENT</code>.</p>
+<p>Foreign-key violations map to <code>FAILED_PRECONDITION</code>. Invalid foreign-key
+definitions map to <code>INVALID_ARGUMENT</code>.</p>
 <p>For a streaming query, replay automatically only while the caller has seen no
 rows. After the first row reaches the caller, report the error instead of
 silently replaying the query.</p>

@@ -14,7 +14,8 @@
             <guid>https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/</guid>
             <pubDate>Thu, 12 Nov 2026 00:00:00 GMT</pubDate>
             <description><![CDATA[A contended bank workload with serializable transactions on three-node CamusDB and CockroachDB clusters, why the CamusDB default was slower, and the experimental setting that followed.]]></description>
-            <content:encoded><![CDATA[<p>This post compares serializable transactions on three-node CamusDB and
+            <content:encoded><![CDATA[<p><img decoding="async" loading="lazy" alt="A retro-futuristic city with connected database towers, a glowing pyramid, and a central bank" src="https://camusdb.github.io/assets/images/distributed-database-city-c3d8cf75762654aea434776afe2905fc.png" width="1672" height="941" class="img_ev3q"></p>
+<p>This post compares serializable transactions on three-node CamusDB and
 CockroachDB clusters, on one bank workload where transactions often collide.
 You will see where the CamusDB default configuration was slower, which row
 lock caused it, and what an experimental setting changes. If you are

@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.696298a7.css">
-<script src="/assets/js/runtime~main.1838716e.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.282b2a49.js" defer="defer"></script>
 <script src="/assets/js/main.5f309433.js" defer="defer"></script>
 </head>
 <body>
@@ -166,15 +166,10 @@ were already gone before then.</p>
 <p>Both statements report the number of rows CamusDB wrote, and both flag a time
 travel copy that read nothing. The warning reaches the client as well as the
 server log, so an empty recovery cannot look like a successful one.</p>
-<p>The endpoints are <code>POST /execute-sql-ddl</code> for CTAS and
-<code>POST /execute-sql-non-query</code> for <code>INSERT ... SELECT</code>:</p>
-<div class="language-jsonc codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-jsonc codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">// CREATE TABLE totals AS SELECT customer, total FROM orders</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">{ &quot;status&quot;: &quot;ok&quot;, &quot;rows&quot;: 2, &quot;warning&quot;: null }</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">// CREATE TABLE recovered AS SELECT customer FROM orders AS OF SYSTEM TIME &#x27;-1h&#x27;</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">{ &quot;status&quot;: &quot;ok&quot;, &quot;rows&quot;: 0,</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  &quot;warning&quot;: &quot;AS OF SYSTEM TIME copy into &#x27;recovered&#x27; inserted no rows. The source may have been</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">              empty at that snapshot; the history may be older than the configured revision retention</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">              and already reclaimed; or the rows were deleted after the snapshot …&quot; }</span><br></div></code></pre></div></div>
-<p><code>rows</code> is 0 for every DDL statement that writes no rows. <code>warning</code> is null
-unless there is something to report.</p>
-<p>Over gRPC, the same values arrive in <code>DdlReply.affected_rows</code> and
-<code>DdlReply.warning</code>, and in <code>NonQueryReply.affected_rows</code> and
-<code>NonQueryReply.warning</code>. As proto3 requires, an absent warning is the empty
-string.</p>
+<p>The warning text looks like this:</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">AS OF SYSTEM TIME copy into &#x27;recovered&#x27; inserted no rows. The source may have</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">been empty at that snapshot; the history may be older than the configured</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">revision retention and already reclaimed; or the rows were deleted after the</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">snapshot …</span><br></div></code></pre></div></div>
+<p>For the response fields, see the <a class="" href="/docs/http-api/#post-execute-sql-ddl">HTTP API</a>
+and <a class="" href="/docs/grpc-api/#sql-service">gRPC API</a> references.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="privileges">Privileges<a href="#privileges" class="hash-link" aria-label="Direct link to Privileges" title="Direct link to Privileges" translate="no">​</a></h2>
 <p><code>INSERT ... SELECT</code> needs <code>Insert</code> on the target and <code>Select</code> on every source,
 including tables the query reaches only through a join or subquery.</p>
