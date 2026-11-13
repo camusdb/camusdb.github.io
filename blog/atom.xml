@@ -12,12 +12,12 @@
         <id>https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/</id>
         <link href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/"/>
         <updated>2026-11-12T00:00:00.000Z</updated>
-        <summary type="html"><![CDATA[A contended bank workload with serializable transactions on three-node CamusDB and CockroachDB clusters, why the CamusDB default was slower, and the experimental setting that followed.]]></summary>
+        <summary type="html"><![CDATA[A contended bank workload with serializable transactions on three-node CamusDB and CockroachDB clusters, why the old CamusDB default was slower, and the three changes that replaced its row lock.]]></summary>
         <content type="html"><![CDATA[<p><img decoding="async" loading="lazy" alt="A retro-futuristic city with connected database towers, a glowing pyramid, and a central bank" src="https://camusdb.github.io/assets/images/distributed-database-city-c3d8cf75762654aea434776afe2905fc.png" width="1672" height="941" class="img_ev3q"></p>
 <p>This post compares serializable transactions on three-node CamusDB and
 CockroachDB clusters, on one bank workload where transactions often collide.
-You will see where the CamusDB default configuration was slower, which row
-lock caused it, and what an experimental setting changes. If you are
+You will see where the old CamusDB default was slower, which row lock
+caused it, and the three changes that replaced the lock. If you are
 evaluating CamusDB for transactional workloads, the tables and the open
 issues show what to expect today.</p>
 <p>In a distributed database, writes and strongly consistent reads require
@@ -48,20 +48,25 @@ Serializable isolation level. Serializable is the strictest level: the result
 is the same as if the transactions ran one at a time.</p>
 <ul>
 <li class="">CockroachDB v26.3.5 completed <strong>7,389 operations per second</strong>.</li>
-<li class="">CamusDB at its default settings completed <strong>6,857</strong>, and gave up on 0.3% of
-transfers.</li>
-<li class="">CamusDB with a new experimental setting completed <strong>13,128</strong>, with no
+<li class="">CamusDB with its single-row read locks, the default when the comparison
+began, completed <strong>6,857</strong>, and gave up on 0.3% of transfers.</li>
+<li class="">CamusDB without those locks, the default now, completed <strong>12,618</strong>, with no
 failed transfer.</li>
 </ul>
-<p>At defaults, CamusDB locked every row it read, although its storage layer
-already validates those reads at commit. The new setting removes the lock for
-single-row reads. It is off by default because of the
-<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#open-issues-that-keep-the-setting-off-by-default" class="">open issues</a> below.</p>
+<p>CamusDB locked every row it read, although its storage layer already
+validates those reads at commit. It took three changes to replace the lock.
+The lock-free form is now the CamusDB default, and a setting restores the
+locks. The default changed on the day of the last measurement, and it is not
+in a release yet. The
+<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#changes-for-applications-and-open-issues" class="">changes for applications and the open issues</a>
+are below.</p>
+<p>Before it became the default, the lock-free form passed three full runs of
+our nightly consistency checks and three 2-hour fault soaks.</p>
 <p>Read CockroachDB's numbers with care. Running three nodes on the same machine
 is probably far from ideal. Its settings might not be properly tuned for
 maximum performance (probably ignorance on my end), or its defaults might be
-optimized for different types of workloads. This post focuses on the CamusDB
-default and the new setting.</p>
+optimized for different types of workloads. This post focuses on CamusDB with
+the row locks and on the lock-free form.</p>
 <p>This is one workload on one host. The <a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#limits-of-the-comparison" class="">limits</a>
 are listed below.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="workload-and-setup">Workload and setup<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#workload-and-setup" class="hash-link" aria-label="Direct link to Workload and setup" title="Direct link to Workload and setup" translate="no">​</a></h2>
@@ -81,7 +86,7 @@ keeps a full copy of the table (replication factor 3), and one node, the
 leader, orders the writes. Each node's container is limited to 8,192 MiB,
 with data on a 6,144 MiB memory-backed file system (tmpfs). Each run has a
 6-minute warm-up and a 10-minute measured window.</p>
-<table><thead><tr><th></th><th>CamusDB</th><th>CockroachDB</th></tr></thead><tbody><tr><td>Version</td><td>Development build on Kahuna.Core 1.16.7, .NET 10</td><td>v26.3.5</td></tr><tr><td>Isolation</td><td>Serializable, optimistic locking</td><td>Serializable (default)</td></tr><tr><td>Layout</td><td>1 partition, one leader</td><td>16 ranges after load splitting, leases spread over 3 nodes</td></tr><tr><td>Client</td><td>CamusDB .NET client 0.18.1, 256 workers over 64 logical connections</td><td>Npgsql 9.0.4, 256 connections</td></tr><tr><td>Memory settings</td><td>Defaults for the limit</td><td><code>--cache=.25 --max-sql-memory=.25</code></td></tr></tbody></table>
+<table><thead><tr><th></th><th>CamusDB</th><th>CockroachDB</th></tr></thead><tbody><tr><td>Version</td><td>Development build on Kahuna.Core 1.16.7 to 1.16.9, .NET 10</td><td>v26.3.5</td></tr><tr><td>Isolation</td><td>Serializable, optimistic locking</td><td>Serializable (default)</td></tr><tr><td>Layout</td><td>1 partition, one leader</td><td>16 ranges after load splitting, leases spread over 3 nodes</td></tr><tr><td>Client</td><td>CamusDB .NET client 0.18.1, 256 workers over 64 logical connections</td><td>Npgsql 9.0.4, 256 connections</td></tr><tr><td>Memory settings</td><td>Defaults for the limit</td><td><code>--cache=.25 --max-sql-memory=.25</code></td></tr></tbody></table>
 <p>Some terms in the table:</p>
 <ul>
 <li class=""><strong>Optimistic locking:</strong> a transaction works without waiting for other
@@ -92,20 +97,20 @@ calls it a partition and CockroachDB calls it a range.</li>
 and different nodes can lead them.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="results">Results<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#results" class="hash-link" aria-label="Direct link to Results" title="Direct link to Results" translate="no">​</a></h2>
-<table><thead><tr><th></th><th>CamusDB, default</th><th>CamusDB, new setting</th><th>CockroachDB</th></tr></thead><tbody><tr><td>Operations per second</td><td>6,857</td><td>13,128</td><td>7,389</td></tr><tr><td>Retries per transfer</td><td>0.412</td><td>0.109</td><td>0.079</td></tr><tr><td>Transfers that gave up after 10 attempts</td><td>6,203 (0.3%)</td><td>0</td><td>0</td></tr><tr><td>Read p50 / p95 / p99 (ms)</td><td>0.75 / 5.3 / 14.0</td><td>1.7 / 7.4 / 18.1</td><td>7.2 / 38.2 / 62.2</td></tr><tr><td>Transfer p50 / p95 / p99 (ms)</td><td>58.1 / 136.2 / 241.9</td><td>30.9 / 62.9 / 93.5</td><td>49.0 / 135.0 / 216.7</td></tr><tr><td>Cluster CPU per operation (ms)</td><td>1.38</td><td>0.85</td><td>1.98</td></tr><tr><td>Peak memory per node (GiB)</td><td>4.5 to 4.7</td><td>7.1 to 7.3</td><td>3.4 to 3.8</td></tr><tr><td>Reconciliation</td><td>Pass</td><td>Pass</td><td>Pass</td></tr></tbody></table>
+<table><thead><tr><th></th><th>CamusDB, with read locks (the old default)</th><th>CamusDB, without them (the new default)</th><th>CockroachDB</th></tr></thead><tbody><tr><td>Operations per second</td><td>6,857</td><td>12,618</td><td>7,389</td></tr><tr><td>Retries per transfer</td><td>0.412</td><td>0.110</td><td>0.079</td></tr><tr><td>Transfers that gave up after 10 attempts</td><td>6,203 (0.3%)</td><td>0</td><td>0</td></tr><tr><td>Read p50 / p95 / p99 (ms)</td><td>0.75 / 5.3 / 14.0</td><td>1.7 / 7.4 / 18.4</td><td>7.2 / 38.2 / 62.2</td></tr><tr><td>Transfer p50 / p95 / p99 (ms)</td><td>58.1 / 136.2 / 241.9</td><td>32.1 / 65.5 / 97.3</td><td>49.0 / 135.0 / 216.7</td></tr><tr><td>Cluster CPU per operation (ms)</td><td>1.38</td><td>0.87</td><td>1.98</td></tr><tr><td>Peak memory per node (GiB)</td><td>4.5 to 4.7</td><td>6.9</td><td>3.4 to 3.8</td></tr><tr><td>Reconciliation</td><td>Pass</td><td>Pass</td><td>Pass</td></tr></tbody></table>
 <p>p50, p95, and p99 are the latencies that 50%, 95%, and 99% of operations
 stayed under.</p>
-<p>A second run of the CamusDB default gave 6,828 operations per second.
+<p>A second run of CamusDB with the locks gave 6,828 operations per second.
 CockroachDB with load splitting disabled reached 8,132.</p>
 <ul>
 <li class=""><strong>CockroachDB was CPU-bound on this host.</strong> Its nodes used 14.6 of the 16
 cores, and the load generator used the same machine.</li>
-<li class=""><strong>CamusDB uses more memory.</strong> With the new setting, its nodes peak near
-twice CockroachDB's figure, within about 0.7 GiB of the container limit.</li>
+<li class=""><strong>CamusDB uses more memory.</strong> In the faster configuration, its nodes peak
+near twice CockroachDB's figure.</li>
 <li class=""><strong>CockroachDB retries less.</strong> It retried one transfer in thirteen. The
 faster CamusDB configuration retried one in nine.</li>
 </ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="row-locks-slowed-the-default-configuration">Row locks slowed the default configuration<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#row-locks-slowed-the-default-configuration" class="hash-link" aria-label="Direct link to Row locks slowed the default configuration" title="Direct link to Row locks slowed the default configuration" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="row-locks-slowed-the-old-default">Row locks slowed the old default<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#row-locks-slowed-the-old-default" class="hash-link" aria-label="Direct link to Row locks slowed the old default" title="Direct link to Row locks slowed the old default" translate="no">​</a></h2>
 <p>Under Serializable, CamusDB took a shared lock on every row that a read-write
 transaction read. Many transactions can hold a shared lock on one row. To
 write the row, a transaction must upgrade to an exclusive lock, which only
@@ -121,22 +126,73 @@ one aborts. A retried transfer is always the youngest, so it tends to lose
 again. 6,203 transfers lost ten times in a row.</p>
 <!-- -->
 <p><strong>Polling.</strong> A transaction that waits for a lock sleeps 1, 2, 4, and up to
-50 ms, and asks again. One run recorded 3.0 million sleeps. A successful
-<code>UPDATE</code> averaged 11.6 ms, against 1.7 ms without the locks.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="commit-time-validation-already-covers-single-row-reads">Commit-time validation already covers single-row reads<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#commit-time-validation-already-covers-single-row-reads" class="hash-link" aria-label="Direct link to Commit-time validation already covers single-row reads" title="Direct link to Commit-time validation already covers single-row reads" translate="no">​</a></h2>
+50 ms, and asks again. One run recorded 3.0 million sleeps.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="three-changes-that-replaced-the-lock">Three changes that replaced the lock<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#three-changes-that-replaced-the-lock" class="hash-link" aria-label="Direct link to Three changes that replaced the lock" title="Direct link to Three changes that replaced the lock" translate="no">​</a></h2>
 <p>Kahuna, the key/value storage layer under CamusDB, records every read of an
 optimistic transaction with the row revision it saw, or the fact that the key
 was missing. At commit, it rejects the transaction if any of those reads is
 out of date. A key that is read and then written goes through the same check.</p>
-<p>A lock on the same key changes one thing: the conflict is reported earlier.</p>
-<p>A scan needs its lock. A row inserted into a scanned range is a new key, and
-a check of the keys the scan saw cannot find it. Scans keep their range
-locks.</p>
-<p>The setting <code>serializable_optimistic_point_locks: false</code> applies that split:
-single-row reads take no lock, and scans keep range locks.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="tests-of-the-new-setting">Tests of the new setting<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#tests-of-the-new-setting" class="hash-link" aria-label="Direct link to Tests of the new setting" title="Direct link to Tests of the new setting" translate="no">​</a></h2>
-<p><strong>Anomaly tests.</strong> Five interleavings in which a commit of both transactions
-breaks serializability:</p>
+<p>So the lock on a single row adds nothing to what gets committed. But the lock
+also did two other jobs, and each one needed its own replacement.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="1-reads-are-validated-at-commit">1. Reads are validated at commit<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#1-reads-are-validated-at-commit" class="hash-link" aria-label="Direct link to 1. Reads are validated at commit" title="Direct link to 1. Reads are validated at commit" translate="no">​</a></h3>
+<p>A read of a single row takes no lock. The setting
+<code>serializable_optimistic_point_locks: true</code> restores the lock.</p>
+<p>Scans keep their range locks. A row inserted into a scanned range is a new
+key, and a check of the keys the scan saw cannot find it.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="2-a-read-floor-keeps-the-rows-of-one-transaction-consistent">2. A read floor keeps the rows of one transaction consistent<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#2-a-read-floor-keeps-the-rows-of-one-transaction-consistent" class="hash-link" aria-label="Direct link to 2. A read floor keeps the rows of one transaction consistent" title="Direct link to 2. A read floor keeps the rows of one transaction consistent" translate="no">​</a></h3>
+<p>Without the lock, a transaction could read two rows from two different
+moments. For example, two accounts hold 100 each:</p>
+<!-- -->
+<p>The database refused the reader's commit, but the application had the two
+values first.</p>
+<p>Each transaction now has a floor: a moment at which every row it read still
+held the value it read. A read of a new row has two paths:</p>
+<ul>
+<li class="">If the row is unchanged since the floor, the read is served at once. On the
+bank workload, 82% of second-row reads take this path.</li>
+<li class="">If the row changed, the database checks the earlier rows again. It refuses
+the read if one of them changed.</li>
+</ul>
+<p>The floor costs about 3% of throughput.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="3-a-younger-writer-gives-way-to-an-older-reader">3. A younger writer gives way to an older reader<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#3-a-younger-writer-gives-way-to-an-older-reader" class="hash-link" aria-label="Direct link to 3. A younger writer gives way to an older reader" title="Direct link to 3. A younger writer gives way to an older reader" translate="no">​</a></h3>
+<p>With locks, the younger of two conflicting transactions is refused at its
+first statement, and the older one proceeds.</p>
+<p>Without locks, a younger transaction could stage its write. The older
+transaction that had read the row was then refused at commit, after it did
+all its work. On workloads with a few very hot keys, that cost a third to a
+half of the committed transactions.</p>
+<p>A write or a delete now gives way at once to an older transaction that read
+the row and is still running. That restores the order the lock gave.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="results-on-workloads-with-hot-keys">Results on workloads with hot keys<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#results-on-workloads-with-hot-keys" class="hash-link" aria-label="Direct link to Results on workloads with hot keys" title="Direct link to Results on workloads with hot keys" translate="no">​</a></h2>
+<p>The bank workload picks rows uniformly. To test a few constantly contended
+keys, we used the workloads of Elle. Elle is the checker of the Jepsen
+project: it reads a history of operations and searches for consistency
+anomalies. Its workloads pick keys from a skewed distribution.</p>
+<ul>
+<li class=""><strong>List-append:</strong> transactions append to lists and read them.</li>
+<li class=""><strong>Read-write register:</strong> transactions read and write single values.</li>
+<li class=""><strong>Predicate reads:</strong> transactions read rows that match a condition.</li>
+<li class=""><strong>Explicit, pipelined, and autocommit:</strong> three ways in which a client sends
+a transaction.</li>
+</ul>
+<p>The table shows committed transactions in 60 seconds at Serializable with
+optimistic locking, on the same host, in back-to-back runs.</p>
+<table><thead><tr><th>Workload</th><th style="text-align:right">Locks on</th><th style="text-align:right">Without the locks, before change 3</th><th style="text-align:right">Without the locks, all three changes</th></tr></thead><tbody><tr><td>List-append, explicit, 1 node</td><td style="text-align:right">56,060</td><td style="text-align:right">36,794</td><td style="text-align:right">66,620</td></tr><tr><td>List-append, pipelined, 1 node</td><td style="text-align:right">56,492</td><td style="text-align:right">Not measured</td><td style="text-align:right">64,283</td></tr><tr><td>List-append, autocommit, 1 node</td><td style="text-align:right">140,826</td><td style="text-align:right">Not measured</td><td style="text-align:right">189,796</td></tr><tr><td>Read-write register, explicit, 1 node</td><td style="text-align:right">35,831</td><td style="text-align:right">Not measured</td><td style="text-align:right">35,122</td></tr><tr><td>Read-write register, pipelined, 1 node</td><td style="text-align:right">36,296</td><td style="text-align:right">Not measured</td><td style="text-align:right">35,853</td></tr><tr><td>Read-write register, autocommit, 1 node</td><td style="text-align:right">83,428</td><td style="text-align:right">Not measured</td><td style="text-align:right">81,820</td></tr><tr><td>List-append, explicit, 3 nodes</td><td style="text-align:right">41,358</td><td style="text-align:right">Not measured</td><td style="text-align:right">46,765</td></tr><tr><td>Read-write register, explicit, 3 nodes</td><td style="text-align:right">27,626</td><td style="text-align:right">Not measured</td><td style="text-align:right">25,988</td></tr><tr><td>Predicate reads, explicit, 1 node</td><td style="text-align:right">13,606</td><td style="text-align:right">Not measured</td><td style="text-align:right">14,529</td></tr><tr><td>Predicate reads, pipelined, 1 node</td><td style="text-align:right">13,491</td><td style="text-align:right">Not measured</td><td style="text-align:right">13,665</td></tr><tr><td>Predicate reads, autocommit, 1 node</td><td style="text-align:right">135,497</td><td style="text-align:right">Not measured</td><td style="text-align:right">135,042</td></tr><tr><td>Predicate reads, explicit, 3 nodes</td><td style="text-align:right">10,962</td><td style="text-align:right">Not measured</td><td style="text-align:right">10,675</td></tr></tbody></table>
+<p>With all three changes, the lock-free form is 13% to 35% ahead of the locks
+on list-append. It is level on read-write register and on predicate reads.
+The read-write register cell on three nodes is 6% behind, and one run of each
+cannot separate that from noise.</p>
+<p>Elle judged every history in this table serializable.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="tests-of-the-lock-free-form">Tests of the lock-free form<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#tests-of-the-lock-free-form" class="hash-link" aria-label="Direct link to Tests of the lock-free form" title="Direct link to Tests of the lock-free form" translate="no">​</a></h2>
+<p><strong>Elle.</strong> The nightly matrix runs list-append, read-write register, and
+predicate-read histories on one node and on three, at every isolation level,
+locking mode, and wire mode. A cell fails on any anomaly that its isolation
+level forbids. With the lock-free form as the default, the matrix passed in
+full three times: with the first two changes, then with all three, then with
+deletes included. A second nightly job of 18 fault and placement scenarios
+also passed all three times.</p>
+<p><strong>Anomaly tests.</strong> Ten interleavings in which a commit of both transactions
+breaks serializability, each run with the locks on and off:</p>
 <ul>
 <li class="">Write skew: two transactions read the same rows, and each writes a
 different row based on what it read.</li>
@@ -144,33 +200,44 @@ different row based on what it read.</li>
 <li class="">A decision on a row that another transaction then changed.</li>
 <li class="">A decision on a missing row that another transaction then inserted.</li>
 <li class="">A phantom: a row that another transaction inserts into a scanned table.</li>
+<li class="">A row read through a join.</li>
+<li class="">Rows read by an <code>IN</code> list.</li>
+<li class="">Rows that an inverted-index read examined and dropped.</li>
+<li class="">A large value.</li>
+<li class="">A row that one transaction read and a younger transaction deleted.</li>
 </ul>
-<p>At most one transaction commits in each, with the locks on and off.</p>
-<p><strong>Fault soak.</strong> A fault soak is a long run in which the test harness injects
-failures. This one ran 2 hours on durable storage with 14 faults: six leader
-kills (two of them for 2 and 4 minutes), pauses, and slow-disk windows.</p>
-<table><thead><tr><th></th><th>Serializable, new setting</th></tr></thead><tbody><tr><td>Verdict</td><td>Pass</td></tr><tr><td>Reconciliation</td><td>Exact: balances conserved, versions match</td></tr><tr><td>Operations per second</td><td>5,148</td></tr><tr><td>Retries per transfer</td><td>0.028</td></tr><tr><td>Leader failover after a kill</td><td>3 to 4 s</td></tr><tr><td>Nodes that died on their own</td><td>0</td></tr><tr><td>Peak memory per node</td><td>2.4 to 2.6 GiB of 4 GiB</td></tr><tr><td>Transfers that ran out of attempts</td><td>293 of 19 million</td></tr></tbody></table>
-<p>The 293 transfers come from the
-<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#reads-wait-for-an-uncommitted-write" class="">read wait</a> described below.</p>
-<p><strong>Full test suite.</strong> With the locks removed, five of six test projects pass
-unchanged. In the main project 13,879 tests pass and 15 fail, plus one that
-failed before this work. All 15 assert the old mechanism: nine check that a
-lock is held, and six check that a conflicting write is refused at the write
-statement.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="open-issues-that-keep-the-setting-off-by-default">Open issues that keep the setting off by default<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#open-issues-that-keep-the-setting-off-by-default" class="hash-link" aria-label="Direct link to Open issues that keep the setting off by default" title="Direct link to Open issues that keep the setting off by default" translate="no">​</a></h2>
+<p>At most one transaction commits in each. One more test checks that a reader
+never receives the 100-and-150 mix.</p>
+<p><strong>Fault soaks.</strong> A fault soak is a long run in which the test harness injects
+failures. Three soaks ran 2 hours each on durable storage with 14 faults: six
+leader kills (two of them for 2 and 4 minutes), pauses, and slow-disk
+windows. One soak ran after each change.</p>
+<table><thead><tr><th></th><th>Change 1 only</th><th>Changes 1 and 2</th><th>All three changes</th></tr></thead><tbody><tr><td>Verdict</td><td>Pass</td><td>Pass</td><td>Pass</td></tr><tr><td>Reconciliation</td><td>Exact</td><td>Exact</td><td>Exact</td></tr><tr><td>Operations per second</td><td>5,148</td><td>5,041</td><td>4,925</td></tr><tr><td>Leader failover after a kill</td><td>3 to 4 s</td><td>2 to 4 s</td><td>1 to 3 s</td></tr><tr><td>Nodes that died on their own</td><td>0</td><td>0</td><td>0</td></tr><tr><td>Peak memory per node</td><td>2.4 to 2.6 GiB of 4 GiB</td><td>2.4 to 2.6 GiB of 4 GiB</td><td>2.4 to 2.6 GiB of 4 GiB</td></tr><tr><td>Transfers that ran out of attempts</td><td>293 of 19 million</td><td>399 of 18 million</td><td>416 of 18 million</td></tr></tbody></table>
+<p>The three soaks ran on different days on a drive whose speed varies, so the
+throughput figures are not a trend. The transfers that ran out of attempts
+come from the <a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#reads-wait-for-an-uncommitted-write" class="">read wait</a> described
+below.</p>
+<p><strong>The full test suite.</strong> We ran it with the new default before the commit. It
+found one defect: the lock-free form also changed Read Committed
+transactions, and refused younger writers that the old form accepted. The
+lock-free form now applies to Serializable transactions only.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="changes-for-applications-and-open-issues">Changes for applications and open issues<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#changes-for-applications-and-open-issues" class="hash-link" aria-label="Direct link to Changes for applications and open issues" title="Direct link to Changes for applications and open issues" translate="no">​</a></h2>
 <ul>
-<li class=""><strong>A conflict is reported later.</strong> Without the locks, a reader no longer
-blocks a writer, and the reader is refused at its own commit. A long,
-read-heavy serializable transaction under write load is retried more often.</li>
-<li class=""><strong>Four kinds of read lack an outcome test.</strong> Rows read through a join, rows
-that an inverted-index read examined and dropped, <code>IN</code>-list reads, and
-large values are covered only by tests of the lock itself. Each needs a
-test that at most one transaction commits.</li>
+<li class=""><strong>A conflict is reported at a different moment.</strong> A reader no longer blocks
+a writer. A conflict that the lock refused at the writer's statement can
+now be refused at the reader's next read, or at the reader's commit. After
+each refusal, the application can retry the transaction from the start.</li>
+<li class=""><strong>Readers on another node.</strong> A write gives way only to an older reader
+whose session runs on the node that leads the row. We tried to count
+readers on other nodes, and it showed no gain on three nodes.</li>
+<li class=""><strong>Transfers run out of attempts during a stall.</strong> See the read wait below.
+33 of the 399 in the second soak were a read that kept answering "retry".
+The third soak had none, so they look tied to the moments of that run's
+faults. They are not traced.</li>
 <li class=""><strong>Reconciliation proves less than serializability.</strong> It proves balances and
-versions for this workload.</li>
-<li class=""><strong>Memory.</strong> The peak near the container limit in the 10-minute run has no
-explanation yet.</li>
-<li class=""><strong>Transfers run out of attempts during a stall.</strong> See the read wait below.</li>
+versions for the bank workload. Elle is the serializability evidence.</li>
+<li class=""><strong>Memory.</strong> The lock-free runs peak at 6.9 GiB of an 8 GiB limit in ten
+minutes.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="client-streams-read-waits-and-read-committed">Client streams, read waits, and Read Committed<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#client-streams-read-waits-and-read-committed" class="hash-link" aria-label="Direct link to Client streams, read waits, and Read Committed" title="Direct link to Client streams, read waits, and Read Committed" translate="no">​</a></h2>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="more-client-streams">More client streams<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#more-client-streams" class="hash-link" aria-label="Direct link to More client streams" title="Direct link to More client streams" translate="no">​</a></h3>
@@ -183,22 +250,29 @@ Kahuna.Core 1.16.7, a read waits behind the uncommitted write and wakes when
 that write commits or aborts.</p>
 <!-- -->
 <p>The setting <code>optimistic_intent_wait_ms</code> (default 100) limits the wait.
-Measured at Read Committed, retries per transfer fell from 0.362 to 0.108.
-The 13,128 figure above includes this wait.</p>
+Measured at Read Committed, retries per transfer fell from 0.362 to 0.108.</p>
 <p>The wait has one known cost. A retry now takes about 105 ms, so ten attempts
 are spent in about a second. When a server stalls for longer, the transfers
 queued behind the stalled writer give up: about 300 of 19 million in each
-fault soak, against 12 before. The remedy is not chosen. The candidates are a
-longer wait limit and a growing pause between attempts.</p>
+fault soak, against 12 before. The remedy is not chosen.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="two-changes-that-did-not-help">Two changes that did not help<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#two-changes-that-did-not-help" class="hash-link" aria-label="Direct link to Two changes that did not help" title="Direct link to Two changes that did not help" translate="no">​</a></h3>
+<ul>
+<li class="">A pause of the client after its write gave way removed wasted attempts, but
+committed 4% to 21% fewer transactions. A refused attempt is cheap, and an
+immediate retry gets in sooner.</li>
+<li class="">A count of readers on other nodes changed nothing measurable.</li>
+</ul>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="read-committed-results">Read Committed results<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#read-committed-results" class="hash-link" aria-label="Direct link to Read Committed results" title="Direct link to Read Committed results" translate="no">​</a></h3>
 <p>Read Committed is a weaker isolation level that permits anomalies which
-Serializable forbids. On this workload, CamusDB at Read Committed with
+Serializable forbids. On the bank workload, CamusDB at Read Committed with
 optimistic locking completes 12,870 operations per second. CockroachDB at
 Read Committed with <code>SELECT ... FOR UPDATE</code> completes 5,412. The two
 configurations do different things, so the Serializable results are the
 comparison.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="limits-of-the-comparison">Limits of the comparison<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#limits-of-the-comparison" class="hash-link" aria-label="Direct link to Limits of the comparison" title="Direct link to Limits of the comparison" translate="no">​</a></h2>
 <ul>
+<li class=""><strong>The default is new.</strong> The lock-free form became the default on the day
+of the last measurement. It is not in a release yet.</li>
 <li class=""><strong>One host.</strong> Nodes and the load generator share 16 cores, which penalizes
 the system that uses more CPU. The 10-minute runs have no network latency
 and no durable disk.</li>
@@ -209,17 +283,13 @@ nodes, and this test gives it little to spread.</li>
 shares a few network streams.</li>
 <li class=""><strong>Defaults, lightly tuned.</strong> CockroachDB ran at defaults apart from the
 memory flags. An expert could likely tune both databases further.</li>
-<li class=""><strong>Single runs.</strong> Same-build noise on this workload is about 0.5% for
-CamusDB. The CockroachDB run was not repeated.</li>
+<li class=""><strong>Single runs.</strong> Same-build noise on the bank workload is about 0.5% for
+CamusDB. The CockroachDB run was not repeated. The 60-second Elle cells
+vary by a few percent between runs.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="planned-work-on-the-setting-and-the-comparison">Planned work on the setting and the comparison<a href="https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/#planned-work-on-the-setting-and-the-comparison" class="hash-link" aria-label="Direct link to Planned work on the setting and the comparison" title="Direct link to Planned work on the setting and the comparison" translate="no">​</a></h2>
 <ul>
-<li class="">Rewrite the six "refused at the write" tests as outcome tests that hold in
-both modes, and add the four missing cases.</li>
-<li class="">Decide whether readers that no longer block writers is acceptable as the
-default for Serializable with optimistic locking.</li>
 <li class="">Choose the remedy for transfers that run out of attempts during a stall.</li>
-<li class="">Explain the memory peak.</li>
 <li class="">Repeat the comparison on separate machines with durable disks.</li>
 </ul>]]></content>
         <author>
