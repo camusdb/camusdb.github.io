@@ -2,11 +2,146 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://camusdb.github.io/blog/</id>
     <title>CamusDB Blog</title>
-    <updated>2026-11-12T00:00:00.000Z</updated>
+    <updated>2026-11-14T00:00:00.000Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://camusdb.github.io/blog/"/>
     <subtitle>CamusDB Blog</subtitle>
     <icon>https://camusdb.github.io/img/favicon.ico</icon>
+    <entry>
+        <title type="html"><![CDATA[CamusDB in production at Bacon Games: a first-party report]]></title>
+        <id>https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/</id>
+        <link href="https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/"/>
+        <updated>2026-11-14T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[What Bacon Games runs on CamusDB since 2025, how teams use database branches, what failed, and what this report does not prove.]]></summary>
+        <content type="html"><![CDATA[<p>This post describes the CamusDB deployment at <a href="https://bacongames.co/" target="_blank" rel="noopener noreferrer" class="">Bacon Games</a>: the workload, the
+cluster, how teams use database branches, the defects that our backend found
+in CamusDB, and the data that stays on other systems. If you are evaluating
+CamusDB, it shows you one real production system and its limits.</p>
+<p>I wrote CamusDB, and I am the CTO of Bacon Games. This is a report from the
+team that builds the database, about its own production use. It is evidence
+that CamusDB runs a real workload. It is no endorsement from an independent
+customer, and no independent production user is public yet.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-runs-on-camusdb">What runs on CamusDB<a href="https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/#what-runs-on-camusdb" class="hash-link" aria-label="Direct link to What runs on CamusDB" title="Direct link to What runs on CamusDB" translate="no">​</a></h2>
+<p>Bacon Games has used CamusDB since 2025. It is the backend
+database for many games. All games use one backend platform, and each system
+of that platform stores its data in CamusDB:</p>
+<table><thead><tr><th>Kind of data</th><th>Systems</th></tr></thead><tbody><tr><td>Player value</td><td>Wallets and currencies, inventories and item upgrades, rewards, code redemption</td></tr><tr><td>Purchases</td><td>The store, in-app purchase receipts, checkout orders, the transaction log</td></tr><tr><td>Players</td><td>Users, identity, devices, sessions, consent records, player statistics</td></tr><tr><td>Social</td><td>Social features, presence, leaderboards</td></tr><tr><td>Live operations</td><td>Game configs, parameters, game events, feature flags, experiments, player segments, scheduled jobs</td></tr><tr><td>Messages and content</td><td>The player inbox, player mail, news, localization</td></tr><tr><td>Marketing</td><td>Install attribution, ad placements, ad conversions</td></tr></tbody></table>
+<p>The first group is a ledger. A wallet must never go below zero, an item has
+exactly one owner, and a reward is granted once. We explained why that
+workload needs serializable transactions, with a trade between two players in
+SQL, in
+<a class="" href="https://camusdb.github.io/blog/player-inventories-are-bank-accounts/">Game wallets and inventories need distributed transactions</a>.</p>
+<p>The other groups are ordinary relational data. They live in the same database
+as the ledger, so a purchase, the inventory change, and the inbox message
+that confirms it can commit in one transaction.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="branches-in-daily-work">Branches in daily work<a href="https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/#branches-in-daily-work" class="hash-link" aria-label="Direct link to Branches in daily work" title="Direct link to Branches in daily work" translate="no">​</a></h2>
+<p>A <a class="" href="https://camusdb.github.io/docs/database-branching/">database branch</a> is an isolated copy of a
+database that shares the data of its source. A write to the branch never
+reaches the source. Two teams use branches every day.</p>
+<p><strong>Customer support and QA</strong> create a branch to examine the case of one
+player. They can repeat a purchase, grant an item, or run a fix against the
+real state of that player, and the live data does not change.</p>
+<p><strong>Developers</strong> create a branch of the development database and work there.
+A schema change or a test data set of one developer does not break the work
+of another developer. When the work is done, the developer drops the branch.</p>
+<p>The statement is the same in both cases. The names here are examples:</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">DATABASE</span><span class="token plain"> support_case_4812 </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BRANCH</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> game_prod</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-deployment">The deployment<a href="https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/#the-deployment" class="hash-link" aria-label="Direct link to The deployment" title="Direct link to The deployment" translate="no">​</a></h2>
+<table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td>Used since</td><td>2025</td></tr><tr><td>CamusDB version today</td><td>0.18</td></tr><tr><td>Mode</td><td><a class="" href="https://camusdb.github.io/docs/cluster/">Cluster mode</a></td></tr><tr><td>Nodes</td><td>3, each with 4 cores and 16 GB of memory</td></tr><tr><td>Where it runs</td><td>Google Cloud</td></tr><tr><td>Replication factor</td><td>3</td></tr><tr><td>Client</td><td>The <a class="" href="https://camusdb.github.io/docs/ef-core/">EF Core provider</a>, over gRPC</td></tr><tr><td>Backups</td><td><a class="" href="https://camusdb.github.io/docs/backup-and-restore/">Point-in-time recovery</a></td></tr></tbody></table>
+<p>With three nodes and a replication factor of 3, every node holds a copy of
+every partition. A write commits when two of the three copies accept it, so
+the cluster keeps committing while one node is down.</p>
+<p>Point-in-time recovery restores the database to a chosen moment inside a
+retention window, in addition to the moment of the last backup.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-we-run-our-own-database">Why we run our own database<a href="https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/#why-we-run-our-own-database" class="hash-link" aria-label="Direct link to Why we run our own database" title="Direct link to Why we run our own database" translate="no">​</a></h2>
+<p>Before CamusDB, our games used MongoDB, DynamoDB and Google Cloud Spanner.</p>
+<p><strong>MongoDB/DynamoDB.</strong> Our data had no enforced structure, so all validation logic
+lived in the application. Queries that needed joins were hard to write
+without SQL. The transaction support was too limited for our ledger data.</p>
+<p><strong>Google Spanner.</strong> It gave us SQL and strong transactions across servers, and it
+showed us that a database can provide consistency and scale together. It was
+also costly for our workload, and it was a closed system for us: we could not
+read the engine, and we could not extend it. It had no
+<a class="" href="https://camusdb.github.io/docs/database-branching/">database branches</a>, no
+<a class="" href="https://camusdb.github.io/docs/query-result-cache/">query result cache</a>, and none of the other
+features that we later built into CamusDB, such as
+<a class="" href="https://camusdb.github.io/docs/csharp-extensions/">C# extensions</a>.</p>
+<p><strong>CockroachDB/YugabyteDB.</strong> These are distributed SQL databases with
+available source code, and we considered them. Two things kept us from them.
+A different company directs each product and decides its roadmap and its
+license. They are also built on other technology: CockroachDB is written in
+Go, and YugabyteDB is written in C and C++.</p>
+<p>That second point matters to us because Bacon Games is a .NET studio. All of
+our developers work in C#. With CamusDB, the game, the backend, and the
+database use one language and one toolchain. A backend developer can read the
+database source, debug it with the usual tools, and write a trigger or a
+function in C# that runs inside the server.</p>
+<p>These are the reasons of one team with one workload. All four products are
+mature, and all of them run systems much larger than ours.</p>
+<p>We chose CamusDB because we build it, so our judgment of this choice has a
+bias. A team that does not build CamusDB must compare it with PostgreSQL and
+with the established distributed SQL databases for its own workload.
+<a class="" href="https://camusdb.github.io/docs/why-camusdb/">Why CamusDB?</a> lists the cases where CamusDB is a weaker
+fit, and
+<a class="" href="https://camusdb.github.io/blog/welcome/">The origins of CamusDB</a> gives the longer history.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="defects-that-our-backend-found">Defects that our backend found<a href="https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/#defects-that-our-backend-found" class="hash-link" aria-label="Direct link to Defects that our backend found" title="Direct link to Defects that our backend found" translate="no">​</a></h2>
+<p>Our backend is the first heavy user of each CamusDB release, so it finds
+defects before other users do. We keep a record of each one. This is that
+record.</p>
+<p>Two defects had the largest effect:</p>
+<p><strong>A commit that never returned.</strong> EF Core saved the changes inside an explicit
+transaction, and the commit that followed did not complete and gave no error.
+Config writes from our operations portal stopped. A driver release fixed it.</p>
+<p><strong>A filter that became slower with each row.</strong> A filter with a correlated
+<code>EXISTS</code> subquery ran the subquery as a scan for each candidate row, at 3 to
+30 ms per row. A filtered page of an inventory with 300 items reached the
+10-second timeout. The query also became slower when other players had more
+rows. The planner now reads the subquery table through its primary key, the
+same queries on 1,200 items complete promptly, and two regression tests hold
+that result.</p>
+<p>The full list:</p>
+<table><thead><tr><th>Area</th><th>Defect</th><th>Status</th></tr></thead><tbody><tr><td>Transactions</td><td>The commit did not return after EF Core saved changes in an explicit transaction</td><td>Fixed</td></tr><tr><td>Transactions</td><td>The driver rejected the Read Committed isolation level</td><td>Fixed. We use it for append-only writes such as receipts and the transaction log</td></tr><tr><td>Transactions</td><td>A bulk insert in a read-only transaction preset reported success, and no row was stored</td><td>The preset is read-only by design. We use a read-write preset</td></tr><tr><td>Schema</td><td>A unique index on a nullable column rejected a second <code>NULL</code></td><td>Fixed</td></tr><tr><td>Schema</td><td>The migration history check always answered "no migrations", so each migration looked pending</td><td>Fixed</td></tr><tr><td>Schema</td><td>Two concurrent <code>CREATE DATABASE IF NOT EXISTS</code> statements for one name: one can fail with "already registered"</td><td>Open in the server. The driver accepts the error as success</td></tr><tr><td>Query translation</td><td>EF Core <code>AnyAsync</code> was not supported</td><td>Fixed</td></tr><tr><td>Query translation</td><td>A negated boolean column, <code>!row.IsDeleted</code>, was a syntax error</td><td>Fixed</td></tr><tr><td>Query translation</td><td><code>StartsWith</code> with a <code>StringComparison</code> argument was not translated</td><td>Fixed</td></tr><tr><td>Query translation</td><td><code>list.Contains(column)</code> threw an exception before the query ran</td><td>Fixed</td></tr><tr><td>Query translation</td><td>A negated correlated <code>EXISTS</code> was rejected</td><td>Fixed</td></tr><tr><td>Results</td><td>A UUID column that passed through a join had the wrong type, and the row could not be read</td><td>Fixed in the server and in the driver</td></tr><tr><td>Results</td><td>The driver looked up a column by name with exact case, while SQL ignores case</td><td>Fixed</td></tr><tr><td>Performance</td><td>A correlated <code>EXISTS</code> filter ran as a scan for each row</td><td>Fixed</td></tr><tr><td>JSONB</td><td>A driver older than 0.17 reads a JSONB cell as <code>NULL</code> over gRPC, with no error</td><td>Open. Upgrade each client before you add a JSONB column</td></tr></tbody></table>
+<p>Twelve of the fifteen entries are fixed. The entries that remain are one
+server defect with a driver workaround, one preset that needs a clear error,
+and one upgrade order that you must follow.</p>
+<p>Most of these defects are in the driver, the EF Core provider, and the query
+planner. <a class="" href="https://camusdb.github.io/docs/caraxes/">Caraxes</a>, our fault-injection harness, tests a
+different layer: it kills nodes, cuts the network, and fills disks while it
+checks that no committed data is lost. A real application that uses the
+provider every day found what the fault tests do not look for.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-does-not-run-on-camusdb">What does not run on CamusDB<a href="https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/#what-does-not-run-on-camusdb" class="hash-link" aria-label="Direct link to What does not run on CamusDB" title="Direct link to What does not run on CamusDB" translate="no">​</a></h2>
+<p>Analytics data runs in ClickHouse. ClickHouse is an analytics database, and
+CamusDB is built for transactions. Large scans and aggregations over event
+history belong in a system that is designed for them.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-this-report-shows">What this report shows<a href="https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/#what-this-report-shows" class="hash-link" aria-label="Direct link to What this report shows" title="Direct link to What this report shows" translate="no">​</a></h2>
+<ul>
+<li class="">CamusDB holds authoritative production data for a real product.</li>
+<li class="">It replaced MongoDB and Spanner for many games, and it has run in
+production since 2025.</li>
+<li class="">Database branches are part of the daily work of support, QA, and
+development.</li>
+</ul>
+<p>It does not show these things:</p>
+<ul>
+<li class="">That CamusDB fits a workload that is different from ours.</li>
+<li class="">How CamusDB behaves at a size larger than the deployment above.</li>
+<li class="">That a team without the authors of the database can operate it. We fix the
+engine ourselves when production finds a defect.</li>
+</ul>
+<p>CamusDB is still young, and APIs and storage formats can change between
+versions. See <a class="" href="https://camusdb.github.io/docs/why-camusdb/#current-scope">Current scope</a>.</p>
+<p>If you want to try CamusDB and find anything to improve tell us in a
+<a href="https://github.com/camusdb/camusdb/issues" target="_blank" rel="noopener noreferrer" class="">GitHub issue</a>. A report from an
+independent team is worth more to other readers than this one.</p>]]></content>
+        <author>
+            <name>Andres Gutierrez</name>
+            <uri>https://github.com/andresgutierrez</uri>
+        </author>
+        <category label="camusdb" term="camusdb"/>
+        <category label="video-games" term="video-games"/>
+        <category label="game-backends" term="game-backends"/>
+        <category label="production" term="production"/>
+    </entry>
     <entry>
         <title type="html"><![CDATA[CamusDB and CockroachDB on the same host: a serializable bank benchmark]]></title>
         <id>https://camusdb.github.io/blog/camusdb-vs-cockroachdb-bank-benchmark/</id>
