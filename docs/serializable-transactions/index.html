@@ -15,8 +15,8 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.696298a7.css">
-<script src="/assets/js/runtime~main.a03f42c7.js" defer="defer"></script>
-<script src="/assets/js/main.5f309433.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.a85a99fb.js" defer="defer"></script>
+<script src="/assets/js/main.bfc52026.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -101,6 +101,19 @@ Optimistic locking checks for conflicts at commit instead:</p>
 <p>Keep the default unless you have a reason to change it. For lock escalation,
 conflict resolution, and configuration, see
 <a class="" href="/docs/transactions-locking-internals/">Transactions and locking internals</a>.</p>
+<p>For contention experiments, <code>serializable_optimistic_point_locks: false</code>
+removes shared locks from single-key reads in Serializable optimistic
+read-write transactions. Scans retain range locks. The engine checks that
+observed rows can belong to one consistent point in time and validates reads
+at commit. An incompatible read can abort before commit. Younger writes and
+deletes can also give way to older active readers on the coordinating node;
+this reduces wasted work but does not eliminate conflicts across nodes.
+This option is experimental and defaults to <code>true</code>, keeping point locks.</p>
+<p><code>optimistic_intent_wait_ms</code> (default <code>100</code>) lets an optimistic row read briefly
+wait for another transaction&#x27;s staged write, so a read-modify-write can use
+the newly committed value. At the deadline, the read uses the committed value
+beneath that write and may still conflict later. <code>0</code> disables the wait; the
+maximum effective wait is <code>1000</code> ms. See the <a class="" href="/docs/settings-reference/">settings reference</a>.</p>
 <p>A failed statement <a class="" href="/docs/sql-transactions/#failed-statements">aborts its explicit transaction</a>.
 Earlier writes cannot be committed afterward; roll back and begin again.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="handle-conflicts-and-limits">Handle conflicts and limits<a href="#handle-conflicts-and-limits" class="hash-link" aria-label="Direct link to Handle conflicts and limits" title="Direct link to Handle conflicts and limits" translate="no">​</a></h2>

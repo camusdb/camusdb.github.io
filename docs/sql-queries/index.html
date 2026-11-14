@@ -15,8 +15,8 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.696298a7.css">
-<script src="/assets/js/runtime~main.a03f42c7.js" defer="defer"></script>
-<script src="/assets/js/main.5f309433.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.a85a99fb.js" defer="defer"></script>
+<script src="/assets/js/main.bfc52026.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -202,7 +202,13 @@ unsupported. See <a class="" href="/docs/joins-and-subqueries/#subqueries-in-whe
 Frame words such as <code>ROWS</code>, <code>PARTITION</code>, and <code>PRECEDING</code> remain valid identifiers.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="sort-the-rows-and-divide-them-into-pages">Sort and paginate<a href="#sort-the-rows-and-divide-them-into-pages" class="hash-link" aria-label="Direct link to Sort and paginate" title="Direct link to Sort and paginate" translate="no">​</a></h2>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> id</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">name</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">year</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> robots</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">year</span><span class="token plain"> </span><span class="token operator" style="color:#94a3b8">&gt;=</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">1970</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ORDER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">year</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">DESC</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">name</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ASC</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">LIMIT</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">25</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">OFFSET</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">50</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p><code>ASC</code> is the default. <code>LIMIT</code> and <code>OFFSET</code> accept a literal integer or a
+<p><code>ASC</code> is the default. NULL sorts before non-NULL values in ascending order,
+and after them in descending order, including inside windows. This is the
+opposite of PostgreSQL&#x27;s default. <code>NULLS FIRST</code> and <code>NULLS LAST</code> are unsupported.</p>
+<p>An <code>ORDER BY</code> output position counts expanded columns: in
+<code>SELECT *, year + 1 AS next_year FROM robots ORDER BY 2</code>, <code>2</code> names the
+second column produced by <code>*</code>, rather than the second written select item.</p>
+<p><code>LIMIT</code> and <code>OFFSET</code> accept a literal integer or a
 placeholder, such as <code>LIMIT @limit</code>. Counts must be nonnegative integers.
 Negative literals fail during binding; negative parameters fail when the
 clause is read, with CADB0400. The rule also applies to nested queries,

@@ -15,8 +15,8 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.696298a7.css">
-<script src="/assets/js/runtime~main.a03f42c7.js" defer="defer"></script>
-<script src="/assets/js/main.5f309433.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.a85a99fb.js" defer="defer"></script>
+<script src="/assets/js/main.bfc52026.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -87,8 +87,8 @@ a view, materialized view, or CHECK calls the function (CADB0844). A body-only
 replacement keeps the owner and dependencies. These objects use the new body
 in subsequent statements; a materialized view keeps stored rows until refresh.
 A deterministic column default is computed once at table creation and keeps
-that value. Inline-trigger bodies are not part of this dependency check;
-see <a href="#trigger-recompilation-and-ownership" class="">trigger recompilation</a>.</p>
+that value. Inline-trigger bodies also block incompatible changes when they
+reference the function; see <a href="#trigger-recompilation-and-ownership" class="">trigger recompilation</a>.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="allowed-code-and-resource-budgets">Allowed code and resource budgets<a href="#allowed-code-and-resource-budgets" class="hash-link" aria-label="Direct link to Allowed code and resource budgets" title="Direct link to Allowed code and resource budgets" translate="no">​</a></h3>
 <p>Inline functions are deterministic SQL functions. They support local
 variables, loops, local functions, lambdas, pattern matching, exceptions,
@@ -293,6 +293,9 @@ and <code>INSERT ... SELECT</code>; for DML issued by procedures and triggers; a
 typed HTTP and gRPC write APIs. They do not fire for internal maintenance such
 as <code>TRUNCATE</code>, TTL expiration, schema backfills and rewrites, materialized-view
 refresh, restore, or dropped-table recovery.</p>
+<p>An audit trigger therefore cannot record every way data changes. Use
+<a class="" href="/docs/sql-authentication/">privileges</a> to control access to the table; trigger
+validation covers only operations that fire it.</p>
 <p>For <code>INSERT ... ON CONFLICT</code> and <code>UPSERT</code>, BEFORE INSERT also runs on proposed
 rows that will be skipped or updated. A conflict update then fires the UPDATE
 triggers; a skipped row fires no further row trigger. See
@@ -313,11 +316,17 @@ every node, then restart:</p>
 <p>Inline and DLL triggers share the same timing, transaction, and creation-order
 rules. NEW properties can be changed only in a BEFORE INSERT/UPDATE trigger;
 OLD is read-only, and AFTER rows are read-only.</p>
-<table><thead><tr><th>Name in the body</th><th>Use</th></tr></thead><tbody><tr><td><code>NEW</code>, <code>OLD</code></td><td>Generated nullable row properties, typed from the table. NEW is null for DELETE; OLD is null for INSERT.</td></tr><tr><td><code>Operation</code>, <code>Timing</code>, <code>TableName</code>, <code>TriggerName</code></td><td>The event and trigger metadata.</td></tr><tr><td><code>Sql</code></td><td>Bind typed parameters with Set, then await ExecuteAsync or QueryAsync. Parameters are cleared after that SQL operation.</td></tr><tr><td><code>Context</code></td><td>The ITriggerContext row API, including columns without generated properties.</td></tr><tr><td>Database inline-function names</td><td>Call an inline function as a C# method, with that function&#x27;s NULL rule and budget.</td></tr></tbody></table>
+<table><thead><tr><th>Name in the body</th><th>Use</th></tr></thead><tbody><tr><td><code>NEW</code>, <code>OLD</code></td><td>Generated nullable row properties, typed from the table. NEW is null for DELETE; OLD is null for INSERT.</td></tr><tr><td><code>Operation</code>, <code>Timing</code>, <code>TableName</code>, <code>TriggerName</code></td><td>The event and trigger metadata.</td></tr><tr><td><code>Sql</code></td><td>Bind typed parameters with Set, then await ExecuteAsync or QueryAsync with constant SQL text. Parameters are cleared after that SQL operation.</td></tr><tr><td><code>Context</code></td><td>The ITriggerContext row API, including columns without generated properties.</td></tr><tr><td>Database inline-function names</td><td>Call an inline function as a C# method, with that function&#x27;s NULL rule and budget.</td></tr></tbody></table>
 <p>A C# keyword column uses a verbatim property, such as <code>NEW.@class</code>. Columns
 that collide with context names, start with <code>__camus</code>, or have no supported
 property type use the row API instead, for example
 <code>Context.New!.GetString(&quot;Timing&quot;)</code> or <code>Context.New!.Set(&quot;Timing&quot;, &quot;x&quot;)</code>.</p>
+<p>SQL text passed to <code>Sql.ExecuteAsync</code> or <code>Sql.QueryAsync</code> must be a compile-time
+constant, such as a literal or literals joined with <code>+</code>. Building SQL text
+from row values, or taking these methods as delegates, is refused with
+<code>CADB0839</code>. Use <code>Sql.Set</code> parameters for values: the SQL runs with the trigger
+owner&#x27;s privileges, so joining untrusted text into it would expose those rights.</p>
+<div class="language-csharp codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-csharp codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">await</span><span class="token plain"> Sql</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token function" style="color:#7dd3fc">Set</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token string" style="color:#86efac">&quot;note&quot;</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> NEW</span><span class="token operator" style="color:#94a3b8">!</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">note</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token function" style="color:#7dd3fc">ExecuteAsync</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token string" style="color:#86efac">&quot;UPDATE audit_notes SET note = @note WHERE id = 1&quot;</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
 <p>A trigger can await only Sql operations; Task.Run, Task.Delay, and awaits
 inside lambdas/local functions are refused. Unlike functions, triggers may
 use DateTime.UtcNow and Guid.NewGuid. Other inline-code restrictions apply.</p>
@@ -329,9 +338,13 @@ not make it committable (CADB0823).</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="trigger-recompilation-and-ownership">Trigger recompilation and ownership<a href="#trigger-recompilation-and-ownership" class="hash-link" aria-label="Direct link to Trigger recompilation and ownership" title="Direct link to Trigger recompilation and ownership" translate="no">​</a></h3>
 <p>The first fire after a table or inline-function change recompiles the body on
 each node. Adding a column or replacing a function is picked up automatically.
-DROP COLUMN and DROP FUNCTION do not inspect inline-trigger bodies. If a body
-still references the removed member, subsequent writes that fire it fail with
-CADB0845 until you drop and recreate the trigger with a valid body.</p>
+Dropping or renaming a referenced column is refused with <code>CADB0530</code>.
+Dropping a called inline function, or replacing it with different parameter
+or result types, is refused with <code>CADB0844</code>. Drop or rewrite the trigger first.
+These checks inspect source names conservatively: a local variable can also
+match, and a string equal to a column name counts as a reference. Column type
+changes are not checked; if the body can no longer compile, writes that fire
+it fail with <code>CADB0845</code> until you replace the trigger.</p>
 <p>An inline trigger&#x27;s SQL runs with its creator&#x27;s privileges, rather than the
 writer&#x27;s. Its owner must hold the grants needed by that SQL; the writer does
 not need those extra grants. BEFORE changes to NEW remain part of the writer&#x27;s
@@ -339,9 +352,15 @@ own operation. If the owner is dropped, firing fails with CADB0846; a new
 account with the same name does not inherit ownership.</p>
 <p>The owner can drop an inline trigger after losing ALTER, provided the owner
 still has a grant making the database visible. ALTER holders and superusers
-can also drop it. A trigger created with authentication off has no owner:
-its SQL uses the writer&#x27;s privileges, and dropping it requires ALTER or a
-superuser. DLL triggers also use the writer&#x27;s privileges.</p>
+can also drop it. A trigger created with authentication off has no owner.
+After authentication is enabled, its nested SQL fails with <code>CADB0846</code>, even
+when a superuser fires it. A BEFORE trigger that only changes NEW still works.
+A superuser can drop and recreate the trigger under an owner with the required
+grants. <code>SHOW TRIGGERS</code> shows an empty owner for ownerless triggers.</p>
+<p>DLL triggers use the writer&#x27;s privileges. If one inserts audit rows, writers
+need <code>INSERT</code> on that audit table; avoid granting UPDATE or DELETE there when
+the audit history must stay protected. An inline trigger can instead hold that
+INSERT privilege through its owner.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TRIGGERS</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ON</span><span class="token plain"> posts</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TRIGGER</span><span class="token plain"> normalize </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ON</span><span class="token plain"> posts</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">DROP</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TRIGGER</span><span class="token plain"> normalize </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ON</span><span class="token plain"> posts</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
 <p>SHOW TRIGGERS optionally lists all tables when ON is omitted. It reports both
 forms, with timing, events, form, owner, and source hash where applicable.
@@ -437,7 +456,7 @@ absolute path in the server configuration:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">extension_assemblies</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token punctuation" style="color:#94a3b8">-</span><span class="token plain"> /opt/camusdb/extensions/MyCompany.Ext.dll</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain" style="display:inline-block"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">unsafe_extension_assemblies</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token punctuation" style="color:#94a3b8">-</span><span class="token plain"> /opt/camusdb/extensions/MyCompany.Reviewed.dll</span><br></div></code></pre></div></div>
 <p>Each node loads its local DLL into the CamusDB server process. SQL calls and
 supported write APIs invoke extension code through that server:</p>
-<figure class="figure_Ayly"><div class="scroll_lz7D"><svg class="svg_w4WN" viewBox="0 0 1000 370" role="img" aria-label="SQL calls and typed write APIs reach a CamusDB server. The server loads and invokes a C# extension DLL inside its own process. Each node needs its own copy of the DLL."><defs><linearGradient id="R4mq7dalbah-hub" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="hubStopTop_qbzy"></stop><stop offset="1" class="hubStopBottom_SPDD"></stop></linearGradient><marker id="R4mq7dalbah-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="18" markerHeight="18" markerUnits="userSpaceOnUse" orient="auto"><path class="arrowHead_UBlg" d="M0,0 L10,5 L0,10 z"></path></marker></defs><rect class="group_PZA5" x="330" y="10" width="660" height="350" rx="18"></rect><text class="groupTitle_Pswf" x="370" y="32" text-anchor="start" style="font-size:32px"><tspan x="370" y="51">CamusDB node</tspan></text><g><rect class="source_zCoa" x="10" y="123" width="230" height="70" rx="12"></rect><svg x="36" y="140" width="36" height="36" viewBox="0 0 24 24" aria-hidden="true"><rect class="i1_dq4J" x="4" y="2" width="16" height="20" rx="2.5"></rect><path class="iCut_C6aY" d="M8 7h8M8 11h8M8 15h5"></path></svg><text class="sourceLabel_y_Sp" x="92" y="143.5" text-anchor="start" style="font-size:24px"><tspan x="92" y="158">SQL calls</tspan></text></g><g><rect class="source_zCoa" x="10" y="211" width="230" height="86" rx="12"></rect><svg x="36" y="236" width="36" height="36" viewBox="0 0 24 24" aria-hidden="true"><rect class="i1_dq4J" x="4" y="2" width="16" height="20" rx="2.5"></rect><path class="iCut_C6aY" d="M8 7h8M8 11h8M8 15h5"></path></svg><text class="sourceLabel_y_Sp" x="92" y="225" text-anchor="start" style="font-size:24px"><tspan x="92" y="239.5">Typed</tspan><tspan x="92" y="268.5">write APIs</tspan></text></g><path class="edge_NZvR" d="M240,158 C305,158 305,170 368,170" marker-end="url(#R4mq7dalbah-arrow)"></path><path class="edge_NZvR" d="M240,254 C305,254 305,250 368,250" marker-end="url(#R4mq7dalbah-arrow)"></path><rect class="hub_wgzY" x="370" y="90" width="170" height="240" rx="16" fill="url(#R4mq7dalbah-hub)"></rect><g class="inverse_WS_h"><svg x="423" y="138" width="64" height="64" viewBox="0 0 24 24" aria-hidden="true"><rect class="i1_dq4J" x="3" y="3" width="18" height="8" rx="2"></rect><rect class="i1_dq4J" x="3" y="13" width="18" height="8" rx="2"></rect><circle class="i3_CEJ6" cx="7" cy="7" r="1.3"></circle><circle class="i3_CEJ6" cx="7" cy="17" r="1.3"></circle></svg><text class="hubLabel_q_D3" x="455" y="220" text-anchor="middle" style="font-size:26px"><tspan x="455" y="235.5">CamusDB</tspan><tspan x="455" y="266.5">server</tspan></text></g><g><path class="edge_NZvR" d="M540,210 L598,210" marker-end="url(#R4mq7dalbah-arrow)"></path><rect class="target_lDm0" x="600" y="125" width="360" height="170" rx="14"></rect><svg x="640" y="178" width="64" height="64" viewBox="0 0 24 24" aria-hidden="true"><path class="iPins_tVLr" d="M9 2v4M12 2v4M15 2v4M9 18v4M12 18v4M15 18v4M2 9h4M2 12h4M2 15h4M18 9h4M18 12h4M18 15h4"></path><rect class="i1_dq4J" x="5" y="5" width="14" height="14" rx="2.5"></rect><rect class="i3_CEJ6" x="8" y="8" width="8" height="8" rx="1.5"></rect></svg><text class="targetLabel_HIiy" x="730" y="152" text-anchor="start" style="font-size:26px"><tspan x="730" y="167.5">C# extension</tspan><tspan x="730" y="198.5">DLL</tspan></text><text class="targetSub_Uhrw" x="730" y="220" text-anchor="start" style="font-size:20px"><tspan x="730" y="232">Functions, triggers,</tspan><tspan x="730" y="256">procedures</tspan></text></g></svg></div></figure>
+<figure class="figure_Ayly"><div class="scroll_lz7D"><svg class="svg_w4WN" viewBox="0 0 1000 370" role="img" aria-label="SQL calls and typed write APIs reach a CamusDB server. The server loads and invokes a C# extension DLL inside its own process. Each node needs its own copy of the DLL."><defs><linearGradient id="R4qq7dalbah-hub" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="hubStopTop_qbzy"></stop><stop offset="1" class="hubStopBottom_SPDD"></stop></linearGradient><marker id="R4qq7dalbah-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="18" markerHeight="18" markerUnits="userSpaceOnUse" orient="auto"><path class="arrowHead_UBlg" d="M0,0 L10,5 L0,10 z"></path></marker></defs><rect class="group_PZA5" x="330" y="10" width="660" height="350" rx="18"></rect><text class="groupTitle_Pswf" x="370" y="32" text-anchor="start" style="font-size:32px"><tspan x="370" y="51">CamusDB node</tspan></text><g><rect class="source_zCoa" x="10" y="123" width="230" height="70" rx="12"></rect><svg x="36" y="140" width="36" height="36" viewBox="0 0 24 24" aria-hidden="true"><rect class="i1_dq4J" x="4" y="2" width="16" height="20" rx="2.5"></rect><path class="iCut_C6aY" d="M8 7h8M8 11h8M8 15h5"></path></svg><text class="sourceLabel_y_Sp" x="92" y="143.5" text-anchor="start" style="font-size:24px"><tspan x="92" y="158">SQL calls</tspan></text></g><g><rect class="source_zCoa" x="10" y="211" width="230" height="86" rx="12"></rect><svg x="36" y="236" width="36" height="36" viewBox="0 0 24 24" aria-hidden="true"><rect class="i1_dq4J" x="4" y="2" width="16" height="20" rx="2.5"></rect><path class="iCut_C6aY" d="M8 7h8M8 11h8M8 15h5"></path></svg><text class="sourceLabel_y_Sp" x="92" y="225" text-anchor="start" style="font-size:24px"><tspan x="92" y="239.5">Typed</tspan><tspan x="92" y="268.5">write APIs</tspan></text></g><path class="edge_NZvR" d="M240,158 C305,158 305,170 368,170" marker-end="url(#R4qq7dalbah-arrow)"></path><path class="edge_NZvR" d="M240,254 C305,254 305,250 368,250" marker-end="url(#R4qq7dalbah-arrow)"></path><rect class="hub_wgzY" x="370" y="90" width="170" height="240" rx="16" fill="url(#R4qq7dalbah-hub)"></rect><g class="inverse_WS_h"><svg x="423" y="138" width="64" height="64" viewBox="0 0 24 24" aria-hidden="true"><rect class="i1_dq4J" x="3" y="3" width="18" height="8" rx="2"></rect><rect class="i1_dq4J" x="3" y="13" width="18" height="8" rx="2"></rect><circle class="i3_CEJ6" cx="7" cy="7" r="1.3"></circle><circle class="i3_CEJ6" cx="7" cy="17" r="1.3"></circle></svg><text class="hubLabel_q_D3" x="455" y="220" text-anchor="middle" style="font-size:26px"><tspan x="455" y="235.5">CamusDB</tspan><tspan x="455" y="266.5">server</tspan></text></g><g><path class="edge_NZvR" d="M540,210 L598,210" marker-end="url(#R4qq7dalbah-arrow)"></path><rect class="target_lDm0" x="600" y="125" width="360" height="170" rx="14"></rect><svg x="640" y="178" width="64" height="64" viewBox="0 0 24 24" aria-hidden="true"><path class="iPins_tVLr" d="M9 2v4M12 2v4M15 2v4M9 18v4M12 18v4M15 18v4M2 9h4M2 12h4M2 15h4M18 9h4M18 12h4M18 15h4"></path><rect class="i1_dq4J" x="5" y="5" width="14" height="14" rx="2.5"></rect><rect class="i3_CEJ6" x="8" y="8" width="8" height="8" rx="1.5"></rect></svg><text class="targetLabel_HIiy" x="730" y="152" text-anchor="start" style="font-size:26px"><tspan x="730" y="167.5">C# extension</tspan><tspan x="730" y="198.5">DLL</tspan></text><text class="targetSub_Uhrw" x="730" y="220" text-anchor="start" style="font-size:20px"><tspan x="730" y="232">Functions, triggers,</tspan><tspan x="730" y="256">procedures</tspan></text></g></svg></div></figure>
 <p>The equivalent command-line flags are <code>--extension-assemblies</code> and
 <code>--unsafe-extension-assemblies</code>, with space-separated paths. Both settings are
 restart-class: replace the file and restart the node to load a new build.</p>
@@ -445,9 +464,22 @@ restart-class: replace the file and restart the node to load a new build.</p>
 the same files. Invalid paths, missing files, missing manifests, and duplicate
 extension name/version pairs prevent startup. See
 <a class="" href="/docs/configuration/">configuration</a> for the assembly settings.</p>
-<p>The installed record&#x27;s SHA-256 covers only the extension DLL. Private
-dependencies of unsafe extensions are not hashed, so deploy the whole folder
-as one unit to keep behavior consistent across nodes.</p>
+<p>An installed extension pins its DLL&#x27;s SHA-256 and a dependency hash. For an
+unsafe extension, the dependency hash includes every other file in its folder
+and subfolders, including native libraries, <code>.deps.json</code>, and unused files
+such as <code>.pdb</code> files. Give each unsafe extension its own folder and deploy it
+as one unit on every node. Safe extensions cannot load private dependencies
+and use an empty dependency set.</p>
+<p>Dependencies are checked again when first loaded; files added or changed
+since startup are refused. Restart nodes after changing files. To pin
+dependencies for an older installation, or accept changed dependencies at the
+same version, deploy the folder everywhere, restart nodes, and run
+<code>ALTER EXTENSION name UPDATE TO &#x27;same version&#x27;</code>. <code>SHOW EXTENSIONS</code> reports
+<code>dependencies_sha256</code>. Only the operator account should be able to write to
+extension folders.</p>
+<p>Without <code>VERSION</code>, <code>CREATE EXTENSION</code> chooses the highest version loaded on
+the executing node. Pin the version in deployment scripts, especially during
+rolling upgrades.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="rolling-upgrade">Rolling upgrade<a href="#rolling-upgrade" class="hash-link" aria-label="Direct link to Rolling upgrade" title="Direct link to Rolling upgrade" translate="no">​</a></h3>
 <ol>
 <li class="">Deploy the new DLL beside the old one on every node. Add both paths to
@@ -459,7 +491,7 @@ select the new build through the replicated schema log.</li>
 restart the nodes again.</li>
 </ol>
 <p>Before an install or update, the coordinating node checks the target name,
-version, and SHA-256 on other cluster nodes. A responding node without the
+version, DLL SHA-256, and dependency hash on other cluster nodes. A responding node without the
 build causes <code>CADB0835</code>, naming the affected nodes. Nodes that do not respond
 are skipped; this check does not guarantee that an offline node has the build.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="missing-builds">Missing builds<a href="#missing-builds" class="hash-link" aria-label="Direct link to Missing builds" title="Direct link to Missing builds" translate="no">​</a></h3>
