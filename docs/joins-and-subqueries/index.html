@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.696298a7.css">
-<script src="/assets/js/runtime~main.b0cbbd3c.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.03dcc946.js" defer="defer"></script>
 <script src="/assets/js/main.04441793.js" defer="defer"></script>
 </head>
 <body>
@@ -222,8 +222,12 @@ aggregate:</p>
 caller&#x27;s privileges in a direct query, or the view owner&#x27;s privileges inside
 a stored view body.</p>
 <p>A derived table&#x27;s columns take their names from the inner projection. Give
-every computed column an alias, as in <code>COUNT(*) AS post_count</code>, or the outer
-query has no usable name to reference.</p>
+computed columns aliases, or supply a column list after the derived-table alias:</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> d</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">customer</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> d</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">spent</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> </span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> customer_id</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">SUM</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain">total</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> orders </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">GROUP</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">BY</span><span class="token plain"> customer_id</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">AS</span><span class="token plain"> d </span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain">customer</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> spent</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
+<p>Column-list names replace output names by position. A shorter list renames
+only the first columns; a longer list is rejected. Duplicate names make a
+reference ambiguous. For a named query reused within a statement, see
+<a class="" href="/docs/sql-queries/#with-queries">WITH queries</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="check-the-plan">Check the plan<a href="#check-the-plan" class="hash-link" aria-label="Direct link to Check the plan" title="Direct link to Check the plan" translate="no">​</a></h2>
 <p>Plan choice matters most for queries with several sources. <code>EXPLAIN</code> shows the
 chosen join strategy and whether CamusDB used an index:</p>

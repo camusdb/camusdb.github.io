@@ -14,7 +14,8 @@
             <guid>https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/</guid>
             <pubDate>Sat, 14 Nov 2026 00:00:00 GMT</pubDate>
             <description><![CDATA[What Bacon Games runs on CamusDB since 2025, how teams use database branches, what failed, and what this report does not prove.]]></description>
-            <content:encoded><![CDATA[<p>This post describes the CamusDB deployment at <a href="https://bacongames.co/" target="_blank" rel="noopener noreferrer" class="">Bacon Games</a>: the workload, the
+            <content:encoded><![CDATA[<p><img decoding="async" loading="lazy" alt="A glowing pyramid connects a football stadium, a fantasy landscape, and futuristic cities" src="https://camusdb.github.io/assets/images/pyramid-powering-game-worlds-68b6229ff176122c92c62a19b24ae95c.png" width="1672" height="941" class="img_ev3q"></p>
+<p>This post describes the CamusDB deployment at <a href="https://bacongames.co/" target="_blank" rel="noopener noreferrer" class="">Bacon Games</a>: the workload, the
 cluster, how teams use database branches, the defects that our backend found
 in CamusDB, and the data that stays on other systems. If you are evaluating
 CamusDB, it shows you one real production system and its limits.</p>
