@@ -15,8 +15,8 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.696298a7.css">
-<script src="/assets/js/runtime~main.03dcc946.js" defer="defer"></script>
-<script src="/assets/js/main.04441793.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.6b6bbc95.js" defer="defer"></script>
+<script src="/assets/js/main.af31f2af.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -174,9 +174,9 @@ observations.</li>
 against a new row that another transaction inserts and that an earlier predicate
 would have matched.</p>
 <p>Serializable with optimistic locking is a hybrid. Writes are optimistic, but
-reads and scans take shared point or range locks by default. The experimental
+single-key reads use validation by default, while scans retain range locks. The
 <a class="" href="/docs/serializable-transactions/#pessimistic-and-optimistic-locking"><code>serializable_optimistic_point_locks</code></a>
-setting can replace single-key read locks with validation; scans retain range locks.</p>
+setting restores shared point locks when set to true.</p>
 <p>To use optimistic locking, use <code>SET TRANSACTION LOCKING OPTIMISTIC</code>, the
 <code>locking</code> field of an HTTP or gRPC request, or
 <code>default_transaction_locking: optimistic</code>. Kahuna pins the locking mode when the

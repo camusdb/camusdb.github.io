@@ -15,8 +15,8 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.696298a7.css">
-<script src="/assets/js/runtime~main.03dcc946.js" defer="defer"></script>
-<script src="/assets/js/main.04441793.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.6b6bbc95.js" defer="defer"></script>
+<script src="/assets/js/main.af31f2af.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -172,10 +172,10 @@ PostgreSQL.</p>
 <code>jsonb_each(@doc) AS e(k, v)</code>. Object keys come out in the stored order. A
 document of the wrong kind fails before the first row, with the PostgreSQL
 message, such as <code>cannot call jsonb_each on a non-object</code>.</p>
-<p>CamusDB evaluates the argument once, before the first row. It can be a literal,
-a parameter, or an expression without columns. CamusDB does not support
-<code>LATERAL</code>, so the argument cannot be a column of another table in the same
-<code>FROM</code>, as in <code>FROM t, jsonb_each(t.doc)</code>.</p>
+<p>A literal, parameter, or expression without column references is evaluated
+once. An argument can also read columns of a FROM source to its left, as in
+<code>FROM t, jsonb_each(t.doc)</code>. The function then runs per left row; LATERAL is
+implicit. See <a class="" href="/docs/joins-and-subqueries/#lateral">LATERAL sources</a>.</p>
 <p><code>key</code> is a reserved word in CamusDB (<code>PRIMARY KEY</code>). CamusDB still accepts it as
 a column name in an expression and after a dot, as in <code>SELECT key</code> and <code>e.key</code>,
 so you can read the <code>jsonb_each</code> columns by name.</p>
@@ -293,7 +293,7 @@ exact numeric decoding vary by driver; the linked guides describe the choices.</
 <p>A stored cell that does not decode fails with <code>JsonbValueCorrupt</code> (<code>CADB0559</code>).
 CamusDB never returns part of a document.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="differences-from-postgresql">Differences from PostgreSQL<a href="#differences-from-postgresql" class="hash-link" aria-label="Direct link to Differences from PostgreSQL" title="Direct link to Differences from PostgreSQL" translate="no">​</a></h2>
-<table><thead><tr><th>Topic</th><th>PostgreSQL</th><th>CamusDB</th></tr></thead><tbody><tr><td><code>json</code> type</td><td>Keeps the input text: whitespace, key order, and duplicate keys.</td><td>An alias of <code>JSONB</code>. The text is canonical.</td></tr><tr><td><code>jsonb_path_ops</code></td><td>A smaller index that serves only <code>@&gt;</code>.</td><td>The same index as <code>jsonb_ops</code>. It serves every GIN operator.</td></tr><tr><td>Operator precedence</td><td>The JSONB operators are at the level of <code>||</code>.</td><td>The same. See <a href="#operator-precedence" class="">Operator precedence</a>.</td></tr><tr><td><code>x #-1</code></td><td>Path delete.</td><td>Path delete. Before <code>JSONB</code>, it was XOR with <code>-1</code>.</td></tr><tr><td>A text column as a document operand</td><td>Rejected. The operator needs <code>jsonb</code>.</td><td>Parsed as a document, like a literal.</td></tr><tr><td>Invalid JSON text compared with a document</td><td>The literal is rejected.</td><td>Equal to no document.</td></tr><tr><td><code>jsonb_agg(x ORDER BY y)</code></td><td>Supported.</td><td>Not supported.</td></tr><tr><td><code>LATERAL</code>, as in <code>FROM t, jsonb_each(t.doc)</code></td><td>Supported.</td><td>Not supported.</td></tr><tr><td>SQL/JSON path (<code>jsonpath</code>, <code>@?</code>, <code>@@</code>, <code>jsonb_path_query</code>)</td><td>Supported.</td><td>Not supported.</td></tr><tr><td>Subscripts (<code>doc[&#x27;key&#x27;]</code>)</td><td>Supported.</td><td>Not supported.</td></tr><tr><td><code>row_to_json</code>, <code>jsonb_to_record</code>, <code>jsonb_populate_record</code></td><td>Supported.</td><td>Not supported.</td></tr><tr><td>Expression index on <code>(doc -&gt;&gt; &#x27;k&#x27;)</code></td><td>Supported.</td><td>Not supported yet.</td></tr></tbody></table>
+<table><thead><tr><th>Topic</th><th>PostgreSQL</th><th>CamusDB</th></tr></thead><tbody><tr><td><code>json</code> type</td><td>Keeps the input text: whitespace, key order, and duplicate keys.</td><td>An alias of <code>JSONB</code>. The text is canonical.</td></tr><tr><td><code>jsonb_path_ops</code></td><td>A smaller index that serves only <code>@&gt;</code>.</td><td>The same index as <code>jsonb_ops</code>. It serves every GIN operator.</td></tr><tr><td>Operator precedence</td><td>The JSONB operators are at the level of <code>||</code>.</td><td>The same. See <a href="#operator-precedence" class="">Operator precedence</a>.</td></tr><tr><td><code>x #-1</code></td><td>Path delete.</td><td>Path delete. Before <code>JSONB</code>, it was XOR with <code>-1</code>.</td></tr><tr><td>A text column as a document operand</td><td>Rejected. The operator needs <code>jsonb</code>.</td><td>Parsed as a document, like a literal.</td></tr><tr><td>Invalid JSON text compared with a document</td><td>The literal is rejected.</td><td>Equal to no document.</td></tr><tr><td><code>jsonb_agg(x ORDER BY y)</code></td><td>Supported.</td><td>Not supported.</td></tr><tr><td><code>LATERAL</code>, as in <code>FROM t, jsonb_each(t.doc)</code></td><td>Supported.</td><td>Supported; the keyword is optional for table functions.</td></tr><tr><td>SQL/JSON path (<code>jsonpath</code>, <code>@?</code>, <code>@@</code>, <code>jsonb_path_query</code>)</td><td>Supported.</td><td>Not supported.</td></tr><tr><td>Subscripts (<code>doc[&#x27;key&#x27;]</code>)</td><td>Supported.</td><td>Not supported.</td></tr><tr><td><code>row_to_json</code>, <code>jsonb_to_record</code>, <code>jsonb_populate_record</code></td><td>Supported.</td><td>Not supported.</td></tr><tr><td>Expression index on <code>(doc -&gt;&gt; &#x27;k&#x27;)</code></td><td>Supported.</td><td>Not supported yet.</td></tr></tbody></table>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="related-topics">Related topics<a href="#related-topics" class="hash-link" aria-label="Direct link to Related topics" title="Direct link to Related topics" translate="no">​</a></h2>
 <ul>
 <li class=""><a class="" href="/docs/data-types/">Data types</a></li>

@@ -15,8 +15,8 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.696298a7.css">
-<script src="/assets/js/runtime~main.03dcc946.js" defer="defer"></script>
-<script src="/assets/js/main.04441793.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.6b6bbc95.js" defer="defer"></script>
+<script src="/assets/js/main.af31f2af.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -97,18 +97,19 @@ locks when the statement commits, so it cannot protect a later request.</p>
 Optimistic locking checks for conflicts at commit instead:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">BEGIN</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SET</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TRANSACTION</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">LOCKING</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">OPTIMISTIC</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
 <p>Choose the strategy before any data statement. It is separate from isolation:</p>
-<table><thead><tr><th>Combination</th><th>Conflict protection</th></tr></thead><tbody><tr><td>Serializable + pessimistic</td><td>Locks protect reads, scanned ranges, and writes.</td></tr><tr><td>Serializable + optimistic</td><td>Reads and scans still take shared locks; writes validate at commit.</td></tr><tr><td>Read Committed + optimistic</td><td>Validates observed rows at commit, without locks or phantom protection.</td></tr></tbody></table>
+<table><thead><tr><th>Combination</th><th>Conflict protection</th></tr></thead><tbody><tr><td>Serializable + pessimistic</td><td>Locks protect reads, scanned ranges, and writes.</td></tr><tr><td>Serializable + optimistic</td><td>Single-key reads validate at commit; scans retain range locks.</td></tr><tr><td>Read Committed + optimistic</td><td>Validates observed rows at commit, without locks or phantom protection.</td></tr></tbody></table>
 <p>Keep the default unless you have a reason to change it. For lock escalation,
 conflict resolution, and configuration, see
 <a class="" href="/docs/transactions-locking-internals/">Transactions and locking internals</a>.</p>
-<p>For contention experiments, <code>serializable_optimistic_point_locks: false</code>
-removes shared locks from single-key reads in Serializable optimistic
-read-write transactions. Scans retain range locks. The engine checks that
+<p><code>serializable_optimistic_point_locks</code> defaults to <code>false</code>: Serializable
+optimistic read-write transactions validate single-key reads without shared
+point locks. Scans retain range locks. The engine checks that
 observed rows can belong to one consistent point in time and validates reads
 at commit. An incompatible read can abort before commit. Younger writes and
 deletes can also give way to older active readers on the coordinating node;
 this reduces wasted work but does not eliminate conflicts across nodes.
-This option is experimental and defaults to <code>true</code>, keeping point locks.</p>
+Set it to <code>true</code> to restore shared point locks. Pessimistic locking remains
+the default transaction strategy.</p>
 <p><code>optimistic_intent_wait_ms</code> (default <code>100</code>) lets an optimistic row read briefly
 wait for another transaction&#x27;s staged write, so a read-modify-write can use
 the newly committed value. At the deadline, the read uses the committed value

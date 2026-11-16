@@ -85,7 +85,7 @@ with the established distributed SQL databases for its own workload.
 <a class="" href="https://camusdb.github.io/docs/why-camusdb/">Why CamusDB?</a> lists the cases where CamusDB is a weaker
 fit, and
 <a class="" href="https://camusdb.github.io/blog/welcome/">The origins of CamusDB</a> gives the longer history.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="defects-that-our-backend-found">Defects that our backend found<a href="https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/#defects-that-our-backend-found" class="hash-link" aria-label="Direct link to Defects that our backend found" title="Direct link to Defects that our backend found" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="some-issues-found-and-fixed">Some issues found and fixed<a href="https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/#some-issues-found-and-fixed" class="hash-link" aria-label="Direct link to Some issues found and fixed" title="Direct link to Some issues found and fixed" translate="no">​</a></h2>
 <p>Our backend is the first heavy user of each CamusDB release, so it finds
 defects before other users do. We keep a record of each one. This is that
 record.</p>
@@ -110,11 +110,11 @@ planner. <a class="" href="https://camusdb.github.io/docs/caraxes/">Caraxes</a>,
 different layer: it kills nodes, cuts the network, and fills disks while it
 checks that no committed data is lost. A real application that uses the
 provider every day found what the fault tests do not look for.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-does-not-run-on-camusdb">What does not run on CamusDB<a href="https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/#what-does-not-run-on-camusdb" class="hash-link" aria-label="Direct link to What does not run on CamusDB" title="Direct link to What does not run on CamusDB" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="only-transactional-data">Only transactional data<a href="https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/#only-transactional-data" class="hash-link" aria-label="Direct link to Only transactional data" title="Direct link to Only transactional data" translate="no">​</a></h2>
 <p>Analytics data runs in ClickHouse. ClickHouse is an analytics database, and
 CamusDB is built for transactions. Large scans and aggregations over event
 history belong in a system that is designed for them.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-this-report-shows">What this report shows<a href="https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/#what-this-report-shows" class="hash-link" aria-label="Direct link to What this report shows" title="Direct link to What this report shows" translate="no">​</a></h2>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-results">The results<a href="https://camusdb.github.io/blog/camusdb-in-production-at-bacon-games/#the-results" class="hash-link" aria-label="Direct link to The results" title="Direct link to The results" translate="no">​</a></h2>
 <ul>
 <li class="">CamusDB holds authoritative production data for a real product.</li>
 <li class="">It replaced MongoDB and Spanner for many games, and it has run in

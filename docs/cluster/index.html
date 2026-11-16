@@ -15,8 +15,8 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.696298a7.css">
-<script src="/assets/js/runtime~main.03dcc946.js" defer="defer"></script>
-<script src="/assets/js/main.04441793.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.6b6bbc95.js" defer="defer"></script>
+<script src="/assets/js/main.af31f2af.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -124,8 +124,8 @@ each change before CamusDB commits it.</li>
 <p>To run a cluster on Kubernetes, use the
 <a class="" href="/docs/kubernetes-operator/">Kubernetes Operator</a>. It creates the nodes and
 manages their membership for you.</p>
-<p>CamusDB is in production use, but cluster mode is still evolving. Its
-APIs and storage formats can change between versions.</p>
+<p>CamusDB <a class="" href="/blog/camusdb-in-production-at-bacon-games/">runs in production at Bacon Games</a>. Cluster mode continues
+to evolve, and APIs and storage formats can change between versions.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="run-a-standalone-node">Run a standalone node<a href="#run-a-standalone-node" class="hash-link" aria-label="Direct link to Run a standalone node" title="Direct link to Run a standalone node" translate="no">​</a></h2>
 <p>Standalone is the default. It needs no cluster configuration:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">dotnet tool </span><span class="token function" style="color:#7dd3fc">install</span><span class="token plain"> </span><span class="token parameter variable" style="color:#60a5fa">--global</span><span class="token plain"> CamusDB.Server</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">camusdb</span><br></div></code></pre></div></div>
