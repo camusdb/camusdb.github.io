@@ -249,7 +249,7 @@ const sqlKeywords = new Set([
   'FORCE_INDEX', 'FOREIGN', 'FROM', 'FULL', 'FUNCTION', 'FUNCTIONS', 'GENERATED', 'GIN', 'GRANT', 'GRANTS', 'GROUP',
   'HAVING', 'HIGH', 'IDENTIFIED', 'IDENTITY', 'IF', 'ILIKE', 'IMMEDIATE', 'IN', 'INCLUDE',
   'INCREMENT', 'INDEX', 'INDEXES', 'INITIALLY', 'INLINE', 'INNER', 'INPUT', 'INSERT', 'INTERSECT', 'INTO',
-  'INVERTED', 'IS', 'ISOLATION', 'JOIN', 'KEY', 'LANGUAGE', 'LEFT', 'LEVEL', 'LIKE', 'LIMIT', 'LOCAL', 'LOCKED',
+  'INVERTED', 'IS', 'ISOLATION', 'JOIN', 'KEY', 'LANGUAGE', 'LATERAL', 'LEFT', 'LEVEL', 'LIKE', 'LIMIT', 'LOCAL', 'LOCKED',
   'LOCKING', 'LOGICAL', 'LOW', 'MAIN', 'MATCH', 'MATERIALIZED', 'MAXVALUE', 'MINVALUE', 'MONITOR',
   'NAME', 'NATURAL', 'NO', 'NORMAL', 'NOT', 'NOTHING', 'NOWAIT', 'NULL', 'OF', 'OFFSET', 'ON',
   'ONLY', 'OPTIMISTIC', 'OPTION', 'OR', 'ORDER', 'ORPHAN', 'OUTER', 'OVER', 'OWNED', 'OWNER',
@@ -271,11 +271,12 @@ const sqlTypes = new Set([
   'UUID', 'VARCHAR',
 ]);
 const sqlFunctions = new Set([
-  'ABS', 'ACOS', 'ARRAY_CONTAINS', 'ARRAY_LENGTH', 'ASIN', 'ATAN', 'ATAN2', 'AVG', 'BIT_COUNT',
+  'ACOSD', 'ASIND', 'ATAND', 'ATAN2D', 'COSD', 'COT', 'COTD', 'DEGREES', 'RADIANS', 'SIND', 'TAND',
+  'ABS', 'ACOS', 'AGE', 'ARRAY_CONTAINS', 'ARRAY_LENGTH', 'ASIN', 'ATAN', 'ATAN2', 'AVG', 'BIT_COUNT',
   'BIT_LENGTH', 'CARDINALITY', 'CAST', 'CEIL', 'CEILING', 'CLOCK_TIMESTAMP', 'COALESCE', 'CONCAT',
   'CONTAINS', 'CONVERT_FROM', 'CONVERT_TO', 'COS', 'COSINE_DISTANCE', 'COUNT', 'CRC32', 'CUME_DIST',
   'CURRENT_DATABASE', 'CURRENT_DATE', 'CURRENT_ROLE', 'CURRENT_TIMESTAMP', 'CURRENT_USER',
-  'CURRVAL', 'DATE_ADD', 'DATE_DIFF', 'DATE_FORMAT', 'DATE_PARSE', 'DATE_PART', 'DATE_SUB',
+  'CURRVAL', 'DATE_ADD', 'DATE_BIN', 'DATE_DIFF', 'DATE_FORMAT', 'DATE_PARSE', 'DATE_PART', 'DATE_SUB',
   'DATE_TRUNC', 'DAY', 'DAYNAME', 'DAYOFMONTH', 'DAYOFWEEK', 'DAYOFYEAR', 'DECODE', 'DENSE_RANK',
   'DIGEST', 'ENCODE', 'ENDS_WITH', 'EXP', 'EXTRACT', 'FIRST_VALUE', 'FLOOR', 'FROM_BASE64',
   'FROM_UNIXTIME', 'GENERATE_SERIES', 'GEN_ID', 'GEN_RANDOM_BYTES', 'GEN_UUID_V4', 'GEN_UUID_V7',
@@ -289,8 +290,8 @@ const sqlFunctions = new Set([
   'JSON_BUILD_OBJECT', 'JSON_CONTAINS', 'JSON_EACH', 'JSON_EACH_TEXT', 'JSON_EXTRACT',
   'JSON_EXTRACT_PATH', 'JSON_EXTRACT_PATH_TEXT', 'JSON_OBJECT', 'JSON_OBJECT_AGG',
   'JSON_OBJECT_KEYS', 'JSON_STRIP_NULLS', 'JSON_TYPE', 'JSON_TYPEOF', 'JSON_VALID', 'JSON_VALUE',
-  'L2_DISTANCE', 'LAG', 'LASTVAL', 'LAST_DAY', 'LAST_VALUE', 'LEAD', 'LENGTH', 'LIKE_ESCAPE', 'LN', 'LOG', 'LOG10', 'LOWER',
-  'LTRIM', 'MAKEDATE', 'MAKE_DATE', 'MAKE_TIMESTAMP', 'MAX', 'MD5', 'MIN', 'MINUTE', 'MOD', 'MONTH',
+  'JUSTIFY_DAYS', 'JUSTIFY_HOURS', 'JUSTIFY_INTERVAL', 'L2_DISTANCE', 'LAG', 'LASTVAL', 'LAST_DAY', 'LAST_VALUE', 'LEAD', 'LENGTH', 'LIKE_ESCAPE', 'LN', 'LOG', 'LOG10', 'LOWER',
+  'LTRIM', 'MAKEDATE', 'MAKE_DATE', 'MAKE_INTERVAL', 'MAKE_TIMESTAMP', 'MAX', 'MD5', 'MIN', 'MINUTE', 'MOD', 'MONTH',
   'MONTHNAME', 'NEXTVAL', 'NOW', 'NTH_VALUE', 'NTILE', 'NULLIF', 'NVL', 'OCTET_LENGTH',
   'PERCENT_RANK', 'PI', 'POSITION', 'POW', 'POWER', 'QUARTER', 'RAND', 'RANDOM', 'RANK',
   'REGEXP_COUNT', 'REGEXP_INSTR', 'REGEXP_LIKE', 'REGEXP_MATCH', 'REGEXP_MATCHES', 'REGEXP_REPLACE',
@@ -380,7 +381,11 @@ function tokenizeSql(sql) {
       const upper = value.toUpperCase().replace(/\s+/g, ' ');
       const after = sql.slice(index + value.length).trimStart();
       let kind = 'plain';
-      if (sqlTypes.has(upper)) kind = 'type';
+      if (upper === 'INTERVAL' && (/::\s*$/.test(sql.slice(0, index))
+        || (/\bAS\s*$/i.test(sql.slice(0, index)) && after.startsWith(')')))) kind = 'type';
+      else if (upper === 'INTERVAL' && /^['0-9@]/.test(after)) kind = 'keyword';
+      else if (sqlTypes.has(upper)) kind = 'type';
+      else if (upper === 'RECURSIVE' && /\bWITH\s+$/i.test(sql.slice(0, index))) kind = 'keyword';
       else if (upper === 'IF' && after.startsWith('(')) kind = 'function';
       else if (sqlKeywords.has(upper)) kind = 'keyword';
       else if (sqlFunctions.has(upper) || after.startsWith('(')) kind = 'function';

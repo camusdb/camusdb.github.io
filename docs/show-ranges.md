@@ -98,8 +98,8 @@ transaction does not add to the transaction's read set.
 ## Node-local output
 
 The answer is this node's applied view of routing. A node that is behind may
-report an older generation than a peer. Leadership is a hint, not a correctness
-gate; execution re-resolves through the storage locator.
+report an older generation than a peer. The leader is only a hint; execution
+re-resolves it through the storage locator.
 
 A hash-routed key space reports one span with unbounded start and end keys,
 generation `0`, and `routing = 'hash'`.

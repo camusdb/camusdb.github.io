@@ -10,7 +10,7 @@ Key-range sharding lets one large or busy table spread across several
 it, each table lives on one partition, so one partition
 [leader](/docs/concepts#leader) coordinates every write to that table.
 
-## Why use key-range sharding
+## Spread one table across partitions
 
 CamusDB routes table and index [key spaces](/docs/concepts#key-space) (the
 storage keys that hold a table's rows or one index's entries) by hash by
@@ -90,7 +90,7 @@ For clusters predating the stored mode, the first upgraded node infers it from
 its local range map and database catalog. Start an existing node first, so it
 can restore that map before a new node with an empty data directory joins.
 
-## What changes
+## Hash routing versus key-range routing
 
 | Area | Hash routing | Key-range routing |
 | --- | --- | --- |

@@ -109,9 +109,6 @@ The snapshot is fixed for the whole statement:
   result.
 - The historical read blocks no writers.
 
-So you get a consistent view of the database at one logical point in time,
-without restoring a backup or pausing current traffic.
-
 ## Common uses
 
 - Inspect the data just before an accidental update or delete.
@@ -176,9 +173,17 @@ Two settings control how much history CamusDB keeps:
 - `kahuna.persistent_revision_retention_count` caps the revisions kept per key.
   The default, `0`, turns off count-based pruning.
 
-If the requested timestamp is older than the retained revisions, there is no
-separate "snapshot too old" error. The query can return an empty result,
-because no retained revision is visible at that timestamp.
+Age retention keeps the revision visible at the start of the window, even if
+it was written earlier. This preserves an unchanged row's value throughout
+the retained window.
+
+When pruning has removed history a read could need, CamusDB fails with
+`CADB0847 SnapshotTooOld` instead of returning missing rows or older values.
+Retrying at the same timestamp cannot recover deleted history. Choose a newer
+`AS OF SYSTEM TIME` timestamp; for a long-running snapshot transaction, roll
+back and begin a new transaction. Increase retention before running workloads
+that need older history. Branches protect their fork snapshots with holds,
+independently of the age window.
 
 ## Truncated tables
 
@@ -207,7 +212,8 @@ For more background on HLC timestamps and transaction snapshots, see
 
 An invalid time-travel request returns `CADB0409 InvalidAsOfSystemTime`. A
 snapshot older than a truncated table's current contents returns `CADB0537
-SnapshotPrecedesContentsGeneration`.
+SnapshotPrecedesContentsGeneration`. Pruned history returns
+`CADB0847 SnapshotTooOld`; see [retention limits](#restrictions).
 
 Common causes:
 

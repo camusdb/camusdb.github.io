@@ -122,6 +122,12 @@ write commits. Through `ExecuteNonQuery`, the reply carries `affected_rows`,
 no-rows call when the client only needs the count. See
 [RETURNING](/docs/sql-writes#returning).
 
+`DdlReply` and `NonQueryReply` carry `affected_rows` and `warning`. A
+`CREATE TABLE ... AS SELECT` or `INSERT ... SELECT` time-travel copy that reads
+no rows sets `warning`. As proto3 requires, an absent warning is the empty
+string. See
+[Copying query results](/docs/insert-select-and-ctas#row-counts-and-empty-copy-warnings).
+
 ## Cancellation and backpressure
 
 Cancelling a gRPC call, closing a stream, or letting the deadline expire
@@ -191,6 +197,8 @@ If you write a client:
 
 - Send ObjectIds in `id_value`, not `string_value`.
 - Send UUIDs as 16 bytes, not as strings.
+- Send a vector as its packed float32 bytes in `bytes_value`. See
+  [Vector search](/docs/vector-search#how-a-vector-is-stored) for the layout.
 - Send `DATE` and `DATETIME` as ticks, not ISO strings or Unix timestamps.
 - Preserve `FLOAT32` and `FLOAT64` as separate wire fields.
 - Include the array element type even when the array is empty.
@@ -440,34 +448,53 @@ of operations carried by each frame.
 
 ## Prepared statements
 
-Prepared statements are supported on `CamusSql.BatchExecute`.
+Prepared statements live only on the `CamusSql.BatchExecute` stream. Unary
+gRPC calls reject a prepared handle, because they have no stream to hold it.
 
-Send a `PREPARE` operation with the target database and the SQL text. The
-final message, a `PrepareReply`, returns:
+```text
+PREPARE (database, sql)  -> PrepareReply { statement_id, parameter_names[] }
+QUERY | NON_QUERY (statement_id, positional_parameters[])
+CLOSE (statement_id)     -> CloseReply
+```
 
-- `statement_id`: an integer handle scoped to that batch stream
-- `parameter_names`: the positional binding order for placeholders
+The `PrepareReply` returns:
 
-Then send a `QUERY` or `NON_QUERY` operation with the `statement_id` and
-`positional_parameters`. When you send a `statement_id`, don't also send SQL
-text, a database name, or a named-parameter map.
+- `statement_id`: an `int32` handle scoped to that batch stream
+- `parameter_names`: the distinct placeholder names in binding order, first
+  occurrence first, each with its leading `@`
 
-Send `CLOSE` to release a prepared statement id on the stream. A second `CLOSE`
-is harmless.
+The value at index i of `positional_parameters` binds to the name at index i.
+A name that appears more than once occupies one slot. The list includes
+placeholders inside subqueries. The number of values must equal the number of
+names. The names do not travel on the wire, so a client that binds by name maps
+its arguments to the ordinals locally.
 
-A handle belongs to one stream. It disappears when the `BatchExecute` stream
-closes or the client rebuilds it.
+When you send a `statement_id`, don't also send SQL text, a database name, or a
+named-parameter map. CamusDB refuses a request with both, rather than choosing
+one by a precedence rule.
 
-If an execution fails with `CADB0520` `UnknownPreparedStatement`, prepare the
+Wait for the `PrepareReply` before you send anything that references its id.
+`START` has the same contract. Operations on a stream run concurrently, so an
+execution sent before its registration is acknowledged can reach the server
+first.
+
+Send `CLOSE` to release an id. Repeating `CLOSE` is harmless, and closing an
+unknown id succeeds. You can skip the close, because the stream frees every
+handle when it ends, whether normally, by cancellation, or by a fault. However,
+a long stream that prepares many different statements must close what it no
+longer needs to stay under `grpc_max_prepared_statements_per_stream`.
+
+A handle belongs to one stream on one node. CamusDB never replicates it. It
+disappears when the `BatchExecute` stream closes or the client rebuilds it. If
+an execution fails with `CADB0520` `UnknownPreparedStatement`, prepare the
 statement again on the current stream and replay the operation once.
 
-Wait for the `PrepareReply` before you execute with its id. Otherwise, because
-batch requests can run concurrently, the execution can reach the server before
-the registration.
+A stream has a finite id space of 2^31 registrations. CamusDB tells a stream
+that uses them all to open a new stream, rather than handing out an id that
+would wrap to an unusable value, and eventually to one that collides.
 
-Unary gRPC calls accept no prepared handle, because they have no stream scope.
-See [Prepared Statements](/docs/prepared-statements) for supported statement
-types, binding rules, and configuration limits.
+See [Prepared Statements](/docs/prepared-statements) for the statements you can
+prepare and the configuration limits.
 
 ## Errors and retries
 
@@ -495,6 +522,9 @@ helpers. Custom protocol clients base retries on `camus-error-code`:
 
 Bad client input, including SQL syntax errors and `CADB0413`
 `StatementTooDeeplyNested`, maps to gRPC `INVALID_ARGUMENT`.
+
+Foreign-key violations map to `FAILED_PRECONDITION`. Invalid foreign-key
+definitions map to `INVALID_ARGUMENT`.
 
 For a streaming query, replay automatically only while the caller has seen no
 rows. After the first row reaches the caller, report the error instead of

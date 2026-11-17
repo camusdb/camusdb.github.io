@@ -4,7 +4,8 @@ sidebar_position: 4.2
 
 # Math functions
 
-Math functions accept `INT64`, `FLOAT64`, or `NUMERIC` arguments. They return
+Math functions let you calculate prices, statistics, and angles directly in SQL.
+They accept `INT64`, `FLOAT32`, `FLOAT64`, or `NUMERIC` arguments. They return
 `NULL` when any argument is `NULL`, unless the table below says otherwise.
 
 | Function | Returns | Description |
@@ -57,6 +58,40 @@ With an INT64 input, `round(value, scale)` returns exact NUMERIC even when
 scale is zero: `round(15, -1)` is NUMERIC 20. `round(value)` stays INT64, as
 does `trunc(value, scale)` for integer input. Float inputs return FLOAT64;
 NUMERIC inputs stay NUMERIC.
+
+## Trigonometry and angles
+
+Use these functions for geometry, bearings, or periodic measurements. All return
+`FLOAT64`, including for integer and `NUMERIC` inputs; `FLOAT32` inputs also work.
+A `NULL` argument returns `NULL`.
+
+| Function | Meaning |
+| --- | --- |
+| `sin(x)`, `cos(x)`, `tan(x)`, `cot(x)` | Sine, cosine, tangent, and cotangent of an angle in radians. |
+| `asin(x)`, `acos(x)`, `atan(x)` | Inverse functions, returning radians. |
+| `atan2(y, x)` | Angle of the vector `(x, y)`, in radians, preserving its quadrant. |
+| `sind(x)`, `cosd(x)`, `tand(x)`, `cotd(x)` | Trigonometric functions with degree inputs. |
+| `asind(x)`, `acosd(x)`, `atand(x)`, `atan2d(y, x)` | Inverse functions returning degrees. |
+| `radians(degrees)`, `degrees(radians)` | Convert between angle units. |
+| `pi()` | The value of π as `FLOAT64`. |
+
+```camussql
+SELECT sind(30), cosd(90), tand(45), atan2d(1, 1);
+-- 0.5, 0, 1, 45
+
+SELECT radians(180), degrees(pi());
+-- approximately 3.141592653589793, 180
+```
+
+Prefer the degree forms when your data uses degrees: common angles such as
+`sind(30)`, `cosd(90)`, and `tand(45)` produce exact results. Radian functions
+use the platform math library, so their last digits can vary across platforms.
+
+NaN propagates. Infinite angles passed to sine, cosine, tangent, or cotangent
+raise `CADB0400`, as do inverse sine/cosine arguments outside `[-1, 1]`.
+Poles such as `cot(0)`, `tand(90)`, and `cotd(0)` return infinity, following
+PostgreSQL. Conversions that overflow or underflow a finite value raise
+`CADB0421`.
 
 ## Errors
 

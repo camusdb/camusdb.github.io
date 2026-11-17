@@ -16,17 +16,14 @@ and you can observe it, but it defers no transaction until an operator sets
 `kahuna.max_concurrent_sessions`. Read [Turn the gate on](#turn-the-gate-on)
 before you set it.
 
-## What it does and does not do
+## Priority orders queued starts only
 
 Priority decides which queued transaction starts next when the node is at its
-configured ceiling. Nothing more.
+configured ceiling. As a result:
 
-Each of these consequences tends to surprise people:
-
-- It orders starts, not execution. An admitted transaction competes for CPU,
-  I/O, and locks like any other. CamusDB preempts nothing, throttles nothing,
-  and deschedules nothing. For a long statement, priority decides one instant
-  and nothing after it.
+- It affects only when a transaction starts. An admitted transaction competes
+  for CPU, I/O, and locks like any other. CamusDB preempts nothing, throttles
+  nothing, and deschedules nothing.
 - It does not affect lock conflicts. A `Background` transaction holding an
   exclusive lock blocks a `Critical` transaction just as hard as a `Normal` one
   does. Priority does not touch isolation,
@@ -34,12 +31,10 @@ Each of these consequences tends to surprise people:
 - It applies per node. Each node orders only the work it receives; there is no
   cluster-wide fairness.
 
-If your goal is to reduce what background work consumes, priority is the wrong
-control, because it only decides who starts first under contention. Use a rate
-limit instead. See
-[What makes background work cheap](#what-makes-background-work-cheap).
+To reduce what background work consumes, use a rate limit. See
+[Limit background work with rate limits](#limit-background-work-with-rate-limits).
 
-## The scale
+## Priority levels
 
 | Priority | Use for |
 |---|---|
@@ -74,19 +69,9 @@ CamusDB consumes the priority when the coordinator session opens, so you cannot
 change it after the transaction's first statement. CamusDB rejects a later
 `SET TRANSACTION PRIORITY` rather than silently ignoring it.
 
-Over HTTP, use the `priority` field, available on `/start-transaction` and on
-the `execute-sql-*` endpoints:
-
-```json
-{ "databaseName": "mydb", "priority": "background" }
-```
-
-CamusDB rejects an unknown value with `InvalidInput`, the same way it treats
-`locking` and `isolationLevel`.
-
-Over gRPC, use the `priority` field on `SqlRequest`, `StartTxnRequest`, and the
-row-level CRUD requests. An unset field means the server default, never
-`Background`.
+A client that calls the [HTTP API](/docs/http-api#explicit-transactions) or
+the [gRPC API](/docs/grpc-api#transactions) directly can also set a priority on
+each request.
 
 The server default is `default_transaction_priority` in `config.yml`:
 
@@ -106,7 +91,7 @@ per-request field, `default_transaction_priority`, then `Normal`.
 
 ## Turn the gate on
 
-Take care with this part. All of these settings live under `kahuna:` in
+All of these settings live under `kahuna:` in
 `config.yml` and are read at startup, so changing them requires a node
 restart. `SET CLUSTER SETTING` rejects every `kahuna.*` key.
 
@@ -118,7 +103,7 @@ kahuna:
   transaction_priority_max_queued: 4096
 ```
 
-### max_concurrent_sessions caps work, not connections
+### max_concurrent_sessions caps concurrent engine work
 
 CamusDB opens a coordinator session for every transaction, including its own
 catalog writes, schema checkpoints, and index backfill. So this setting bounds
@@ -133,7 +118,7 @@ Some clients of [Kahuna](/docs/concepts#kahuna) (the transactional storage
 layer that CamusDB embeds) hold one session per user session and can use this
 setting to bound connections. That does not apply to CamusDB.
 
-### You almost always need a reserve
+### Reserve slots for internal work
 
 Engine-internal work shares the same ceiling, so set
 `transaction_priority_reserved_slots` to 1 or more whenever you set a ceiling.
@@ -159,7 +144,7 @@ seconds. The threshold is one global rate, so a higher value also lengthens the
 worst-case wait of an ordinary transaction that is genuinely starved. A value
 of `0` disables aging and permits unlimited starvation.
 
-### How long a transaction waits at the door
+### Admission wait budget
 
 A transaction that CamusDB cannot admit waits in the queue for the admission
 wait budget, then fails with the retryable code `CADB0504`. CamusDB started
@@ -190,7 +175,7 @@ sessions. The budget above bounds how long a not-yet-admitted transaction
 waits.
 
 A transaction that needs to run for an hour is not willing to wait an hour to
-start. A long wait at the door would also make a saturated node hold requests
+start. A long admission wait would also make a saturated node hold requests
 open instead of shedding that load.
 
 Keep the budget short, in seconds. A longer budget does not increase
@@ -198,7 +183,7 @@ throughput; it only turns a prompt retryable refusal into a slow one. Each
 queued transaction also occupies a slot that `transaction_priority_max_queued`
 could otherwise give to another transaction.
 
-## What makes background work cheap
+## Limit background work with rate limits
 
 Priority decides who starts first. It does not reduce what an admitted
 transaction consumes. For that, CamusDB uses rate limits and load-aware

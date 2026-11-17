@@ -597,9 +597,8 @@ camus> backup incremental 971a0a88-3d36-42c6-b36b-8d1e773f40c4
 camus> backup chain 719b7b6b-281d-4979-bf63-b495a7d1bdaf
 ```
 
-`backup chain` is a validating read: CamusDB rejects a chain it cannot assemble
-now, rather than at restore time. It answers one question: would this backup
-actually restore?
+`backup chain` is a validating read that checks whether a backup would restore.
+CamusDB rejects a chain it cannot assemble now, before any restore starts.
 
 It prints the chain, root first, followed by the recoverable window that a
 point-in-time restore may target.

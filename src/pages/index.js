@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import {useRef, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import useBaseUrl, {useBaseUrlUtils} from '@docusaurus/useBaseUrl';
@@ -9,6 +9,49 @@ import Heading from '@theme/Heading';
 import ThemedImage from '@theme/ThemedImage';
 import PyramidEntrance from '../components/PyramidEntrance';
 import styles from './index.module.css';
+
+// The hero shows one message at a time. The first message is the one in the
+// static HTML, so it is the headline that search engines read.
+const heroMessages = [
+  {
+    id: 'scale',
+    title: 'Scale with your traffic, without giving up transactions',
+    subtitle:
+      'CamusDB partitions data, replicates every write by consensus, and runs Serializable transactions by default, while your application uses familiar SQL',
+    link: '/docs/why-camusdb',
+  },
+  {
+    id: 'availability',
+    title: 'Keep your database online when a server fails',
+    subtitle:
+      'A CamusDB cluster has no primary server to lose: any node serves requests, and when one node fails, the others continue to serve reads and writes',
+    link: '/docs/cluster',
+  },
+  {
+    id: 'branching',
+    title: 'Branch your database to test risky changes',
+    subtitle:
+      'One SQL statement creates an isolated branch of a database without copying rows, so you can rehearse a migration on real data while the source stays unchanged',
+    link: '/docs/database-branching',
+  },
+  {
+    id: 'recovery',
+    title: 'Undo a wrong DROP TABLE without a backup restore',
+    subtitle:
+      'A dropped table or database stays recoverable for a retention window, seven days by default, and time-travel queries show your data as it was minutes ago',
+    link: '/docs/recover-dropped-objects',
+  },
+  {
+    id: 'extensions',
+    title: 'Run your C# business logic inside the database',
+    subtitle:
+      'Write functions, triggers, and procedures in modern C# and call them from SQL; a trigger runs in the same transaction as the write that fires it, so every writer follows the same rule',
+    link: '/docs/csharp-extensions',
+  },
+];
+
+// Time that each hero message stays on screen.
+const HERO_ROTATION_MS = 8000;
 
 const heroProofs = [
   {
@@ -290,15 +333,23 @@ const screenshots = [
   },
 ];
 
+// A link between two nodes. One packet travels in each direction.
 function DataBeam({className}) {
   return (
     <div className={clsx(styles.dataBeam, className)} aria-hidden="true">
-      <b />
-      <span />
-      <i />
+      <span className={styles.beamLink} />
+      <span className={styles.beamPacketOut} />
+      <span className={styles.beamPacketBack} />
     </div>
   );
 }
+
+// The cluster animation in index.module.css stops the right node, then brings it back.
+const pyramids = [
+  {id: 'top', className: styles.pyramidTop},
+  {id: 'left', className: styles.pyramidLeft},
+  {id: 'right', className: styles.pyramidRight, canStop: true},
+];
 
 function PyramidNetwork({className}) {
   const pyramidUrl = useBaseUrl('/img/pyramid.png');
@@ -311,54 +362,124 @@ function PyramidNetwork({className}) {
       ref={networkRef}
       className={clsx(styles.pyramidNetwork, className, isAssembling && styles.pyramidAssembling)}
       role="group"
-      aria-label="Three database pyramids exchanging data streams">
+      aria-label="Three database nodes that replicate writes and continue when one node stops">
       <DataBeam className={styles.dataBeamLeft} />
       <DataBeam className={styles.dataBeamRight} />
       <DataBeam className={styles.dataBeamBase} />
-      <img
-        ref={(node) => { pyramidRefs.current[0] = node; }}
-        className={clsx(styles.pyramidNode, styles.pyramidTop)}
-        src={pyramidUrl}
-        alt=""
-        aria-hidden="true"
-      />
-      <img
-        ref={(node) => { pyramidRefs.current[1] = node; }}
-        className={clsx(styles.pyramidNode, styles.pyramidLeft)}
-        src={pyramidUrl}
-        alt=""
-        aria-hidden="true"
-      />
-      <img
-        ref={(node) => { pyramidRefs.current[2] = node; }}
-        className={clsx(styles.pyramidNode, styles.pyramidRight)}
-        src={pyramidUrl}
-        alt=""
-        aria-hidden="true"
-      />
+      {pyramids.map((pyramid, index) => (
+        <div className={clsx(styles.pyramidNode, pyramid.className)} key={pyramid.id} aria-hidden="true">
+          <span className={styles.nodeRing} />
+          <img
+            ref={(node) => { pyramidRefs.current[index] = node; }}
+            className={styles.pyramidImage}
+            src={pyramidUrl}
+            alt=""
+          />
+          {/* Copies of the artwork: a bright copy for a write, a dark copy for a stopped node. */}
+          <img className={styles.nodeGlow} src={pyramidUrl} alt="" />
+          {pyramid.canStop && <img className={styles.nodeDown} src={pyramidUrl} alt="" />}
+          <span className={styles.nodeRequest} />
+        </div>
+      ))}
       <PyramidEntrance targetRefs={pyramidRefs} networkRef={networkRef} onActiveChange={setIsAssembling} />
     </div>
   );
 }
 
 function HomepageHeader() {
+  const [activeIndex, setActiveIndex] = useState(0);
+  // Rotation starts after hydration, so the timer and the progress bar start together.
+  const [autoRotate, setAutoRotate] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [hasFocus, setHasFocus] = useState(false);
+  const activeMessage = heroMessages[activeIndex];
+  const isRotating = autoRotate && !isHovered && !hasFocus;
+
+  useEffect(() => {
+    // Visitors who ask for reduced motion change the message with the pager only.
+    setAutoRotate(!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }, []);
+
+  useEffect(() => {
+    if (!isRotating) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      if (!document.hidden) {
+        setActiveIndex((index) => (index + 1) % heroMessages.length);
+      }
+    }, HERO_ROTATION_MS);
+    return () => window.clearInterval(timer);
+  }, [isRotating]);
+
+  // A visitor who picks a message keeps it: the rotation stops.
+  const selectMessage = (index) => {
+    setActiveIndex(index);
+    setAutoRotate(false);
+  };
+
   return (
     <header className={styles.heroBanner}>
       <div className={styles.heroClouds} aria-hidden="true" />
       <div className="container">
         <div className={styles.heroLayout}>
-          <div className={styles.heroCopy}>
+          <div
+            className={styles.heroCopy}
+            onPointerEnter={(event) => {
+              if (event.pointerType === 'mouse') {
+                setIsHovered(true);
+              }
+            }}
+            onPointerLeave={() => setIsHovered(false)}
+            onFocus={() => setHasFocus(true)}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) {
+                setHasFocus(false);
+              }
+            }}>
             <div className={styles.eyebrowRow}>
               <span className={styles.eyebrow}>Open-source distributed SQL</span>
             </div>
-            <Heading as="h1" className={styles.title}>
-              Scale with your traffic, without giving up transactions
-            </Heading>
-            <p className={styles.subtitle}>
-              CamusDB partitions data, replicates every write by consensus, and
-              runs Serializable transactions by default, while your application
-              uses familiar SQL
-            </p>
+            <div className={styles.heroMessages} aria-live={autoRotate ? 'off' : 'polite'}>
+              {heroMessages.map((message, index) => {
+                const isActive = index === activeIndex;
+                // Only the visible title is the page heading.
+                const Title = isActive ? 'h1' : 'p';
+                return (
+                  <div
+                    className={clsx(styles.heroMessage, isActive && styles.heroMessageActive)}
+                    key={message.id}
+                    aria-hidden={!isActive}>
+                    <Title className={styles.title}>{message.title}</Title>
+                    <p className={styles.subtitle}>{message.subtitle}</p>
+                  </div>
+                );
+              })}
+            </div>
+            <div
+              className={styles.heroPager}
+              role="group"
+              aria-label="Hero messages"
+              style={{'--hero-rotation': `${HERO_ROTATION_MS}ms`}}>
+              {heroMessages.map((message, index) => {
+                const isActive = index === activeIndex;
+                return (
+                  <button
+                    className={clsx(
+                      styles.heroPagerItem,
+                      isActive && styles.heroPagerItemActive,
+                      isActive && isRotating && styles.heroPagerItemRunning,
+                    )}
+                    key={message.id}
+                    type="button"
+                    aria-label={`Show message ${index + 1} of ${heroMessages.length}: ${message.title}`}
+                    aria-current={isActive ? 'true' : undefined}
+                    onClick={() => selectMessage(index)}>
+                    <span />
+                  </button>
+                );
+              })}
+            </div>
             <div className={styles.buttons}>
               <Link className={clsx('button button--lg', styles.playgroundAction)} to="/playground">
                 Try in browser
@@ -366,15 +487,21 @@ function HomepageHeader() {
               <Link className="button button--primary button--lg" to="/docs/intro">
                 Install locally
               </Link>
-              <Link className={styles.secondaryAction} to="/docs/why-camusdb">
+              <Link className={styles.secondaryAction} to={activeMessage.link}>
                 See how it works <span aria-hidden="true">→</span>
               </Link>
             </div>
             <p className={styles.statusNote}>
               <span className={styles.statusDot} aria-hidden="true" />
-              <Link className={styles.statusLink} href="https://github.com/camusdb/camusdb-caraxes">Jepsen-tested with Caraxes</Link>
+              <span className={styles.statusText}>
+                <Link className={styles.statusLink} href="https://github.com/camusdb/camusdb-caraxes">Fault-tested with Caraxes</Link>
+                {' '}and the Elle checker from Jepsen
+              </span>
               <span aria-hidden="true">·</span>
-              Actively used in production — some features are still young
+              <span className={styles.statusText}>
+                <Link className={styles.statusLink} to="/blog/camusdb-in-production-at-bacon-games">Used in production</Link>
+                , some features are young
+              </span>
             </p>
           </div>
           <PyramidNetwork className={styles.heroNetwork} />
@@ -401,7 +528,7 @@ function OutcomeSection() {
     <section className={styles.outcomes}>
       <div className="container">
         <div className={styles.sectionIntro}>
-          <p className={styles.sectionEyebrow}>Why look closer</p>
+          <p className={styles.sectionEyebrow}>Benefits</p>
           <Heading as="h2">Four practical reasons to explore CamusDB</Heading>
         </div>
         <div className={styles.outcomeGrid}>

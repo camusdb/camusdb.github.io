@@ -13,7 +13,7 @@ SHOW SLOW QUERIES LIKE '%FROM orders%';
 ```
 
 The log is off by default and bounded in memory. Use it as a diagnostic while a
-node is slow, not as an audit log.
+node is slow.
 
 ## Enable it
 

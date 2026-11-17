@@ -12,7 +12,7 @@ times to bind, plan, render, and evaluate it. Those walks are recursive in many
 places. A statement with extreme nesting could otherwise overflow the process
 stack and take a node down instead of returning an error.
 
-## What counts
+## How depth is counted
 
 Depth is the longest path from the statement root to a leaf. Each operator,
 function call, `NOT`, `CASE` branch, list element, and subquery level adds to
@@ -40,7 +40,15 @@ Shapes that still cost one level per step include:
 - very long select lists and column lists
 - nested subqueries
 
-## The error
+## CTE expansion {#cte-expansion}
+
+[WITH queries](/docs/sql-queries#with-queries) expand references into derived
+tables. One WITH clause can copy at most 250,000 parse nodes. A chain where
+each CTE reads the preceding one twice can reach that limit in about twenty
+steps. Exceeding it returns `CADB0413`; shorten the chain or store an
+intermediate result. The 1,000-level depth limit also applies.
+
+## Error and retry behavior
 
 `CADB0413` is a permanent client error for that statement shape. HTTP reports
 status 400. gRPC reports `INVALID_ARGUMENT`.
@@ -58,4 +66,4 @@ nesting, or split it into more than one statement.
 - Split a very wide generated statement into several statements.
 
 The limit is not configurable because the safe value depends on runtime stack
-frame sizes, not on workload preference.
+frame sizes.

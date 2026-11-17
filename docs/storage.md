@@ -4,14 +4,14 @@ sidebar_position: 6
 
 # Storage
 
+This page shows how a table becomes key/value entries. That helps you
+understand index costs, row sizes, and the ranges in
+[`SHOW RANGES`](/docs/show-ranges). You do not need it to use CamusDB.
+
 CamusDB stores relational data on a distributed key/value layer provided by
 [Kahuna](/docs/concepts#kahuna), the transactional key/value store embedded in
 each node. CamusDB maps tables, rows, indexes, schema metadata, locks, and
 transaction state to persistent key/value entries.
-
-You do not need this page to use CamusDB. Read it when you want to know how a
-table becomes key/value entries. That helps you understand index costs, row
-sizes, and the ranges in [`SHOW RANGES`](/docs/show-ranges).
 
 Users keep working with SQL, while the storage layout is one that the
 distributed KV layer can route, replicate, lock, and commit.

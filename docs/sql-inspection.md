@@ -207,7 +207,7 @@ See [Automatic Analyze](/docs/automatic-analyze) and
 
 ## Node state
 
-These `SHOW` statements report on the server, not your data. While
+These `SHOW` statements report on the server itself. While
 authentication is enabled they require a superuser, except for query activity
 rows owned by the current user.
 

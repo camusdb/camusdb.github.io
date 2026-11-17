@@ -11,7 +11,7 @@ PostgreSQL rules, and CamusDB also accepts the PostgreSQL and MySQL formatting
 functions (`to_char`, `date_format`) and the MySQL shortcuts (`year`,
 `dayname`), so queries you port need fewer changes.
 
-Each function returns a typed value: `DATE`, `DATETIME`, or `INT64`.
+Functions return typed values including `DATE`, `DATETIME`, `INTERVAL`, and `INT64`.
 `to_char`, `date_format`, `dayname`, and `monthname` return `STRING`.
 
 These functions accept `DATE` and `DATETIME` columns directly, as well as two
@@ -48,8 +48,9 @@ When extracted as a part, `week` is the ISO-8601 week, and `millisecond` and
 | `clock_timestamp()` | `DATETIME` | The current instant in UTC, read fresh on each call. |
 | `sysdate()` | `DATETIME` | Alias for `clock_timestamp()`. |
 | `date_add(value, amount, unit)` | `DATETIME` | Adds an `INT64` amount of the given unit. A `DATE` input is promoted to `DATETIME`. |
+| `date_add(value, interval)`, `date_sub(value, interval)` | `DATETIME` | Adds or subtracts an interval, with calendar month handling. |
 | `date_diff(start, end, unit)` | `INT64` | The difference from `start` to `end`, in whole units. |
-| `date_part(unit, value)` | `INT64` | Extracts a UTC component of `value`. |
+| `date_part(unit, value)` | `INT64` | Extracts a UTC component of a temporal value, or a field of an interval. |
 | `EXTRACT(unit FROM value)` | `INT64` | The SQL-standard form of `date_part(unit, value)`. The unit is a bare word or a string. |
 | `date_trunc(unit, value)` | `DATETIME` | Truncates `value` to the start of the requested unit, in UTC. |
 | `unix_timestamp()` | `INT64` | The start of the current transaction, in whole Unix seconds. |
@@ -70,7 +71,7 @@ When extracted as a part, `week` is the ISO-8601 week, and `millisecond` and
 Pattern formatting and parsing are covered in
 [Pattern formatting and parsing](#pattern-formatting-and-parsing).
 
-## Which clock?
+## Transaction, statement, and clock time
 
 The clock functions follow PostgreSQL:
 
@@ -183,6 +184,75 @@ second named in the message. Years must be from 1 through 9999.
 that rounds up to 60 seconds carries into the next minute. `makedate` permits a
 day beyond the end of the named year and continues into the next year, while a
 day below 1 is an error.
+
+## Interval functions
+
+Use [intervals](/docs/data-types#intervals) to calculate calendar ages, build
+reusable time spans, or group timestamps into fixed time buckets.
+
+| Function | Returns | Behavior |
+| --- | --- | --- |
+| `age(a, b)` | `INTERVAL` | Calendar difference `a - b`, keeping years, months, days, and time. |
+| `age(a)` | `INTERVAL` | Equivalent to `age(current_date(), a)`, using the transaction's UTC date at midnight. |
+| `make_interval(years, months, weeks, days, hours, mins, secs)` | `INTERVAL` | Builds an interval from positional parts; omitted trailing parts default to zero. |
+| `justify_days(i)` | `INTERVAL` | Converts each 30 days to a month and adjusts opposing month/day signs. |
+| `justify_hours(i)` | `INTERVAL` | Converts each 24 hours to a day and adjusts opposing day/time signs. |
+| `justify_interval(i)` | `INTERVAL` | Applies both conversions and adjusts opposing signs across parts. |
+| `date_bin(stride, source, origin)` | `DATETIME` | Returns the start of the bucket containing `source`, aligned to `origin`. |
+
+```camussql
+SELECT age(CAST('2001-04-10' AS DATE), CAST('1957-06-13' AS DATE));
+-- P43Y9M27D
+
+SELECT make_interval(0, 0, 0, 1, 2);
+-- P1DT2H
+
+SELECT justify_interval(INTERVAL '1 month -1 hour');
+-- P29DT23H
+
+SELECT date_bin(INTERVAL '15 minutes',
+  CAST('2024-06-15T15:44:17Z' AS DATETIME),
+  CAST('2024-06-15T00:00:00Z' AS DATETIME));
+-- 2024-06-15T15:30:00Z
+
+SELECT DATE_ADD(CAST('2024-01-31' AS DATE), INTERVAL 1 MONTH);
+-- 2024-02-29T00:00:00Z
+```
+
+`age` borrows days using the earlier date's month length, as PostgreSQL does.
+Both forms are marked volatile in CamusDB: they cannot appear in `CHECK`
+constraints, and queries calling them bypass the result cache. PostgreSQL's
+two-argument form is immutable.
+
+`make_interval` accepts zero to seven positional arguments; named arguments
+are unsupported. All parts except seconds must be `INT64`. Seconds may be
+fractional and round to the nearest microsecond. Out-of-range parts fail with
+`CADB0400`.
+
+`date_bin` requires a positive stride without a month component and an explicit
+origin. Values before the origin round down to the preceding bucket. A `NULL`
+argument to these interval functions returns `NULL`.
+
+### Extracting interval fields
+
+`EXTRACT` and `date_part` read the existing parts without normalizing them:
+
+```camussql
+SELECT EXTRACT(hour FROM INTERVAL '36 hours'),
+       date_part('day', INTERVAL '36 hours');
+-- 36, 0
+```
+
+Years are total months divided by 12; the month field is the remainder.
+Each field retains its own part's sign. Results are `INT64`, unlike
+PostgreSQL's fractional `NUMERIC`: seconds are whole seconds, while
+milliseconds and microseconds describe only the fraction of the current second.
+For intervals, `epoch` returns whole seconds rounded down, using 365.25 days
+per year and 30 days per remaining month.
+
+`week`, `dow`, `isodow`, `doy`, and `isoyear` are calendar positions and cannot
+be extracted from intervals. The calendar-unit descriptions above apply to
+dates and timestamps.
 
 ## NULLs and overflow
 

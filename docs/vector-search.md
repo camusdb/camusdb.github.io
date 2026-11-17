@@ -78,7 +78,7 @@ CREATE TABLE docs (
 768-dimension embedding is large enough to move out of the row under the default
 large-value strategy. See [Storage strategy for embeddings](#storage-strategy-for-embeddings).
 
-### BYTES(N) is a maximum, not a fixed width
+### BYTES(N) sets a maximum length
 
 `BYTES(N)` means a value must not exceed `N` bytes, not that it must be exactly
 `N` bytes. So a 767-element embedding fits a `BYTES(3072)` column without
@@ -230,32 +230,6 @@ const rows = await client.query(
 );
 ```
 
-The driver converts the parameter to the appropriate HTTP or gRPC form.
-
-<details>
-<summary>Parameter encoding for client implementers</summary>
-
-| Transport | Encoding |
-| --- | --- |
-| SQL text | Hexadecimal, with an `X'...'` literal |
-| REST (JSON) | Base64, under `bytesValue`, with `type` 7 |
-| gRPC | Raw bytes, in `Value.bytes_value` |
-
-```json
-{
-  "databaseName": "app",
-  "sql": "SELECT id FROM docs ORDER BY l2_distance(embedding, @q) LIMIT 10",
-  "parameters": {
-    "@q": { "type": 7, "bytesValue": "AAAAAAAAgD8=" }
-  }
-}
-```
-
-The value above is the two-element vector `[0.0, 1.0]`. A real 768-dimension
-embedding is 4,096 base64 characters.
-
-</details>
-
 The statement text never changes, so a thousand different query vectors share
 one cached plan. The .NET and TypeScript drivers can prepare repeated statements automatically;
 you keep supplying named parameters. See
@@ -271,7 +245,7 @@ vectors.
 `LIMIT` also accepts a parameter. CamusDB binds the value before it builds the
 plan, so a parameterized limit still bounds the sort.
 
-## What the plan shows
+## Bounded topk and full sort plans
 
 Use `EXPLAIN` to see how CamusDB ranks the query. With a `LIMIT`, the sort is
 bounded and the plan shows a `topk` node:
@@ -284,9 +258,9 @@ Without a `LIMIT`, the plan shows a `sort` node instead, which ranks and
 materializes every matching row.
 
 The names reflect two different operators. A `sort` node holds the whole input
-and can spill to disk. A `topk` node holds at most `k` rows and never spills.
-That is what lets an exact nearest neighbor query over a large table finish at
-all.
+and can spill to disk. A `topk` node holds at most `k` rows and never spills,
+so an exact nearest neighbor query keeps a fixed memory bound however large the
+table is.
 
 ```mermaid
 flowchart LR

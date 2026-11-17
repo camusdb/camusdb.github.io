@@ -13,7 +13,7 @@ and [EXPLAIN](/docs/explain) for reading a plan. This page follows the same
 concepts into the implementation: representations, rewrite safety, search,
 costing, cache replay, and execution.
 
-## The mental model
+## What the planner decides
 
 The CamusDB planner sits between the SQL layer and the ordered transactional KV
 store. [Kahuna](/docs/concepts#kahuna), the key/value layer embedded in every
@@ -432,8 +432,8 @@ checked with the same key analyzers as the physical builder. For a composite
 condition such as `a.x = b.x AND a.y = b.y`, an index on `b.x` can provide the
 probe while the full predicate still checks both comparisons.
 
-The distinction between `R` and `S` matters. A pushed filter can reduce the
-right table to ten output rows while still requiring a scan of a million rows.
+`R` and `S` can differ widely. A pushed filter can reduce the right table to ten
+output rows while still requiring a scan of a million rows.
 For the scan-based right-input alternatives, `S` is the unfiltered table row
 count. An index on that filter does not automatically reduce the right scan's
 read cost. The first input can instead use an eligible filtered range or

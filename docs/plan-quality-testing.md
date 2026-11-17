@@ -31,8 +31,8 @@ significant amount of additional work. A per-query work counter must grow by
 more than 1.5 times and by more than 100 units to fail. The gate also limits the
 geometric-mean work increase across the complete corpus to 5%.
 
-A different plan is not automatically a regression. It passes when it returns
-the same result without exceeding the work limits. Lower work and changed
+A different plan passes when it returns the same result without exceeding the
+work limits. Lower work and changed
 cardinality estimates are reported for review.
 
 ## Test suites
@@ -184,7 +184,7 @@ different result.
 Commit the baseline with the planner change and describe why the affected plans
 moved. Separate baselines exist for each data suite and scale.
 
-## Scope
+## Single-node scope
 
 The suite exercises a single CamusDB node. It does not grade
 [distributed queries](/docs/distributed-queries), such as gathering rows from

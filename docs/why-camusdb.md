@@ -301,8 +301,8 @@ real problem.
 
 ## Current scope
 
-CamusDB is in production use but still evolving. Some capabilities are recent,
-and APIs or storage formats can change between versions.
+CamusDB [runs in production at Bacon Games](/blog/camusdb-in-production-at-bacon-games). Some capabilities are
+recent, and APIs or storage formats can change between versions.
 
 Beyond the features above, the engine includes the ordinary relational
 machinery: a cost-based planner with `EXPLAIN`, secondary and covering

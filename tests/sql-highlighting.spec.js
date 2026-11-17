@@ -72,3 +72,87 @@ test('dollar quotes inside ordinary SQL strings and comments do not start bodies
   }
   expectToken(Array.from(tokenizeSql('AS $fn$ return "unfinished";')), 'string', '$fn$ return "unfinished";');
 });
+
+
+test('interval literals and casts preserve unreserved identifiers', () => {
+  for (const sql of ["SELECT INTERVAL '1 day';", 'SELECT INTERVAL 3 HOUR;', 'SELECT INTERVAL @n DAY;']) {
+    for (const stream of tokens(sql)) expectToken(stream, 'keyword', 'INTERVAL');
+  }
+  for (const sql of ["SELECT CAST('1 day' AS INTERVAL);", "SELECT '1 day'::INTERVAL;"]) {
+    const [prism, editor] = tokens(sql);
+    expectToken(prism, 'builtin', 'INTERVAL');
+    expectToken(editor, 'type', 'INTERVAL');
+  }
+  for (const stream of tokens('SELECT interval FROM measurements;')) {
+    expect(stream.some((token) => token.kind !== 'plain' && token.value.toUpperCase() === 'INTERVAL')).toBe(false);
+  }
+});
+
+test('interval functions highlight without changing strings or comments', () => {
+  const sql = "SELECT age(x), make_interval(), justify_days(x), justify_hours(x), justify_interval(x), date_bin(x, y, z), 'INTERVAL age'; -- INTERVAL date_bin";
+  for (const stream of tokens(sql)) {
+    expect(stream.map((token) => token.value).join('')).toBe(sql);
+    for (const name of ['age', 'make_interval', 'justify_days', 'justify_hours', 'justify_interval', 'date_bin']) {
+      expectToken(stream, 'function', name);
+    }
+    expectToken(stream, 'string', "'INTERVAL age'");
+    expectToken(stream, 'comment', '-- INTERVAL date_bin');
+  }
+});
+
+
+test('trigonometric functions and angle conversions highlight in both grammars', () => {
+  const names = ['sin', 'cos', 'tan', 'cot', 'asin', 'acos', 'atan', 'atan2',
+    'sind', 'cosd', 'tand', 'cotd', 'asind', 'acosd', 'atand', 'atan2d',
+    'radians', 'degrees', 'pi'];
+  const sql = `SELECT ${names.map((name) => `${name}(${name === 'pi' ? '' : name.startsWith('atan2') ? '1, 1' : '0.5'})`).join(', ')}, 'sind radians'; -- cotd degrees`;
+  for (const stream of tokens(sql)) {
+    expect(stream.map((token) => token.value).join('')).toBe(sql);
+    for (const name of names) expectToken(stream, 'function', name);
+    expectToken(stream, 'string', "'sind radians'");
+    expectToken(stream, 'comment', '-- cotd degrees');
+  }
+});
+
+
+test('WITH queries and joined writes highlight supported SQL forms', () => {
+  const sql = `WITH totals(account_id, amount) AS MATERIALIZED (
+  SELECT account_id, sum(amount) FROM deltas GROUP BY account_id
+), current_totals AS NOT MATERIALIZED (SELECT * FROM totals)
+UPDATE accounts AS a SET balance = a.balance + d.amount
+FROM current_totals AS d WHERE d.account_id = a.id RETURNING a.id;
+DELETE FROM orders AS o USING customers AS c WHERE c.id = o.customer_id;
+SELECT using_id, usings, \`using\`, 'WITH USING MATERIALIZED'; -- WITH USING`;
+  for (const stream of tokens(sql)) {
+    expect(stream.map((token) => token.value).join('')).toBe(sql);
+    for (const word of ['WITH', 'AS', 'MATERIALIZED', 'NOT', 'UPDATE', 'FROM', 'DELETE', 'USING', 'RETURNING']) {
+      expectToken(stream, 'keyword', word);
+    }
+    expectToken(stream, 'identifier', '`using`');
+    expectToken(stream, 'string', "'WITH USING MATERIALIZED'");
+    expectToken(stream, 'comment', '-- WITH USING');
+    expect(stream.some((token) => token.kind === 'keyword' && /^(using_id|usings)$/.test(token.value))).toBe(false);
+  }
+});
+
+
+test('recursive queries, lateral values and typed temporal literals highlight correctly', () => {
+  const sql = `WITH RECURSIVE walk(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM walk WHERE n < 3)
+SELECT v.d, TIMESTAMP '2026-11-16T12:00:00Z', recursive, lateral_id
+FROM walk CROSS JOIN LATERAL (VALUES (DATE '2026-11-16', n)) AS v(d, value);
+-- WITH RECURSIVE LATERAL
+SELECT 'WITH RECURSIVE LATERAL';`;
+  const [prism, editor] = tokens(sql);
+  for (const stream of [prism, editor]) {
+    expect(stream.map((token) => token.value).join('')).toBe(sql);
+    for (const word of ['WITH', 'RECURSIVE', 'LATERAL', 'VALUES']) expectToken(stream, 'keyword', word);
+    expectToken(stream, 'string', "'2026-11-16'");
+    expectToken(stream, 'comment', '-- WITH RECURSIVE LATERAL');
+    expectToken(stream, 'string', "'WITH RECURSIVE LATERAL'");
+    expect(stream.some((token) => token.kind === 'keyword' && /^(recursive|lateral_id)$/.test(token.value))).toBe(false);
+  }
+  expectToken(prism, 'builtin', 'DATE');
+  expectToken(prism, 'builtin', 'TIMESTAMP');
+  expectToken(editor, 'type', 'DATE');
+  expectToken(editor, 'type', 'TIMESTAMP');
+});

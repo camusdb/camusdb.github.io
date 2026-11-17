@@ -4,17 +4,17 @@ description: The distributed database terms used across the CamusDB docs, in pla
 
 # Key concepts
 
-CamusDB speaks SQL, and under that SQL runs a partitioned, replicated storage
-layer. Words such as partition, leader, majority, and write intent appear across
-these docs, in error messages, and in the output of
-[`SHOW RANGES`](/docs/show-ranges). Knowing them helps you predict what happens
-when a node fails, why a commit takes the time it does, and when your
-application must retry.
+This page defines the distributed database terms that appear across these docs,
+in error messages, and in the output of [`SHOW RANGES`](/docs/show-ranges):
+partition, leader, majority, write intent, and others. Knowing them helps you
+predict what happens when a node fails, why a commit takes the time it does,
+and when your application must retry.
 
-Each term gets a short definition, a comparison with single-node PostgreSQL
+CamusDB speaks SQL on top of a partitioned, replicated storage layer. Each term
+gets a short definition, a comparison with single-node PostgreSQL
 where that helps, and a link to the page with the details.
 
-## The big picture
+## How a three-node cluster holds data
 
 A three-node cluster with default settings looks like this:
 
@@ -122,7 +122,8 @@ retries returns `CADB0504` `TransactionMustRetry`; replay the transaction from
 By default, CamusDB does not move leaders to spread load. Turn on
 `kahuna.enable_leader_balancer` for that, or move one leader yourself with
 [a leadership transfer](/docs/cluster#transfer-partition-leadership). The
-`leader` column of [`SHOW RANGES`](/docs/show-ranges) is a hint, not a promise.
+`leader` column of [`SHOW RANGES`](/docs/show-ranges) is a hint, because
+leadership can change after you read it.
 
 ### Majority {#majority}
 
@@ -142,7 +143,7 @@ three. That is why odd numbers work best. A partition that loses its majority
 stops committing instead of risking two diverging copies. With full replication,
 losing most nodes stops every partition. With a replication factor, only the
 partitions whose replicas you lost stop. See
-[Consistency before split-brain writes](/docs/cluster#consistency-before-split-brain-writes).
+[A partition without a majority stops committing](/docs/cluster#a-partition-without-a-majority-stops-committing).
 
 ### Learner and voter {#learner-and-voter}
 

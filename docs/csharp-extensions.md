@@ -115,8 +115,8 @@ a view, materialized view, or CHECK calls the function (CADB0844). A body-only
 replacement keeps the owner and dependencies. These objects use the new body
 in subsequent statements; a materialized view keeps stored rows until refresh.
 A deterministic column default is computed once at table creation and keeps
-that value. Inline-trigger bodies are not part of this dependency check;
-see [trigger recompilation](#trigger-recompilation-and-ownership).
+that value. Inline-trigger bodies also block incompatible changes when they
+reference the function; see [trigger recompilation](#trigger-recompilation-and-ownership).
 
 ### Allowed code and resource budgets
 
@@ -328,7 +328,7 @@ Functions are deterministic by default. Set `IsVolatile = true` when the same
 arguments can produce a different result, for example a random token or a value
 from the clock.
 
-This distinction affects SQL behavior:
+Volatility affects SQL behavior:
 
 - A volatile function bypasses the query result cache.
 - A volatile function cannot be used in a `CHECK` constraint.
@@ -376,8 +376,8 @@ FROM split_words(@text) AS w JOIN dictionary d ON d.term = w.word;
 
 The output has one column of a supported scalar or array type. `Column` names
 it; otherwise the function name or relation alias supplies the name. Multiple
-output columns and `LATERAL` references to another relation's columns are not
-supported.
+output columns are unsupported. Arguments can reference columns of earlier
+FROM sources through implicit [LATERAL](/docs/joins-and-subqueries#lateral).
 
 Arguments follow scalar-function null and conversion rules. A non-nullable
 parameter receiving NULL produces zero rows; a null sequence also produces
@@ -535,6 +535,10 @@ typed HTTP and gRPC write APIs. They do not fire for internal maintenance such
 as `TRUNCATE`, TTL expiration, schema backfills and rewrites, materialized-view
 refresh, restore, or dropped-table recovery.
 
+An audit trigger therefore cannot record every way data changes. Use
+[privileges](/docs/sql-authentication) to control access to the table; trigger
+validation covers only operations that fire it.
+
 For `INSERT ... ON CONFLICT` and `UPSERT`, BEFORE INSERT also runs on proposed
 rows that will be skipped or updated. A conflict update then fires the UPDATE
 triggers; a skipped row fires no further row trigger. See
@@ -589,7 +593,7 @@ OLD is read-only, and AFTER rows are read-only.
 | --- | --- |
 | `NEW`, `OLD` | Generated nullable row properties, typed from the table. NEW is null for DELETE; OLD is null for INSERT. |
 | `Operation`, `Timing`, `TableName`, `TriggerName` | The event and trigger metadata. |
-| `Sql` | Bind typed parameters with Set, then await ExecuteAsync or QueryAsync. Parameters are cleared after that SQL operation. |
+| `Sql` | Bind typed parameters with Set, then await ExecuteAsync or QueryAsync with constant SQL text. Parameters are cleared after that SQL operation. |
 | `Context` | The ITriggerContext row API, including columns without generated properties. |
 | Database inline-function names | Call an inline function as a C# method, with that function's NULL rule and budget. |
 
@@ -597,6 +601,17 @@ A C# keyword column uses a verbatim property, such as `NEW.@class`. Columns
 that collide with context names, start with `__camus`, or have no supported
 property type use the row API instead, for example
 `Context.New!.GetString("Timing")` or `Context.New!.Set("Timing", "x")`.
+
+SQL text passed to `Sql.ExecuteAsync` or `Sql.QueryAsync` must be a compile-time
+constant, such as a literal or literals joined with `+`. Building SQL text
+from row values, or taking these methods as delegates, is refused with
+`CADB0839`. Use `Sql.Set` parameters for values: the SQL runs with the trigger
+owner's privileges, so joining untrusted text into it would expose those rights.
+
+```csharp
+await Sql.Set("note", NEW!.note)
+    .ExecuteAsync("UPDATE audit_notes SET note = @note WHERE id = 1");
+```
 
 A trigger can await only Sql operations; Task.Run, Task.Delay, and awaits
 inside lambdas/local functions are refused. Unlike functions, triggers may
@@ -612,9 +627,13 @@ not make it committable (CADB0823).
 
 The first fire after a table or inline-function change recompiles the body on
 each node. Adding a column or replacing a function is picked up automatically.
-DROP COLUMN and DROP FUNCTION do not inspect inline-trigger bodies. If a body
-still references the removed member, subsequent writes that fire it fail with
-CADB0845 until you drop and recreate the trigger with a valid body.
+Dropping or renaming a referenced column is refused with `CADB0530`.
+Dropping a called inline function, or replacing it with different parameter
+or result types, is refused with `CADB0844`. Drop or rewrite the trigger first.
+These checks inspect source names conservatively: a local variable can also
+match, and a string equal to a column name counts as a reference. Column type
+changes are not checked; if the body can no longer compile, writes that fire
+it fail with `CADB0845` until you replace the trigger.
 
 An inline trigger's SQL runs with its creator's privileges, rather than the
 writer's. Its owner must hold the grants needed by that SQL; the writer does
@@ -624,9 +643,16 @@ account with the same name does not inherit ownership.
 
 The owner can drop an inline trigger after losing ALTER, provided the owner
 still has a grant making the database visible. ALTER holders and superusers
-can also drop it. A trigger created with authentication off has no owner:
-its SQL uses the writer's privileges, and dropping it requires ALTER or a
-superuser. DLL triggers also use the writer's privileges.
+can also drop it. A trigger created with authentication off has no owner.
+After authentication is enabled, its nested SQL fails with `CADB0846`, even
+when a superuser fires it. A BEFORE trigger that only changes NEW still works.
+A superuser can drop and recreate the trigger under an owner with the required
+grants. `SHOW TRIGGERS` shows an empty owner for ownerless triggers.
+
+DLL triggers use the writer's privileges. If one inserts audit rows, writers
+need `INSERT` on that audit table; avoid granting UPDATE or DELETE there when
+the audit history must stay protected. An inline trigger can instead hold that
+INSERT privilege through its owner.
 
 ```camussql
 SHOW TRIGGERS ON posts;
@@ -856,9 +882,24 @@ the same files. Invalid paths, missing files, missing manifests, and duplicate
 extension name/version pairs prevent startup. See
 [configuration](/docs/configuration) for the assembly settings.
 
-The installed record's SHA-256 covers only the extension DLL. Private
-dependencies of unsafe extensions are not hashed, so deploy the whole folder
-as one unit to keep behavior consistent across nodes.
+An installed extension pins its DLL's SHA-256 and a dependency hash. For an
+unsafe extension, the dependency hash includes every other file in its folder
+and subfolders, including native libraries, `.deps.json`, and unused files
+such as `.pdb` files. Give each unsafe extension its own folder and deploy it
+as one unit on every node. Safe extensions cannot load private dependencies
+and use an empty dependency set.
+
+Dependencies are checked again when first loaded; files added or changed
+since startup are refused. Restart nodes after changing files. To pin
+dependencies for an older installation, or accept changed dependencies at the
+same version, deploy the folder everywhere, restart nodes, and run
+`ALTER EXTENSION name UPDATE TO 'same version'`. `SHOW EXTENSIONS` reports
+`dependencies_sha256`. Only the operator account should be able to write to
+extension folders.
+
+Without `VERSION`, `CREATE EXTENSION` chooses the highest version loaded on
+the executing node. Pin the version in deployment scripts, especially during
+rolling upgrades.
 
 ### Rolling upgrade
 
@@ -871,7 +912,7 @@ as one unit to keep behavior consistent across nodes.
    restart the nodes again.
 
 Before an install or update, the coordinating node checks the target name,
-version, and SHA-256 on other cluster nodes. A responding node without the
+version, DLL SHA-256, and dependency hash on other cluster nodes. A responding node without the
 build causes `CADB0835`, naming the affected nodes. Nodes that do not respond
 are skipped; this check does not guarantee that an offline node has the build.
 
@@ -901,8 +942,8 @@ Files in `unsafe_extension_assemblies` skip those checks. They can load private
 dependencies from their own directory, and the server logs their trust level at
 startup.
 
-Safe mode is a review guardrail, not a sandbox. Extension code runs inside the
-database process with its permissions. It can consume unbounded CPU or memory,
+Safe mode is a review guardrail. It does not sandbox extension code, which runs
+inside the database process with its permissions. It can consume unbounded CPU or memory,
 and a stack overflow can terminate the server. Deploy only reviewed code; the
 operator-controlled assembly lists are the security boundary.
 
@@ -931,7 +972,7 @@ whole transaction.
   begins in this version.
 - CamusDB cannot stop a DLL extension method that never returns. Inline bodies
   have the separate instrumented budgets described above.
-- Table functions return one column and do not support `LATERAL`.
+- Table functions return one column and support implicit LATERAL references.
 - Window functions, `DISTINCT` aggregate arguments, and distributed partial
   aggregation for extension aggregates are unsupported.
 

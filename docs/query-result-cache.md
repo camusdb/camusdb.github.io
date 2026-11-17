@@ -8,7 +8,7 @@ The query result cache keeps the result of a `SELECT` in memory. When the same
 query runs again with the same values, CamusDB returns the stored result
 without executing the query or reading storage again.
 
-## Why use the cache
+## When to use the cache
 
 Many applications run the same read again and again: a leaderboard, a store's
 home page, a product catalog, a settings lookup, or a dashboard panel that
@@ -45,9 +45,9 @@ A query opts in with an inline hint, as in
 identical later query from memory, without touching storage. That query needs
 the same shape, the same bound values, and the same schema.
 
-The cache is correct before it is fast. A committed write on the same node
-evicts every dependent entry before the write becomes visible to a later probe,
-so a reader on the same node never sees stale data.
+A committed write on the same node evicts every dependent entry before the
+write becomes visible to a later probe, so a reader on the same node never sees
+stale data.
 
 The cache does not see a write on another node immediately. A per-entry TTL
 bounds that staleness, and the opt-in `strict` mode removes it at each hit.
@@ -60,7 +60,7 @@ This page covers what you need to use and tune the cache. For the read path,
 the invalidation protocol, and the publish gate, see
 [Query result cache internals](/docs/query-result-cache-internals).
 
-## The mental model
+## How entries are keyed and invalidated
 
 The rest of this page builds on these ideas:
 
@@ -192,10 +192,9 @@ Every other query reads live storage. A hint on a join, or inside a subquery in
 a `WHERE` clause, has no effect: CamusDB ignores the hint rather than honoring
 it in part.
 
-### Observe what happened
+### Read the cache status
 
-Every response to a hinted query carries cache metadata, so clients never have
-to guess from the response time:
+Every response to a hinted query carries cache metadata:
 
 | Field | Meaning |
 |-------|---------|
@@ -241,9 +240,8 @@ none of them.
 
 ## How the cache stays correct
 
-The cache never trades correctness for speed. These rules decide what you can
-observe, and the [internals page](/docs/query-result-cache-internals) explains
-each mechanism.
+These rules decide what you can observe, and the
+[internals page](/docs/query-result-cache-internals) explains each mechanism.
 
 - A committed write on this node evicts every entry that depends on the rows or
   key spaces it changed, before the write becomes visible. A transaction that
@@ -351,5 +349,3 @@ Natural directions for the future:
 2. Index scan fences, which would narrow the row bucket snapshot.
 3. A join cache, which needs a fence on every table in the join.
 4. A second tier that is shared or persistent.
-
-None of them changes the correctness contract above.

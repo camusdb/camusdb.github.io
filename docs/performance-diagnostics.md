@@ -19,7 +19,7 @@ sampled OpenTelemetry traces.
   records the steps of one request and how long each step took. A collector
   receives the traces, and a tracing tool shows them as a timeline.
 
-## Why use performance diagnostics
+## Find which server stage is slow
 
 Use diagnostics when a workload is slower than you expect and you do not know
 which part is slow. They let you connect a workload result to a server stage:

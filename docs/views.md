@@ -27,9 +27,7 @@ CREATE VIEW order_summary (order_id, who, amount) AS
   SELECT id, customer, total FROM orders;
 ```
 
-## Why use a view
-
-Naming a query is worth more than the typing it saves.
+## Benefits of views
 
 - One definition serves many readers. The join, the filter, and the business
   rule live in one place instead of being copied into every report and
@@ -137,12 +135,12 @@ INNER JOIN customers c ON v.customer = c.name;
 
 [`EXPLAIN`](/docs/explain) has no view scan node. The plan shows the query that
 actually runs, which is the expanded form, so a view over an indexed table uses
-those indexes. By planning time, there is no view left in the way.
+those indexes.
 
 For the same reason, a view stores no statistics of its own. A plan over a view
 uses the estimates of the tables its body reads, so
 [`SHOW STATISTICS`](/docs/show-statistics) names the view and points you to
-those tables instead of reporting numbers that do not exist.
+those tables.
 
 You can reference a view by its name or give it an alias:
 
@@ -173,8 +171,8 @@ privileges, as the rest of the body does.
 ## CamusDB checks the body at creation time
 
 CamusDB resolves every table, column, and function in the body when you run
-`CREATE VIEW`, so mistakes are reported to the view's author, not to its first
-reader:
+`CREATE VIEW`, so the view's author sees a mistake before anyone reads the
+view:
 
 ```camussql
 CREATE VIEW v AS SELECT id FROM no_such_table;
@@ -246,11 +244,11 @@ CREATE OR REPLACE VIEW v AS SELECT id, status FROM orders;           -- CADB0529
 
 Dependent views bind to column names when they are created, cached plans bind
 to column positions, and clients bind to both. Silently changing any of these
-would change what those objects mean, and the damage would show up later,
-somewhere else, as wrong data rather than as an error.
+would change what those objects mean, and they could later return wrong data
+without raising an error.
 
-To change the shape, drop the view and create it again. That forces its
-dependents into the open.
+To change the shape, drop the view and create it again. The drop fails while
+dependent views exist, so you see them first.
 
 The body itself can change freely, and the change takes effect on the next
 read:
@@ -265,9 +263,8 @@ CREATE OR REPLACE VIEW v AS
 A view records what it reads by object id, both the relations and the
 individual columns inside them. It never records names.
 
-This has two useful results. Renaming anything a view reads is invisible to the
-view. And a `DROP` that would leave a view with nothing to read fails at the
-`DROP`, not when the next reader queries the view.
+As a result, renaming anything a view reads does not affect the view, and a
+`DROP` that would leave a view with nothing to read fails at the `DROP`.
 
 ### Renames are transparent {#a-rename-is-transparent}
 
@@ -336,9 +333,7 @@ DROP TABLE orders;
 -- CADB0530: cannot drop table 'orders' because other objects depend on it: open_orders
 ```
 
-`DROP TABLE` has no `CASCADE` form, so drop the dependent views first. The
-alternative would be a table drop that quietly turns every dependent view into
-an error for its next reader.
+`DROP TABLE` has no `CASCADE` form, so drop the dependent views first.
 
 ### Drop a column
 
@@ -357,12 +352,10 @@ refresh.
 `DROP COLUMN` has no `CASCADE` form either. Drop or replace the dependent view
 first.
 
-The drop check is a lower bound, not a guarantee. CamusDB does not record a
-reference that its analysis cannot attribute to exactly one relation, so a body
-with an unusual shape can still allow a column drop.
-
-This errs on the safe side by design. A missed refusal only leaves the behavior
-from before the check existed, while a wrong refusal would block changing a
+The drop check can miss a dependency. CamusDB does not record a reference that
+its analysis cannot attribute to exactly one relation, so a body with an
+unusual shape can still allow a column drop. A missed refusal only leaves the
+behavior from before the check existed; a wrong refusal would block changing a
 column that nothing depends on.
 
 ### Cycles
@@ -396,8 +389,8 @@ The guard applies to `CREATE`, `ALTER`, and `RENAME TO`.
 
 ## Ownership and security
 
-A view runs its body with its owner's privileges, not the caller's. That makes
-a view a security boundary, not just a query shorthand:
+A view runs its body with its owner's privileges, not the caller's, so a view
+also acts as a security boundary:
 
 ```camussql
 -- as alice, who can read orders
@@ -453,8 +446,8 @@ physical table, and a view expands to a derived table that has no key space of
 its own. The same limit makes joins uncacheable.
 
 CamusDB accepts a `{cache=name}` hint on a view reference rather than rejecting
-it. The response reports the hint as a bypass with the reason `DerivedSource`,
-so the hint is visible, not silently ignored. The rows still come from live
+it. The response reports the hint as a bypass with the reason `DerivedSource`.
+The rows still come from live
 storage on every read.
 
 Materialized views are not affected. A materialized view is a physical
@@ -515,7 +508,7 @@ See [Configuration](/docs/configuration) and
 | Rules and `INSTEAD OF` triggers | Not supported | CamusDB has neither, so there is no way to make a view writable when CamusDB cannot update it on its own. |
 | `DROP TABLE ... CASCADE` | No `CASCADE` form | Drop the dependent views explicitly. |
 | `security_invoker` views | Not supported | CamusDB implements only the owner's-rights model. |
-| `WITH RECURSIVE` views | Not supported | CamusDB has no `WITH RECURSIVE`. |
+| Recursive query bodies | Supported | Use WITH RECURSIVE inside the body; CREATE RECURSIVE VIEW is unsupported. |
 | Cross-database views | Not supported | This matches the existing single-database restriction on `INSERT ... SELECT`. |
 | Temporary views | Not supported | CamusDB has no temporary relations. |
 | Mixing `*` with other projections | Refused | See [SELECT * expands once](#select--expands-once). |
@@ -543,3 +536,16 @@ These gaps remain. Each item says what CamusDB does today:
 - [Inspecting The Database](/docs/sql-inspection) for the `SHOW` statements.
 - [Authentication And Authorization](/docs/sql-authentication) for grants.
 - [Error Codes](/docs/error-codes) for the `CADB05xx` codes above.
+
+
+## CTE bodies {#cte-bodies}
+
+Views and materialized views accept [WITH queries](/docs/sql-queries#with-queries)
+in their definitions. Stored bodies expand ordinary CTE references into derived tables,
+so `SHOW CREATE VIEW` shows those derived tables. Multiple references run
+separately when that stored body executes; a CTE's computed-once reuse does
+not survive storage in a view definition. Materialized views still store the
+result of each refresh as usual.
+
+Recursive CTEs retain WITH RECURSIVE inside a derived-table wrapper in the
+stored body. SHOW CREATE preserves that form so it can be parsed again.

@@ -324,7 +324,7 @@ For agent workflows:
   by default.
 - Prefer a database branch for schema and data experiments.
 - Give the MCP user the narrowest useful grants. When an MCP client asks for a
-  mutating operation, server-side enforcement is the boundary that holds.
+  mutating operation, the server's grant check decides whether it runs.
 - For long sessions, prefer `CAMUS_MCP_USER` with `CAMUS_MCP_PASSWORD` so the
   client can renew tokens. Use `CAMUS_MCP_ACCESS_TOKEN` for short sessions and
   for sessions that another system manages.

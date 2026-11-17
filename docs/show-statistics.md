@@ -4,10 +4,10 @@ sidebar_position: 3.22
 
 # SHOW STATISTICS
 
-The query planner uses statistics about each table to choose a plan: how many
-rows the table has, and how the values in each column are distributed. When
-those statistics are missing or old, the planner can choose a slow plan, for
-example a full scan instead of an index.
+`SHOW STATISTICS` shows the table statistics the query planner uses to choose a
+plan: how many rows the table has, and how the values in each column are
+distributed. When those statistics are missing or old, the planner can choose a
+slow plan, for example a full scan instead of an index.
 
 Use `SHOW STATISTICS` when:
 
@@ -85,8 +85,8 @@ never collected it (`histogram_buckets` before the first `ANALYZE`).
 | `key` | Each key prefix of a composite index. The columns are joined with a comma, as in `city,zip`. | `distinct_count` |
 | `index` | Each index on the table. | `estimated_rows`, which is the index's entry count |
 
-CamusDB emits the `table` row even when it has collected nothing, so "this
-table has no statistics" shows up as an answer, not as an empty result.
+CamusDB emits the `table` row even when it has collected nothing, so a table
+without statistics still returns a row that says so.
 
 CamusDB omits columns it has observed nothing for, so the columns that do have
 estimates are not buried under rows of `NULL` values.
@@ -104,7 +104,7 @@ compare.
 CamusDB skips columns and indexes that are still being built, as
 [`SHOW COLUMNS` and `SHOW INDEXES`](/docs/sql-inspection) do.
 
-## A worked example
+## Statistics before and after ANALYZE
 
 A table you just created has nothing to report, and says so:
 
@@ -145,7 +145,7 @@ robots  index   ~pk       20    NULL  NULL  NULL  NULL  2026-08-15T09:14:22.418Z
 robots  index   year_idx  20    NULL  NULL  NULL  NULL  2026-08-15T09:14:22.418Z  0
 ```
 
-## Two kinds of statistics
+## Statistics from writes and from ANALYZE
 
 The example shows the split between them.
 
@@ -189,7 +189,7 @@ If the estimates are wrong and the statistics are missing or old, run
 `ANALYZE`.
 
 If the estimates are wrong but `last_analyzed` is recent and `stale_mutations`
-is low, the input is not the problem; look at the cost model instead. See
+is low, the statistics are sound and the cost model is the likely cause. See
 [Query Planning](/docs/query-planning) for how the planner uses these values.
 
 ## Staleness
@@ -202,7 +202,7 @@ Its ratio to `estimated_rows` is exactly the threshold that
 close a table is to refreshing on its own, and, for a table that never crosses
 the threshold, why.
 
-## A truncated table
+## Statistics after TRUNCATE
 
 [`TRUNCATE`](/docs/truncate-table) keeps the table's identity, but CamusDB
 stamps each statistic with the contents generation it describes.
@@ -220,9 +220,9 @@ with no digit separators.
 `last_analyzed` prints as a UTC timestamp in ISO-8601 form with millisecond
 precision, for example `2026-08-15T09:33:13.289Z`.
 
-That column answers one question: how old are the statistics? You judge the
-answer against a wall clock, so the value renders as a clock reading, not as the
-raw [hybrid logical clock](/docs/concepts#hlc) value the engine stores.
+The column tells you how old the statistics are, which you judge against a wall
+clock. It therefore renders as a clock reading instead of the raw
+[hybrid logical clock](/docs/concepts#hlc) value the engine stores.
 
 String bounds are ordinal, matching the byte order the indexes use. A value such
 as `'árbol'` therefore sorts after `'zebra'`, not before it, just as an index
@@ -250,7 +250,7 @@ published its result, run the statement on the node that ran it.
 Everything here is advisory. Missing or unreadable statistics render as `NULL`;
 they never make the statement fail.
 
-## A materialized view
+## Materialized view statistics
 
 A [materialized view](/docs/materialized-views) stores its own rows, so it has
 its own statistics and is a valid target for this statement.

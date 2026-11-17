@@ -4,9 +4,9 @@ sidebar_position: 3.1
 
 # Query planning
 
-SQL says what you want, not how CamusDB should get it. The planner decides the
-how: whether to scan a table or probe an index, whether to sort in memory or
-read in index order, and which join algorithm to use.
+The query planner decides how CamusDB runs your SQL: whether to scan a table or
+probe an index, whether to sort in memory or read in index order, and which
+join algorithm to use.
 
 This page covers what the planner can do and how you can help it choose well.
 For the internal pipeline, see
@@ -714,7 +714,7 @@ How it interacts with planning:
 See [Query Result Cache](/docs/query-result-cache) for the syntax, freshness
 guarantees, manual eviction, and settings.
 
-## What helps the planner
+## Help the planner choose well
 
 For consistently better plans:
 
@@ -739,7 +739,7 @@ For consistently better plans:
 
 ## Current limits
 
-The planner improves over time, but important limits remain:
+These planner limits apply today:
 
 - Skewed values, correlated columns, and missing statistics can lead to a poor
   choice, even with both cost-based passes enabled.
@@ -769,7 +769,7 @@ The planner improves over time, but important limits remain:
 Unsupported SQL forms are rejected. For supported queries, an optimization
 fallback changes the execution strategy while preserving the query's semantics.
 
-## A practical investigation workflow
+## Investigate a slow plan
 
 1. Use plain `EXPLAIN` to identify the scan, join order, and any explicit sort.
    Treat example plans as illustrations: statistics and indexes affect the choice.

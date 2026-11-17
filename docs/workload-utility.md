@@ -279,7 +279,7 @@ mismatches. An unresolved write is allowed either outcome. A predicate COUNT-ver
 comparison is graded only when both reads share one transaction snapshot;
 separate Read Committed or autocommit statements may legitimately see a
 concurrent change. A final-state check
-complements Elle; it does not replace history analysis.
+complements Elle's history analysis.
 
 When `--metrics-endpoint` is set, the run also writes `node-metrics.csv`,
 `node-metrics-meta.json`, `bottleneck-report.md`, and the last scrape files used

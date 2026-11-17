@@ -28,7 +28,7 @@ generation moves.
 A contents generation is one physical key space that holds a table's rows. This
 page uses that term throughout.
 
-## Example
+## Empty a table and list its retired contents
 
 ```camussql
 -- Empty a table of any size.
@@ -76,13 +76,11 @@ CamusDB refuses `TRUNCATE` on these targets:
 
 ## Performance
 
-The statement's cost is constant in the number of rows and index entries. A
-table with one row and a table with a billion rows do the same amount of row
-work: none. CamusDB reads no rows, deletes no rows, and touches no index
-entries.
+The statement's cost is constant in the number of rows and index entries.
+CamusDB reads no rows, deletes no rows, and touches no index entries, so a table
+with a billion rows needs the same work as a table with one row.
 
-Constant work is not the same as constant wall-clock time. The statement still
-waits for:
+The statement still takes wall-clock time, because it waits for:
 
 1. The exclusive lock over the table's entire row key space. That lock waits
    for conflicting writers.
@@ -137,7 +135,7 @@ TRUNCATE TABLE orders;   -- CADB0538
 ROLLBACK;
 ```
 
-The refusal is about honesty, not caution. `TRUNCATE` commits a schema change
+`TRUNCATE` commits a schema change
 that every node applies, and a `ROLLBACK` of your transaction cannot undo it.
 Accepting the statement would promise a rollback the engine cannot deliver.
 Commit or roll back first, then run the truncate.
@@ -258,10 +256,10 @@ replaced at ..., and the rows it held before that point are no longer reachable
 through this table.
 ```
 
-Refusing is the honest answer. The old rows are still on disk, but they live in
-a key space the live table can no longer name. The read would scan the new,
-empty generation and answer "no rows", which looks exactly like a correct empty
-answer for a moment when the table was full.
+The old rows are still on disk, but they live in a key space the live table can
+no longer name. Such a read would scan the new, empty generation and return no
+rows, which looks exactly like a correct empty answer for a moment when the
+table was full.
 
 - A snapshot exactly at the cut is valid. It sees the new, empty contents.
 - A snapshot after the cut behaves normally.
@@ -309,8 +307,7 @@ Optimizer statistics are tied to the table's identity, which a truncate
 preserves. CamusDB stamps statistics with the contents generation they
 describe.
 
-After a truncate, CamusDB ignores the previous distribution instead of trusting
-it. `SHOW STATISTICS` and the planner both treat the new generation as
+After a truncate, CamusDB ignores the previous distribution. `SHOW STATISTICS` and the planner both treat the new generation as
 unmeasured.
 
 Run `ANALYZE` after you refill the table. See

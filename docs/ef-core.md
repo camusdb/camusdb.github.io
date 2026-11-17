@@ -896,8 +896,7 @@ Important behavior:
 
 ## Current limitations
 
-The provider is useful today, but it doesn't emulate database features that
-CamusDB doesn't support.
+The provider does not emulate database features that CamusDB does not support.
 
 Unsupported or restricted operations include:
 

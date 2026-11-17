@@ -32,9 +32,8 @@ primary index. In that case, use `gen_uuid_v4()` for tables with a high insert
 rate. See
 [Best practices](/docs/best-practices#primary-keys).
 
-That distinction matters in a distributed database. A sequence is one logical
-counter. Inserts that need a value from it coordinate through that counter, so a
-sequence can become the table's point of contention. `CACHE` can reduce how
+In a distributed database, a sequence is one logical counter. Inserts that need
+a value from it coordinate through that counter, so a sequence can become the table's point of contention. `CACHE` can reduce how
 often the counter commits, but it does not make a sequence as independent as an
 `OID` or UUID generator.
 
@@ -316,9 +315,7 @@ nodes), but they are still counters. Keep these properties in mind:
   can wait for the storage [lease](/docs/concepts#lease), a time-limited claim
   of about five seconds, so stale cached blocks cannot keep issuing values.
 
-These are normal sequence semantics, similar to PostgreSQL's, and they are why
-sequences suit external numbers but are not ideal as the physical key of
-high-write tables.
+These semantics are similar to PostgreSQL's.
 
 COALESCE, IFNULL, and NVL stop evaluating at their first non-NULL value.
 A NEXTVAL after a non-NULL literal or parameter proven to be returned draws

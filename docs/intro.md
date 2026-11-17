@@ -16,7 +16,7 @@ objects, and update and delete data. Use the `camus-cli` terminal shell or
 the Web Console, or try every step in the embedded browser playground first.
 
 CamusDB is an open-source distributed SQL database with a full relational
-engine, not a thin SQL layer over a key/value store. The SQL in this tutorial
+engine. The SQL in this tutorial
 runs the same on one node or on a cluster, so you can start small and add nodes
 later. To see what CamusDB adds over a single-node database, read
 [Why CamusDB?](/docs/why-camusdb).
@@ -55,9 +55,10 @@ can also edit the SQL before running it.
 
 ## Start CamusDB
 
-Choose one installation method. Each starts a standalone node with the HTTP
-API on port `5095` and gRPC on `5096`. For service setup, data locations, and
-updates, see [Server installation](/docs/server-installation).
+Choose the NuGet tool if you already use .NET, Homebrew for a native command
+on macOS or Linux, or Docker for a container. Each tab starts a standalone
+node with HTTP on port `5095` and gRPC on `5096`. For service setup, data
+locations, and updates, see [Server installation](/docs/server-installation).
 
 <Tabs groupId="camusdb-install" defaultValue="nuget">
 <TabItem value="nuget" label="NuGet tool">
@@ -99,6 +100,8 @@ Stop it with Ctrl+C.
 
 </TabItem>
 </Tabs>
+
+Keep the server running and open another terminal for the SQL client.
 
 ## Connect with a SQL client {#connect-with-the-sql-shell}
 
@@ -394,7 +397,7 @@ Use the [.NET driver](/docs/dotnet-driver),
 results, and transaction APIs, with helpers for retryable conflicts. The
 libraries handle the HTTP/JSON or gRPC messages behind those APIs.
 
-## Ready for more?
+## Explore complete sample applications
 
 Explore the [advanced samples](/docs/advanced-samples) to see CamusDB in
 complete ecommerce, banking, and booking applications. They demonstrate

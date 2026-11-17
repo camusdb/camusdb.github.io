@@ -5,15 +5,15 @@ description: "Run CamusDB on several nodes that act as one database. Each write 
 
 # Cluster mode
 
-CamusDB runs standalone by default: one process on one machine. A standalone
-node is simple, but it is a single point of failure. If the machine stops, the
-database stops. If the disk fails, the data that is not in a backup is lost.
-
 Cluster mode runs CamusDB on several nodes that act as one database. It keeps a
 copy of each write on more than one node, so the database continues to serve
 reads and writes when one node fails, and no committed write is lost.
 
-## Why use cluster mode
+By default, CamusDB runs standalone: one process on one machine. A standalone
+node is simple, but it is a single point of failure. If the machine stops, the
+database stops. If the disk fails, the data that is not in a backup is lost.
+
+## When to use cluster mode
 
 Use cluster mode when one of these needs applies:
 
@@ -46,12 +46,12 @@ for the join sequence and quorum considerations.
 
 ### Choose the number of nodes
 
-Three nodes is the smallest cluster that survives a node failure. It is a
-starting point, not a limit: CamusDB has no configured maximum number of nodes.
-Size the cluster for your workload, and load test at the size you plan to run.
+Three nodes is the smallest cluster that survives a node failure. CamusDB has no
+configured maximum number of nodes. Size the cluster for your workload, and load
+test at the size you plan to run.
 
-What more nodes give you depends on `kahuna.replication_factor`. These layouts
-are examples, not a list of supported sizes:
+What more nodes give you depends on `kahuna.replication_factor`. The layouts
+below are examples:
 
 | Cluster | Replicas per partition | Nodes that can fail | What you get |
 | --- | --- | --- | --- |
@@ -130,8 +130,8 @@ To run a cluster on Kubernetes, use the
 [Kubernetes Operator](/docs/kubernetes-operator). It creates the nodes and
 manages their membership for you.
 
-CamusDB is in production use, but cluster mode is still evolving. Its
-APIs and storage formats can change between versions.
+CamusDB [runs in production at Bacon Games](/blog/camusdb-in-production-at-bacon-games). Cluster mode continues
+to evolve, and APIs and storage formats can change between versions.
 
 ## Run a standalone node
 
@@ -398,14 +398,11 @@ sequenceDiagram
     Note over B,N: If node A fails later, nodes B and C elect a new leader
 ```
 
-### Consistency before split-brain writes
+### A partition without a majority stops committing
 
 A partition needs enough healthy members to reach consensus. When it cannot
 reach consensus, it stops all commits rather than accept a change that could
 conflict with another copy of the same data.
-
-Availability is useful only while the data stays correct, so CamusDB takes the
-unavailable side of that trade.
 
 Serializable isolation is the default in a cluster, exactly as on one node. See
 [Transactions And Isolation](/docs/serializable-transactions) for the guarantees

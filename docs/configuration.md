@@ -599,8 +599,8 @@ the TPC-C measurement under
 [Cache defaults proportional to memory](#cache-defaults-proportional-to-memory)),
 so `dev` is not a server setting.
 
-An explicit `kahuna.*` budget always beats the profile, so `dev` with one raised
-budget is a valid combination, not a conflict.
+An explicit `kahuna.*` budget always beats the profile, so you can combine
+`dev` with one raised budget.
 
 The caches are ceilings, and CamusDB fills them lazily. A burst of large writes
 can still push the process's resident memory far above the cache total. That
@@ -660,9 +660,8 @@ four keys set, the block cache is 819 MiB and the memtable sub-budget is 204
 MiB. The 8 cores give 32 key-value workers, each with a 16 MiB actor cache, for
 512 MiB together. The total is about 1.3 GiB.
 
-On a dedicated server, raise all four values explicitly. The computed sizes are
-a floor to build from, not a recommendation for a machine whose only job is
-CamusDB.
+On a dedicated server, raise all four values explicitly. The computed sizes
+are only a starting point for a machine whose only job is CamusDB.
 
 The 6.25% share and its 64 MiB floor bound the actor-cache layer as a whole.
 CamusDB divides that budget by `key_value_workers` (default

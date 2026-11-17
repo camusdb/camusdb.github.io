@@ -12,11 +12,11 @@ description: About 5.4 million operations per night, 23 to 39 million in each da
 
 ![A dark pyramid with glowing blue cracks under a night sky and a large planet](/img/cybernetic-pyramid.webp)
 
-CamusDB is a young database, so you have a fair question: how much evidence stands behind it? Our answer has three parts: about **5.4 million operations per night**, **23 to 39 million operations in each daily two-hour fault soak**, and more than 21,000 automated tests. This post shows where these numbers come from and what they do not prove.
+This post shows how much testing stands behind CamusDB: about **5.4 million operations per night**, **23 to 39 million operations in each daily two-hour fault soak**, and more than 21,000 automated tests. You will see where these numbers come from and what they do not prove.
 
 <!-- truncate -->
 
-## The numbers
+## Test volume per night
 
 | Source | What runs | Volume per night | Basis |
 | --- | --- | --- | --- |
@@ -26,7 +26,7 @@ CamusDB is a young database, so you have a fair question: how much evidence stan
 | Kommander Jepsen | 13 jobs | About 20,000 operations | Counted in 6 jobs, estimated for the rest |
 | **Total per night** | | **About 5.4M** | |
 
-These counts describe the current schedule, not a history. The nightly Elle matrix started on November 3 and the scheduled SQL fuzzer started on November 4, so you cannot multiply these numbers by the age of the project.
+These counts describe the current schedule. The nightly Elle matrix started on November 3 and the scheduled SQL fuzzer started on November 4, so you cannot multiply these numbers by the age of the project.
 
 ## The fault soak: volume
 
@@ -63,7 +63,7 @@ The soak gives volume, but a total balance check cannot see every kind of anomal
 
 **Elle** reads the full history of a run and looks for isolation anomalies such as lost updates and write skew. Before any Elle scenario runs, the job gives Elle histories with known verdicts. A checker that passes a lost update would make every green result meaningless.
 
-**Jepsen** is a widely used tool that tests distributed systems under faults. The Jepsen counts are small on purpose. The clients run at 10 requests per second each, because the cost of the check grows quickly with the size of the history. A short history that a checker can fully judge is worth more than a long one that it cannot. These two harnesses test the layers under CamusDB, not its SQL.
+**Jepsen** is a widely used tool that tests distributed systems under faults. The Jepsen counts are small on purpose. The clients run at 10 requests per second each, because the cost of the check grows quickly with the size of the history, and a checker can fully judge a short history. These two harnesses test the layers under CamusDB, not its SQL.
 
 A weekly job adds a long arm: 12 Elle scenarios, each of which must reach one million committed transactions or fail. Its first scheduled run is on November 8, so the totals above do not include it.
 
@@ -79,7 +79,7 @@ Each push to a main branch runs the full test suite of that repository. The last
 | Caraxes | 456 |
 | **Total** | **21,199** |
 
-## How often the nightly jobs fail
+## Failure rate of the nightly jobs
 
 A volume number without its failures tells you little. These are the scheduled runs to date:
 
@@ -95,9 +95,9 @@ A volume number without its failures tells you little. These are the scheduled r
 
 A failed night means "download the results and look". It is not always a database defect, because these jobs run on shared CI machines and a slow machine can also fail a run. We did not classify each failure for this post. The defects that these jobs and Caraxes did find are in the [dragon series](/blog/what-the-dragon-found).
 
-## What the soak found this week
+## Three defects the soak found this week
 
-Volume matters only if it finds something. On November 4 and 5, three soaks in a row each found a new problem. These runs added kills of 2 and 4 minutes to the fault schedule. After a long kill, a replica can fall too far behind to catch up from the log. It then needs a **snapshot install**: a full copy of the data from the leader.
+On November 4 and 5, three soaks in a row each found a new problem. These runs added kills of 2 and 4 minutes to the fault schedule. After a long kill, a replica can fall too far behind to catch up from the log. It then needs a **snapshot install**: a full copy of the data from the leader.
 
 | Soak | What happened | Fix |
 | --- | --- | --- |
@@ -107,18 +107,18 @@ Volume matters only if it finds something. On November 4 and 5, three soaks in a
 
 The balance checks passed in the first two runs, so those defects cost availability and recovery time, not data. The first defect needs a store that is about an hour old, and a ten-minute run never has one. The third needs a timeout to fire in a narrow gap between two connection attempts. Hand-written tests rarely reach states like these. Later soaks on the fixed versions confirmed all of these fixes.
 
-## What the numbers do not prove
+## Limits of these numbers
 
-- **Volume is not coverage.** Millions of transfers over 2,000 rows repeat one shape many times. The nightly jobs and the fuzzer exist to reach other shapes.
+- **High volume covers few shapes.** Millions of transfers over 2,000 rows repeat one shape many times. The nightly jobs and the fuzzer exist to reach other shapes.
 - **Most of the soak volume has a simple check.** The soak checks totals and row ledgers. The stronger Elle check applies to the nightly histories, about 5 million transactions per night.
 - **This is not a production cluster.** These runs use one self-hosted machine or shared CI machines. They say little about a large table, a database larger than memory, or a real network between regions.
 
-## What the testing gives us
+## Edge cases, planned tests, and public harnesses
 
-These tests catch regressions and, more importantly, they find new edge cases. An edge case might appear only once in 2 million transactions, so a short test run rarely meets it. Each one we find is a chance to improve the system, try a better design or rethink an existing approach.
+These tests catch regressions and find new edge cases. An edge case might appear only once in 2 million transactions, so a short test run rarely meets it.
 
-Even at this scale, the tests cannot prove that CamusDB has no bugs or that no area is left to improve. A green run says only that these checks found no defect in these runs. What the tests give us is greater confidence that we are building a solid system, and a steady way to make CamusDB more robust.
+The tests cannot prove that CamusDB has no bugs. A green run says only that these checks found no defect in these runs.
 
-We also plan to add new test shapes that exercise the database from other angles, with a wider range of scenarios and combinations of features.
+We plan to add new test shapes that exercise the database from other angles, with a wider range of scenarios and combinations of features.
 
-You do not have to take our word for most of this. The nightly runs are public on GitHub, and the harnesses are open: [Caraxes](https://github.com/camusdb/camusdb-caraxes), [Kahuna Jepsen](https://github.com/kahunakv/kahuna-jepsen) and [Kommander Jepsen](https://github.com/kahunakv/kommander-jepsen). You can read the scenarios and run them against your own build.
+The nightly runs are public on GitHub, and the harnesses are open: [Caraxes](https://github.com/camusdb/camusdb-caraxes), [Kahuna Jepsen](https://github.com/kahunakv/kahuna-jepsen) and [Kommander Jepsen](https://github.com/kahunakv/kommander-jepsen). You can read the scenarios and run them against your own build.

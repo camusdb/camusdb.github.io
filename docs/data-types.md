@@ -6,7 +6,7 @@ description: "CamusDB column types: exact NUMERIC decimals for money, native UUI
 # Data types
 
 Every CamusDB column has a strong type, so each value is stored, compared, and
-indexed in its native form rather than as loose text. That gives you:
+indexed in its native form. That gives you:
 
 - Exact `NUMERIC` decimals for money and balances. `0.1` is stored exactly, with
   no floating-point drift.
@@ -47,6 +47,7 @@ format; SQL types below describe the values and rules your application uses.
 | `STRING(N)` | Unicode text, up to `N` code points | Yes | `N` must be a positive integer. `CHAR(N)` and `VARCHAR(N)` use the same bound. |
 | `DATE` | A calendar date without a time | Yes | Stored as UTC ticks, truncated to midnight. |
 | `DATETIME` | An instant in UTC | Yes | CamusDB also accepts `TIMESTAMP`. |
+| `INTERVAL` | A span of months, days, and microseconds | No | Expression-only: use in calculations, not table columns. See [Intervals](#intervals). |
 | `BYTES` | An opaque byte string | Yes | CamusDB also accepts `BLOB`. |
 | `BYTES(N)` | An opaque byte string, up to `N` bytes | Yes | `N` must be a positive integer. `BLOB(N)` uses the same bound. |
 | `ARRAY(T)` | An ordered list of scalar values of type `T` | No | `T` must be a scalar type. Arrays cannot be used in a primary key or an index. |
@@ -190,7 +191,9 @@ A plain floating-point `SUM` checks its running total; a window `SUM` checks
 the exact frame total. Explicit infinity and NaN inputs follow IEEE arithmetic,
 but division by zero, `sqrt` of a negative value, and `sign(NaN)` fail with
 `CADB0400`. Casting infinity or NaN to `INT64` raises `CADB0420`; `NUMERIC`
-cannot hold either value.
+cannot hold either value. [Trigonometric functions](/docs/functions-math#trigonometry-and-angles)
+reject infinite angles and inverse sine/cosine inputs outside `[-1, 1]` with
+`CADB0400`. Poles such as `cot(0)` and `tand(90)` return infinity.
 
 Use your driver's numeric types and typed parameters. The
 [.NET driver](/docs/dotnet-driver#infinity-and-nan) supports native infinity
@@ -395,7 +398,24 @@ CamusDB parses date and datetime text as UTC, and returns UUID text in
 canonical form: lowercase, with hyphens. Invalid date, datetime, UUID, or byte
 input, or an invalid cast, fails with `InvalidInput`.
 
-### String literals
+#### Typed date/time literals
+
+`DATE '2026-03-15'`, `TIMESTAMP '2026-03-15T12:00:00Z'`, and
+`DATETIME '2026-03-15T12:00:00Z'` are equivalent to casting their text to
+DATE or DATETIME. They give an expression its type without a target column:
+
+```camussql
+SELECT DATE '2026-03-15' + 1;
+SELECT TIMESTAMP '2026-03-15T12:00:00Z' + INTERVAL '2 hours';
+```
+
+Use ISO-8601 timestamp text with `T` between date and time. A PostgreSQL-style
+space separator, such as `TIMESTAMP '2026-03-15 12:00:00'`, is rejected.
+Put a typed literal inside parentheses for a default: `DEFAULT (DATE '2026-03-15')`.
+Malformed temporal text containing a non-ASCII character reports its code point
+and position, with an ASCII replacement hint when available.
+
+## String literals
 
 CamusDB supports two forms of string literal.
 
@@ -501,6 +521,98 @@ VALUES (GEN_ID(), ARRAY[]);
 
 CamusDB rejects nested array literals.
 
+## Intervals
+
+Use intervals for rolling time windows, billing dates, and elapsed durations.
+Unlike a fixed number of seconds, a calendar month follows the calendar:
+January 31 plus one month becomes the last day of February.
+
+```camussql
+SELECT * FROM orders
+WHERE created_at > now() - INTERVAL '7 days';
+
+SELECT CAST('2024-01-31' AS DATE) + INTERVAL '1 month';
+-- 2024-02-29T00:00:00Z
+
+SELECT finished_at - started_at AS duration FROM jobs;
+```
+
+### Literals and casts
+
+| Form | Example |
+| --- | --- |
+| PostgreSQL text | `INTERVAL '1 year 2 mons 3 days 04:05:06'` |
+| ISO-8601 text | `INTERVAL 'P1DT2H'` |
+| Single unit | `INTERVAL '3' HOUR`, `INTERVAL 3 HOUR` |
+| Parameter with a unit | `INTERVAL @n DAY` |
+| Cast from text | `CAST('1 day' AS INTERVAL)`, `'1 day'::INTERVAL` |
+
+Units are `microsecond`, `millisecond`, `second`, `minute`, `hour`, `day`,
+`week`, `month`, `quarter`, `year`, `decade`, `century`, and `millennium`.
+Plural names and short forms such as `mons`, `hrs`, and `us` also work,
+regardless of case.
+
+Text accepts signed parts (`'-1 day +2 hours'`), `ago` (`'3 hours ago'`),
+and fractions. `'1.5 days'` means one day and 12 hours; `'1.5 months'` means
+one month and 15 days. Fractional years round to whole months. A bare number
+inside interval text means seconds. With an explicit trailing unit, the text
+must be numeric: `INTERVAL '3' HOUR` works; `INTERVAL '1 day' HOUR` fails.
+Only text casts to an interval. Give numeric values a unit, or multiply them
+by an interval: `days_to_ship * INTERVAL '1 day'`.
+
+### Arithmetic and comparison
+
+| Expression | Result |
+| --- | --- |
+| `DATETIME ± INTERVAL`, `INTERVAL + DATETIME` | `DATETIME` |
+| `DATE ± INTERVAL`, `INTERVAL + DATE` | `DATETIME`, starting from midnight UTC |
+| `DATETIME - DATETIME`, `DATE - DATETIME`, `DATETIME - DATE` | `INTERVAL`, with days and time but no months |
+| `INTERVAL ± INTERVAL`, `-INTERVAL` | `INTERVAL` |
+| `INTERVAL * number`, `number * INTERVAL`, `INTERVAL / number` | `INTERVAL` |
+| Two intervals with `=`, `<>`, `<`, `<=`, `>`, `>=` | `BOOL` |
+
+CamusDB keeps months, days, and microseconds separate. Date arithmetic applies
+months first, then days, then time, clipping an invalid day to the month's
+last day. All temporal values use UTC, so an interval day is 24 hours.
+Scaling moves fractional months into days at 30 days per month, and fractional
+days into time: `INTERVAL '1 month' * 0.5` is 15 days.
+
+Comparison uses 30 days per month and 24 hours per day. Thus
+`INTERVAL '1 month' = INTERVAL '30 days'` is true; `GROUP BY` and `DISTINCT`
+also treat them as equal. Adding those intervals to a date can still produce
+different dates because calendar addition preserves the month part.
+
+A `NULL` operand returns `NULL`. Unsupported pairs, such as an interval plus
+a plain number, interval times interval, or interval minus a date, fail.
+Overflow raises `CADB0400`: months and days must each fit a signed 32-bit
+integer, microseconds a signed 64-bit integer, and resulting timestamps years
+1 through 9999.
+
+For an indexed timestamp, keep the column outside the calculation:
+`created_at > now() - INTERVAL '7 days'` can use an index range scan.
+`created_at + INTERVAL '7 days' > now()` does not provide that range bound.
+Use `EXPLAIN` to inspect the plan.
+
+### Results and limitations
+
+The .NET, TypeScript, and Python drivers return interval results as ISO-8601
+strings, such as `P1Y2M3DT4H5M6.5S`. Zero is `PT0S`; mixed signs are preserved,
+for example `P-1DT2H`. Casting an interval to `STRING` or concatenating it
+with `||` produces the same text.
+
+Intervals are expression values only. You cannot declare interval columns,
+write interval values into columns, use them as array elements, or persist
+interval projections with `CREATE TABLE AS SELECT` or materialized views.
+A regular view can return an interval. To store one, cast it to `STRING` and
+cast the stored text back to `INTERVAL` when reading.
+
+`SUM` and `AVG` of intervals, implicit comparisons with text, and MySQL compound
+units such as `HOUR_MINUTE` are unsupported. Compare against
+`INTERVAL '1 day'`, rather than the plain string `'1 day'`.
+
+See [Interval functions](/docs/functions-datetime#interval-functions) for
+calendar ages, interval construction, normalization, and time buckets.
+
 ## Casts
 
 `CAST(value AS type)` works with scalar types. The PostgreSQL shorthand
@@ -574,7 +686,7 @@ which may replace the value.
 
 WHERE, HAVING, JOIN ON, and CHECK conditions must be boolean or NULL.
 `WHERE 1` and `WHERE 'true'` fail with CADB0400; use `WHERE TRUE` to match all
-rows deliberately. These checks also cover writes, subqueries, CTAS, views,
+rows on purpose. These checks also cover writes, subqueries, CTAS, views,
 and new CHECK definitions. Parameters, function argument types, and some
 derived results still require checks when their values are evaluated.
 

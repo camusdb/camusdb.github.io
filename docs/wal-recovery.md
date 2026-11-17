@@ -4,12 +4,11 @@ sidebar_position: 7
 
 # WAL and recovery
 
-When `COMMIT` returns, you need the change to survive whatever happens next.
-CamusDB writes every storage change to a [write-ahead log](/docs/concepts#wal)
-(WAL) before it applies it, and replays committed log entries at startup. A
-committed change stays recoverable after a process crash, a node restart, or a
-[leadership](/docs/concepts#leader) change. A transaction that did not commit
-never comes back as committed.
+After `COMMIT` returns, the change stays recoverable after a process crash, a
+node restart, or a [leadership](/docs/concepts#leader) change. CamusDB writes
+every storage change to a [write-ahead log](/docs/concepts#wal) (WAL) before it
+applies it, and replays committed log entries at startup. A transaction that did
+not commit never comes back as committed.
 
 The idea is the same as the WAL in PostgreSQL or the redo log in MySQL. The
 difference is that each [partition](/docs/concepts#partition) keeps its own log,
@@ -216,13 +215,13 @@ flowchart LR
     CP --> N["Newer WAL entries<br/>replayed at restart"]
 ```
 
-## Why this matters
+## Commit history, stored state, and backups
 
-A traditional single-node database often couples durability, availability, and
-query serving in one primary storage process. CamusDB separates them: the Raft
-partition logs hold the replicated commit history, KV persistence stores the
-current materialized state for fast reads, and several active CamusDB nodes can
-accept client traffic while the partition leaders serialize writes safely.
+The Raft partition logs hold the replicated commit history, and KV persistence
+stores the current materialized state for fast reads. Several active CamusDB
+nodes can accept client traffic while the partition leaders serialize writes. A
+traditional single-node database often couples durability, availability, and
+query serving in one primary storage process.
 
 WAL recovery restores a node after a crash. To rebuild a node from a captured
 image, or to return it to a chosen point in time, see

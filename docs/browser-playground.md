@@ -8,8 +8,7 @@ Try CamusDB without installing anything. The playground runs the real CamusDB
 engine in your browser: the same parser, planner, executor, and embedded storage
 path, compiled to WebAssembly. No SQL or data is sent to a server.
 
-You get more than a SQL console. The playground starts a small cluster, so you
-can stop a node and watch the surviving replicas elect new leaders, or add a
+The playground also starts a small cluster, so you can stop a node and watch the surviving replicas elect new leaders, or add a
 node and watch CamusDB move replicas to it, then run your queries again and see
 that the data is still there.
 

@@ -1,43 +1,46 @@
 ---
 slug: what-the-dragon-found
-title: What the dragon found
+title: "What the dragon found: defects from a month of chaos testing"
 date: 2026-09-21
 authors: [andresgutierrez]
 tags: [camusdb, reliability, chaos-testing, distributed-systems]
 image: /img/caraxes2.png
 ---
 
-# What the dragon found
+# What the dragon found: defects from a month of chaos testing
 
 ![A dragon breaking one pyramid in a city of glowing pyramids](/img/caraxes2.png)
 
-In a world that's moving faster every day, where software verification is
-essential to keep up with that pace, building increasingly specialized
-harnesses, simulators, and test suites has become imperative.
+This post lists the defects that one month of chaos tests found in CamusDB,
+how we fixed each one, and how the database behaves today. If you are
+evaluating CamusDB, it shows which failure cases have a test behind them.
 
-A few weeks ago, we introduced [Caraxes](/blog/a-dragon-to-attack-our-own-database),
-our test suite for simulating extreme scenarios and pushing the database to its
-limits under all kinds of conditions: node failures, network issues, disk
-contention, and more.
-
-The results have been extremely valuable, helping us uncover issues in both
-performance and correctness.
-
-It's similar to putting an F1 car through different configurations in a
-simulator before those failures happen during a race. It allows us to expose
-the system to hundreds of hours of testing and exceptional conditions,
-compressed into just a few hours.
-
-This post is the second part. It tells what the dragon found, what we fixed,
-and how the database is more robust today.
+[Caraxes](/blog/a-dragon-to-attack-our-own-database) is our test tool. It
+runs a real cluster and injects node failures, network faults, and disk
+faults while a workload runs. This is the second post about it.
 
 <!-- truncate -->
 
-## One month, in numbers
+## Commits and releases in one month
 
 CamusDB runs on two lower layers. Kahuna is the replicated key-value store
 under the SQL engine. Kommander is the Raft implementation under Kahuna. A
 chaos run attacks all three at once, so a finding can land in any of them.
+
+Some terms in this post:
+
+- **Raft:** the protocol with which nodes agree on the order of writes. The
+  data is divided into partitions. Each partition has one leader that accepts
+  writes and followers that copy its log.
+- **Quorum:** a majority of the copies of a partition.
+- **Backfill and snapshot:** a leader sends missing log entries to a follower
+  that is behind (backfill). If those entries no longer exist, because the
+  log was compacted, it sends a full copy of the state (snapshot).
+- **Wedge:** a partition or a key that stops making progress and does not
+  recover by itself.
+- **Gateway:** the node that receives a client request.
+- **fsync:** the system call that forces a write to the disk.
+- **Soak:** a long test run.
 
 Between the first post and this one, the three repositories received a large
 amount of work. Most of it came from a Caraxes run that failed.
@@ -53,7 +56,7 @@ that reads like a lab notebook. The header records what the previous run showed,
 what changed for this run, and what result counts as a pass. The rest of this
 post is a walk through those notebooks.
 
-## The first real bug that money found
+## A lost half of a transfer: the sum fell by three
 
 The first post explained our strongest check. A workload moves money between
 random accounts, and the total of all balances must be exactly the same at the
@@ -66,10 +69,10 @@ faults, on an early build. The sum went down by three units.
 |---|---|---|
 | 2,993,071,553 | 2,993,071,550 | -3 |
 
-Three units out of three billion is a tiny number. It is also a proof that one
-transaction applied only half of a transfer. We spent days on this one.
+Three units out of three billion prove that one transaction applied only half
+of a transfer. We spent days on this one.
 
-The cause was in the SQL engine, not in the replication layer. When CamusDB
+The cause was in the SQL engine. When CamusDB
 reads a row from Kahuna, the answer can be a confirmed value, a confirmed
 absence, or a non-answer. A non-answer means the read timed out, or the key
 was in the middle of replication, or that key returned an error.
@@ -91,11 +94,10 @@ missing three units in its comments.
 
 We also added a tripwire in the workload. If an UPDATE matches zero rows right
 after a SELECT that found the row, the transfer throws. That way, the same class
-of bug appears as a loud failed transfer instead of a small drift in a sum.
+of bug appears as a failed transfer, which is easier to see than a small drift
+in a sum.
 
-## A cluster that says healthy while it is dead
-
-The second finding is the one that changed how we read health checks.
+## A partition that stopped while every node reported healthy
 
 A busy partition changed leader after a fault. The new leader started a
 backfill for a follower. A heartbeat acknowledgement with no report made the
@@ -109,7 +111,7 @@ zero progress.
 
 The fix in Kommander removed the fabricated anchor. Two more releases removed a
 side effect, where the refusal escalated into a full snapshot on every election.
-But the more important change was in how Caraxes and CamusDB judge health:
+The larger change was in how Caraxes and CamusDB judge health:
 
 - Caraxes detects a wedge by commit progress, never by node liveness. A window
   with zero operations during a fault fails the run.
@@ -128,9 +130,9 @@ timeout. A node did not rejoin after a SIGSTOP pause. Each one was found by a
 run that stalled at a specific minute, with a specific seed, and was fixed
 against a repeat of that run.
 
-## One key, eight runs
+## A stale key that took eight runs to fix
 
-Not every bug falls in one run. The longest chain in the notebooks started
+The longest chain in the notebooks started
 with a 45-minute run named R and ended with a run named Z. Every run in the
 chain used the same seed, the same faults, and the same workload. Only the
 engine changed.
@@ -148,7 +150,7 @@ engine changed.
 
 Two rules came out of this chain.
 
-The first rule is that one clean window is not evidence. Run W passed and the
+The first rule is that one clean window is weak evidence. Run W passed and the
 identical run X failed. Now a build must pass two consecutive windows before we
 call it stable.
 
@@ -157,7 +159,7 @@ the sum exactly, while one row sat one commit behind on every node. Now the
 verdict reads the sum in two ways, through the aggregate and through a full row
 scan, and both must agree.
 
-## Scans that drop rows only while you write
+## Scans that dropped rows under write load
 
 The post-run check counts rows on a quiet cluster. For weeks it passed every
 time. Then we added a probe that runs `SELECT COUNT(*)` on every gateway every
@@ -169,7 +171,8 @@ resident, written after the page started, and a non-snapshot page evaluated it
 as a snapshot read, then dropped it on a miss from the archive.
 
 The second half of the bug was in CamusDB. A read-only scan carried a
-transaction id, so the MVCC pin in Kahuna could abort a retried page. One arm of
+transaction id, so the MVCC pin in Kahuna could abort a retried page. (MVCC
+keeps several revisions of a row, so a read sees one point in time.) One arm of
 a device-pause run produced 365 aborts out of 399 read-only counts. Read-only
 statements now carry no transaction id.
 
@@ -184,10 +187,10 @@ The probe is now part of the verdict. A short count is never tolerated, and a
 run without the probe prints that fact next to its result, because a run that
 did not test scan visibility proves less than its pass suggests.
 
-## Memory that grows without a bug, and memory that grows with one
+## Memory growth: one configuration cause and four leaks
 
 The two-hour runs started to die at minute 88, then at minute 105. Nodes were
-OOM-killed, or entered a garbage collection spiral with the container up at 110%
+OOM-killed (stopped by the operating system for lack of memory), or entered a garbage collection spiral with the container up at 110%
 CPU and the REST port unreachable.
 
 The first cause had no defect in it. The .NET runtime caps its heap at 75% of
@@ -209,8 +212,7 @@ After that, the memory findings became real leaks, and each one has a number.
 | Raft log write-ahead files pinned by a column family that never flushed | 443 MiB to 2,709 MiB in ten minutes, per node | Metadata column family made flushable, and a cap on total write-ahead size. |
 | Durable transaction records retained by age only | Filled a 2,458 MiB heap in about five minutes at 8,000 ops/s | Retention budget by count and by bytes, plus a heap-pressure valve. |
 
-One line from the notebooks explains why memory matters more in a soak than
-in a benchmark. A faster commit path without a memory fix makes a long run
+A faster commit path without a memory fix makes a long run
 worse, because the run reaches the memory knee sooner. In one pair of runs,
 5.8 times the throughput bought a decay that started 3.3 times earlier.
 
@@ -218,13 +220,13 @@ The last row of the table hid a second bug. An out-of-memory exception swallowed
 write-ahead log write left a follower reachable and healthy, with its queue
 pinned at 4,096 and zero batches for four minutes. The run continued on a
 reduced quorum. We call this the zombie rule now: a node whose write counter
-stops while the busiest node keeps writing disqualifies the run, because a
-cluster that lost a replica without a fault is not the cluster the test claims
-to measure.
+stops while the busiest node keeps writing disqualifies the run, because the
+test claims to measure a cluster with all its replicas.
 
-## The disk is a participant
+## Slow disks: a new fault and three engine changes
 
-The first post listed a full disk as the only disk fault. That was not enough.
+The first post listed a full disk as the only disk fault. Long runs showed a
+second kind: a slow disk.
 
 During long runs on the benchmark host, the NVMe device produced fsync
 excursions of up to 3.2 seconds under sustained load. An in-flight commit then
@@ -256,9 +258,9 @@ commit is the default today.
 The same campaign hardened restarts. A node restarted under load could take a
 snapshot for a log that already covered the floor, and then livelock on a
 tombstone. A node that restarted while a peer was briefly unreachable crashed
-at startup. Both are now regular scenarios, not accidents.
+at startup. Both are now regular scenarios.
 
-## Balanced requests are not balanced work
+## One node led every partition while requests looked balanced
 
 A three-node run split its requests almost perfectly across the three
 gateways, at 33.4%, 33.3%, and 33.4%. The report called it distributed. In the
@@ -278,11 +280,10 @@ up within a bounded wait. Caraxes now waits for leadership to spread before a
 capacity window opens, and it fails a run that opens with all leaders on one
 node. An even gateway share says nothing about which disk does the writes.
 
-## When the dragon was wrong
+## Six false alarms from the test setup
 
-A harness that attacks a database also attacks the truth about it. Several of
-the most useful entries in the notebooks are findings against the measurement,
-not against the database.
+Several of the most useful entries in the notebooks are findings against the
+measurement.
 
 - A twelve-table seed appeared to stall for six hours and eighteen minutes.
   Three node logs fell silent in the same second and resumed together. The
@@ -303,26 +304,20 @@ not against the database.
   left in the cache. Caraxes now writes fsynced ballast during warm-up so every
   run measures the same regime.
 - A closed-loop run reported 1,182 ops/s with 29.994 requests in flight against
-  a cap of 32. That number was a limit of the load generator, not of the
-  server. The verdict now records the generator's own CPU and queue depth and
+  a cap of 32. That number was a limit of the load generator. The verdict now records the generator's own CPU and queue depth and
   can fail a capacity run whose client had no headroom.
 - The container memory figure from Docker counts page cache and kernel memory
   together with the process. A tool now splits it into cache, native, unused
   heap, and live data, so a growth curve says which component grew.
 
-Each of these produced a check. The checks are cheap, and they protect every
-later run from a false alarm we already paid for once.
+Each of these produced a check that now runs on every later run.
 
-## A tuning note that reads like a bug
-
-One finding deserves a separate mention, because it was neither a bug nor a
-false alarm. It was a knob nobody turned.
+## Group commit settings that changed defaults
 
 The write-ahead log on the leader never grouped commits. It wrote exactly one
 operation per batch at every concurrency from 32 to 256 workers. The group
-commit linger defaults to zero, and the cluster baseline never set it. A report
-to the Raft layer that the log does not coalesce, written from runs where
-coalescing was off, would be a bad filing.
+commit linger defaults to zero, and the cluster baseline never set it. So a
+defect report to the Raft layer would have been wrong.
 
 The measurements that followed changed defaults:
 
@@ -333,10 +328,7 @@ The measurements that followed changed defaults:
 | Two or four in-flight batches per partition | 15 to 20% lower throughput | Default stays at one. |
 | Direct reads in the storage engine | Leader reads from 1 ms to 40 to 50 ms with the CPU idle | Ships off. |
 
-## What the database looks like today
-
-The list of fixes is long. The shape of the database after them is easier to
-describe.
+## Behavior of the database today
 
 - Unknown is never absent. A read that cannot confirm a key fails the
   statement. A commit whose transport failed after submission reports an
@@ -366,7 +358,7 @@ the ones we compare from build to build.
 | Kill a whole zone | Two nodes of six, 30 seconds | 100% | 4.1 s |
 | Full disk | Data volume filled to the last byte, 15 seconds | 25% | 1.6 s |
 
-The full disk case is the one we like most. The node refused writes with a
+In the full disk case, the node refused writes with a
 clean error, kept serving reads, and accepted writes again with no restart as
 soon as space came back.
 
@@ -377,25 +369,20 @@ failures at the level of a real cluster in Docker. These simulators reproduce
 them in milliseconds inside a unit test, so a fix comes with a test that fails
 on the old code.
 
-## Three lessons
+## Three rules for fault testing
 
-Invariants beat logs. Every serious correctness bug in this post was found by a
-number that did not add up, and only then explained by a log. Engine-side
+Check invariants first. Every serious correctness bug in this post was found by
+a number that did not add up, and only then explained by a log. Engine-side
 analysis of the logs alone ran out of evidence more than once. A per-row ledger
 of every transfer, joined against the seeded baseline, is what turned a deficit
 we could count into a deficit we could attribute.
 
-The measurement is part of the system under test. A sleeping laptop, a busy
-host, a write cache, and a saturated load generator all produced findings that
-looked exactly like database defects. Each false alarm cost us time once. Each
-one now costs a check that runs on every run.
+Test the measurement too. A sleeping laptop, a busy host, a write cache, and a
+saturated load generator all produced findings that looked exactly like
+database defects. Each one now has a check that runs on every run.
 
-A fix reveals the next bug. The chain from run R to run Z is eight fixes deep,
+Expect each fix to reveal the next bug. The chain from run R to run Z is eight fixes deep,
 and every fix uncovered the next failure by removing the one in front of it.
-This is not a sign that the database was worse than we thought. It is what
-progress looks like when the test is stronger than the code.
 
-The dragon is not done. There are scenarios in the notebooks with questions
-still open, and a few new faults on the list. But a server that dies on a busy
-afternoon now dies in a way we studied, on a build that passed the same
-afternoon many times before.
+Some scenarios in the notebooks still have open questions, and a few new
+faults are on the list.

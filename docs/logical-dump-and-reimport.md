@@ -4,15 +4,16 @@ sidebar_position: 8.15
 
 # Logical dump and reimport
 
-Some CamusDB upgrades change the on-disk storage format, and the new server does
-not convert the old data. To keep your data across that upgrade, export it as
-SQL from the old version and import it into the new one. This is similar to
-moving between PostgreSQL major versions with `pg_dump` and `psql`.
+A logical dump exports your data as SQL from one CamusDB version so that you can
+import it into another. Use it to keep your data across an upgrade that changes
+the on-disk storage format, because the new server does not convert the old
+data. This is similar to moving between PostgreSQL major versions with
+`pg_dump` and `psql`.
 
 You can also use a logical dump to copy a server into a fresh environment
 through SQL instead of through a physical backup.
 
-## Why this is needed
+## A new storage revision starts in its own directory
 
 CamusDB stores rows, indexes, schema metadata, transaction state, and recovery
 state in the storage layer. Some releases can change that physical layout. A

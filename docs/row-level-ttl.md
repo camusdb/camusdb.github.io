@@ -13,7 +13,7 @@ row-level TTL. Some parameters accept narrower values than that convention
 allows, and some are not supported. See
 [Parameter limits](#limits-of-the-parameters).
 
-## Why use row-level TTL
+## Delete expired rows without a cleanup job
 
 TTL means time to live: how long a row stays in the table before it is
 removed. Many tables hold data that is only useful for a limited time:
@@ -134,11 +134,11 @@ An expired row stays readable until the sweep deletes it. TTL is a background
 collector, not a read-time filter, so a `SELECT` returns a row whose expiry has
 passed if the sweep has not reached it yet.
 
-This is by design. A read-time filter would add a predicate to every read of a
-TTL table, and it would also change index-only scans: an index entry does not
-carry the TTL column unless you added it as an `INCLUDE` column, so the engine
-would have to fetch rows it never touches today. Every query would pay that
-cost, forever, to hide a row for at most one sweep interval.
+CamusDB does not filter expired rows at read time. A read-time filter would add
+a predicate to every read of a TTL table, and it would also change index-only
+scans: an index entry does not carry the TTL column unless you added it as an
+`INCLUDE` column, so the engine would have to fetch rows it never touches today.
+Every query would pay that cost to hide a row for at most one sweep interval.
 
 Filter explicitly if your application needs exact expiry semantics:
 
@@ -146,9 +146,8 @@ Filter explicitly if your application needs exact expiry semantics:
 SELECT * FROM sessions WHERE expires_at > NOW();
 ```
 
-Treat TTL as what it is: it reclaims space, it does not enforce visibility.
-`ttl_job_cron` bounds the lag, so a table that needs a tight bound must sweep
-more often.
+`ttl_job_cron` bounds how long an expired row stays visible, so a table that
+needs a tight bound must sweep more often.
 
 TTL cannot run on a table that another table references with a foreign key. The
 sweep deletes rows in the background, outside the parent-side foreign-key check
@@ -157,11 +156,11 @@ and adding a foreign key that references a TTL table.
 
 ## Tuning
 
-Start with the delete rate, not the batch sizes. `ttl_delete_rate_limit` is the
-throttle that governs the sweep's impact; the batch sizes govern the shape of
-each transaction. The default of 100 rows per second is conservative by design.
+Tune `ttl_delete_rate_limit` first. It is the throttle that governs the
+sweep's impact; the batch sizes govern the shape of each transaction. The
+default of 100 rows per second is conservative by design.
 
-Delete batches are small for a reason. Each row costs one mutation per index
+Delete batches are small because each row costs one mutation per index
 entry plus one for the row itself, so a table with four indexes spends five
 mutations per row. `ttl_delete_batch_size` must stay well below the transaction
 limit of 20,000 mutations. Short delete transactions also keep foreground
@@ -171,8 +170,8 @@ Priority orders admission (the moment a transaction is let in to run), not
 execution. Sweep transactions run at `Background` priority, which decides who
 waits at the door while a concurrency ceiling is configured. Once admitted, a
 background delete takes ordinary exclusive locks and blocks foreground writers
-exactly like any other transaction. Small batches and short transactions protect
-your latency; the priority tag does not.
+exactly like any other transaction. Keep batches small and transactions short
+to protect your latency.
 
 Spans divide the work, and `ttl_max_concurrent_spans_per_node` decides how much
 of it runs at once. The limit is per node, so a cluster of N nodes can have N
@@ -194,7 +193,7 @@ its last checkpoint, but it deletes each row at most once. Throughput does
 depend on the distribution, so raising `ttl_spans_per_table` does not currently
 spread an append-heavy table across workers.
 
-Use `ttl_grace_ms` for clock skew, not as a business rule. It delays a row's
+Use `ttl_grace_ms` to absorb clock skew. It delays a row's
 eligibility past its expiry instant, which absorbs writers with slow clocks. To
 keep a row for 30 days, set the column 30 days ahead; do not set a 30-day grace
 period.
@@ -249,16 +248,15 @@ attempt retries them instead of stepping over them. No data is lost. But a value
 that stays above zero means something is failing, and each run makes less
 progress than it appears to.
 
-That is exactly why failures are counted separately from skips. A skip is the
-system working; a failure is not. One number for both would look healthy while
-data piled up.
+CamusDB counts failures separately from skips, so failing deletes cannot hide
+behind normal skips while data piles up.
 
-`ttl.rows_skipped_recheck` is the interesting one. CamusDB rechecks each row
-under a lock at delete time, so a row survives if something extended its expiry
-between the scan and the delete.
+`ttl.rows_skipped_recheck` counts rows that changed after the scan. CamusDB
+rechecks each row under a lock at delete time, so a row survives if something
+extended its expiry between the scan and the delete.
 
-On a sessions table, a steady trickle here is normal and healthy: it is renewals
-winning the race, as they should. A value close to `ttl.rows_expired` means the
+On a sessions table, a steady trickle here is normal: it counts sessions renewed
+before the sweep deleted them. A value close to `ttl.rows_expired` means the
 sweep is mostly fighting live traffic, so revisit its cadence and batch sizes.
 
 If `ttl.rows_expired` stays flat on a table you expect to shrink, check these in
@@ -298,8 +296,6 @@ One parameter is a CamusDB extension:
   expression could include a grace period, but a bare column name cannot.
 
 ## How it works
-
-This section matters if you operate a cluster.
 
 A planner runs on one elected node per database. When a table's cadence has
 elapsed, it creates a run: a durable manifest that records the table, a single
@@ -347,9 +343,9 @@ That is why TTL does not use the per-key expiry of the
 strand every secondary index entry permanently, and index-only scans would then
 return rows that no longer exist.
 
-CamusDB discards, rather than drives, a run whose table id no longer matches the
-live schema. So a run left behind by a `DROP` can never delete rows from a new
-table that reuses the name.
+CamusDB discards a run whose table id no longer matches the live schema, so a
+run left behind by a `DROP` can never delete rows from a new table that reuses
+the name.
 
 A [`TRUNCATE`](/docs/truncate-table) stops an in-progress TTL run at once, so it
 never deletes rows from either the old or the new contents. See

@@ -10,7 +10,7 @@ applications, environments, or customers on one CamusDB node or cluster, and
 each database keeps its own tables, schema objects, and grants. As in
 PostgreSQL or MySQL, a client selects a database before it works with tables.
 
-## Why use more than one database
+## Separate applications, environments, or customers
 
 Use a separate database to keep one set of data apart from another set:
 
@@ -51,8 +51,7 @@ Then connect to it in any of these ways:
 - `camus-cli app`.
 - A `use app;` statement.
 - A driver connection string.
-- An HTTP request whose `databaseName` is `app`.
-- A gRPC request whose `database` is `app`.
+- A request to the [HTTP API](/docs/http-api) or [gRPC API](/docs/grpc-api) that names `app`.
 
 ## Branch a database
 

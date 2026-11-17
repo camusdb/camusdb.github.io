@@ -12,21 +12,21 @@ description: How the CamusDB SQL fuzzer finds wrong rows with no error, without 
 
 ![SQLFuzz](/img/sqlfuzz.png)
 
-Your database can return the wrong rows and report no error. A hand-written test catches only the cases its author thought of. A SQL fuzzer catches cases nobody thought of, and it runs every night on its own. This post shows how the CamusDB fuzzer works, which defects it can catch, and what it cannot see. You need no knowledge of fuzzers or of database internals.
+This post shows how the CamusDB SQL fuzzer finds queries that return the wrong rows with no error, which defects it can catch, and what it cannot see. A hand-written test covers the cases its author thought of. The fuzzer generates cases nobody wrote, and it runs every night on its own. You need no knowledge of fuzzers or of database internals.
 
 <!-- truncate -->
 
 ## A fuzzer that needs no second database
 
-A fuzzer makes random inputs and feeds them to the software under test. For a database, the inputs are tables, rows and SQL statements. The hard part is not to make a random query. The hard part is to know its correct answer.
+A fuzzer makes random inputs and feeds them to the software under test. For a database, the inputs are tables, rows and SQL statements. The hard part is to know the correct answer of a random query.
 
-One way is to run the same query on a second database, for example PostgreSQL, and compare the two answers. That needs a second database, and the two must agree on every rule of SQL. The CamusDB fuzzer takes another way. It does not know the correct answer. It knows that two different queries must give the same answer. The name for this is a **metamorphic** test. Each such rule is an **oracle**.
+One way is to run the same query on a second database, for example PostgreSQL, and compare the two answers. That needs a second database, and the two must agree on every rule of SQL. The CamusDB fuzzer takes another way: it checks that two different queries give the same answer, with no need to know the correct one. The name for this is a **metamorphic** test. Each such rule is an **oracle**.
 
 Here is an example. SQL has three truth values: a filter on a row is true, false or unknown, and unknown comes from NULL. So the rows where a filter is true, the rows where it is false and the rows where it is unknown add up to the whole table. The fuzzer runs the four queries and checks the sum. If the results do not agree, one of them is wrong. The fuzzer does not need to know which one.
 
-The oracles are the ones of [SQLancer](https://github.com/sqlancer/sqlancer), an open tool for database tests, written again in C#. They run in the same process as the engine. No driver, no network, no second database.
+The oracles are the ones of [SQLancer](https://github.com/sqlancer/sqlancer), an open tool for database tests, written again in C#. They run in the same process as the engine, with no driver, no network and no second database.
 
-## One round, step by step
+## The five steps of a round
 
 The fuzzer works in rounds. Each round does five things:
 
@@ -44,7 +44,7 @@ A time limit applies to every statement. A statement past the limit is a finding
 
 ## The defects it can catch
 
-A **plan** is the engine's choice of how to run a query: which index to read, in which order to join the tables, and with which join algorithm. Most logic bugs hide in one plan and not in another. So the oracles make the engine take different paths to one answer. The table lists the five oracles, the rule each one enforces, and what a failure would point to.
+A **plan** is the engine's choice of how to run a query: which index to read, in which order to join the tables, and with which join algorithm. Most logic bugs appear in only one plan. So the oracles make the engine take different paths to one answer. The table lists the five oracles, the rule each one enforces, and what a failure would point to.
 
 | Oracle | The rule | A failure would mean |
 | --- | --- | --- |
@@ -56,13 +56,13 @@ A **plan** is the engine's choice of how to run a query: which index to read, in
 
 A FLOAT64 sum gets a tolerance, because the order of the additions changes a float sum. Every other value compares exactly.
 
-## What it cannot see
+## Defects outside its reach
 
 A metamorphic oracle finds results that disagree. It does not find a result that is wrong in the same way on every path. If every form of a query computes the same wrong value, the comparison passes. Such defects need a reference, for example PostgreSQL or an in-memory model. The generator is built for that: it makes statement trees, not SQL text, and a second printer can turn the same trees into another dialect.
 
 The fuzzer runs one session at a time. It does not find concurrency bugs, isolation anomalies or bugs that need an injected fault. Other harnesses own those. The row oracles skip queries whose rows depend on order: LIMIT, window functions and set operations. Those forms still run under the error oracle, but nothing checks their rows.
 
-## Run it
+## Run the fuzzer locally
 
 ```sh
 dotnet test CamusDB.SqlFuzz.Tests/CamusDB.SqlFuzz.Tests.csproj --filter "FullyQualifiedName~.FuzzCampaignTests."
@@ -70,10 +70,10 @@ dotnet test CamusDB.SqlFuzz.Tests/CamusDB.SqlFuzz.Tests.csproj --filter "FullyQu
 
 This runs all five oracles for 30 seconds each, with a seed from the clock. `SQLFUZZ_SEED` fixes the seed, and `SQLFUZZ_BUDGET_SECONDS` sets the time per oracle. A failed run prints the seed, the round and a unit test that reproduces the finding. The full guide is `docs/sql-fuzzer.md` in the CamusDB repository.
 
-## Why it matters
+## Coverage that hand-written tests miss
 
 A hand-written test checks one schema, one data set and one query. The fuzzer makes a new schema, a new data set and new statements in every round, and each night starts from a new seed. It reaches the shapes nobody writes by hand: a NULL in a join key, an index on a column with one distinct value, an UPDATE that changes every column of an index at once.
 
 This makes the two systems at the heart of CamusDB more robust. The query system must return the same rows under every plan, and the fuzzer forces every plan. The write system must leave rows, indexes and out-of-row values in agreement after every statement. The fuzzer checks that agreement after every write. A night with no finding is evidence that both rules hold. A finding arrives as a small failing test, before a user meets the same defect in production.
 
-A change inside the engine joins the test on its first night. A new join algorithm, a new index path or a new row decoder needs no new test. The same statements run, and the oracles judge the new path as before. So each change costs less to trust, and each release ships with more evidence behind it.
+A change inside the engine joins the test on its first night. A new join algorithm, a new index path or a new row decoder needs no new test. The same statements run, and the oracles judge the new path as before.

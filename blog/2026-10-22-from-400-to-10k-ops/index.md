@@ -26,12 +26,12 @@ per second for 45 minutes**, completing 27.8 million operations after a two-minu
 warm-up. Every measured minute stayed above 9,700 ops/sec.
 
 All three nodes ran on **one laptop**, alongside the load generator and
-metrics collector. And the storage was memory-backed. Both details matter
-when interpreting the number.
+metrics collector, on memory-backed storage. Both conditions limit what the
+number predicts; see [Latency and scope of the result](/blog/from-400-to-10k-ops#latency-and-scope-of-the-result).
 
 <!-- truncate -->
 
-## What counts as an operation?
+## Definition of an operation
 
 We used [Caraxes](/blog/a-dragon-to-attack-our-own-database), our database
 testing tool, to run a bank ledger with 2,000 accounts. Half the operations
@@ -113,12 +113,11 @@ competes for the same machine's resources.
 The laptop's consumer NVMe drive changed its write behavior after
 roughly 30 GB of sustained writes. 
 
-## Where the gains came from
+## Changes that produced the gains
 
 **Send requests directly to the leader.** Initially, the client could contact
 any node, which might forward the request. Teaching it which node led the
 data range removed that extra hop and produced a **1.97× improvement**.
-Before optimizing the work inside a request, we shortened its route.
 
 **Reduce the cost of agreement.** CamusDB uses Raft, a protocol for keeping
 replicas in agreement. Improvements to replication and follower queues
@@ -150,7 +149,7 @@ throughput. Latency roughly doubled, while CPU cost per operation stayed
 unchanged. More concurrency helped use the capacity we had freed, with a
 clear cost to individual requests.
 
-## Measure the ideas that don't help, too
+## Changes that did not help
 
 Several plausible changes failed to improve the result. Setting the .NET
 thread-pool minimum to 64, 128, or 1,024 made no measurable difference.
@@ -160,7 +159,7 @@ requests through a pipelined client at 128 workers did not help either.
 Those measurements narrowed the investigation. We could stop tuning those
 settings and focus on costs that moved throughput or CPU time per operation.
 
-## What this result means for your workload
+## Latency and scope of the result
 
 The final run's median read latency was **3.6 ms**, with 99% completing within
 18 ms. Median transfer latency was **36 ms**, with 99% within 157 ms.
@@ -188,10 +187,9 @@ and 32 workers. The final result is 25.2× higher, combining software changes
 with increased concurrency. It is a milestone for this workload and setup.
 
 If you're profiling your own system, count the forwarding hops, log entries,
-queued tasks, and lookups behind each operation. Those repeated costs gave
-us concrete changes to make—and correctness checks told us whether the
-faster system still did the right work.
+queued tasks, and lookups behind each operation, and run correctness checks
+to confirm that the faster system still does the right work.
 
-## Conclusion
+## Result on shared commodity hardware
 
 Running three nodes on a single machine with commodity hardware is far from ideal and certainly not a recommended practice, since the shared hardware becomes a single point of failure for all three nodes. However, it demonstrates that even under these challenging conditions, the database can deliver performance that is more than adequate for the vast majority of transactional applications.

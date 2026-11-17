@@ -5,14 +5,14 @@ description: "How CamusDB uses two-phase commit so a transaction commits on ever
 
 # Distributed transactions and HLC
 
-A transaction can touch data on more than one
+In a CamusDB cluster, a transaction behaves like a transaction on one node,
+even when it touches data on more than one
 [partition](/docs/concepts#partition) (a slice of data that one group of nodes
-replicates together). The storage layer then coordinates the work with
+replicates together). The storage layer coordinates the work with
 [two-phase commit](/docs/concepts#two-phase-commit) (2PC), so the transaction
 either commits on every partition or aborts on every partition.
 
-For your application, this means a transaction in a cluster behaves like a
-transaction on one node. You do not need to know which partition holds a row,
+You do not need to know which partition holds a row,
 and you never write compensation code for a transfer that succeeded on one
 partition and failed on another, because that cannot happen. You use `BEGIN`
 and `COMMIT` as usual. The only addition is a retry loop for conflicts, which
@@ -35,9 +35,7 @@ CamusDB uses two components for this work:
   [Raft](/docs/concepts#raft) consensus algorithm, which commits a write once a
   [majority](/docs/concepts#majority) of the partition's copies have it.
 
-This page states the guarantee first, then describes the flow behind it.
-
-## What you get
+## Guarantees across partitions
 
 A distributed transaction in CamusDB keeps the guarantees you expect from a
 local SQL transaction:
@@ -137,7 +135,7 @@ partition log as ordinary writes: the partition's
 until both of these hold: its partition accepted the commit through Kommander,
 and Kahuna can restore the committed entry.
 
-That matters during failures:
+This protects commits during failures:
 
 - If a node restarts after CamusDB acknowledged a commit, CamusDB restores the
   committed partition log entries and applies them back into the KV store as
@@ -225,8 +223,8 @@ checks for a concurrent write intent before the final commit. You can select
 it with `SET TRANSACTION LOCKING OPTIMISTIC`, with the `locking` field over
 HTTP or gRPC, or with `default_transaction_locking`.
 
-The practical rule for your application: a serialization failure is a signal
-to retry, not a silent correctness bug.
+When your application receives a serialization failure, retry the
+transaction.
 
 ## How HLC timestamps fit in
 
@@ -243,7 +241,7 @@ An HLC timestamp has three parts:
 Timestamps sort by `L`, then `C`, then `N`. The node id breaks ties, so two
 nodes never produce equal timestamps.
 
-## Why HLC instead of plain wall-clock time
+## HLC versus wall-clock time
 
 Plain wall-clock time is not enough in a distributed system:
 
@@ -266,8 +264,8 @@ coordination.
 
 ## The commit timestamp
 
-At commit time, Kahuna does not simply reuse the start timestamp. It computes a
-commit timestamp that is at least as new as both:
+At commit time, Kahuna computes a fresh commit timestamp that is at least as
+new as both:
 
 - The transaction's start timestamp.
 - The newest timestamp of any value the transaction modified or depended on.
@@ -286,8 +284,6 @@ order.
 
 A conflict, a failed prepare, or a passed lifetime deadline aborts the
 transaction with nothing committed. Replay the whole transaction from `BEGIN`.
-These failures are how CamusDB preserves correctness; they are not partial
-commits.
 
 `CADB0509 TransactionFinalizeUnresolved` is the exception: the outcome is not
 final yet. Send the same `COMMIT` or `ROLLBACK` again on the same transaction,

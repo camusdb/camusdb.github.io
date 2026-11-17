@@ -102,7 +102,7 @@ agent. Then ask for the task in ordinary language. For example:
 You can also invoke a skill explicitly. Use `/camusdb-schema-design` in Claude
 Code and Cursor, or `$camusdb-schema-design` in Codex.
 
-The skills are instructions, not a security boundary. The MCP server uses the
+The skills do not restrict what the agent can do. The MCP server uses the
 CamusDB user and grants in its configuration. Give that user only the database
 privileges the agent needs, and prefer a database branch for experiments.
 

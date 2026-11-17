@@ -4,19 +4,16 @@ sidebar_position: 3.3
 
 # Distributed queries
 
-A large scan or aggregate in a cluster is slow if one node pulls every row
-across the network and does all the work alone. Distributed query execution
-sends each part of an eligible scan to the node that already holds those rows.
-Filters and aggregates run there, the parts run at the same time, and only the
-results travel back. Query results are identical with the feature on or off. It
-changes only where the work runs.
+Distributed query execution speeds up large scans and aggregates in a cluster.
+It sends each part of an eligible scan to the node that already holds those
+rows, so one node no longer pulls every row across the network and does all the
+work alone. Filters and aggregates run at the data, the parts run at the same
+time, and only the results travel back. Query results are identical with the
+feature on or off; only the place where the work runs changes.
 
 In a cluster, CamusDB spreads the rows of a table across
 [partitions](/docs/concepts#partition). Each partition has a
 [leader](/docs/concepts#leader), and that leader already holds its data.
-
-Distributed execution lets a scan run where the rows are, instead of having the
-node that received the statement pull every page to itself.
 
 ```yaml
 key_range_sharding: true
@@ -35,7 +32,7 @@ owns that data. The coordinator then joins the results together.
 This is a performance feature. Every part of it falls back to local execution
 rather than failing.
 
-## Why use it
+## Where the savings come from
 
 - Filters run at the data. A peer that executes a fragment applies the residual
   predicate before it ships anything, so a scan that keeps one row in a
@@ -49,9 +46,10 @@ rather than failing.
   rollup over one hundred million rows ships one row per group per span.
 - The coordinator keeps less in memory. It merges the streams instead of
   decoding every row of the table itself.
-- Correctness depends on none of this. Placement snapshots are advisory, the
-  spans always cover the whole key space, and a failed fragment continues
-  locally. A stale view or a dead peer costs a retry, never a wrong answer.
+- Results stay correct when placement changes or a peer fails. Placement
+  snapshots are advisory, the spans always cover the whole key space, and a
+  failed fragment continues locally, so a stale view or a dead peer costs only
+  a retry.
 
 ## Turn it on
 

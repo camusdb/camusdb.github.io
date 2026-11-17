@@ -35,7 +35,7 @@ Unary and streaming gRPC calls carry the same domain code in the
 
 </details>
 
-## How to read them
+## Code ranges
 
 - `CADB00xx`: catalog, metadata, or storage-state problems
 - `CADB03xx`: data integrity constraint failures
@@ -80,7 +80,7 @@ an unexpected internal state, or an inconsistency in the storage layer.
 | `CADB0410` | `MalformedVector` | A `BYTES` value is used where a packed float32 vector is required, but its byte count is not a whole number of 4-byte elements, or the vector has zero elements. |
 | `CADB0411` | `VectorDimensionMismatch` | Two vector operands of a distance function have different dimensions. The message names both dimensions. |
 | `CADB0412` | `InvalidVectorValue` | A vector element is `NaN` or an infinity, or `cosine_distance` receives a zero-magnitude vector, for which the metric is undefined. |
-| `CADB0413` | `StatementTooDeeplyNested` | A statement's parse tree is deeper than CamusDB's safety limit. Rewrite the statement with less nesting, or split it into more statements. |
+| `CADB0413` | `StatementTooDeeplyNested` | A statement exceeds a nesting limit or WITH expansion copies more than 250,000 parse nodes. Reduce nesting or CTE reuse; see [statement limits](/docs/statement-nesting-limit). |
 | `CADB0414` | `ColumnStorageNotApplicable` | A `STORAGE` strategy was given for a column type that has no variable-length value. Use storage strategies only on `STRING`, `BYTES`/`BLOB`, `JSONB`, and `ARRAY` columns. |
 | `CADB0415` | `InvalidForeignKeyDefinition` | A foreign key references an invalid target: wrong column count or type, no matching primary key or unique index, a view, a materialized view, or another database. |
 | `CADB0416` | `ForeignKeyCycle` | A foreign key would create a cycle across two or more tables. A self-reference is allowed. |
@@ -129,6 +129,7 @@ an unexpected internal state, or an inconsistency in the storage layer.
 | `CADB0537` | `SnapshotPrecedesContentsGeneration` | An `AS OF SYSTEM TIME` read named a point before the table's current contents began. A [`TRUNCATE`](/docs/truncate-table) replaced the [key space](/docs/concepts#key-space) that holds the rows, so the live schema can no longer locate the old rows. Returning an empty result would look the same as a correct empty answer; this code prevents that. Read at or after the cut, or recover the retired contents with `CREATE TABLE ... RELINK TO`. |
 | `CADB0538` | `StatementNotAllowedInTransaction` | A statement that commits its own work ran inside the caller's explicit transaction. Three statements are refused: [`TRUNCATE`](/docs/truncate-table), `ALTER TABLE ... REWRITE STORAGE`, and `ALTER SEQUENCE ... RESTART`. A later `ROLLBACK` cannot undo what they commit. Commit or roll back first, then run the statement. |
 | `CADB0539` | `BranchSnapshotProtectionLost` | A branch database lost the snapshot protection that pins inherited ancestor history at its fork point. CamusDB fails closed instead of returning a possibly incomplete result. Recreate the branch from the parent. Maps to HTTP 410. |
+| `CADB0847` | `SnapshotTooOld` | Retention removed history needed by a snapshot read. HTTP 409. Choose a newer timestamp or begin a new transaction; do not retry the same snapshot. |
 | `CADB0542` | `SequenceAlreadyExists` | `CREATE SEQUENCE` targets a name already held by a sequence, table, or view. Pick another name or use `IF NOT EXISTS` when appropriate. |
 | `CADB0543` | `SequenceDoesntExist` | A sequence statement or sequence function names a sequence that does not exist. |
 | `CADB0544` | `SequenceExhausted` | The sequence has no value left to issue because the next value would pass its `MAXVALUE`. |
@@ -148,6 +149,11 @@ an unexpected internal state, or an inconsistency in the storage layer.
 | `CADB0558` | `ConcurrencyLimitExceeded` | The node reached its explicit-transaction or cluster-activity fan-out cap. Back off before retrying. HTTP 503 / gRPC RESOURCE_EXHAUSTED. |
 | `CADB0559` | `JsonbValueCorrupt` | Stored `JSONB` bytes do not decode. This means damaged data or a value written by a newer build. The statement fails and returns no partial document. HTTP 500. |
 | `CADB0600` | `InvalidConfig` | Configuration is invalid: an explicit `--config` or `CAMUS_CONFIG_PATH` file does not exist, the mode is wrong, a listener or Raft port is invalid, peer lists are malformed, schema-ack settings are invalid, transaction/locking/priority settings are invalid, prepared-statement settings are invalid, statistics, automatic-analyze, row-level TTL, spill, large-value, diagnostics, parser-cache, or regex settings are invalid, config keys are unknown, or `kahuna` options are unsupported. Also raised at runtime when a [`SET CLUSTER SETTING`](/docs/runtime-cluster-settings) value breaks a cross-field invariant; the message names both settings, and nothing is applied. |
+
+`CADB0560 RecursiveQueryLimitExceeded` means a recursive CTE exceeded its
+step or row limit (HTTP 400). Add a stopping predicate or adjust the
+[recursive query limits](/docs/sql-queries#recursive-ctes) after checking the
+query. Retrying unchanged will reach the same limit.
 
 ## Backup and restore errors
 

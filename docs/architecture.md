@@ -173,8 +173,8 @@ files after a crash. RocksDB is a native C++ engine, created at Meta, so the
 SQL, transaction, and coordination logic stays in C# while the disk work runs
 close to the hardware.
 
-RocksDB is local storage, not the distributed database. It makes one node's
-state durable. Kahuna and Kommander add the rest: replication, commit by a
+RocksDB is local storage that makes one node's state durable. Kahuna and
+Kommander add the rest: replication, commit by a
 [majority](/docs/concepts#majority), partition leadership, transaction
 coordination, and WAL replay. Together they keep commits consistent across the
 cluster.
@@ -246,7 +246,7 @@ See [Cluster Mode](/docs/cluster) for startup commands and
 node, cluster, partition, leader, Raft, replication, and the write-ahead log.
 The [Layers](#layers) table above describes the catalog and the KV mapping.
 
-## What's next
+## Suggested reading order
 
 Start with [SQL Overview](/docs/sql) and [SELECT](/docs/sql-queries) for the
 user-facing model. Then read [Storage](/docs/storage),

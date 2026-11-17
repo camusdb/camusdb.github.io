@@ -6,7 +6,7 @@ sidebar_position: 2.1
 
 A table definition is where you make the database enforce your data rules:
 column types, primary keys, defaults, `CHECK` constraints, and foreign keys.
-Every client then gets the same rules, not only the application that wrote them.
+Every client that writes to the table then follows the same rules.
 The statements look like the `CREATE TABLE` and `ALTER TABLE` you know from
 PostgreSQL or MySQL. One difference helps when mistakes happen: by default, a
 dropped table stays [recoverable](#drop-a-table) for a retention window.

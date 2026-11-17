@@ -5,13 +5,11 @@ description: "Undo an accidental DROP TABLE or DROP DATABASE in CamusDB. A dropp
 
 # Recover dropped objects
 
-Running `DROP TABLE` against the wrong database is an easy mistake to make. In
-PostgreSQL or MySQL, the data is gone and you restore a backup. CamusDB lets you
-undo an accidental `DROP`: it keeps a dropped root database or table
-recoverable during a configurable retention window, and a `RELINK` statement
-brings it back. The same applies to a wrong cleanup script or a destructive
-migration. As long as CamusDB still keeps the orphan, you recover without
-restoring a full backup.
+CamusDB lets you undo an accidental `DROP TABLE` or `DROP DATABASE` without
+restoring a backup. It keeps a dropped root database or table recoverable during
+a configurable retention window, and a `RELINK` statement brings it back. The
+same applies to a wrong cleanup script or a destructive migration. In
+PostgreSQL or MySQL, a dropped table is gone and you restore a backup.
 
 An ordinary `DROP DATABASE` or `DROP TABLE` removes the object from the catalog
 and frees its name immediately. CamusDB still keeps the object's data as a
@@ -105,8 +103,8 @@ table with a fresh relation id. It does not affect the table named in
 `former_name`. See
 [TRUNCATE TABLE](/docs/truncate-table#recovery-of-the-previous-contents).
 
-`SHOW ORPHAN DATABASES` has no `kind` column. A dropped database is always a
-dropped database.
+`SHOW ORPHAN DATABASES` has no `kind` column, because every database orphan
+comes from a dropped database.
 
 ## What a plain DROP does
 
@@ -249,8 +247,7 @@ until CamusDB actually reclaims the object.
 - Make operator cleanup safer: use a normal `DROP` first, and `FORCE` later only
   when you are certain nobody needs the data.
 
-Recovery complements backups; it does not replace them. You still need backups
-for disaster recovery, long-term retention, and losing a whole cluster or
+Recovery complements backups. You still need backups for disaster recovery, long-term retention, and losing a whole cluster or
 storage volume. A recoverable drop is faster while the data is still present in
 the same cluster.
 

@@ -27,8 +27,8 @@ CamusDB can also cap the number of concurrent coordinator sessions on a node
 with `kahuna.max_concurrent_sessions`. A coordinator session is the server-side
 record that tracks one transaction until it ends. This gate is disabled by
 default; read [Transaction Priority](/docs/transaction-priority) before you
-enable it. The gate orders queued starts by priority. It is not a substitute
-for short transactions or sensible batch sizes.
+enable it. The gate orders queued starts by priority. Keep transactions short
+and batch sizes sensible even when the gate is on.
 
 ## Node request and transaction capacity
 
@@ -102,7 +102,7 @@ counts twice, because CamusDB must still hold and commit both
 [write intents](/docs/concepts#write-intent) (the provisional writes that
 become final at commit).
 
-## Example
+## Rows per transaction with two indexes
 
 In a table with two secondary indexes, each inserted row writes one row blob,
 one primary-key entry, and two secondary index entries:

@@ -4,10 +4,11 @@ sidebar_position: 2.15
 
 # Check constraints
 
-Validation in your application protects only the writes that go through your
-application. A `CHECK` constraint puts the rule in the database, so it holds for
-every client: other services, scripts, and ad hoc SQL. A negative price or an
-unknown status never reaches the table, whoever writes it.
+A `CHECK` constraint keeps invalid values, such as a negative price or an
+unknown status, out of a table whoever writes them. The rule lives in the
+database, so it holds for every client: your application, other services,
+scripts, and ad hoc SQL. Validation in application code protects only the
+writes that go through that application.
 
 A check constraint is a boolean expression written with the same standard
 `CHECK` syntax you use in PostgreSQL. CamusDB evaluates it whenever a row is

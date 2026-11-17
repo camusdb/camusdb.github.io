@@ -261,8 +261,8 @@ a later concurrency recheck can skip a candidate, so the affected count can be
 smaller. See [concurrent updates and deletes](#concurrent-updates-and-deletes).
 
 There is no `ORDER BY` or `OFFSET` on `UPDATE`. Do not assume which matching
-rows a limited update selects. `UPDATE ... FROM` and joins on the target are
-also unsupported. Use a subquery for a value or filter when appropriate:
+rows a limited update selects. For values from other tables, use
+[`UPDATE ... FROM`](#joined-writes) or a subquery:
 
 ```camussql
 UPDATE counters
@@ -301,7 +301,8 @@ WHERE id NOT IN (
 Filtering NULLs in this `NOT IN` example matters: a NULL in the subquery's
 result can make the predicate unknown instead of true. See
 [IN and NOT IN](/docs/joins-and-subqueries#in-and-not-in).
-`DELETE ... USING`, joined deletes, `ORDER BY`, and `OFFSET` are unsupported.
+`ORDER BY` and `OFFSET` are unsupported. Use
+[`DELETE ... USING`](#joined-writes) to match rows through other tables.
 
 ### Limit deleted rows
 
@@ -333,6 +334,84 @@ matches. Index the filter when useful; large intermediate match sets can
 For ongoing expiry, consider [row-level TTL](/docs/row-level-ttl). To empty a
 whole table without row-by-row deletion, use [TRUNCATE](/docs/truncate-table),
 which has different transaction and trigger behavior.
+
+## UPDATE FROM and DELETE USING {#joined-writes}
+
+Use another table's rows to apply balance adjustments or remove records
+belonging to closed customers:
+
+```camussql
+UPDATE accounts AS a
+SET balance = a.balance + d.amount
+FROM deltas AS d
+WHERE d.account_id = a.id
+RETURNING a.id, a.balance;
+
+DELETE FROM orders AS o
+USING customers AS c
+WHERE c.id = o.customer_id AND c.closed = true
+RETURNING o.id;
+```
+
+Only the target table changes. The `FROM` or `USING` list accepts the same
+sources as a SELECT: tables, views, derived tables, CTEs, set-returning
+functions, comma lists, and joins. Use a
+[VALUES source](/docs/joins-and-subqueries#values-sources) for an inline batch:
+
+```camussql
+UPDATE accounts AS a SET balance = a.balance + d.amount
+FROM (VALUES (1, 25), (2, -10)) AS d (id, amount)
+WHERE a.id = d.id;
+```
+
+Target aliases also work without source lists: `UPDATE accounts AS a SET
+balance = 0 WHERE a.id = @id`. Once aliased, qualify the target by its alias.
+A bare column shared by the target and a source is ambiguous (`CADB0400`).
+A self join needs an alias on at least one occurrence of the target.
+
+### Matching and concurrent writes
+
+The statement collects matching target keys and source values before writing,
+so a self join reads the rows as the matching phase found them. It then locks
+and rereads each target row. Assignments read that target's current values and
+the previously collected source values. Thus `a.balance + d.amount` adds the
+captured delta to the balance read under the lock. All assignments read the
+same pre-update target row. Subqueries in assignments are computed during
+the matching phase.
+
+After locking, the engine rechecks each AND term that references a target
+column and contains no subquery. If concurrent changes make a row fail that
+check, it is skipped and excluded from the affected count. Triggers,
+constraints, index maintenance, and transaction limits apply as for plain
+writes. Under Serializable, matching takes exclusive range locks on target
+and source relations; the write phase also takes exclusive target-row locks.
+
+An UPDATE fails with `CADB0400` before writing anything if a target row matches
+multiple source rows. PostgreSQL chooses one such match without specifying
+which. Aggregate the source first when several adjustments belong to one row:
+
+```camussql
+UPDATE accounts AS a
+SET balance = a.balance + d.amount
+FROM (SELECT account_id, SUM(amount) AS amount FROM deltas GROUP BY account_id) AS d
+WHERE d.account_id = a.id;
+```
+
+DELETE removes a multiply matched target row once.
+
+### Joined-write limits
+
+- `WHERE` is mandatory. Use `WHERE TRUE` when every matching row should change.
+- `LIMIT` is unsupported in these forms; plain UPDATE and DELETE still support it.
+- `RETURNING` accepts explicit target columns and target expressions only.
+  Source columns and a bare `RETURNING *` are refused with `CADB0400`.
+  A target alias without FROM/USING still permits `RETURNING *`.
+- Primary-key assignments and `EXPLAIN UPDATE`/`EXPLAIN DELETE` are unsupported.
+- The statement requires UPDATE or DELETE on the target and SELECT on every
+  relation it reads, including the target.
+
+`USING` is now reserved. Quote existing table or column names such as
+`` `using` `` with backticks; longer identifiers such as `using_id` are unaffected.
 
 ## RETURNING {#returning}
 
@@ -372,7 +451,8 @@ of returned rows.
 
 The `RETURNING` list is a select list over the target table. It can contain:
 
-- `*`, which expands to every column of the target table in schema order.
+- `*`, which expands to every target column in schema order, except in
+  [joined writes](#joined-writes), where a bare star is refused.
 - A column name, including a qualified name such as `orders.total`.
 - A scalar expression, such as arithmetic, `CASE`, a cast, or a scalar
   function.
@@ -391,8 +471,7 @@ writing any rows:
 
 ### What values come back
 
-`RETURNING` reports the stored row image, not just the text that appeared in the
-statement:
+`RETURNING` reports the stored row image, after defaults and coercion:
 
 | Statement | Row image |
 | --- | --- |
@@ -442,24 +521,27 @@ Returned rows also obey `max_buffered_result_rows` (1,000,000) and
 commit. Exceeding either fails with `CADB0556` and rolls back. A streaming
 query endpoint avoids the single-message gRPC limit, but does not bypass these
 caps when a write must buffer RETURNING rows before committing. Reduce the
-batch or returned columns, or raise the caps deliberately. See
+batch or returned columns, or raise the caps. See
 [request resource limits](/docs/settings-reference#request-resource-limits).
 
 The returned rows stay in server memory until the statement completes. The
 number of written rows is still bounded by `max_mutations_per_transaction`.
 
-A gRPC `ExecuteNonQuery` reply and a gRPC `NON_QUERY` batch reply carry all
-returned rows in one message, and a default gRPC client receives at most 4 MiB
-per message. If the `RETURNING` payload would exceed that limit, CamusDB fails
-the statement with `CADB0550` `ReturningResultTooLarge` before commit, and the
-statement is rolled back.
+Over gRPC, a buffered reply carries all returned rows in one message, and a
+default gRPC client receives at most 4 MiB per message. If the `RETURNING`
+payload would exceed that limit, CamusDB fails the statement with `CADB0550`
+`ReturningResultTooLarge` before commit, and the statement is rolled back.
 
 For large returned row sets, either:
 
-- Send the statement to `ExecuteQuery`, which streams the rows.
-- Set the count-only flag: `discard_returning_rows` on a gRPC request, or
-  `discardReturningRows` in the JSON body of an HTTP request. The reply then
-  carries only the row count.
+- Stream the rows: `ExecuteStreamReaderAsync()` in .NET, or `queryStream()` in
+  TypeScript.
+- Ask for the count only: `ExecuteNonQueryAsync()` in .NET, or `execute()` in
+  TypeScript. The server discards the returned rows but still validates the
+  `RETURNING` list and checks privileges.
+
+See the [HTTP API](/docs/http-api#post-execute-sql-non-query) and
+[gRPC API](/docs/grpc-api#sql-service) references for the request fields.
 
 ## Concurrent updates and deletes
 
@@ -481,11 +563,9 @@ for that invariant, or express the change as one `UPDATE`.
 
 ## A WHERE clause is mandatory
 
-`UPDATE` and `DELETE` both need a `WHERE` clause. This is a deliberate guard
-against a common mistake: accidentally omitting the filter and changing or
-deleting every row. CamusDB rejects a bare `UPDATE robots SET ...` or
-`DELETE FROM robots` rather than treating it as an instruction to affect the
-whole table.
+`UPDATE` and `DELETE` both need a `WHERE` clause, which guards against
+accidentally omitting the filter and changing or deleting every row. CamusDB
+rejects a bare `UPDATE robots SET ...` or `DELETE FROM robots`.
 
 This requirement applies to standalone `UPDATE` and `DELETE`. An
 `ON CONFLICT DO UPDATE` arm already selects its row through a unique key, so
@@ -499,8 +579,7 @@ UPDATE robots SET year = 2000 WHERE 1 = 1;
 DELETE FROM robots WHERE 1 = 1;
 ```
 
-These statements still validate constraints and run row triggers. A tautology
-expresses whole-table intent; it does not bypass normal write behavior.
+These statements still validate constraints and run row triggers.
 
 A write over a whole table is still one transaction, so the
 [transaction limits](/docs/transaction-limits) bound it. For bulk expiry, use a

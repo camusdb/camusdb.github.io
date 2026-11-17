@@ -82,8 +82,8 @@ If it has no match, CamusDB returns one row with every right-side column set to
 `NULL`.
 
 The `ON` clause decides whether a right row matches. The `WHERE` clause filters
-after CamusDB has produced the joined rows. This distinction matters for outer
-joins:
+after CamusDB has produced the joined rows. For outer joins, the two clauses
+give different results:
 
 ```camussql
 -- Users without a post.
@@ -229,7 +229,10 @@ WHERE year = (SELECT MAX(year) FROM robots)
 ORDER BY name;
 ```
 
-Zero rows give `NULL`. More than one row is an error.
+Zero rows give `NULL`. More than one row is an error. `SELECT *` or
+`SELECT alias.*` is accepted when expansion produces exactly one column,
+including for scalar, `IN`, `ANY`, and `ALL` subqueries. More than one
+expanded column is rejected.
 
 ### Subqueries in projections and writes
 
@@ -433,8 +436,98 @@ caller's privileges in a direct query, or the view owner's privileges inside
 a stored view body.
 
 A derived table's columns take their names from the inner projection. Give
-every computed column an alias, as in `COUNT(*) AS post_count`, or the outer
-query has no usable name to reference.
+computed columns aliases, or supply a column list after the derived-table alias:
+
+```camussql
+SELECT d.customer, d.spent
+FROM (SELECT customer_id, SUM(total) FROM orders GROUP BY customer_id)
+  AS d (customer, spent);
+```
+
+Column-list names replace output names by position. A shorter list renames
+only the first columns; a longer list is rejected. Duplicate names make a
+reference ambiguous. For a named query reused within a statement, see
+[WITH queries](/docs/sql-queries#with-queries).
+
+## LATERAL sources {#lateral}
+
+`LATERAL` lets a FROM source read columns from sources to its left. Use it to
+fetch each customer's most expensive orders with a small query per customer:
+
+```camussql
+SELECT c.id, o.id, o.total
+FROM customers AS c
+CROSS JOIN LATERAL (
+  SELECT id, total FROM orders
+  WHERE customer_id = c.id ORDER BY total DESC LIMIT 2
+) AS o;
+```
+
+Use `LEFT JOIN LATERAL (...) AS o ON true` to retain left rows whose lateral
+query returns no rows, filling right columns with NULL. Comma, CROSS JOIN,
+INNER JOIN, and LEFT JOIN forms work. RIGHT JOIN LATERAL is refused, and
+CROSS APPLY/OUTER APPLY are unsupported.
+
+Names resolve inside the lateral query first, then against left sources, then
+against enclosing query scopes. A lateral source cannot read a source to its
+right. Without LATERAL, a derived table cannot read other items of its own
+FROM clause. A second lateral source can read the first one's results.
+
+Table-function arguments can read left columns without spelling LATERAL:
+
+```camussql
+SELECT t.id, n FROM tasks AS t, generate_series(1, t.repetitions) AS n;
+```
+
+This also works for JSON table functions such as `jsonb_each(t.payload)` and
+extension table functions. Arguments without column references run once.
+Derived tables and VALUES lists require explicit LATERAL for left references.
+
+The planner preserves the written join order and uses nested loops for lateral
+sources. `EXPLAIN` marks the join `lateral`. Repeated left values can share a
+small result within the statement; volatile bodies run again per left row.
+Views, INSERT SELECT, CTAS, UPDATE FROM, and DELETE USING can use lateral
+sources. `LATERAL` is reserved; quote identifiers named `` `lateral` ``.
+
+## VALUES sources {#values-sources}
+
+A VALUES list gives you a small relation without creating a table. Join inline
+mappings to stored rows or use them in [joined writes](/docs/sql-writes#joined-writes):
+
+```camussql
+SELECT p.id, v.label
+FROM products AS p
+JOIN (VALUES (1, 'featured'), (3, 'clearance')) AS v (id, label)
+  ON v.id = p.id;
+```
+
+The relation alias is required. Without a column list, names are `column1`,
+`column2`, and so on. A shorter list renames the first columns; too many names
+or rows of unequal width fail. Items can be expressions, parameters, functions,
+or scalar subqueries. DEFAULT, built-in aggregates, and window calls are
+refused. An extension aggregate is evaluated over its item's single row.
+
+Column types follow [UNION rules](/docs/sql-queries#match-columns-and-types):
+integers and floats widen, incompatible text/numeric values fail, and an
+all-NULL column stays untyped. Only ORDER BY guarantees result order.
+
+Use LATERAL to expand each left row into several named values:
+
+```camussql
+SELECT p.id, v.dimension, v.size
+FROM packages AS p
+CROSS JOIN LATERAL (VALUES ('width', p.width), ('height', p.height))
+  AS v (dimension, size);
+```
+
+VALUES sources work in SELECT, joins, subqueries, CTEs, views, joined writes,
+INSERT SELECT, and CTAS. A view preserves the VALUES syntax in SHOW CREATE.
+Standalone `VALUES (1), (2)` and direct `WITH c AS (VALUES ...)` bodies are
+unsupported; wrap them in `SELECT * FROM (VALUES ...) AS v`. ORDER BY,
+LIMIT, and OFFSET cannot appear inside the VALUES parentheses.
+
+Lists use derived-table and UNION ALL execution. For thousands of reusable
+rows, prefer a stored table. A source-only EXPLAIN shows `values(alias=v, rows=N)`.
 
 ## Check the plan
 

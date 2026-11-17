@@ -5,17 +5,18 @@ description: "Run a self-managed CamusDB cluster on Kubernetes. Describe the clu
 
 # Kubernetes Operator
 
-The CamusDB Kubernetes Operator is the easiest way to run a self-managed CamusDB
-cluster.
+The CamusDB Kubernetes Operator runs a self-managed CamusDB cluster on
+Kubernetes. You describe the cluster you want in one short YAML file. The
+operator creates the cluster, keeps it in that state, and adds, removes, and
+upgrades nodes one at a time.
 
 [Kubernetes](https://kubernetes.io/) is a platform that runs containers on a
 group of machines. It restarts failed containers and moves work off failed
 machines. Many teams already use it to run their applications.
 
 An operator is a program that runs inside Kubernetes and manages one kind of
-application for you. You describe the cluster you want in one short YAML file.
-The operator creates the Kubernetes objects for that cluster, keeps the cluster
-in that state, and does the routine work a person would otherwise do by hand.
+application for you. It creates the Kubernetes objects for that application and
+does the routine work a person would otherwise do by hand.
 
 The [CamusDB Kubernetes Operator](https://github.com/camusdb/camusdb-k8s-operator)
 creates and operates CamusDB clusters through the `CamusDBCluster` custom
@@ -30,10 +31,10 @@ data.
 
 :::
 
-## Why use the operator
+## The operator follows CamusDB's membership rules
 
-A database cluster is harder to run than a stateless application. Kubernetes
-can start and stop containers, but it does not know CamusDB's cluster rules.
+Kubernetes can start and stop containers, but it does not know CamusDB's
+cluster rules.
 
 A CamusDB cluster keeps a membership roster. The roster is the list of nodes
 that the cluster agreed on through [Raft](/docs/concepts#raft), the protocol
@@ -44,8 +45,8 @@ the same time, the [partitions](/docs/concepts#partition) (the slices of data
 that each replicate on their own) lose their [majority](/docs/concepts#majority),
 and the cluster stops all commits.
 
-Adding or removing a node is therefore more than changing a replica count in
-Kubernetes. The operator knows the roster rules: it compares the state in
+Adding or removing a node therefore requires a roster change as well as a new
+replica count in Kubernetes. The operator knows the roster rules: it compares the state in
 Kubernetes with the committed roster and makes one membership change at a time.
 As a result:
 

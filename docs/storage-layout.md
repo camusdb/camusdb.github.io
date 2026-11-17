@@ -6,14 +6,14 @@ sidebar_position: 6.1
 
 CamusDB can store large `STRING`, `BYTES`/`BLOB`, and `ARRAY` values in a
 TOAST-style physical form: compressed, stored outside the row, or both. Query
-results do not change. What changes is the physical bytes CamusDB keeps, the
+results stay the same. The feature changes the physical bytes CamusDB keeps, the
 I/O a query performs, and the size of each stored row version.
 
 Use it for document bodies, JSON text, images, archives, and other large cells
 that do not belong in every row read. Avoid it for values that a query must read
 for every row, such as embeddings scanned by an exact vector search.
 
-## Why it exists
+## Keep large values out of every row read
 
 CamusDB stores each row as a key/value entry, and the row is also the unit of
 multi-version storage. When a row carries a large value, two costs show up:
@@ -149,7 +149,7 @@ fetches, not query results. A single row larger than the bound is read alone.
 ## Existing data
 
 Rows written before this feature are inline and uncompressed. They stay readable
-without operator action. Migration is an optimization, not a requirement.
+without operator action, so migrating them is optional.
 
 How existing data reaches the new physical form:
 

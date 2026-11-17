@@ -14,7 +14,7 @@ SHOW CLUSTER SETTINGS;
 RESET CLUSTER SETTING max_mutations_per_transaction;
 ```
 
-## Why use cluster settings
+## Advantages over editing config.yml
 
 You can still edit `config.yml` on each node and restart it, and for values that
 define a node, that is the only way. For everything else, a cluster setting is
@@ -26,15 +26,12 @@ the better tool:
   boundary while the node keeps serving traffic.
 - One change gives one value everywhere. CamusDB commits the change through
   [Raft](/docs/concepts#raft), the consensus protocol that replicates it to
-  every node, so every node reaches the same value in the same order. There is
-  no partial rollout to repair, and no node left on an old value because
-  somebody forgot a file.
+  every node, so every node reaches the same value in the same order.
 - The change survives restarts. CamusDB persists the overlay, so a node that
   reboots, or one that was down during the change, comes back with the
   cluster's value instead of its own stale YAML.
 - One statement reverses the change. `RESET` drops the cluster entry, and each
-  node falls back to its own local configuration. That is much quicker than
-  editing the files again.
+  node falls back to its own local configuration.
 - The database tells you what you can change. Every row of `SHOW VARIABLES`
   shows the setting's mutability and scope, so there is no hand-written list to
   go stale.
@@ -69,8 +66,7 @@ The two axes are independent:
 - `authentication_enabled` is `restart` and `cluster`. The fleet must agree on
   it, but not through a live change.
 
-Instead of keeping a hand-written list of changeable settings, ask the
-database:
+To see which settings you can change, ask the database:
 
 ```camussql
 SHOW VARIABLES;                     -- value, type, default, source, mutability, scope
@@ -148,14 +144,14 @@ environment, and `config.yml`:
 4. The selected YAML file.
 5. The built-in defaults.
 
-This order is intentional. A fleet-wide change must not silently do nothing on
-the one node whose YAML names that key, because that kind of drift is the
+The cluster layer wins so that a fleet-wide change cannot silently do nothing
+on the one node whose YAML names that key, because that kind of drift is the
 hardest to diagnose. `restart`-class keys never accept a cluster override, so a
 value that truly defines a node keeps its local origin.
 
-When a node's behavior contradicts its own `config.yml`, it explains itself:
-the `source` column of `SHOW VARIABLES` reads `cluster` for a key that the
-cluster supplies, instead of `config`, `env`, `cli`, or `default`.
+The `source` column of `SHOW VARIABLES` reads `cluster` for a key that the
+cluster supplies, instead of `config`, `env`, `cli`, or `default`, so you can
+see why a node's behavior differs from its own `config.yml`.
 
 ## See what the cluster carries
 
@@ -170,12 +166,10 @@ SHOW CLUSTER SETTINGS LIKE 'ttl_%';
 | `value` | The stored value as text, in the spelling that `SET` and `config.yml` accept. |
 
 This statement lists the overlay itself: every key that a `SET` put in force
-and no `RESET` has dropped. That answers a different question from
-`SHOW VARIABLES`.
-
-The overlay is what the fleet agreed on. The variables are what this node
-actually runs, after merging that overlay over its local configuration. An
-empty result means the cluster carries no overrides at all.
+and no `RESET` has dropped. This is what the fleet agreed on.
+`SHOW VARIABLES` reports what this node actually runs, after merging that
+overlay over its local configuration. An empty result means the cluster
+carries no overrides at all.
 
 ## Confirm that a change reached every node
 

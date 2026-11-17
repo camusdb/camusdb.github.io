@@ -243,3 +243,66 @@ test('SQL highlighting recognizes integer aliases, double precision, logarithms 
   await page.goto('/docs/data-types/');
   await expect(page.locator('code .token.builtin').filter({hasText: /^BIGINT$/}).first()).toBeVisible();
 });
+
+test('interval functions return durations and time buckets in the browser engine', async ({page}) => {
+  await page.goto('/playground/');
+  const editor = page.getByRole('textbox', {name: 'Data center SQL', exact: true});
+  const run = page.getByRole('button', {name: 'Run query', exact: true});
+  const results = page.getByRole('region', {name: 'Query results'});
+  await expect(run).toBeEnabled({timeout: 60000});
+  await editor.fill(`SELECT
+  age(CAST('2001-04-10' AS DATE), CAST('1957-06-13' AS DATE)) AS calendar_age,
+  make_interval(0, 0, 0, 1, 2) AS shipping_window,
+  justify_days(INTERVAL '35 days') AS months_and_days,
+  justify_hours(INTERVAL '27 hours') AS days_and_hours,
+  justify_interval(INTERVAL '1 month -1 hour') AS adjusted,
+  CAST(date_bin(INTERVAL '15 minutes',
+    CAST('2024-06-15T15:44:17Z' AS DATETIME),
+    CAST('2024-06-15T00:00:00Z' AS DATETIME)) AS STRING) AS bucket,
+  EXTRACT(hour FROM INTERVAL '36 hours') AS hours;`);
+  await run.click();
+  await expect(run).toBeEnabled();
+  await expect(results.locator('article')).toHaveCount(1);
+  await expect(results.locator('article[class*="failed"]')).toHaveCount(0);
+  for (const value of ['P43Y9M27D', 'P1DT2H', 'P1M5D', 'P1DT3H', 'P29DT23H', '36']) {
+    await expect(results.getByRole('cell', {name: value, exact: true})).toBeVisible();
+  }
+  await expect(results.getByRole('cell', {name: /2024-06-15T15:30:00/})).toBeVisible();
+});
+
+test('CTEs, joined writes, derived column aliases and trigonometry run in the browser engine', async ({page}) => {
+  await page.goto('/playground/');
+  const editor = page.getByRole('textbox', {name: 'Data center SQL', exact: true});
+  const run = page.getByRole('button', {name: 'Run query', exact: true});
+  const results = page.getByRole('region', {name: 'Query results'});
+  await expect(run).toBeEnabled({timeout: 60000});
+  await editor.fill(`CREATE TABLE latest_accounts (id INT64 PRIMARY KEY, balance INT64);
+CREATE TABLE latest_deltas (id INT64 PRIMARY KEY, account_id INT64, amount INT64);
+INSERT INTO latest_accounts (id, balance) VALUES (1, 100), (2, 200), (3, 300);
+INSERT INTO latest_deltas (id, account_id, amount) VALUES (1, 1, 25), (2, 1, 15), (3, 2, 10);
+WITH totals AS (
+  SELECT account_id, SUM(amount) AS amount FROM latest_deltas GROUP BY account_id
+)
+UPDATE latest_accounts AS a SET balance = a.balance + d.amount
+FROM totals AS d WHERE d.account_id = a.id RETURNING a.id, a.balance;
+DELETE FROM latest_accounts AS a USING (SELECT 3 AS id) AS retired
+WHERE a.id = retired.id RETURNING a.id;
+WITH pick AS MATERIALIZED (SELECT random() AS value)
+SELECT p.value = q.value AS reused FROM pick AS p CROSS JOIN pick AS q;
+SELECT d.label, d.amount, sind(30) AS sine, cosd(90) AS cosine,
+       tand(45) AS tangent, atan2d(1, 1) AS bearing
+FROM (SELECT 'column aliases work', 7) AS d (label, amount);`);
+  await run.click();
+  await expect(run).toBeEnabled();
+  const statements = results.locator('article');
+  await expect(statements).toHaveCount(8);
+  await expect(results.locator('article[class*="failed"]')).toHaveCount(0);
+  for (const value of ['140', '210']) {
+    await expect(statements.nth(4).getByRole('cell', {name: value, exact: true})).toBeVisible();
+  }
+  await expect(statements.nth(5).getByRole('cell', {name: '3', exact: true})).toBeVisible();
+  await expect(statements.nth(6).getByRole('cell', {name: 'true', exact: true})).toBeVisible();
+  for (const value of ['column aliases work', '7', '0.5', '0', '1', '45']) {
+    await expect(statements.nth(7).getByRole('cell', {name: value, exact: true})).toBeVisible();
+  }
+});

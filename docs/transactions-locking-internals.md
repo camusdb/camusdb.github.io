@@ -8,7 +8,7 @@ This page describes how CamusDB uses Kahuna and Kommander to run transactional
 SQL work. It covers the implementation behind the guarantees in
 [Transactions And Isolation](/docs/serializable-transactions).
 
-## The layers
+## CamusDB, Kahuna, and Kommander layers
 
 CamusDB does not implement storage, [MVCC](/docs/concepts#mvcc)
 (multi-version concurrency control, where a write adds a new version instead of
@@ -23,8 +23,8 @@ overwriting), or replication from scratch. The data path has three layers:
 - [Kommander](/docs/concepts#kommander) provides [Raft](/docs/concepts#raft)
   replication and ordered, durable commits across nodes.
 
-So CamusDB's isolation mostly comes down to one question: how CamusDB maps each
-SQL operation onto a Kahuna transaction.
+CamusDB's isolation therefore depends mostly on how CamusDB maps each SQL
+operation onto a Kahuna transaction.
 
 ## The KV key model
 
@@ -198,8 +198,9 @@ against a new row that another transaction inserts and that an earlier predicate
 would have matched.
 
 Serializable with optimistic locking is a hybrid. Writes are optimistic, but
-reads and scans still take the shared point or range locks that their predicates
-need to protect against phantoms.
+single-key reads use validation by default, while scans retain range locks. The
+[`serializable_optimistic_point_locks`](/docs/serializable-transactions#pessimistic-and-optimistic-locking)
+setting restores shared point locks when set to true.
 
 To use optimistic locking, use `SET TRANSACTION LOCKING OPTIMISTIC`, the
 `locking` field of an HTTP or gRPC request, or
@@ -255,7 +256,11 @@ lookup by row id or a lookup on a unique index:
 A serializable read-write transaction can escalate many point locks in the same
 bucket into one shared lock over the whole bucket. A bucket is the key space
 that holds one table's rows or one index's entries. The default threshold is
-`50`.
+`1000`.
+
+Row locks for a scan page are acquired as a batch, with one escalation
+decision for that page. A bounded read below the threshold therefore avoids
+locking the whole bucket just because a page contains more than 50 rows.
 
 As a result:
 
@@ -320,8 +325,7 @@ gone.
 Recovery operations are safe to repeat, so the request path and the recovery
 actor can race without duplicating the committed effect.
 
-This boundary is intentional. A durable commit decision protects the
-transaction once the decision exists. It does not make the active coordinator
+A durable commit decision protects the transaction once the decision exists. It does not make the active coordinator
 session durable from `BEGIN`, and it does not make every prepared participant
 durable from `BEGIN`.
 
@@ -365,7 +369,7 @@ default_isolation_level: serializable
 default_transaction_locking: pessimistic
 range_lock_expires_ms: 150000
 max_serializable_transaction_lifetime_ms: 3600000
-lock_escalation_threshold: 50
+lock_escalation_threshold: 1000
 lock_wait_deadline_ms: 500
 key_range_sharding: false
 default_read_validation: none
@@ -411,7 +415,7 @@ mechanics:
 - HLC timestamps order transactions across the cluster.
 - Optional key-range routing gives scans more precise range lock bounds.
 
-Serializable behavior is not a single-node feature. The transaction test suite
+Serializable isolation applies in a cluster as it does on one node. The transaction test suite
 covers read skew, phantoms, write skew, and lost updates on both a single node
 and a cluster.
 

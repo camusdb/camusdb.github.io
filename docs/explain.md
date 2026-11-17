@@ -20,7 +20,7 @@ physical  index-range-scan   index=year_idx, from>=2023, to<2024
 The example assumes an index `year_idx` on the `year` column. The plan reads
 that index instead of scanning the whole table.
 
-## Why use EXPLAIN
+## When to use EXPLAIN
 
 The [query planner](/docs/query-planning) decides how CamusDB runs each query.
 Two queries that look alike can do very different amounts of work. `EXPLAIN`
@@ -161,8 +161,8 @@ to deployments with
 [key-range sharding](/docs/concepts#hash-and-key-range-routing), and is 0 on a
 single node.
 
-These are predictions, not accuracy guarantees. Missing statistics, skew, and
-correlated values can make an estimate differ substantially from execution.
+These are predictions. Missing statistics, skew, and correlated values can make
+an estimate differ substantially from execution.
 
 `(LOGICAL)` and `(PHYSICAL)` currently render the same physical tree; only the
 `stage` label differs. See
@@ -277,7 +277,10 @@ parent before its children.
 | `index-nested-loop-join` | A join where an index covers the right side's join key | `on=<expr>, index=<name>, left=<col>, right=<col>` |
 | `hash-join`              | An equi-join using an in-memory hash table. CamusDB chooses it over an indexed nested loop when the outer side is large relative to the inner side. | `on=<left>=<right>, build=<alias>`. A pushed-down filter is appended to the detail. |
 | `merge-join`             | An equi-join over ordered inputs. | `on=<left>=<right>, right-order=forced-index=<name>` or `right-order=sort`. A right-side filter is appended to the detail. |
-| `derived-table-scan`     | A subquery in the `FROM` clause | `alias=<alias>` |
+| `recursive-union` | A recursive CTE reader | CTE name and reader alias, followed by seed and recursive-term plans. |
+| `work-table-scan` | The previous recursive step's rows | The CTE work table. |
+| `values` | A VALUES list used as the sole source | `alias=<name>, rows=<n>` |
+| `derived-table-scan`     | A subquery in `FROM`, including an expanded CTE | `alias=<alias>`, with `computed_once=<name>` for a shared CTE result |
 | `function-scan`          | A set-returning function in `FROM` | `function=<name>, alias=<alias>` |
 | `constant-source`        | The single synthetic row of a `SELECT` without `FROM`. It touches no table. | `1 row` |
 | `union` | A `UNION` or `UNION ALL`. | `distinct: hash` or `all`. |
@@ -326,8 +329,8 @@ full set of columns.
 
 ## Reading a join plan
 
-A join plan is a compact view of execution, not a reproduction of the SQL text.
-Read the scan near the bottom as the starting input, then follow the joins
+A join plan is a compact view of execution, and its order can differ from the
+SQL text. Read the scan near the bottom as the starting input, then follow the joins
 upward. The result rows are emitted parent first. The `node` field itself has
 no indentation or parent identifier.
 
@@ -355,7 +358,7 @@ Details on the join describe parts of that work:
 - `right-order=forced-index=...` identifies the right merge input's ordering
   index; `right-order=sort` means it needs sorting instead.
 
-### Why a predicate moved or seems absent
+### Where join conditions appear in the plan
 
 When the planner rebuilds an eligible inner join through its predicate graph,
 each movable condition runs where its last referenced source enters the tree.
@@ -395,8 +398,8 @@ and each reports a plan-level fact.
 | `plan-info` | The plan carries query-shape and planner metadata. `EXPLAIN (ANALYZE)` adds planning and join-search facts. | `shape=<id>, schema-deps=[table@version, ...]`; analyzed joins can add `planning-ms`, `join-order`, and `join-steps-costed`. |
 | `cache`     | The query carries a result cache hint, in the form `{cache=…}` or `@{cache=…}`. | `family=<name>, eligible=<true\|false>[, reason=<why>], ttl=<n>ms\|default, strict=<true\|false>` |
 
-The `cache` row answers one question: will CamusDB cache this result? The answer
-is a static property of the plan.
+The `cache` row shows whether CamusDB will cache this result. Eligibility is a
+static property of the plan.
 
 The row does not probe the cache, and it does not report whether a live entry
 exists at that moment, because such a report would inherently be a race. The
@@ -510,6 +513,28 @@ stage     node        detail
 physical  aggregate   group=[year], aggs=[count(*)]
 physical  table-scan  table=robots
 ```
+
+### Top-k grouped results
+
+A grouped query ordered by one aggregate alias with a `LIMIT` can add
+`top_k` to the aggregate detail. `k` is `OFFSET + LIMIT`:
+
+```camussql
+EXPLAIN SELECT customer_id, MAX(total) AS largest_order
+FROM orders GROUP BY customer_id
+ORDER BY largest_order DESC LIMIT 5;
+```
+
+The aggregate detail includes `top_k=[largest_order DESC, k: 5]`.
+Eligible shapes are descending `COUNT`, descending `MAX`, and ascending
+`MIN` on a `NOT NULL` column, without `HAVING`.
+
+For `MAX DESC` or `MIN ASC` with only grouped columns and the ordered aggregate
+projected, each cluster span sends only its local top k groups, including ties. A spilled `COUNT DESC`
+grouping can skip spill partitions whose upper bound cannot beat the current
+k-th count. These optimizations reduce transferred or reread groups without
+changing the query's result. Tied rows still need additional `ORDER BY` keys
+if you require a deterministic order.
 
 ### SELECT DISTINCT: streaming and hash
 

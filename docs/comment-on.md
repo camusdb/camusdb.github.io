@@ -4,10 +4,10 @@ sidebar_position: 2.15
 
 # Schema comments
 
-Column names rarely explain themselves. Is `status` free text or one of three
-values? Who owns `legacy_orders`, and can it be dropped? Schema comments keep
-the answer next to the object itself, so the next developer who reads the schema
-does not have to search a wiki or ask around.
+Schema comments keep a description next to the object itself, so the next
+developer who reads the schema does not have to search a wiki or ask around. A
+comment can say whether `status` is free text or one of three values, or who
+owns `legacy_orders` and whether it can be dropped.
 
 Comments also help AI agents. An agent that connects through the
 [CamusDB MCP server](/docs/mcp-server) can read them with `SHOW CREATE TABLE`
@@ -141,9 +141,6 @@ A comment stays with its object through a rename:
 - An index comment survives `ALTER TABLE ... RENAME INDEX ... TO ...`.
 - A sequence comment survives `ALTER SEQUENCE ... RENAME TO`.
 
-CamusDB attaches the comment to the schema object, not just to its display
-name.
-
 ## Limits
 
 A comment can hold at most `65,535` characters. A longer comment fails with
@@ -171,7 +168,7 @@ A malformed escape fails with `InvalidInput`. See
 [String literals](/docs/data-types#string-literals) for the escape rules and
 the list of escapes that fail.
 
-## Notes
+## Reserved keyword and unsupported objects
 
 `COMMENT` is a reserved keyword. If an existing schema has an object literally
 named `comment`, quote the name with backticks:

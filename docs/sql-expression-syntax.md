@@ -10,6 +10,7 @@ SQL and migration scripts:
 | Form | Example | Meaning |
 | --- | --- | --- |
 | Window functions | `row_number() OVER (PARTITION BY customer_id ORDER BY id)` | [Ranks rows without grouping them into one result](/docs/sql-queries#window-functions). |
+| Interval literals | `now() - INTERVAL '7 days'` | [Calendar and duration arithmetic](/docs/data-types#intervals). |
 | Digit separators | `200_000` | The number `200000`. |
 | `^` | `2 ^ 3` | [Power, the same as `pow(2, 3)`](#power). |
 | `%` | `i % 3` | The remainder of `i / 3`, the same as `mod(i, 3)`. |

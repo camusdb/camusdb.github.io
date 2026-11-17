@@ -71,6 +71,9 @@ not-found, conflict, and rate-limit errors use their matching status:
 }
 ```
 
+Foreign-key violations map to HTTP 409. Invalid foreign-key definitions map to
+HTTP 400.
+
 See [Error Codes](/docs/error-codes) for the full list and the cause of each
 code.
 
@@ -186,6 +189,11 @@ CamusDB serializes a `ColumnType` as the numeric value of its enum:
 SQL literals write bytes in hexadecimal form, `X'...'`. JSON uses base64
 instead, in `bytesValue`.
 
+A vector parameter is a `BYTES` value. Send the packed float32 elements as
+base64 in `bytesValue`, with `type` 7. For example, the two-element vector
+`[0.0, 1.0]` is `{"type": 7, "bytesValue": "AAAAAAAAgD8="}`. See
+[Vector search](/docs/vector-search#how-a-vector-is-stored) for the byte layout.
+
 For dates and datetimes, responses include an `isoValue`, and `longValue`
 carries the stored value as UTC ticks.
 
@@ -198,18 +206,47 @@ it as `NUMERIC`, rounds to nine fractional digits when necessary, and rejects a
 value outside the supported range. A response exposes the canonical decimal text
 as `numericValue`.
 
-For a `JSONB` value in a request, pass the JSON text in `strValue`. A plain
-string written to a `JSONB` column also works. In result rows, a `JSONB` cell is
-the document itself as native JSON, and numbers keep all their digits. A JSON
-`null` document and a SQL `NULL` cell are then both `null`. To tell them apart,
-set `"jsonbAsText": true` in the request body. Each `JSONB` cell is then a JSON
-string that holds the document text. See
-[JSON null over HTTP](/docs/json#json-null-over-http).
-
 Non-finite float cells use JSON strings `"Infinity"`, `"-Infinity"`, and
 `"NaN"` while retaining their float column type. Typed float parameters accept
 the same spellings in `floatValue`. See
 [Floating-point values](/docs/data-types#floating-point-values).
+
+### JSONB values
+
+For a `JSONB` parameter, pass the JSON text in `strValue` with `type` 13:
+`{"type": 13, "strValue": "<json text>"}`. A plain string written to a `JSONB`
+column also works.
+
+In result rows, a `JSONB` column has type `13`. By default, each cell is the
+document itself as native JSON in the row, and numbers keep all their digits.
+
+In this default form, a JSON `null` document and a SQL `NULL` cell are both the
+token `null`. A client cannot tell them apart. If the client writes the value
+back, it can store SQL `NULL` in place of the document.
+
+To keep the two values apart, set `"jsonbAsText": true` in the request body. The
+option applies to `/execute-sql-query`, `/execute-sql-query-stream`, and the
+`RETURNING` rows of `/execute-sql-non-query`. Each `JSONB` cell is then a JSON
+string that holds the document text. SQL `NULL` stays the token `null`.
+
+| Value | Default form | Text form |
+| --- | --- | --- |
+| SQL `NULL` | `null` | `null` |
+| JSON `null` | `null` | `"null"` |
+| `"abc"` | `"abc"` | `"\"abc\""` |
+| `{"a": 1}` | `{"a": 1}` | `"{\"a\": 1}"` |
+
+The response marks each `JSONB` column that uses the text form:
+
+```json
+{"name": "payload", "type": 13, "jsonbAsText": true}
+```
+
+Decode a cell as text only when its column has this mark. A server that does not
+know the option ignores it and sends the default form. A string document such
+as `"abc"` is valid in both forms, so the mark is the only safe test.
+
+See [JSON documents](/docs/json) for the `JSONB` type and its operators.
 
 ## Health
 
@@ -333,7 +370,8 @@ for array columns.
 Use `foreignKeys` to declare table-level foreign keys. Each entry needs a
 `name`, the child `columns`, and a `referencedTable`. `referencedColumns` can be
 empty to reference the parent primary key. `onDelete` and `onUpdate` accept
-`"no action"` and `"restrict"` today. See
+`"no action"` and `"restrict"` today. Any other action, such as `cascade`,
+`set null`, or `set default`, returns `CADB0533`. See
 [Foreign Keys](/docs/foreign-keys).
 
 See [Data Types](/docs/data-types) for SQL type names, aliases, literal
@@ -385,6 +423,18 @@ Server-level database statements can omit `databaseName`:
 
 Server-level operational queries, such as `SHOW ENGINE STATS`, can also omit
 `databaseName`.
+
+Response:
+
+```json
+{ "status": "ok", "rows": 2, "warning": null }
+```
+
+`rows` is the number of rows the statement wrote, such as the rows that
+`CREATE TABLE ... AS SELECT` copied. It is `0` for every DDL statement that
+writes no rows. `warning` is `null` unless there is something to report. For
+example, a time-travel copy that reads no rows returns a warning. See
+[Copying query results](/docs/insert-select-and-ctas#row-counts-and-empty-copy-warnings).
 
 ### `POST /execute-sql-query`
 
@@ -559,6 +609,10 @@ Response:
 }
 ```
 
+The response can also carry a `warning`, with the same meaning as on
+`/execute-sql-ddl`. An `INSERT ... SELECT` time-travel copy that reads no rows
+uses it.
+
 A write statement with a `RETURNING` list can also run through this endpoint.
 The response keeps `rows` as the affected-row count and adds `columns` and
 `returningRows`:
@@ -593,17 +647,14 @@ See [locking reads](/docs/sql-queries#for-update) for restrictions and error cod
 A prepared statement lets a client register SQL once and then execute it many
 times by handle, with different positional values. It helps with hot
 parameterized statements and covers `SELECT`, `INSERT`, `UPDATE`, `DELETE`, and
-`SHOW`.
+`SHOW`. `/execute-sql-ddl` rejects a handle rather than ignoring it.
 
-Register a statement:
+### `POST /prepare-sql-statement`
 
-```http
-POST /prepare-sql-statement
-Content-Type: application/json
-
+```json
 {
   "databaseName": "app",
-  "sql": "SELECT id, name FROM robots WHERE year >= @year"
+  "sql": "UPDATE robots SET name = @name, year = @year WHERE id = @id"
 }
 ```
 
@@ -613,45 +664,107 @@ Response:
 {
   "status": "ok",
   "statementId": "opaque-node-local-handle",
-  "parameterNames": ["@year"]
+  "parameterNames": ["@name", "@year", "@id"]
 }
 ```
 
-Execute it through `/execute-sql-query`, `/execute-sql-query-stream`, or
-`/execute-sql-non-query`:
+`parameterNames` lists the distinct placeholder names in binding order, first
+occurrence first. Each name keeps its leading `@`. A name that appears more
+than once occupies one slot. The list includes placeholders inside subqueries.
+
+Preparing a statement parses and registers it, but checks no privileges.
+Authorization runs at execution time, against the principal of that request,
+as it does for an inline statement. So a prepare reveals only one fact: whether
+the SQL parses. A statement that does not parse fails here, not at a later
+execution.
+
+### Execute a prepared statement
+
+Send `statementId` and `positionalParameters` to `/execute-sql-query`,
+`/execute-sql-query-stream`, or `/execute-sql-non-query`:
 
 ```json
 {
   "statementId": "opaque-node-local-handle",
   "positionalParameters": [
-    { "type": 2, "longValue": 1980 }
-  ],
-  "transactionMode": "ReadOnly"
+    { "type": 3, "strValue": "Artoo" },
+    { "type": 2, "longValue": 1977 },
+    { "type": 1, "strValue": "507f1f77bcf86cd799439011" }
+  ]
 }
 ```
 
-When you send `statementId`, omit `sql`, `databaseName`, and the named
-`parameters`.
-
 `positionalParameters[i]` binds to `parameterNames[i]` from the prepare
-response.
+response. The number of values must equal the number of names. Each value uses
+the same encoding as the inline `parameters` map. The names do not travel on
+the wire, so a client that binds by name maps its arguments to the ordinals
+locally.
 
-Close a handle:
+When you send `statementId`, omit `sql`, `databaseName`, and the named
+`parameters`. Every other request field behaves as it does inline, including
+`txnIdPT`, `txnIdCounter`, `isolationLevel`, `transactionMode`, `locking`, and
+`causalToken`.
 
-```http
-POST /close-sql-statement
-Content-Type: application/json
+### `POST /close-sql-statement`
 
+```json
 { "statementId": "opaque-node-local-handle" }
 ```
 
-A REST handle belongs to the node and the principal that prepared it.
+Repeating a close is harmless. You can skip the close, because the idle handle
+reaper collects abandoned handles. However, a client that prepares an unbounded
+number of different statements reaches its cap.
 
-If an execution returns `CADB0520` `UnknownPreparedStatement`, prepare the
-statement again and replay the execution once.
+### Handle lifetime
 
-See [Prepared Statements](/docs/prepared-statements) for handle scope,
-authorization behavior, and limits.
+A REST handle is an opaque string. It belongs to the node and to the principal
+that prepared it. CamusDB frees it at an explicit close, at the idle timeout,
+or at process exit. CamusDB never replicates a handle to another node.
+
+HTTP has no session the server can trust. Connections are pooled, multiplexed
+by HTTP/2, and moved by load balancers. So the handle cannot be guessed,
+CamusDB records its owner at registration, and an idle timeout frees a handle
+that a client never closes.
+
+### Recover from `CADB0520`
+
+An execution fails with `CADB0520` (`UnknownPreparedStatement`, HTTP 404) when
+the node does not know its handle. Treat it as routine: prepare the statement
+again, then replay the execution once. The error occurs when:
+
+- The handle stayed unused past `prepared_statement_idle_timeout_ms`.
+- The node restarted.
+- A load balancer sent the request to a different node.
+- The handle belongs to a different principal. CamusDB reports this case the
+  same way by design. An ownership-specific error would confirm to a caller
+  that a handle exists that the caller does not own.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant N as CamusDB node
+    C->>N: POST /prepare-sql-statement (database, sql)
+    N-->>C: statementId, parameterNames
+    C->>N: POST /execute-sql-non-query (statementId, positionalParameters)
+    N-->>C: Result
+    Note over N: The handle idles out, the node restarts, or the request reaches another node
+    C->>N: Execute with the old statementId
+    N-->>C: 404 CADB0520
+    C->>N: Prepare the statement again
+    N-->>C: New statementId
+    C->>N: Replay the execution once
+    C->>N: POST /close-sql-statement
+```
+
+Behind a load balancer, use sticky sessions, or accept one new prepare per node
+per statement. Either way, the steady state after warm-up is one registration
+per node.
+
+On the streaming endpoint, CamusDB resolves the handle before it writes any
+bytes, so a 404 arrives as a normal JSON error, not in the middle of a stream.
+
+See [Prepared Statements](/docs/prepared-statements) for the statements you can
+prepare and the configuration limits.
 
 ## Direct row operations
 

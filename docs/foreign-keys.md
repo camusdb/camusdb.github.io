@@ -9,7 +9,7 @@ parent table. CamusDB enforces foreign keys on `INSERT`, `INSERT ... SELECT`,
 `UPDATE`, and `DELETE`, both in single statements and inside explicit
 transactions.
 
-## Why use foreign keys
+## Prevent orphan rows
 
 A foreign key prevents orphan rows: rows that point at a parent that does not
 exist. Without one, an application bug, a failed script, or a manual `DELETE`
@@ -19,8 +19,7 @@ page that fails to load.
 
 With a foreign key, CamusDB checks every write. It refuses a child row whose
 parent does not exist, and it refuses to delete a parent that still has
-children. The rule holds for every client, not only for code that remembers to
-check it.
+children. The rule holds for every client that writes to the database.
 
 The check has a cost: a write to the child table reads the parent table, and a
 delete from the parent table reads the child table. CamusDB keeps that cost
@@ -282,8 +281,8 @@ If you see `CADB0504` or `CADB0502` from this path, retry the whole transaction
 from `BEGIN`. See [Retries And Conflicts](/docs/serializable-retries).
 
 After a foreign-key violation in an explicit transaction, roll back the
-transaction. HTTP and gRPC roll back the transaction when a statement fails,
-and autocommit statements always roll back.
+transaction. The server rolls back an explicit transaction when one of its
+statements fails, and autocommit statements always roll back.
 
 ### Adding a constraint while writers are active
 
@@ -345,36 +344,6 @@ when the constraint is created. A self-reference needs no extra grant.
 
 There is no separate `REFERENCES` privilege.
 
-## HTTP and gRPC
-
-SQL is the recommended path for schema changes. The HTTP table-creation endpoint
-also accepts foreign keys:
-
-```json
-{
-  "databaseName": "app",
-  "tableName": "weather",
-  "columns": [
-    { "name": "id", "type": "id", "primary": true, "notNull": true },
-    { "name": "city", "type": "string", "notNull": false }
-  ],
-  "foreignKeys": [
-    {
-      "name": "weather_city_fk",
-      "columns": ["city"],
-      "referencedTable": "cities",
-      "referencedColumns": ["name"],
-      "onDelete": "restrict",
-      "onUpdate": "no action"
-    }
-  ]
-}
-```
-
-An unsupported action such as `cascade`, `set null`, or `set default` returns
-`CADB0533`. See [Error codes](#error-codes) for the HTTP status and gRPC status
-of each failure.
-
 ## Cost and diagnostics
 
 Foreign-key enforcement is designed around point operations:
@@ -402,7 +371,3 @@ lock acquisition, parent and child probes, validation keys, and violations.
 | `CADB0517` | `InsufficientPrivilege` | The caller lacks `SELECT` on the parent table. |
 | `CADB0530` | `DependentObjectsExist` | A schema change would remove something a foreign key depends on. |
 | `CADB0533` | `FeatureNotSupported` | The statement uses a foreign-key form CamusDB does not implement yet. |
-
-Foreign-key violations map to HTTP 409. Invalid definitions map to HTTP 400.
-On gRPC, violations use `FailedPrecondition`, invalid definitions use
-`InvalidArgument`, and the CamusDB code is carried in `camus-error-code`.

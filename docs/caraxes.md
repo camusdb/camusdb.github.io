@@ -2,7 +2,7 @@
 sidebar_position: 7.4
 ---
 
-# Caraxes
+# Caraxes chaos testing
 
 ![A neon dragon attacking glowing database pyramids](/img/caraxes.png)
 
@@ -18,8 +18,8 @@ and graded. It lives in the
 [`camusdb-caraxes`](https://github.com/camusdb/camusdb-caraxes) repository and
 drives load through [`CamusDB.Workload`](/docs/workload-utility).
 
-A PASS is evidence, not proof. It shows that one build, cluster shape, workload,
-and fault schedule passed every check for the measured window.
+A PASS is evidence about one run: it shows that one build, cluster shape,
+workload, and fault schedule passed every check for the measured window.
 
 Caraxes has found or guarded against these failures:
 

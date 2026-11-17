@@ -273,7 +273,7 @@ user/password sign-in. The Configure dialog then offers only the access token
 field, and the session service rejects any user or password supplied by a
 caller.
 
-This pins the sign-in method, not the server's authentication policy. If the
+This setting pins only the console's sign-in method. If the
 CamusDB server has authentication disabled, the console can still connect
 without an identity because the server allows it.
 
@@ -657,8 +657,8 @@ SET CLUSTER SETTING statement_stats_enabled = true;
 
 Open **Index usage** to compare readings or filter to potential drop candidates:
 non-unique indexes that receive writes without query reads or constraint reads.
-These are candidates for review, not automatic removal. Check all nodes and a
-representative workload interval before dropping an index. Counters reset when
+Review each candidate: check all nodes and a representative workload interval
+before dropping an index. Counters reset when
 the node restarts. See [Index usage](/docs/index-usage).
 
 Choosing a database in this panel also changes the console's current database.
@@ -682,13 +682,12 @@ was truncated.
 For a full logical backup or a restorable SQL dump, use
 [camus-dump](/docs/camus-dump) instead.
 
-## Notes
+## Metadata and security notes
 
 - The console browses schemas with SQL `SHOW` statements.
 - The console does not use metadata-only client endpoints.
-- The console is an operations UI, not an authorization boundary by itself.
-  Authentication and grants on the CamusDB server remain the durable
-  permission boundary.
+- The console does not enforce authorization by itself. Authentication and
+  grants on the CamusDB server remain the durable permission boundary.
 - The console sends security headers that prevent framing, reduce MIME sniffing,
   and avoid leaking referrer details.
 

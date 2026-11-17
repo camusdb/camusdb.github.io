@@ -11,7 +11,7 @@ synthetic row. Without filtering or pagination, it returns one row:
 SELECT 1 + 1;
 ```
 
-You probably use this form without thinking about it, for example in:
+Common uses include:
 
 - Connection health probes.
 - Cast checks.

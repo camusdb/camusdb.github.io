@@ -147,12 +147,28 @@ Choose the strategy before any data statement. It is separate from isolation:
 | Combination | Conflict protection |
 | --- | --- |
 | Serializable + pessimistic | Locks protect reads, scanned ranges, and writes. |
-| Serializable + optimistic | Reads and scans still take shared locks; writes validate at commit. |
+| Serializable + optimistic | Single-key reads validate at commit; scans retain range locks. |
 | Read Committed + optimistic | Validates observed rows at commit, without locks or phantom protection. |
 
 Keep the default unless you have a reason to change it. For lock escalation,
 conflict resolution, and configuration, see
 [Transactions and locking internals](/docs/transactions-locking-internals).
+
+`serializable_optimistic_point_locks` defaults to `false`: Serializable
+optimistic read-write transactions validate single-key reads without shared
+point locks. Scans retain range locks. The engine checks that
+observed rows can belong to one consistent point in time and validates reads
+at commit. An incompatible read can abort before commit. Younger writes and
+deletes can also give way to older active readers on the coordinating node;
+this reduces wasted work but does not eliminate conflicts across nodes.
+Set it to `true` to restore shared point locks. Pessimistic locking remains
+the default transaction strategy.
+
+`optimistic_intent_wait_ms` (default `100`) lets an optimistic row read briefly
+wait for another transaction's staged write, so a read-modify-write can use
+the newly committed value. At the deadline, the read uses the committed value
+beneath that write and may still conflict later. `0` disables the wait; the
+maximum effective wait is `1000` ms. See the [settings reference](/docs/settings-reference).
 
 A failed statement [aborts its explicit transaction](/docs/sql-transactions#failed-statements).
 Earlier writes cannot be committed afterward; roll back and begin again.
@@ -185,16 +201,9 @@ driver. The .NET and TypeScript gRPC clients propagate causal tokens for you;
 application queries do not need to construct or copy token fields. Python
 currently does not track causal tokens; see its [cluster limits](/docs/python-driver#current-limits).
 
-<details>
-<summary>Causal tokens for custom protocol clients</summary>
-
-A direct client forwards the last commit's complete causal token to the next
-autocommit query or BEGIN. It sets a minimum snapshot timestamp; changing it
-after a transaction starts does not advance that transaction's snapshot floor.
-See the [HTTP](/docs/http-api#explicit-transactions) and
-[gRPC](/docs/grpc-api#causal-tokens) protocol references.
-
-</details>
+To pass causal tokens from your own client, see the
+[HTTP](/docs/http-api#explicit-transactions) and
+[gRPC](/docs/grpc-api#causal-tokens) references.
 
 Transaction timestamps order work logically; they do not guarantee ordering
 against wall-clock time. See

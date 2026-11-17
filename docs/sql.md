@@ -23,8 +23,9 @@ additions:
 - Schemas with `CHECK` constraints, foreign keys, sequences, identity columns,
   views, and materialized views.
 - Queries with inner, outer, and cross joins, subqueries, derived tables,
-  aggregates, window functions, and `CASE` expressions.
-- Writes with `INSERT ... SELECT` and `RETURNING`.
+  recursive CTEs (`WITH` queries), LATERAL and VALUES sources, aggregates,
+  window functions, and `CASE` expressions.
+- Writes with `INSERT ... SELECT`, `UPDATE ... FROM`, `DELETE ... USING`, and `RETURNING`.
 - Serializable transactions, time-travel reads, vector search, row-level TTL,
   users and grants, and a large library of scalar functions.
 
@@ -50,6 +51,10 @@ FROM robots
 WHERE year >= 1970
 ORDER BY year DESC;
 ```
+
+Use [WITH queries](/docs/sql-queries#with-queries) to name intermediate results,
+and [joined writes](/docs/sql-writes#joined-writes) to update or delete rows
+using other tables.
 
 ## Identifiers and case
 
@@ -133,7 +138,7 @@ A comment marker inside a string literal is just text:
 SELECT "not -- a comment" AS value;
 ```
 
-One point is easy to miss: `--` always starts a comment, so
+`--` always starts a comment, so
 `SELECT 10 FROM t --5` parses as `SELECT 10 FROM t`. To subtract a negative
 number, write `10 - -5`, with a space.
 
@@ -162,7 +167,8 @@ number, write `10 - -5`, with a space.
 
 | Task | Page |
 | --- | --- |
-| `INSERT`, `UPDATE`, `DELETE`; `LIMIT` on updates and deletes | [Insert, Update, Delete](/docs/sql-writes) |
+| Named intermediate queries with `WITH` | [WITH queries](/docs/sql-queries#with-queries) |
+| `INSERT`, `UPDATE`, `DELETE`, joined writes; `LIMIT` on plain updates and deletes | [Insert, Update, Delete](/docs/sql-writes) |
 | `RETURNING` from inserts, updates, and deletes | [Return Changed Rows](/docs/sql-writes#returning) |
 | `ON CONFLICT`, `UPSERT` | [Skip or Update Conflicting Rows](/docs/sql-writes#on-conflict) |
 | `INSERT ... SELECT` and CTAS | [Copying Query Results](/docs/insert-select-and-ctas) |

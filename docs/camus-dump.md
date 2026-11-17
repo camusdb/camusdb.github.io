@@ -16,7 +16,7 @@ By default, the dump is consistent across tables: it fixes one instant when it
 starts and reads every table as of that instant. Read
 [Point in time](#point-in-time) before you turn that behavior off.
 
-## When to use it
+## Choose a dump or a physical backup
 
 Use `camus-dump` when you want readable SQL: a logical backup you can inspect, a
 table export, a dump for review or source control, or a copy you replay through
@@ -26,7 +26,7 @@ in a reasonable time.
 For disaster recovery, or for a database of tens of gigabytes or more, use
 [Backup and restore](/docs/backup-and-restore) instead. Its physical backup
 covers a whole node, restores to a chosen point in time, and avoids replaying
-every row. [Why it works this way](/docs/backup-and-restore#why-it-works-this-way)
+every row. [Physical backups versus logical dumps](/docs/backup-and-restore#physical-backups-versus-logical-dumps)
 explains why a dump does not scale for recovery.
 
 ## Install

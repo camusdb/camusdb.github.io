@@ -4,9 +4,9 @@ sidebar_position: 5.5
 
 # Backup and restore
 
-A backup is a copy of your data that you keep outside the running database. You
-use it to get your data back after an event the database cannot repair on its
-own:
+A backup gets your data back after an event the database cannot repair on its
+own. It is a copy of your data that you keep outside the running database. Use
+it when:
 
 - You lose a disk or a whole server.
 - Storage files become corrupt.
@@ -50,7 +50,7 @@ A restore is offline. It builds the storage into a fresh directory and never
 touches the running server. There is no in-place hot restore: you restore
 first, then start a server against the restored directory.
 
-## Why it works this way
+## Physical backups versus logical dumps
 
 This is the recovery path for a database that is too large for a dump. A
 logical export, such as [camus-dump](/docs/camus-dump), reads every row through
@@ -194,11 +194,11 @@ start at a full backup, has a gap, has a broken parent link, or has a cycle.
 CamusDB does not reconstruct a state that never existed.
 
 The chain head reports `minRecoverablePhysicalMs` and
-`maxRecoverablePhysicalMs`. Those two numbers, not the clock, define your
-possible restore points.
+`maxRecoverablePhysicalMs`. Those two numbers define your possible restore
+points.
 
-That distinction matters: recoverability is a property of the chain, not of
-the backup's age. `pitr_window_seconds` bounds the live WAL the running node
+Recoverability depends on the chain's own coverage; the backup's age does not
+limit it. `pitr_window_seconds` bounds the live WAL the running node
 keeps, but a backup CamusDB has already written keeps its own coverage. An
 archived chain from last month is still restorable to any point inside its own
 range.
@@ -391,8 +391,8 @@ directory that belongs to no manifest. `dryRun=false` applies the same pass.
 Plan disk space as the retained WAL (`pitr_window_seconds` multiplied by your
 write throughput) plus the base images that overlap that window.
 
-Choose the window from a realistic recovery need, not the furthest point you
-can imagine.
+Size the window to a realistic recovery need, because a longer window retains
+more WAL.
 
 ## Which recovery tool to use
 
@@ -410,8 +410,9 @@ The first three tools are physical and stay inside the engine.
 `camus-dump` is logical. It writes SQL that you can inspect, compare, and replay
 anywhere, which makes it the right tool for migrations. It is the wrong tool for
 disaster recovery, because replaying a large dump is far slower than restoring
-an image. See [Why it works this way](#why-it-works-this-way) for where that
-line falls.
+an image. See
+[Physical backups versus logical dumps](#physical-backups-versus-logical-dumps)
+for where that line falls.
 
 ## Error codes
 

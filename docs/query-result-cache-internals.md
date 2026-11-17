@@ -89,21 +89,21 @@ reports its publish, each waiter runs step 2 for itself. It serves the entry
 only if its own probe still finds and validates that entry, and executes live
 otherwise.
 
-This indirection matters because a write can commit and evict the entry
-between the owner's publish and the moment a waiter wakes. Such a waiter is a
+A waiter probes again because a write can commit and evict the entry between
+the owner's publish and the moment the waiter wakes. Such a waiter is a
 query that began after that invalidation. Handing it the owner's materialized
 rows would serve a state older than a committed write, and would also skip the
 schema and strict checks that every other reader performs.
 
 A waiter that times out, or whose owner failed, executes on its own.
 
-Why does CamusDB snapshot only the table's row bucket, even for an index scan?
-Every `INSERT`, `UPDATE`, and `DELETE` on a table writes the row key, so the
-row bucket's generation increases on any write to that table. The row bucket
-fence therefore covers index scans too.
+CamusDB snapshots only the table's row bucket, even for an index scan. Every
+`INSERT`, `UPDATE`, and `DELETE` on a table writes the row key, so the row
+bucket's generation increases on any write to that table. The row bucket fence
+therefore covers index scans too.
 
-That is exactly why a join must not take this path. A join touches the buckets
-of more than one table, and fencing one bucket would not cover the others.
+A join must not take this path. It touches the buckets of more than one table,
+and fencing one bucket would not cover the others.
 
 ## Dependency capture
 
@@ -132,15 +132,14 @@ dependency for coverage. That is safe for a non-strict entry, because
 same-node invalidation matches on the range.
 
 The second caps the total number of dependencies. When the set passes that
-cap, CamusDB marks the collector and does not publish the entry at all: it
-bypasses the store rather than storing an incomplete set. Coverage that misses
-something is never acceptable. Coverage that is too wide is.
+cap, CamusDB marks the collector and does not publish the entry at all, because
+an incomplete set could miss a change. A set that is too wide is safe; it only
+evicts the entry more often.
 
 ## Same-node invalidation
 
-Invalidation is driven by the transaction boundary, not spread across the
-individual write methods, so batch writes and single-point writes get the same
-coverage.
+CamusDB invalidates at the transaction boundary, so batch writes and
+single-point writes get the same coverage.
 
 For row and index writes, `KvTransactionsManager.CommitAsync` collects the
 transaction's modified keys and derives their key space buckets.
@@ -191,8 +190,8 @@ The protocol has two halves.
 
 On the write path, inside `CommitAsync`, CamusDB marks the modified key spaces
 as in flight before committing through Kahuna. It then resolves the mark based
-on the finalize result. The question is not "did this write commit?" but
-"could this write be visible?"
+on the finalize result. The gate fences every write that could be visible,
+including a write whose commit outcome is unknown.
 
 | Finalize result | What it means | Gate action |
 | --- | --- | --- |
@@ -201,9 +200,9 @@ on the finalize result. The question is not "did this write commit?" but
 | `Aborted`, a confirmed rollback, or any failure before the first commit request | The commit definitely did not happen | Clears the marks only. |
 
 Fencing a write that never landed costs one re-execution. Skipping the fence
-for a write that did land serves rows older than a committed write, which is
-the one thing the [mental model](/docs/query-result-cache#the-mental-model)
-promises cannot happen on this node.
+for a write that did land serves rows older than a committed write. The
+[invalidation rules](/docs/query-result-cache#how-entries-are-keyed-and-invalidated)
+promise that this cannot happen on this node.
 
 So CamusDB resolves the unknown case conservatively. If the caller later
 retries the same handle and resolves it, the second fence has no further
@@ -239,9 +238,9 @@ sequenceDiagram
 CamusDB holds the lock only across in-memory bookkeeping, never across a
 Kahuna commit, so the lock stays cheap.
 
-A false rejection is acceptable: it makes a query execute again because an
-unrelated row in the same bucket changed. A stale entry that survives a
-committed write is not acceptable.
+The protocol can reject a publish falsely, which makes a query execute again
+because an unrelated row in the same bucket changed. It never lets a stale entry
+survive a committed write.
 
 ## TTL and strict validation
 
@@ -290,9 +289,8 @@ Correctness also depends on these details:
   meaningless and every `LastModified` comparison would fail, so CamusDB does
   not publish the strict entry. It serves live rows instead.
 
-Strict validation can cost as much as a range scan. It is an opt-in
-correctness mode for reads across several nodes, not a general performance
-path.
+Strict validation can cost as much as a range scan. Use it as an opt-in
+correctness mode for reads across several nodes.
 
 ## The fingerprint
 

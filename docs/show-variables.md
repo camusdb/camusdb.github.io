@@ -38,18 +38,17 @@ ttl_enabled                       false   bool   true     config   runtime     c
 ttl_span_lease_ms                 30000   int    30000    default  runtime     cluster
 ```
 
-## Effective values, not file contents
+## Effective values
 
 The rows come from the configuration object that CamusDB used to construct the
-engine, not from a second read of `config.yml`.
+engine. CamusDB does not read `config.yml` again.
 
-That distinction is the point of the statement. An environment variable or a
-command-line flag can override a value after CamusDB reads the file, so the
-value differs from the file's text. The engine obeys the resolved value.
+An environment variable or a command-line flag can override a value after
+CamusDB reads the file, so the value differs from the file's text. The engine
+obeys the resolved value.
 
 A key that you commented out in `config.yml` shows its built-in default, and a
-key that an environment variable overrode shows the override. The output is
-what the node runs.
+key that an environment variable overrode shows the override.
 
 The optional LIKE pattern uses the same [wildcards and escaping](/docs/sql-expression-syntax#like-and-ilike-patterns)
 as a query. To match a literal underscore in a variable name, escape it:
@@ -64,8 +63,8 @@ as a query. To match a literal underscore in a variable name, escape it:
 | `type`     | `bool`, `int`, `long`, `double`, `string`, `enum`, `duration_ms`, or `list`. |
 | `default`  | The value the setting would hold without an override. A value that differs from `default` is one that somebody configured. |
 | `source`   | The layer that supplied the value: `default`, `config`, `env`, `cli`, or `cluster`. Precedence is cluster first, then cli, then env, then config, then default. |
-| `mutability` | `runtime` means a new value takes effect without restarting the node. `restart` means the component reads the value once, when CamusDB constructs it. The column describes the reader, not a preference. You can change a `restart` key, but the running node obeys the old value until it restarts. |
-| `scope`    | `cluster` means every node must agree, because a difference between nodes would change the transaction behavior users see. `node` means differences between nodes are the point, as with traces or local cache sizes. |
+| `mutability` | `runtime` means a new value takes effect without restarting the node. `restart` means the component reads the value once, when CamusDB constructs it. You can change a `restart` key, but the running node obeys the old value until it restarts. |
+| `scope`    | `cluster` means every node must agree, because a difference between nodes would change the transaction behavior users see. `node` means nodes can hold different values on purpose, as with traces or local cache sizes. |
 
 CamusDB renders each value as you would spell it in `config.yml`, so you can
 paste a value from this output back into a file unchanged. Booleans are
@@ -96,7 +95,7 @@ variable name is lowercase, so `LIKE 'TTL_%'` correctly matches nothing. Write
 All three string literal forms work as the pattern: `'ttl_%'`, `"ttl_%"`, and
 `E'ttl_%'`.
 
-## What the output does not show
+## Masked secrets and omitted settings
 
 CamusDB masks secrets. The output lists `bootstrap_superuser_password`,
 `access_token_server_key`, and `node_secret`, because whether a secret is set
@@ -114,10 +113,9 @@ certificate paths, and the whole `diagnostics:` section. They live on a
 different configuration object from the engine settings. To find a node's
 port, read the configuration file or the startup banner.
 
-CamusDB does not list computed properties. A value derived from other
-settings, such as the effective spill threshold, is a view of the
-configuration, not part of it. Reporting it would offer a name that no
-configuration file accepts. CamusDB does list the settings that produce it.
+CamusDB does not list computed properties, such as the effective spill
+threshold, because no configuration file accepts their names. It lists the
+settings that produce them.
 
 ## The statement is node-local
 
@@ -144,7 +142,7 @@ HTTP 403.
 While authentication is disabled, as on a single-node development instance,
 any caller can run the statement.
 
-## There is no SET
+## Change settings with SET CLUSTER SETTING
 
 `SHOW VARIABLES` is read-only. There is no `SET GLOBAL <variable>`, and no
 session variable namespace.

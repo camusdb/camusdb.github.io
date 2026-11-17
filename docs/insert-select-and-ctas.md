@@ -4,13 +4,14 @@ sidebar_position: 2.35
 
 # Copying query results
 
-Sometimes the rows you want to write already exist in the database. You may
-want to archive closed orders, backfill a new table, build a summary table, or
-recover rows from before a bad `UPDATE`. Two statements do this in one step,
-without sending every row to the client and back:
+Two statements write a query's result into a table in one step, without
+sending every row to the client and back:
 
 - `INSERT INTO ... SELECT` copies query results into an existing table.
 - `CREATE TABLE ... AS SELECT` (CTAS) creates a new table from query results.
+
+Use them to archive closed orders, backfill a new table, build a summary table,
+or recover rows from before a bad `UPDATE`.
 
 Both use the familiar PostgreSQL and MySQL forms. In CamusDB, the source can
 also read the past with [time travel](#time-travel-recover-historical-data),
@@ -227,33 +228,23 @@ snapshot, so reclamation cannot pass that floor during the copy. This
 protection starts when the copy starts. It cannot bring back revisions that
 were already gone before then.
 
-## What the response tells you
+## Row counts and empty-copy warnings
 
 Both statements report the number of rows CamusDB wrote, and both flag a time
-travel copy that read nothing. The warning reaches the client, not just the
+travel copy that read nothing. The warning reaches the client as well as the
 server log, so an empty recovery cannot look like a successful one.
 
-The endpoints are `POST /execute-sql-ddl` for CTAS and
-`POST /execute-sql-non-query` for `INSERT ... SELECT`:
+The warning text looks like this:
 
-```jsonc
-// CREATE TABLE totals AS SELECT customer, total FROM orders
-{ "status": "ok", "rows": 2, "warning": null }
-
-// CREATE TABLE recovered AS SELECT customer FROM orders AS OF SYSTEM TIME '-1h'
-{ "status": "ok", "rows": 0,
-  "warning": "AS OF SYSTEM TIME copy into 'recovered' inserted no rows. The source may have been
-              empty at that snapshot; the history may be older than the configured revision retention
-              and already reclaimed; or the rows were deleted after the snapshot …" }
+```text
+AS OF SYSTEM TIME copy into 'recovered' inserted no rows. The source may have
+been empty at that snapshot; the history may be older than the configured
+revision retention and already reclaimed; or the rows were deleted after the
+snapshot …
 ```
 
-`rows` is 0 for every DDL statement that writes no rows. `warning` is null
-unless there is something to report.
-
-Over gRPC, the same values arrive in `DdlReply.affected_rows` and
-`DdlReply.warning`, and in `NonQueryReply.affected_rows` and
-`NonQueryReply.warning`. As proto3 requires, an absent warning is the empty
-string.
+For the response fields, see the [HTTP API](/docs/http-api#post-execute-sql-ddl)
+and [gRPC API](/docs/grpc-api#sql-service) references.
 
 ## Privileges
 

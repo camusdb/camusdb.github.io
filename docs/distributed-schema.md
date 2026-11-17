@@ -4,16 +4,15 @@ sidebar_position: 6
 
 # Distributed schema changes
 
-In a cluster, a schema change reaches the nodes at different times. Without
-coordination, one node could write rows with a new table layout while another
-still reads them with the old one. On a single PostgreSQL or MySQL server this
-cannot happen, because DDL updates one catalog that every session reads.
-CamusDB gives a cluster the same property: every node applies the same schema
-changes in the same order, and an online change never lets readers and writers
-see two incompatible layouts.
+In a CamusDB cluster, every node applies the same schema changes in the same
+order, and an online change never lets readers and writers see two
+incompatible layouts. A single PostgreSQL or MySQL server gets this property
+from one catalog that every session reads. In a cluster, a schema change
+reaches the nodes at different times, so without coordination one node could
+write rows with a new table layout while another still reads them with the old
+one.
 
-CamusDB treats the schema as distributed state, not as a local side table that
-each node updates on its own. In cluster mode, changes to tables, columns, and
+CamusDB replicates the schema the same way it replicates data. In cluster mode, changes to tables, columns, and
 indexes flow through the same replicated system that protects data writes.
 
 If you operate a cluster, you get these properties (each section below explains
@@ -31,7 +30,7 @@ one of them):
 5. Restarts and leader changes lose no committed schema work.
 6. A rename changes metadata only. It does not rewrite rows.
 
-## Why this exists
+## Schema as a replicated state machine
 
 Schema changes are harder in a distributed database than on a single node. Two
 nodes can receive a request at different times. A node can be slow, restart in
@@ -144,20 +143,13 @@ sequenceDiagram
     N-->>C: Done
 ```
 
-So a DDL statement behaves like a distributed workflow, not a local metadata
-update.
-
 A forwarded DDL request carries a stable operation id, so retrying after a lost
 response does not apply the same schema change twice.
 
 ## A slow node and bounded DDL progress {#a-slow-node-and-bounded-progress-of-a-ddl-statement}
 
-A distributed DDL statement has to choose how it fails:
-
-- Wait forever for the slowest node.
-- Let the cluster continue, and protect lagging nodes some other way.
-
-CamusDB takes the second option.
+A DDL statement does not wait forever for the slowest node. CamusDB lets the
+cluster continue and protects lagging nodes separately.
 
 After a schema step commits, the leader first waits for every live node to
 acknowledge it. A node can be slow, or unreachable for a while. After a bounded
@@ -166,7 +158,7 @@ delay, the leader treats a step that a [majority](/docs/concepts#majority)
 change. One slow node therefore does not turn every schema change into a long
 stall.
 
-The safety side matters just as much. A node that falls more than one schema
+To protect lagging nodes, a node that falls more than one schema
 version behind the committed schema head rejects reads and DML for that
 database with `CADB0503 SchemaCatchingUp` until it catches up. Treat this as a
 temporary, retryable condition. It is never a silent stale-read mode.
@@ -192,8 +184,8 @@ the value to `0` or below to disable the sweep.
 
 ## Online schema change states
 
-CamusDB does not expose a schema change all at once. It uses staged online
-states, so a column or an index becomes visible in steps:
+CamusDB makes a new column or index visible in steps, through staged online
+states:
 
 | State | Meaning |
 | --- | --- |
@@ -201,8 +193,7 @@ states, so a column or an index becomes visible in steps:
 | `WriteOnly` | New writes maintain the element, but normal reads do not depend on it yet. |
 | `Public` | The element is fully visible to normal query execution. |
 
-A new column or index does not jump from "absent" to "fully active" in one
-step. CamusDB can take four steps:
+Adding a column or index can take four steps:
 
 1. Add the metadata in an internal state.
 2. Let new writes maintain the element.
@@ -217,9 +208,6 @@ stateDiagram-v2
     note right of WriteOnly : Backfill the existing rows
     Public --> [*]
 ```
-
-This staged model is what keeps online schema changes compatible with live
-traffic.
 
 The number of stages depends on the operation:
 
@@ -243,14 +231,10 @@ replicated schema change carries the allocated id, so followers apply the same
 table identity instead of generating their own. Existing tables with older
 24-character ids stay valid.
 
-In practice, a rename is far cheaper than an operation that copies and rebuilds
-everything.
-
 ## Backfill safety
 
 When you add a column or an index that needs the existing data, CamusDB runs a
-resumable coordinator instead of assuming that one short process will finish
-the whole job.
+resumable coordinator.
 
 The coordinator:
 
@@ -258,9 +242,6 @@ The coordinator:
 - Waits for the cluster to converge at each step.
 - Runs the backfill before the element becomes fully public.
 - Resumes the work after a restart or a leader change.
-
-The property that matters most: CamusDB does not forget partly completed online
-work, even when leadership moves or a node restarts.
 
 For a new column with a default, CamusDB backfills the existing rows before the
 column becomes fully public. For a new index, it backfills the index entries
@@ -272,8 +253,8 @@ recorded progress instead of restarting the whole job.
 
 ## Reads, writes, and compatibility
 
-CamusDB expresses each schema change as a move from one version to the next,
-not as an unversioned state mutation. Readers, writers, replication, and
+CamusDB expresses each schema change as a move from one version to the next.
+Readers, writers, replication, and
 backfill all share that one version model.
 
 A transaction also pins the schema versions it uses while it runs. If a later
@@ -281,12 +262,11 @@ DDL statement invalidates that schema, CamusDB rejects the transaction's
 commit. Long queries and long writes therefore see one coherent schema, and
 never blend an old layout with a new one.
 
-## The trade-off
+## Coordination cost
 
 Distributed DDL needs more coordination than DDL on a single node, and it can
-make a lagging node reject table work for a while. CamusDB prefers explicit
-convergence and recovery. The design does not make schema changes free; it
-makes their behavior explicit and recoverable.
+make a lagging node reject table work for a while. CamusDB accepts that cost to
+keep schema changes explicit and recoverable.
 
 ## Related pages
 

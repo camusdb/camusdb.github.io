@@ -5,10 +5,11 @@ description: "Store, query, and index JSON documents in CamusDB JSONB columns, w
 
 # JSON documents
 
-Some data does not fit a fixed set of columns: event payloads, user settings,
-product attributes that change per category, or responses from an external API.
-A `JSONB` column stores each value as a JSON document, so you can keep that data
-next to your relational columns, query inside it with SQL, and index it.
+A `JSONB` column stores each value as a JSON document, so you can keep data that
+does not fit a fixed set of columns next to your relational columns, query
+inside it with SQL, and index it. Typical examples are event payloads, user
+settings, product attributes that change per category, and responses from an
+external API.
 
 `JSONB` follows PostgreSQL. It uses the same type name, the same operators, the
 same functions, and GIN indexes. If your application already uses PostgreSQL
@@ -291,10 +292,10 @@ A column alias list renames the columns from the left:
 document of the wrong kind fails before the first row, with the PostgreSQL
 message, such as `cannot call jsonb_each on a non-object`.
 
-CamusDB evaluates the argument once, before the first row. It can be a literal,
-a parameter, or an expression without columns. CamusDB does not support
-`LATERAL`, so the argument cannot be a column of another table in the same
-`FROM`, as in `FROM t, jsonb_each(t.doc)`.
+A literal, parameter, or expression without column references is evaluated
+once. An argument can also read columns of a FROM source to its left, as in
+`FROM t, jsonb_each(t.doc)`. The function then runs per left row; LATERAL is
+implicit. See [LATERAL sources](/docs/joins-and-subqueries#lateral).
 
 `key` is a reserved word in CamusDB (`PRIMARY KEY`). CamusDB still accepts it as
 a column name in an expression and after a dot, as in `SELECT key` and `e.key`,
@@ -475,8 +476,8 @@ percentage of the minified JSON text:
 
 ## Client APIs
 
-Use the driver to bind documents and read results. The libraries handle the
-JSON/HTTP or gRPC representation:
+Use the driver to bind documents and read results. The driver handles the
+encoding for you:
 
 | Driver | Application API |
 | --- | --- |
@@ -489,51 +490,8 @@ NULL (`DBNull`). Use current driver and server versions for this behavior;
 older REST servers can return both as the same null value. JSONB support and
 exact numeric decoding vary by driver; the linked guides describe the choices.
 
-<details>
-<summary>HTTP and gRPC encoding for client implementers</summary>
-
-The driver handles these fields and decoding rules. They are needed when
-implementing a custom client or inspecting raw responses.
-
-| API | Form |
-| --- | --- |
-| HTTP | By default, the document itself, as native JSON in the row. Numbers keep all their digits. The column type is `13`. A parameter is `{"type": 13, "strValue": "<json text>"}`, or a plain string written to a `JSONB` column. |
-| gRPC | `Value.json_value`, which holds the document text. The column type is `COLUMN_TYPE_JSONB`. |
-
-A gRPC client built before `json_value` existed reads every `JSONB` cell as
-`NULL`, with no error. Update the client before you read `JSONB` columns over
-gRPC.
-
-#### JSON null over HTTP
-
-In the default HTTP form, a JSON `null` document and a SQL `NULL` cell are both
-the token `null`. A client cannot tell them apart, and if it writes the value
-back, it can store SQL `NULL` in place of the document.
-
-To keep the two values apart, set `"jsonbAsText": true` in the request body. The
-option applies to `/execute-sql-query`, `/execute-sql-query-stream`, and the
-`RETURNING` rows of `/execute-sql-non-query`. Each `JSONB` cell is then a JSON
-string that holds the document text. SQL `NULL` stays the token `null`.
-
-| Value | Default form | Text form |
-| --- | --- | --- |
-| SQL `NULL` | `null` | `null` |
-| JSON `null` | `null` | `"null"` |
-| `"abc"` | `"abc"` | `"\"abc\""` |
-| `{"a": 1}` | `{"a": 1}` | `"{\"a\": 1}"` |
-
-The response marks each `JSONB` column that uses the text form:
-
-```json
-{"name": "payload", "type": 13, "jsonbAsText": true}
-```
-
-Decode a cell as text only when its column has this mark. A server that does not
-know the option ignores it and sends the default form. A string document such
-as `"abc"` is valid in both forms, so the mark is the only safe test.
-
-
-</details>
+To write your own client, see the [HTTP API](/docs/http-api#jsonb-values) and
+[gRPC API](/docs/grpc-api#value-encoding) references.
 
 ## Limits
 
@@ -557,7 +515,7 @@ CamusDB never returns part of a document.
 | A text column as a document operand | Rejected. The operator needs `jsonb`. | Parsed as a document, like a literal. |
 | Invalid JSON text compared with a document | The literal is rejected. | Equal to no document. |
 | `jsonb_agg(x ORDER BY y)` | Supported. | Not supported. |
-| `LATERAL`, as in `FROM t, jsonb_each(t.doc)` | Supported. | Not supported. |
+| `LATERAL`, as in `FROM t, jsonb_each(t.doc)` | Supported. | Supported; the keyword is optional for table functions. |
 | SQL/JSON path (`jsonpath`, `@?`, `@@`, `jsonb_path_query`) | Supported. | Not supported. |
 | Subscripts (`doc['key']`) | Supported. | Not supported. |
 | `row_to_json`, `jsonb_to_record`, `jsonb_populate_record` | Supported. | Not supported. |

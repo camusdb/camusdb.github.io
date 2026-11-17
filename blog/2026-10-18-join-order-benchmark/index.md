@@ -1,13 +1,13 @@
 ---
 slug: join-order-benchmark
-title: A young database meets the Join Order Benchmark
+title: Six planner changes for many-table joins, measured with the Join Order Benchmark
 date: 2026-10-18
 authors: [andresgutierrez]
 tags: [camusdb, query-optimizer, sql, benchmarks]
 image: /img/temple.png
 ---
 
-# A young database meets the Join Order Benchmark
+# Six planner changes for many-table joins, measured with the Join Order Benchmark
 
 ![Data temple order](/img/temple.png)
 
@@ -31,7 +31,7 @@ benchmark exists to show that weakness.
 
 <!-- truncate -->
 
-## Where we started
+## First run: 25 of 113 queries timed out
 
 In July I wrote about
 [how CamusDB searches for a join order](/blog/dynamic-programming-query-optimizer).
@@ -48,10 +48,10 @@ The executor was fine. We put the tables of two queries in a good order by
 hand. One query went from 10 seconds to 0.4 seconds. Another went from a
 timeout to 40 milliseconds. The planner did not find the order on its own.
 
-## What changed
+## Six planner changes
 
-Six changes made the difference. Each one stands on its own, and each one
-applies to every join query, not only to the benchmark.
+Six changes made the difference. Each one stands on its own and applies to
+every join query, including queries outside the benchmark.
 
 **The planner reads every condition on its own.** A JOB query lists its tables
 with commas and puts all conditions in `WHERE`. The old planner grouped the
@@ -101,7 +101,7 @@ and lookups of each plan. It compares the counts with a baseline file in git
 and fails when a query's work grows by more than half. The JOB queries run
 every night, and every result is checked against SQLite.
 
-## The numbers
+## Benchmark results
 
 Work is the number of rows read, key lookups and index entries scanned over
 the whole plan, at a scale of about 225,000 rows.
@@ -120,11 +120,11 @@ under 15 milliseconds.
 The [plan quality page](/docs/plan-quality-testing#comparison-with-sqlite-and-postgresql)
 in the docs compares the three engines on the same rows with warm runs.
 CamusDB takes 1.5 seconds, SQLite 7.2 seconds and PostgreSQL 0.74 seconds.
-CamusDB runs as an embedded node on a transactional key-value store, so this
-is a reference and not a race. Before this work, 25 of these queries did not
+CamusDB runs as an embedded node on a transactional key-value store, so read
+these times as a reference point. Before this work, 25 of these queries did not
 finish at all.
 
-## Why this matters outside a benchmark
+## Effect on queries outside the benchmark
 
 Each change answers a problem that real tables have. The benchmark only made
 them visible at the same time.
@@ -160,33 +160,28 @@ The last point matters most for CamusDB. The store is distributed, so each
 lookup can be a network round trip. A plan that looks up a thousand times
 where ten would do is slow by the latency of the cluster.
 
-## What a robust optimizer means here
+## Six properties of a robust optimizer
 
-A benchmark win can hide a fragile optimizer. These are the properties I care
-about more than the time:
+These six properties keep the optimizer robust outside the benchmark:
 
 1. **Results never change.** SQLite checks every plan on every nightly run. A
-   plan that changes results is a bug, not an optimization.
+   plan that changes results is a bug.
 2. **The search is bounded.** The step budget and the greedy fallback keep
    planning time small at any width. The 17-table queries plan in 9 to 16
    milliseconds.
 3. **The same query gets the same plan.** Two orders of equal cost keep the
    order the user wrote.
-4. **No statistics means a fallback, not a failure.** Without statistics the
+4. **Missing statistics lead to a fallback order.** Without statistics the
    planner uses a simple order and still removes avoidable cross products.
 5. **The plan is visible.** `EXPLAIN (ANALYZE)` shows the order the search
    chose, its estimate next to the actual rows, and the lookups each join saved.
 6. **Regressions are caught before merge.** The plan quality test runs on every
    pull request.
 
-## What is still open
+## Remaining gaps
 
 PostgreSQL executes the corpus five times faster, and the gap is in the
 executor, not in the planner. The search considers one shape of plan, a chain
 that adds one table at a time. Plans that join two groups of tables, and a
 search below an outer join, are not there yet. The worst estimate error is
 still above 1,000x on one query.
-
-A young database does not win a benchmark. It learns from one. JOB told us
-where the optimizer was wrong, in a form we could measure and gate. That is
-the victory I want to keep.

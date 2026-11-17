@@ -51,9 +51,15 @@ SELECT n
 FROM generate_series(1 + 1, @last, abs(@step)) AS n;
 ```
 
-CamusDB evaluates each argument once before producing the first row. Columns
-from other relations and subqueries are not accepted as arguments, because they
-would require a lateral table function, which is not supported yet.
+Arguments without column references are evaluated once. Arguments can also
+read columns of FROM sources to the left; the function then runs for each left
+row, with or without the LATERAL keyword:
+
+```camussql
+SELECT t.id, n FROM tasks AS t, generate_series(1, t.repetitions) AS n;
+```
+
+See [LATERAL sources](/docs/joins-and-subqueries#lateral) for scope and join rules.
 
 ## Aliases
 
@@ -99,8 +105,8 @@ ships the generated rows.
 - A set-returning function belongs in `FROM`, not in the `SELECT` list.
 - Only an integer `generate_series` is currently available. Date, timestamp,
   and `NUMERIC` series are not supported.
-- `LATERAL`, `WITH ORDINALITY`, and other table functions such as `unnest` are
-  not supported yet.
+- `WITH ORDINALITY` and `unnest` are unsupported. JSON and extension table
+  functions are described on their own reference pages.
 - An `INSERT ... SELECT` from a series is one transaction and remains subject
   to the [transaction mutation limit](/docs/transaction-limits).
 

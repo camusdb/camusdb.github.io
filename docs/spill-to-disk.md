@@ -4,18 +4,17 @@ sidebar_position: 3.25
 
 # Spill to disk
 
+Spill to disk lets a query operator move a large intermediate buffer into a
+temporary file, so large sorts, joins, and groupings need less memory.
 CamusDB streams query results to the client, but some query operators must
-still hold intermediate rows before they can produce output.
-
-Spill to disk lets such an operator move a large intermediate buffer into a
-temporary file, reducing the memory needed for that buffer. Some operators
+still hold intermediate rows before they can produce output. Some operators
 still retain other state in memory, as described below.
 
 Spill is off by default. While it is off, operators use their normal in-memory
 path. While it is on, each operator stays in memory until its own buffer passes
 the spill threshold.
 
-## Why use spill to disk
+## Keep large queries from exhausting memory
 
 Without spill, an operator keeps all of its intermediate rows in memory. A sort,
 a join, or a `GROUP BY` over millions of rows can use a large share of the
@@ -78,6 +77,12 @@ GIN scans also use the row and byte thresholds to bound candidate collection,
 even with spill disabled. They switch to a table scan rather than spilling
 candidate IDs. See [JSONB indexes](/docs/json#how-a-gin-scan-works).
 
+For eligible `GROUP BY ... ORDER BY COUNT(...) DESC LIMIT n` queries,
+CamusDB tracks an upper bound on group counts in each spill partition. It can
+skip reading a partition whose bound cannot beat the current n-th result.
+Look for `top_k` in the [aggregate plan](/docs/explain#top-k-grouped-results).
+This does not skip scanning the original input.
+
 ## DELETE and UPDATE
 
 `DELETE` and `UPDATE` collect every matching row before they apply any
@@ -110,8 +115,8 @@ live process owns.
 
 ## Row format
 
-Spill files use a schema-free binary row codec. This matters because
-intermediate rows can be synthetic: a join row, a derived-table row, or a
+Spill files use a schema-free binary row codec, because intermediate rows can
+be synthetic: a join row, a derived-table row, or a
 projected row may not match any single table schema.
 
 Each spilled row stores its row id, the column count, the column names, each

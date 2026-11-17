@@ -1,42 +1,58 @@
 ---
 slug: what-the-dragon-found-part-three
-title: What the dragon found, part three
+title: "What the dragon found, part three: a two-hour fault test"
 date: 2026-10-14
 authors: [andresgutierrez]
 tags: [camusdb, reliability, chaos-testing, distributed-systems]
 image: /img/caraxes3.png
 ---
 
-# What the dragon found, part three
+# What the dragon found, part three: a two-hour fault test
 
 ![A dragon breaking one artic city of glowing pyramids](/img/caraxes3.png)
 
-A ten-minute test finds the bugs that happen in ten minutes.
-
-A distributed database is hard to build, and the code is the smaller half of
-the work. The larger half is verification. You check the results again and
-again, you dig into the system until you know what it really does, and you push
-it past the point where it should break. A guarantee on a documentation page is
-worth exactly what the evidence behind it can show, and that evidence has to
-cover speed and correctness at the same time.
+This post reports what a two-hour fault test found in CamusDB over three
+weeks: nodes that ran out of memory, a partition with no leader, a replica
+that lost rows, and two lost writes on local builds. You will see each
+defect, its fix, and the state of the database after them. If you are
+evaluating CamusDB, it shows the evidence behind its behavior in long runs
+with faults.
 
 [Part one](/blog/a-dragon-to-attack-our-own-database) introduced Caraxes, the
-harness that attacks a real CamusDB cluster in Docker. [Part two](/blog/what-the-dragon-found)
-told what it found in its first month: a dropped transfer leg, a cluster that
-said healthy while it was dead, scans that lost rows under load. 
+tool that attacks a real CamusDB cluster in Docker.
+[Part two](/blog/what-the-dragon-found) told what it found in its first
+month.
 
-This part covers the three weeks after that. Most of it is about one test. It
-runs for two hours, it injects a fault every eight minutes, and it took eight
-attempts before it passed. Every failed attempt found something, and the runs
-after the first pass kept finding things.
+Most of this part is about one test. It runs for two hours, it injects a
+fault every eight minutes, and it took eight attempts before it passed. Every
+failed attempt found something, and the runs after the first pass kept
+finding things.
 
 <!-- truncate -->
 
-## Three weeks, in numbers
+## Commits and releases in three weeks
 
 CamusDB still runs on two lower layers. Kahuna is the replicated key-value
 store under the SQL engine. Kommander is the Raft implementation under Kahuna.
 A chaos run attacks all three at once.
+
+Some terms in this post:
+
+- **Raft:** the protocol with which nodes agree on the order of writes. Each
+  partition of the data has one leader that accepts writes and followers that
+  copy its log. An election round is a term, and the nodes that vote are
+  voters.
+- **Backfill, snapshot install, and re-seed:** a leader sends missing log
+  entries to a follower that is behind (backfill). If those entries no longer
+  exist, it sends a full copy of the state in chunks (snapshot install, or
+  re-seed).
+- **Intent:** a write of a transaction that has not settled yet.
+- **Wedge:** a partition or a key that stops making progress and does not
+  recover by itself.
+- **Soak:** a long test run. A soak often runs as two arms: two runs that
+  differ in one setting.
+- **Elle and Jepsen:** open tools that check a history of operations for
+  consistency anomalies.
 
 | Repository | Commits since 2026-09-21 | Versions consumed by CamusDB |
 |---|---|---|
@@ -50,7 +66,7 @@ Caraxes now has 332 scenario files, up from about 200. More than thirty of
 the runs in this period were two hours long. That is more than sixty hours of
 a cluster under attack, on one host, with the same seed.
 
-## Why two hours
+## The two-hour soak and its pass conditions
 
 Every ten-minute scenario in part two passed on the stack we shipped at the
 time. In those runs, node memory climbed to between 3.3 and 3.9 GB of a 4 GiB
@@ -95,7 +111,7 @@ A soak passes when all of these hold:
 - Every fault window recovers, and the cluster makes progress inside every
   window.
 
-Throughput gates are not what the soak is for. The host's NVMe changes regime
+The soak does not grade throughput. The host's NVMe changes regime
 after 30 to 35 GB of writes, as part two explained, and a two-hour run always
 crosses that line. The harness marks a throughput finding inadmissible when
 the device moved inside the window, and most windows after minute 30 are. The
@@ -108,7 +124,7 @@ a reference to the intent and fill in the value later. We call those
 by-reference records. The settle path writes 4.0 Raft entries per commit
 instead of 6.4, and it is the default today. Both arms must pass.
 
-## Run one: two nodes die, and the first three diagnoses are wrong
+## Run one: two nodes died of allocator memory
 
 The first soak completed its window: 17.9 million operations in two hours. It
 also finished with one node alive, and the reconciliation could not read the
@@ -123,7 +139,7 @@ already healed. The second node died after the window closed, while the
 reconciliation tried to read the sum from a two-node cluster. It was at 99.6
 percent of its memory limit, with no trace and no dump. The kernel killed it.
 
-The memory was real. What it was took four runs to find.
+It took four runs to find what the memory was.
 
 | Suspect | Test | Result |
 |---|---|---|
@@ -147,18 +163,17 @@ The 60 MB mappings fell from 116 to 7.
 | camus3 | 3,957 MiB, 97% | 3,268 MiB, 80% |
 
 No node died. Memory came down between faults, with no creep. Three soaks
-died of this, and the remedy was a deployment variable, not a change in either
-codebase. The fix for the Raft log's index blocks stays anyway. It bounded an
+died of this, and the remedy was a deployment variable, with no change in
+either codebase. The fix for the Raft log's index blocks stays anyway. It bounded an
 allocation that had no bound, and its gauges are what made the measurement
 possible.
 
 One native memory table from the first run says why the first diagnosis was
 wrong. On the node that died last, the working set grew from 382 MB to 4,057
-MB over two hours, while the managed heap shrank from 767 MB to 441 MB. Read
-the difference between those two numbers before you blame anything the garbage
-collector manages.
+MB over two hours, while the managed heap shrank from 767 MB to 441 MB. The
+growth was outside the memory that the garbage collector manages.
 
-## The wedge under the memory wall
+## A partition with no leader for 59 minutes
 
 With the deaths out of the way, the fourth soak showed a worse defect.
 
@@ -180,16 +195,16 @@ recovery path could get past the hole:
 The trigger was a transient disk stall on one follower that cleared in
 seconds. The wedge outlived it by an hour.
 
-This was not a new defect. The Kommander Jepsen suite found it in August, and
+The defect was known. The Kommander Jepsen suite found it in August, and
 its findings file recorded 90 nightly runs since then without a reproduction.
 This was its first reproduction outside Jepsen, on a far newer build, from
-ordinary device jitter rather than an injected fault. The soak also carried two
+ordinary device jitter, with no injected fault. The soak also carried two
 details the Jepsen runs did not have. The refusal counter reset on every
 promotion attempt, so the truncation escape hatch could never fire. And 296 of
 the 297 barrier timeouts named no cause, while the real obstacle was the
 shared hole. Kommander 1.7.7 fixed it, and the next soak had no wedge.
 
-## A replica that came back with less than it left with
+## A replica that rejoined with fewer rows
 
 The fifth soak ran on the published Kommander 1.7.7. No wedge, no node death,
 peak memory 55 percent. And the cluster stopped before minute 50 anyway, with
@@ -234,8 +249,8 @@ Three Kommander changes closed it:
 The eighth soak passed. It was the first complete, clean two-hour window:
 conservation exact, 2,912 indeterminate writes all resolved, zero divergence,
 all fourteen windows recovered in at most 0.8 seconds. The ninth soak repeated
-it on published packages, Kahuna 1.9.9 and Kommander 1.8.0. That run matters
-more than the eighth, because it hit the exact shapes that wedged runs five to
+it on published packages, Kahuna 1.9.9 and Kommander 1.8.0. That run is
+stronger evidence than the eighth, because it hit the exact shapes that wedged runs five to
 seven three times. One node went through a rejected chunk, a forced install
 and a 24-chunk re-install, and was then elected leader three times with no
 divergence and no held intents.
@@ -244,8 +259,8 @@ Kahuna 1.9.11 then added containment. A replica whose apply projection
 diverges from its peers is gated: it gives up leadership, withholds its
 candidacy, and is re-seeded. Live intents are part of the fingerprint now, and
 a record-less hold is cross-checked with peers. The tenth soak passed with the
-containment in the build and silent, which is what it should be with nothing
-to contain.
+containment in the build. It did not fire, because there was nothing to
+contain.
 
 | Run | Stack | Result | What it found |
 |---|---|---|---|
@@ -260,7 +275,7 @@ to contain.
 | fs9 | Kahuna 1.9.9, Kommander 1.8.0 | Pass | Repair paths exercised three times, no divergence |
 | fs10 | Kahuna 1.9.11, Kommander 1.8.2 | Pass | Containment in the build, silent |
 
-## The rest of the chain
+## Seven more findings after the first pass
 
 We ran the soak again on every new stack after it passed, and it found more.
 None of them was a lost write on a published package. Several of them
@@ -307,7 +322,7 @@ minutes, then it crashed. The same loop ran in the previous soak and finished
 on the second to fourth attempt, with memory at 96.6 percent. The margin was
 between 100 and 300 MB. The settle-path arm of the same pair landed five of six
 installs on the first attempt in 8 to 15 seconds, because its snapshot carries
-fewer intents. A smaller snapshot hid the race, and did not fix it.
+fewer intents. A smaller snapshot hid the race.
 
 **Lost writes, twice, on local packs.** The packs that fixed the loop lost
 committed writes. In the first run the sum came back short by 4. Two rows were
@@ -321,7 +336,7 @@ short by 2, from a different cause. On restart, the node replayed the window
 below its certified position as history, and 82,536 by-reference records on
 all 2,000 keys found no intent to resolve against. The values were missing on
 that one node. The control arm, with the settle path on, on the same packs and
-the same schedule, passed. One variable, one answer.
+the same schedule, passed.
 
 **A gate that fired nine minutes late.** With the replay fixed, the next soak
 passed, and one of its six restarts left 10,773 unresolved records on 13 keys.
@@ -337,8 +352,8 @@ thing. A 30-second pause at minute 104, with 60 to 70 million entries in the
 log, was followed by three consecutive whole-partition re-seeds: 32, 38 and 31
 chunks in 60, 41 and 8 seconds, with the follower at 92 percent of its memory
 during the first. The first diagnosis said the follower fell below the
-compaction floor. The code said otherwise. The retention window covered it by
-an order of magnitude. The backfill's no-progress probe counted four shipments
+compaction floor. That was wrong: the retention window covered it by an order
+of magnitude. The backfill's no-progress probe counted four shipments
 fruitless because the follower's reported commit frontier did not move, while
 its presence frontier advanced at 1,100 entries per second against a stream of
 6,700. Each install left the follower a million entries behind, and the probe
@@ -364,12 +379,12 @@ from 188,000 entries behind to 3,000 in three minutes with no escalation.
 | rl7 | Kahuna 1.11.7, Kommander 1.10.7 | One arm failed a harness rule | A client check on one 1-second sample |
 | rl7b | Same | Pass | Two green verdicts on one published stack |
 
-## When the dragon was wrong, again
+## Seven false alarms from the test setup
 
-Part two had a section with this name. Here is the new list. Every item cost
-us a wrong reading once, and every item is a check now.
+Each item below cost us one wrong reading and is now a check, as in the list
+from part two.
 
-- **A node that died on its own, twice, did not.** In one run the health probe
+- **Two false reports of a node that died on its own.** In one run the health probe
   was issued 0.28 seconds before the scheduled SIGKILL, and the harness graded
   the missed probe as a death with no fault active. In another, `docker kill`
   took 6.8 seconds to return on a device at 98 percent busy, and the harness
@@ -394,7 +409,7 @@ us a wrong reading once, and every item is a check now.
   host copy. Elle could not parse the history, so one scenario never had a
   verdict. The measured run now writes inside its container and the harness
   copies the output out.
-- **A node that left the cluster, except it did not.** The node-removal fault
+- **A node-removal fault that removed nothing.** The node-removal fault
   posted its leave request from the host. The request arrived through Docker's
   port proxy from the bridge gateway, and the node refused it, because cluster
   administration over the network requires authentication. The vacuity check
@@ -416,7 +431,7 @@ us a wrong reading once, and every item is a check now.
   then opened at 0.05 ms anyway. The in-run regime rules are the signal. The
   gate is gone.
 
-## A test that did nothing must not pass
+## A run whose fault never fired now fails
 
 A fault that never fires leaves a green run behind. The node-removal item above
 was found by a rule we added for exactly that reason. A scenario can now
@@ -438,12 +453,13 @@ Both features are opt-in. The consistency report listed them as the two
 weakest verified parts of the system. They now have CamusDB-level scenarios
 that run every night.
 
-## Clocks, and the nightly
+## Clock skew faults and nightly CI runs
 
 Part one promised clocks that disagree between nodes. Caraxes can now move one
 node's wall clock forward or back, by up to twelve hours, and move it back on
 heal. Only the wall clock moves, so the fault reaches the hybrid logical clock
-and every lease built on it, and not Raft, whose elections use monotonic time.
+and every lease built on it. Raft elections use monotonic time, so they are
+unaffected.
 
 Four scenarios target what a given skew can reach: 2 seconds on three nodes as
 a control, a jump past the 5-second snapshot clock fence, a jump past the
@@ -460,12 +476,12 @@ hosted runner's speed says nothing about the change. Elle, the ledger, the
 divergent-apply check, node health and the total-outage rule still grade the
 run.
 
-## Notes from the performance side
+## Three performance findings
 
 The harness is also how we measure speed, and three of its findings in this
-period were about the measurement or the client, not the server.
+period were about the measurement or the client.
 
-- **TLS was never the cost.** A pair of ten-minute runs on one image, with the
+- **TLS has no measurable CPU cost.** A pair of ten-minute runs on one image, with the
   client path in TLS and in cleartext, read 9,082 and 9,240 operations per
   second at an identical 0.90 CPU-milliseconds per operation on the leader.
   Cleartext is now the control shape. Raft keeps its certificate.
@@ -483,7 +499,7 @@ period were about the measurement or the client, not the server.
   minimum of 1,024 threads is what lets the pool grow that far. The pair at a
   floor of 64 and 128 is the next run.
 
-## What the database looks like today
+## Behavior of the database today
 
 - A node that runs out of memory was a deployment problem. Every Caraxes node
   runs with `MALLOC_ARENA_MAX=2`, the Raft log's index blocks are charged to
@@ -515,20 +531,19 @@ double green.
 | Pauses repaired by backfill | 4 of 4 | 3 of 3 |
 | Memory peak | 90% | 90% |
 
-The settle-path arm injected thirteen faults, not fourteen. One pause aimed at
+The settle-path arm injected thirteen faults. One pause aimed at
 the leader was skipped by the resolver bug listed above, which is fixed since.
 
 CamusDB today pins a Kahuna three releases past that pair. The pin is ahead of
 its evidence, as it was in part two, and the next soak closes that gap.
 
-## Three lessons
+## Three more rules for fault testing
 
-Some bugs need two hours. Every ten-minute run in part two plateaued at 3.3 to
+Run long. Some bugs need two hours. Every ten-minute run in part two plateaued at 3.3 to
 3.9 GB and passed. In hindsight those plateaus were the memory wall, a few
-hundred megabytes away. A plateau is not evidence of a bound. Only a long run
-with the same budget is.
+hundred megabytes away. Only a long run with the same budget proves a bound.
 
-Measure the quantity. Do not infer it from a ratio. The table-reader ratio of
+Measure the quantity directly. The table-reader ratio of
 8.9 percent was right, and the SST volume it was multiplied against was never
 measured. The inference said 34 GB. The gauge said 262 MB. Two subsystem
 hypotheses failed in a row for the same reason, and the one that held came
@@ -538,23 +553,13 @@ Change one thing. The sum came back short by 2 on a pack that changed two
 things. The control arm with the settle path on, same pack, same schedule,
 passed, and that isolated the loss to the by-reference replay in one run.
 Three soaks died of memory, and the fix was one environment variable with no
-code change. A result you cannot attribute to one variable is a story, not a
-finding.
+code change.
 
-Part two's third lesson held as well. The chain from the first soak to the
+Part two's third rule held as well. The chain from the first soak to the
 latest is memory, then a wedge, then a divergence, then a livelock, then an
 install loop, then two lost writes, then a re-seed storm. Every fix uncovered
 the next failure when it removed the one in front of it.
 
-This is what most of the engineering on a distributed database looks like. Not
-new features, but a long check that the ones we promised still hold, under
-faults, under load, for hours, on a real device. A database earns its
-guarantees twice, once in the code and once in the evidence, and the second
-time never ends. The soak is that second time, for performance and for
-correctness in the same run.
-
-The dragon is not done. The next runs are the kill matrix under load, a second
-kill window measured on a device that holds its regime, and the two open
-questions from the performance side. But a server that dies on a busy
-afternoon now dies on a build that survived fourteen of those afternoons in a
-row, twice, with the sum exact at the end.
+The next runs are the kill matrix under load, a second kill window measured
+on a device that holds its regime, and the two open questions from the
+performance side.

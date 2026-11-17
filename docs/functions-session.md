@@ -4,13 +4,13 @@ sidebar_position: 4.15
 
 # Session functions
 
-A session function describes the session running the statement, not any row.
-None of them take arguments.
+Session functions tell a statement who is running it, and in which database.
+For example, you can filter for the rows that belong to the current user, record
+who wrote a row in an `INSERT`, or have a script check that it is connected to
+the right database.
 
-Use one when a statement needs to know who is running it, or where. For
-example, you can filter for the rows that belong to the current user, record who
-wrote a row in an `INSERT`, or have a script check that it is connected to the
-right database.
+A session function describes the session running the statement. None of them
+take arguments.
 
 ## The functions
 
@@ -37,9 +37,8 @@ WHERE owner = current_user();
 
 ## NULL means no identity
 
-While authentication is disabled, there is no authenticated identity to report,
-so `current_user()` returns `NULL` rather than a placeholder name. A name would
-assert an identity the server never verified. See
+While authentication is disabled, the server has verified no identity, so
+`current_user()` returns `NULL`. See
 [Authentication And Authorization](/docs/sql-authentication).
 
 ## current_role() and current_user() are the same
@@ -63,8 +62,7 @@ completely.
 CamusDB stores a column's `DEFAULT` and a `CHECK` condition, and replays them on
 later inserts. A replay carries no session for the function to report.
 
-So the DDL refuses both, rather than accept a schema element that could only
-fail later:
+Such a schema element could only fail later, so the DDL refuses both:
 
 ```camussql
 CREATE TABLE owners (

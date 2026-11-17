@@ -5,11 +5,11 @@ description: "Clone a CamusDB database at a point in time without copying rows. 
 
 # Database branching
 
-You want to test a schema migration, reproduce a production bug, or try a risky
-data fix on realistic data, without any chance of touching production. A
-database branch gives you that: an isolated clone of an existing database at a
-point in time. You work in the branch, then keep it or drop it. Nothing you do
-there reaches the source database.
+A database branch is an isolated clone of an existing database at a point in
+time. Use it to test a schema migration, reproduce a production bug, or try a
+risky data fix on realistic data, without any chance of touching production.
+You work in the branch, then keep it or drop it. Nothing you do there reaches
+the source database.
 
 In PostgreSQL, the closest tool is `CREATE DATABASE ... TEMPLATE`, which copies
 every file of the template. A CamusDB branch copies no rows when you create it:
@@ -167,8 +167,8 @@ If the source snapshot holds a primary key or unique index value, inserting the
 same value in the branch conflicts. The branch must delete that inherited row
 first.
 
-This keeps a branch close to a true database clone. CamusDB does not treat the
-source as loose seed data.
+Inherited rows count toward constraints as if the branch were a full copy of
+the source.
 
 Foreign keys are inherited too. A check stays inside the branch: it reads the
 branch's own rows merged with its ancestors as of the fork point. A write in the
@@ -370,9 +370,6 @@ Database branches do not support these features today:
 - Automatic branch compaction or rebase.
 - Reparenting a descendant after its parent is dropped.
 - A hard maximum branch depth.
-
-Branching serves isolated development, testing, migration rehearsal, and problem
-reproduction. You can drop any of these branches when you no longer need it.
 
 ## Error codes
 

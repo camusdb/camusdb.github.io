@@ -4,28 +4,25 @@ sidebar_position: 6
 
 # The connection model
 
-Applications connect through the [.NET](/docs/dotnet-driver),
-[TypeScript](/docs/typescript-connector), or [Python](/docs/python-driver)
-driver. Those libraries manage requests and transaction handles. This page
-explains the server and driver implementation for capacity planning and
-deployment; its wire details are not part of the application programming model.
+Thousands of application instances, serverless functions, or small services
+can connect to CamusDB without an external connection pooler, because an idle
+connection costs only one open socket. This page explains the server model
+behind that for capacity planning and deployment, compares it with
+PostgreSQL's and MySQL's, and lists its trade-offs.
 
 Clients talk to CamusDB through two APIs: REST with JSON over HTTP, and gRPC
 over HTTP/2. Neither API gives a connection its own process or thread. A
 connection is just a socket, and the server does work per request, not per
 connection.
 
-This model matters when many clients connect at the same time. Thousands of
-application instances, serverless functions, or small services can connect to
-CamusDB without an external connection pooler, because an idle connection costs
-only one open socket.
-
-This page compares that model with PostgreSQL's and MySQL's, and also covers
-what the CamusDB model costs, because it has trade-offs as well as advantages.
+Applications usually connect through the [.NET](/docs/dotnet-driver),
+[TypeScript](/docs/typescript-connector), or [Python](/docs/python-driver)
+driver. Those libraries manage requests and transaction handles. The wire
+details on this page are not part of the application programming model.
 
 ![CamusDB connection pool diagram](/img/connection-pool.png)
 
-## The short version
+## Connection models compared
 
 | | PostgreSQL | MySQL | CamusDB |
 |---|---|---|---|
@@ -145,7 +142,7 @@ There is one exception. A transaction opened by a `START` inside a
 `COMMIT` or `ROLLBACK`, CamusDB rolls the transaction back, so a client crash
 can't leave it open.
 
-## What this gives an application
+## Benefits for applications
 
 ### No external pooler
 

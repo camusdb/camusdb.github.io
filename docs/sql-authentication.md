@@ -9,7 +9,7 @@ do. With both enabled, each application, service, and person connects as a
 named user, and each user can read or change only the databases and tables that
 you grant to it.
 
-## Why enable authentication
+## When to enable authentication
 
 Authentication is off by default, so a local node is easy to start. Without it,
 any client that can reach a node's network port can read, change, and drop
@@ -514,8 +514,7 @@ the settings they reach bound memory, concurrency, and background work.
 
 One behavior is conservative today. An `UPDATE` or `DELETE` with a subquery
 that reads another table needs the write privilege on that second table, even
-though `SELECT` would be enough. The rule is too restrictive, not too
-permissive.
+though `SELECT` would be enough. The rule is stricter than necessary.
 
 ## Runtime defaults
 

@@ -8,7 +8,7 @@ An index is a sorted copy of one or more table columns, with a pointer back to
 each row. With an index, CamusDB can find the rows that match a value without
 reading the whole table.
 
-## Why add an index
+## What an index speeds up, and what it costs
 
 Without a matching index, a query that filters on a column reads every row in
 the table, and that cost grows with the table. An index makes these operations

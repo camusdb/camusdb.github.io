@@ -8,8 +8,9 @@ description: "CamusDB materialized views store the rows of a query and answer re
 A materialized view runs its query once, stores the rows, and answers every
 read from that stored copy until you refresh it.
 
-A plain [view](/docs/views) trades storage for freshness. A materialized view
-trades freshness for speed.
+A plain [view](/docs/views) reruns its query on every read and stores nothing.
+A materialized view gives faster reads in exchange for results that are only as
+current as the last refresh.
 
 ```camussql
 CREATE MATERIALIZED VIEW customer_totals AS
@@ -22,16 +23,15 @@ SELECT * FROM customer_totals WHERE customer = 'acme';  -- does not touch orders
 REFRESH MATERIALIZED VIEW customer_totals;              -- re-runs the query
 ```
 
-A later insert into `orders` does not change what `customer_totals` returns.
-That is the point of the feature, and the one behavior to learn: a materialized
-view is a snapshot, and only `REFRESH` moves it forward.
+A later insert into `orders` does not change what `customer_totals` returns. A
+materialized view is a snapshot, and only `REFRESH` moves it forward.
 `SHOW MATERIALIZED VIEWS` reports how stale each one is.
 
 A materialized view can also combine queries with `UNION`, `INTERSECT`, or
 `EXCEPT`. Both operands contribute dependencies, and their column lists are
 fixed at creation. See [set operations in views](/docs/sql-queries#views).
 
-## Why use one
+## Pay for an expensive query once per refresh
 
 A plain view reruns its query on every read. If that query is a wide join or an
 aggregate over a large table, every reader pays that cost every time.
@@ -79,7 +79,7 @@ bulk load, or by hand:
 REFRESH MATERIALIZED VIEW customer_totals;
 ```
 
-### Which one do you want
+### Choose a view, a materialized view, or a table copy
 
 | | Reads | Freshness | Storage | Indexable |
 | --- | --- | --- | --- | --- |
@@ -96,7 +96,7 @@ Use `CREATE TABLE ... AS SELECT` when you want a one-off copy that nothing will
 regenerate. It produces a plain table with no link back to the query that
 filled it.
 
-## It is a real relation
+## Use it like a read-only table
 
 CamusDB stores a materialized view as an ordinary relation, so almost
 everything that works on a table works on it:
@@ -122,15 +122,14 @@ stale enough for [automatic analyze](/docs/automatic-analyze) to rebuild them.
 [`SHOW STATISTICS FOR <view>`](/docs/show-statistics) reports the current
 contents at any moment.
 
-The one thing you cannot do is write to a materialized view:
+CamusDB refuses writes to a materialized view:
 
 ```camussql
 INSERT INTO customer_totals (customer, total_spent) VALUES ('acme', 1);
 -- 'customer_totals' is a materialized view and cannot be written to directly
 ```
 
-The next refresh would discard a row you wrote by hand, so CamusDB refuses the
-write instead of accepting the row and erasing it later.
+The next refresh would discard a row you wrote by hand.
 
 ## The shape is fixed at creation
 
@@ -158,9 +157,8 @@ CREATE MATERIALIZED VIEW open_orders (order_id, amount) AS
 
 `WITH NO DATA` creates the materialized view without running the query.
 
-Reading a view that has never held data is an error, not an empty result. An
-empty result would make a forgotten `REFRESH` look the same as a correct
-answer:
+Reading a view that has never held data fails with an error, so a forgotten
+`REFRESH` cannot pass for a correct empty answer:
 
 ```camussql
 CREATE MATERIALIZED VIEW customer_totals AS SELECT ... WITH NO DATA;
@@ -174,15 +172,15 @@ REFRESH MATERIALIZED VIEW customer_totals;   -- now it reads
 `REFRESH MATERIALIZED VIEW ... WITH NO DATA` empties a view and returns it to
 that state.
 
-## What a refresh does to a reader
+## A refresh never blocks readers
 
-Nothing. A refresh builds and fills a completely new relation, then moves the
+A refresh builds and fills a completely new relation, then moves the
 materialized view's name onto it in one atomic schema change.
 
 A reader that is already running continues on the previous contents at its own
 snapshot. A reader that starts after the change sees the complete new contents.
-Nobody waits, and nobody ever sees a half-built materialized view, not even
-briefly, on any node in the cluster.
+No reader waits, and no reader on any node in the cluster sees a half-built
+materialized view.
 
 ```mermaid
 sequenceDiagram
@@ -197,14 +195,11 @@ sequenceDiagram
     B->>M: Read the new contents, complete
 ```
 
-That is why CamusDB refuses `REFRESH MATERIALIZED VIEW ... CONCURRENTLY` with
-`CADB0533` instead of accepting the keyword as a synonym.
-
+CamusDB refuses `REFRESH MATERIALIZED VIEW ... CONCURRENTLY` with `CADB0533`.
 In PostgreSQL, `CONCURRENTLY` exists because the ordinary form takes an
-exclusive lock and blocks readers. CamusDB's ordinary form does not.
-`CONCURRENTLY` also buys something else: writing only the rows that changed.
-That is a real optimization that CamusDB does not implement, so the statement
-says so instead of quietly doing something else.
+exclusive lock and blocks readers; CamusDB's ordinary form does not block
+readers. `CONCURRENTLY` also writes only the rows that changed. CamusDB does not
+implement that optimization, so it rejects the keyword.
 
 The rebuild reads its source at one pinned snapshot for its whole duration, so
 the result is always a state the database actually held, however long the
@@ -288,8 +283,7 @@ SHOW INDEXES FROM customer_totals;
 `SHOW TABLES` lists only tables, not views or materialized views.
 
 `SHOW CREATE MATERIALIZED VIEW` prints `WITH NO DATA` for a view without data,
-so its output recreates the same object, not a populated object that only
-looks the same.
+so its output recreates the same unpopulated object.
 
 ## Configuration
 
@@ -304,7 +298,7 @@ All three settings appear in [`SHOW VARIABLES`](/docs/show-variables).
 ## Not implemented yet
 
 - Incremental refresh (`REFRESH MATERIALIZED VIEW ... CONCURRENTLY`). See
-  [What a refresh does to a reader](#what-a-refresh-does-to-a-reader).
+  [A refresh never blocks readers](#a-refresh-never-blocks-readers).
 - Resuming an interrupted refresh from where it stopped. CamusDB restarts it
   from the beginning. See [One refresh at a time](#one-refresh-at-a-time).
 

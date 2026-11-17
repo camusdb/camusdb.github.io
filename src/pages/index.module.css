@@ -12,7 +12,14 @@
   /* Overscan keeps the image edges outside the hero throughout the drift. */
   inset: -8% -12%;
   pointer-events: none;
-  background: url('/img/camusdb-clouds-hero.webp') center 46% / cover no-repeat;
+  /* The gradient multiplies the cloud photo by the violet and the blue of the
+     pyramids, which removes the warm tones of the photo. The multiply step
+     also makes the photo dark, so the brightness filter lifts it again. */
+  background:
+    linear-gradient(100deg, #8a5cff 0%, #5f6bff 45%, #3f95ff 100%),
+    url('/img/camusdb-clouds-hero.webp') center 46% / cover no-repeat;
+  background-blend-mode: multiply, normal;
+  filter: brightness(1.5);
   will-change: transform;
   /* Start mid-glide so movement is visible immediately after loading. */
   animation: cloudDrift 30s ease-in-out -15s infinite alternate;
@@ -78,10 +85,99 @@
 }
 
 
+/* All hero messages share one grid cell. The tallest message sets the height,
+   so the buttons below stay in place when the message changes. */
+.heroMessages {
+  display: grid;
+}
+
+.heroMessage {
+  grid-area: 1 / 1;
+  min-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(0.5rem);
+  transition: opacity 200ms ease, transform 0s linear 200ms, visibility 0s linear 200ms;
+}
+
+/* The new message fades in after the old message fades out. */
+.heroMessageActive {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity 420ms ease 200ms, transform 420ms ease 200ms, visibility 0s linear 200ms;
+}
+
+.heroPager {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 1.1rem;
+}
+
+/* The padding gives each thin bar a click target 24px high. */
+.heroPagerItem {
+  width: 2rem;
+  padding: 0.65rem 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.heroPagerItem span {
+  display: block;
+  overflow: hidden;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(200, 223, 255, 0.26);
+  transition: background 160ms ease;
+}
+
+.heroPagerItem:hover span {
+  background: rgba(200, 223, 255, 0.5);
+}
+
+.heroPagerItem:focus-visible {
+  outline: 2px solid #68b8ff;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.heroPagerItem span::after {
+  display: block;
+  height: 100%;
+  background: #68b8ff;
+  content: '';
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.heroPagerItemActive span::after {
+  transform: none;
+}
+
+/* The bar fills while the timer runs. The duration comes from HERO_ROTATION_MS. */
+.heroPagerItemRunning span::after {
+  animation: heroPagerFill var(--hero-rotation, 8000ms) linear forwards;
+}
+
+@keyframes heroPagerFill {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* The inactive titles are paragraphs, so the heading font is set here to give
+   every title the same size. */
 .title {
   max-width: 760px;
   margin: 0;
   color: #ffffff;
+  font-family: var(--ifm-heading-font-family);
+  font-weight: var(--ifm-heading-font-weight);
   font-size: clamp(2.7rem, 5.2vw, 4.85rem);
   letter-spacing: -0.045em;
   line-height: 0.98;
@@ -173,14 +269,24 @@
   box-shadow: 0 0 12px rgba(251, 191, 36, 0.55);
 }
 
-.statusLink {
+.statusText {
   color: #d7eaff;
   font-weight: 700;
 }
 
+.statusLink {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(104, 184, 255, 0.7);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.22em;
+}
+
 .statusLink:hover {
   color: #ffffff;
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-color: #ffffff;
+  text-decoration-thickness: 1px;
 }
 
 .proofGrid {
@@ -236,58 +342,131 @@
   line-height: 1.4;
 }
 
+/* Cluster animation. Every animation below uses one loop of --cluster-cycle,
+   so the nodes, the links, and the packets stay in step. Percent of the loop:
+     0-20    A request reaches the top node. It sends the write to the other two.
+     20-40   The same, from the left node.
+     40-60   The same, from the right node.
+     60-80   The right node stops. The left node and the top node still commit a write.
+     80-100  The right node returns and receives the writes that it missed. */
 .pyramidNetwork {
+  --cluster-cycle: 16s;
+  --cluster-delay: 0.8s;
   position: relative;
   height: clamp(330px, 31vw, 470px);
   isolation: isolate;
 }
 
+/* The node box has no z-index, so its parts stack across the whole network:
+   ripples (2), beams (3), pyramids (4), requests (5). */
 .pyramidNode {
   position: absolute;
+}
+
+.pyramidImage {
+  position: relative;
   z-index: 4;
   display: block;
+  width: 100%;
   height: auto;
   filter: drop-shadow(0 24px 28px rgba(2, 6, 23, 0.58));
+}
+
+/* The copies animate opacity only, which the browser can do without a repaint. */
+.nodeGlow,
+.nodeDown {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.nodeGlow {
+  filter: brightness(1.6) saturate(1.2) drop-shadow(0 0 16px rgba(96, 200, 255, 0.9));
+  animation: glowTop var(--cluster-cycle) ease-out var(--cluster-delay) infinite backwards;
+}
+
+.nodeDown {
+  filter: brightness(0.3) saturate(0.08);
+  animation: nodeDown var(--cluster-cycle) linear var(--cluster-delay) infinite backwards;
+}
+
+/* A ripple on the ground plane when a node applies a write. */
+.nodeRing {
+  position: absolute;
+  z-index: 2;
+  top: 66%;
+  left: 51%;
+  width: 92%;
+  height: 34%;
+  border: 2px solid rgba(125, 249, 255, 0.9);
+  border-radius: 50%;
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.7), inset 0 0 14px rgba(34, 211, 238, 0.35);
+  opacity: 0;
+  translate: -50% -50%;
+  animation: ringTop var(--cluster-cycle) ease-out var(--cluster-delay) infinite backwards;
+}
+
+/* A client request that arrives at the top of a node. */
+.nodeRequest {
+  position: absolute;
+  z-index: 5;
+  bottom: 81%;
+  left: 50%;
+  width: 3px;
+  height: 22%;
+  margin-left: -1.5px;
+  border-radius: 999px;
+  background: linear-gradient(to bottom, transparent, rgba(125, 249, 255, 0.9) 70%, #ffffff);
+  filter: drop-shadow(0 0 5px rgba(34, 211, 238, 0.95));
+  opacity: 0;
   transform-origin: center bottom;
-  will-change: transform;
-  animation: pyramidFloat 6.8s ease-in-out infinite;
+  animation: requestTop var(--cluster-cycle) ease-in var(--cluster-delay) infinite backwards;
 }
 
 .pyramidTop {
   top: 8%;
-  left: 50%;
+  left: calc(50% - min(42%, 210px) / 2);
   width: min(42%, 210px);
-  transform: translateX(-50%);
-  animation-name: pyramidParallaxTop;
-  animation-duration: 6.8s;
-}
-
-.pyramidAssembling .pyramidNode {
-  opacity: 0;
-  animation-play-state: paused;
-}
-
-.pyramidAssembling .dataBeam {
-  opacity: 0.25;
-  transition: opacity 400ms ease;
 }
 
 .pyramidLeft {
   bottom: 2%;
   left: 0;
   width: min(56%, 275px);
-  animation-name: pyramidParallaxNearLeft;
-  animation-duration: 7.6s;
-  animation-delay: -1.4s;
 }
 
 .pyramidRight {
   right: 0;
   bottom: 2%;
   width: min(56%, 275px);
-  animation-name: pyramidParallaxNearRight;
-  animation-duration: 7.2s;
-  animation-delay: -2.7s;
+}
+
+.pyramidLeft .nodeGlow {
+  animation-name: glowLeft;
+}
+
+.pyramidRight .nodeGlow {
+  animation-name: glowRight;
+}
+
+.pyramidLeft .nodeRing {
+  animation-name: ringLeft;
+}
+
+.pyramidRight .nodeRing {
+  animation-name: ringRight;
+}
+
+.pyramidLeft .nodeRequest {
+  animation-name: requestLeft;
+}
+
+.pyramidRight .nodeRequest {
+  animation-name: requestRight;
 }
 
 .dataBeam {
@@ -299,68 +478,71 @@
   transform-origin: left center;
 }
 
-.dataBeam::before,
-.dataBeam::after {
+.beamLink,
+.beamPacketOut,
+.beamPacketBack {
+  position: absolute;
+  inset: 0;
+}
+
+/* Two quiet lanes. The dashes are the steady traffic between nodes. */
+.beamLink::before,
+.beamLink::after {
   position: absolute;
   right: 0;
   left: 0;
   height: 3px;
   border-radius: 999px;
+  opacity: 0.6;
   background-image:
-    linear-gradient(90deg, transparent, rgba(125, 249, 255, 0.95), transparent),
+    linear-gradient(90deg, transparent, rgba(125, 249, 255, 0.8), transparent),
     repeating-linear-gradient(90deg, transparent 0 8px, rgba(125, 249, 255, 0.95) 8px 18px, transparent 18px 28px);
   background-size: 100% 100%, 58px 100%;
-  box-shadow: 0 0 8px rgba(34, 211, 238, 0.88), 0 0 16px rgba(59, 130, 246, 0.52);
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.7), 0 0 14px rgba(59, 130, 246, 0.4);
   content: '';
-  animation: streamFlow 3.6s linear infinite, beamPulse 7.2s ease-in-out infinite;
+  animation: streamFlow 3.6s linear infinite;
 }
 
-.dataBeam::before {
+/* The upper lane flows to the start of the beam, the lower lane to the end. */
+.beamLink::before {
   top: 8px;
 }
 
-.dataBeam::after {
+.beamLink::after {
   top: 23px;
-  opacity: 0.76;
   animation-direction: reverse;
 }
 
-.dataBeam span {
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(circle, rgba(255, 255, 255, 0.95) 0 3px, rgba(125, 249, 255, 0.8) 4px 7px, transparent 8px),
-    radial-gradient(circle, rgba(125, 249, 255, 0.85) 0 2px, transparent 6px);
-  background-repeat: repeat-x;
-  background-position: -120px 14px, -40px 22px;
-  background-size: 150px 34px, 210px 34px;
-  animation: packetFieldFlow 8.5s linear infinite;
+/* A packet carrier is as wide as its beam, so translateX(100%) is the full trip. */
+.beamPacketOut,
+.beamPacketBack {
+  opacity: 0;
+  animation: packetFromRight var(--cluster-cycle) cubic-bezier(0.45, 0.05, 0.55, 0.95) var(--cluster-delay) infinite backwards;
 }
 
-.dataBeam b {
+.beamPacketOut::after,
+.beamPacketBack::after {
   position: absolute;
-  top: 6px;
-  left: 0;
-  width: 100%;
-  height: 26px;
+  width: 46px;
+  height: 5px;
   border-radius: 999px;
-  opacity: 0.9;
-  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.95) 0 8%, rgba(125, 249, 255, 0.9) 12% 26%, rgba(34, 211, 238, 0.16) 42%, transparent 70%) -140px center / 120px 26px no-repeat;
-  animation: pulseFieldFlow 6.5s linear infinite;
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.95));
+  content: '';
 }
 
-.dataBeam i {
-  position: absolute;
-  inset: 4px 0 0;
-  height: 28px;
-  opacity: 0.42;
-  background-image:
-    repeating-linear-gradient(115deg, transparent 0 32px, rgba(224, 251, 255, 0.8) 33px 35px, transparent 36px 56px),
-    repeating-linear-gradient(65deg, transparent 0 46px, rgba(34, 211, 238, 0.5) 47px 49px, transparent 50px 72px);
-  background-size: 180px 100%, 240px 100%;
-  animation: sparkFieldFlow 9s linear infinite, sparkBlink 3.6s steps(2, end) infinite;
+.beamPacketOut::after {
+  top: 22px;
+  right: 100%;
+  background: linear-gradient(90deg, transparent, rgba(125, 249, 255, 0.95) 65%, #ffffff);
 }
 
+.beamPacketBack::after {
+  top: 7px;
+  left: 0;
+  background: linear-gradient(270deg, transparent, rgba(125, 249, 255, 0.95) 65%, #ffffff);
+}
+
+/* Left node to top node. */
 .dataBeamLeft {
   top: 54%;
   left: 24%;
@@ -368,6 +550,15 @@
   transform: rotate(-31deg);
 }
 
+.dataBeamLeft .beamPacketOut {
+  animation-name: packetLeftToTop;
+}
+
+.dataBeamLeft .beamPacketBack {
+  animation-name: packetTopToLeft;
+}
+
+/* Top node to right node. */
 .dataBeamRight {
   top: 37%;
   left: 54%;
@@ -375,10 +566,76 @@
   transform: rotate(31deg);
 }
 
+.dataBeamRight .beamPacketOut {
+  animation-name: packetTopToRight;
+}
+
+/* Left node to right node. */
 .dataBeamBase {
   bottom: 23%;
   left: 27%;
   width: 47%;
+}
+
+.dataBeamBase .beamPacketOut {
+  animation-name: packetLeftToRight;
+}
+
+/* The links of the right node go dark while it is stopped. */
+.dataBeamRight .beamLink,
+.dataBeamBase .beamLink {
+  animation: linkToRight var(--cluster-cycle) linear var(--cluster-delay) infinite backwards;
+}
+
+/* Draw each beam from the centre of one node base to the centre of the other,
+   at every size of the network. The values above are the fallback. */
+@supports (width: 1cqw) and (rotate: atan2(1px, 1px)) {
+  .pyramidNetwork {
+    container-type: size;
+    /* Node sizes and base centres, as lengths. The child rules resolve them. */
+    --top-size: min(42cqw, 210px);
+    --side-size: min(56cqw, 275px);
+    --top-x: calc(50cqw + 0.01 * var(--top-size));
+    --top-y: calc(8cqh + 0.66 * var(--top-size));
+    --left-x: calc(0.51 * var(--side-size));
+    --right-x: calc(100cqw - 0.49 * var(--side-size));
+    --side-y: calc(98cqh - 0.34 * var(--side-size));
+  }
+
+  .dataBeamLeft {
+    top: calc(var(--side-y) - 17px);
+    left: var(--left-x);
+    width: hypot(var(--top-x) - var(--left-x), var(--top-y) - var(--side-y));
+    transform: rotate(atan2(var(--top-y) - var(--side-y), var(--top-x) - var(--left-x)));
+  }
+
+  .dataBeamRight {
+    top: calc(var(--top-y) - 17px);
+    left: var(--top-x);
+    width: hypot(var(--right-x) - var(--top-x), var(--side-y) - var(--top-y));
+    transform: rotate(atan2(var(--side-y) - var(--top-y), var(--right-x) - var(--top-x)));
+  }
+
+  .dataBeamBase {
+    top: calc(var(--side-y) - 17px);
+    bottom: auto;
+    left: var(--left-x);
+    width: calc(var(--right-x) - var(--left-x));
+  }
+}
+
+/* During the entrance, the loop is off. It starts from zero when the entrance ends. */
+.pyramidAssembling .pyramidImage {
+  opacity: 0;
+}
+
+.pyramidAssembling :is(.nodeGlow, .nodeDown, .nodeRing, .nodeRequest, .beamLink, .beamPacketOut, .beamPacketBack) {
+  animation: none;
+}
+
+.pyramidAssembling .dataBeam {
+  opacity: 0.25;
+  transition: opacity 400ms ease;
 }
 
 .outcomes {
@@ -748,88 +1005,185 @@
   to { transform: translate3d(8%, -2%, 0); }
 }
 
-@keyframes pyramidFloat {
-  0%,
-  100% {
-    translate: 0 0;
-    scale: 1;
-  }
-
-  50% {
-    translate: 0 -12px;
-    scale: 1.015;
-  }
+@keyframes glowTop {
+  0%, 2% { opacity: 0; }
+  3% { opacity: 0.62; }
+  12%, 29% { opacity: 0; }
+  30% { opacity: 0.36; }
+  36%, 49% { opacity: 0; }
+  50% { opacity: 0.36; }
+  56%, 73% { opacity: 0; }
+  74% { opacity: 0.36; }
+  80%, 100% { opacity: 0; }
 }
 
-@keyframes pyramidParallaxTop {
-  0%,
-  100% {
-    translate: 0 0;
-    scale: 1;
-  }
-
-  50% {
-    translate: 0 -12px;
-    scale: 1.015;
-  }
+@keyframes glowLeft {
+  0%, 9% { opacity: 0; }
+  10% { opacity: 0.36; }
+  16%, 22% { opacity: 0; }
+  23% { opacity: 0.62; }
+  32%, 49% { opacity: 0; }
+  50% { opacity: 0.36; }
+  56%, 66% { opacity: 0; }
+  67% { opacity: 0.62; }
+  76%, 100% { opacity: 0; }
 }
 
-@keyframes pyramidParallaxNearLeft {
-  0%,
-  100% {
-    translate: 0 0;
-    scale: 1;
-  }
-
-  50% {
-    translate: -10px -18px;
-    scale: 1.025;
-  }
+@keyframes glowRight {
+  0%, 9% { opacity: 0; }
+  10% { opacity: 0.36; }
+  16%, 29% { opacity: 0; }
+  30% { opacity: 0.36; }
+  36%, 42% { opacity: 0; }
+  43% { opacity: 0.62; }
+  52%, 90% { opacity: 0; }
+  91% { opacity: 0.62; }
+  98%, 100% { opacity: 0; }
 }
 
-@keyframes pyramidParallaxNearRight {
-  0%,
-  100% {
-    translate: 0 0;
-    scale: 1;
-  }
+/* The right node flickers, goes dark, then flickers back on. */
+@keyframes nodeDown {
+  0%, 60% { opacity: 0; }
+  60.5% { opacity: 0.65; }
+  61% { opacity: 0.15; }
+  61.6% { opacity: 0.75; }
+  62.5%, 80% { opacity: 1; }
+  80.6% { opacity: 0.25; }
+  81.2% { opacity: 0.7; }
+  82.5%, 100% { opacity: 0; }
+}
 
-  50% {
-    translate: 10px -16px;
-    scale: 1.025;
-  }
+@keyframes ringTop {
+  0%, 2% { opacity: 0; transform: scale(0.6); }
+  3% { opacity: 0.95; }
+  9% { opacity: 0; transform: scale(1.3); }
+  29% { opacity: 0; transform: scale(0.6); }
+  30% { opacity: 0.6; }
+  36% { opacity: 0; transform: scale(1.3); }
+  49% { opacity: 0; transform: scale(0.6); }
+  50% { opacity: 0.6; }
+  56% { opacity: 0; transform: scale(1.3); }
+  73% { opacity: 0; transform: scale(0.6); }
+  74% { opacity: 0.6; }
+  80%, 100% { opacity: 0; transform: scale(1.3); }
+}
+
+@keyframes ringLeft {
+  0%, 9% { opacity: 0; transform: scale(0.6); }
+  10% { opacity: 0.6; }
+  16% { opacity: 0; transform: scale(1.3); }
+  22% { opacity: 0; transform: scale(0.6); }
+  23% { opacity: 0.95; }
+  29% { opacity: 0; transform: scale(1.3); }
+  49% { opacity: 0; transform: scale(0.6); }
+  50% { opacity: 0.6; }
+  56% { opacity: 0; transform: scale(1.3); }
+  66% { opacity: 0; transform: scale(0.6); }
+  67% { opacity: 0.95; }
+  73%, 100% { opacity: 0; transform: scale(1.3); }
+}
+
+@keyframes ringRight {
+  0%, 9% { opacity: 0; transform: scale(0.6); }
+  10% { opacity: 0.6; }
+  16% { opacity: 0; transform: scale(1.3); }
+  29% { opacity: 0; transform: scale(0.6); }
+  30% { opacity: 0.6; }
+  36% { opacity: 0; transform: scale(1.3); }
+  42% { opacity: 0; transform: scale(0.6); }
+  43% { opacity: 0.95; }
+  49% { opacity: 0; transform: scale(1.3); }
+  90% { opacity: 0; transform: scale(0.6); }
+  91% { opacity: 0.95; }
+  97%, 100% { opacity: 0; transform: scale(1.3); }
+}
+
+/* The request falls to the top of the node, then the node absorbs it. */
+@keyframes requestTop {
+  0% { opacity: 0; transform: translateY(-90%) scaleY(1); }
+  0.5% { opacity: 1; }
+  2% { opacity: 1; transform: translateY(0) scaleY(1); }
+  3% { opacity: 0; transform: translateY(0) scaleY(0); }
+  100% { opacity: 0; transform: translateY(-90%) scaleY(1); }
+}
+
+@keyframes requestLeft {
+  0%, 20% { opacity: 0; transform: translateY(-90%) scaleY(1); }
+  20.5% { opacity: 1; }
+  22% { opacity: 1; transform: translateY(0) scaleY(1); }
+  23% { opacity: 0; transform: translateY(0) scaleY(0); }
+  64% { opacity: 0; transform: translateY(-90%) scaleY(1); }
+  64.5% { opacity: 1; }
+  66% { opacity: 1; transform: translateY(0) scaleY(1); }
+  67% { opacity: 0; transform: translateY(0) scaleY(0); }
+  100% { opacity: 0; transform: translateY(-90%) scaleY(1); }
+}
+
+@keyframes requestRight {
+  0%, 40% { opacity: 0; transform: translateY(-90%) scaleY(1); }
+  40.5% { opacity: 1; }
+  42% { opacity: 1; transform: translateY(0) scaleY(1); }
+  43% { opacity: 0; transform: translateY(0) scaleY(0); }
+  100% { opacity: 0; transform: translateY(-90%) scaleY(1); }
+}
+
+@keyframes packetTopToLeft {
+  0%, 3% { opacity: 0; transform: translateX(100%); }
+  3.6% { opacity: 1; }
+  8.4% { opacity: 1; }
+  9%, 100% { opacity: 0; transform: translateX(0); }
+}
+
+@keyframes packetTopToRight {
+  0%, 3% { opacity: 0; transform: translateX(0); }
+  3.6% { opacity: 1; }
+  8.4% { opacity: 1; }
+  9% { opacity: 0; transform: translateX(100%); }
+  84% { opacity: 0; transform: translateX(0); }
+  84.6% { opacity: 1; }
+  89.4% { opacity: 1; }
+  90%, 100% { opacity: 0; transform: translateX(100%); }
+}
+
+@keyframes packetLeftToTop {
+  0%, 23% { opacity: 0; transform: translateX(0); }
+  23.6% { opacity: 1; }
+  28.4% { opacity: 1; }
+  29% { opacity: 0; transform: translateX(100%); }
+  67% { opacity: 0; transform: translateX(0); }
+  67.6% { opacity: 1; }
+  72.4% { opacity: 1; }
+  73%, 100% { opacity: 0; transform: translateX(100%); }
+}
+
+@keyframes packetLeftToRight {
+  0%, 23% { opacity: 0; transform: translateX(0); }
+  23.6% { opacity: 1; }
+  28.4% { opacity: 1; }
+  29% { opacity: 0; transform: translateX(100%); }
+  84% { opacity: 0; transform: translateX(0); }
+  84.6% { opacity: 1; }
+  89.4% { opacity: 1; }
+  90%, 100% { opacity: 0; transform: translateX(100%); }
+}
+
+/* Used by the two beams that start at the right node. */
+@keyframes packetFromRight {
+  0%, 43% { opacity: 0; transform: translateX(100%); }
+  43.6% { opacity: 1; }
+  48.4% { opacity: 1; }
+  49%, 100% { opacity: 0; transform: translateX(0); }
+}
+
+@keyframes linkToRight {
+  0%, 60% { opacity: 1; }
+  62.5%, 80% { opacity: 0.12; }
+  83%, 100% { opacity: 1; }
 }
 
 @keyframes streamFlow {
   from { background-position: 0 0, 58px 0; }
   to { background-position: 0 0, 0 0; }
-}
-
-@keyframes beamPulse {
-  0%,
-  100% { opacity: 0.76; }
-  50% { opacity: 1; }
-}
-
-@keyframes packetFieldFlow {
-  from { background-position: -120px 14px, -40px 22px; }
-  to { background-position: 180px 14px, 380px 22px; }
-}
-
-@keyframes pulseFieldFlow {
-  from { background-position: -140px center; }
-  to { background-position: calc(100% + 140px) center; }
-}
-
-@keyframes sparkFieldFlow {
-  from { background-position: 0 0, 0 0; }
-  to { background-position: 180px 0, -240px 0; }
-}
-
-@keyframes sparkBlink {
-  0%,
-  100% { opacity: 0.28; }
-  50% { opacity: 0.56; }
 }
 
 .gallerySection {
@@ -999,19 +1353,22 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pyramidNode {
+  .pyramidNetwork :is(.nodeGlow, .nodeDown, .nodeRing, .nodeRequest, .beamLink, .beamPacketOut, .beamPacketBack),
+  .pyramidNetwork .beamLink::before,
+  .pyramidNetwork .beamLink::after {
     animation: none;
   }
 
-  .dataBeam::before,
-  .dataBeam::after {
-    animation: none;
+  .heroMessage,
+  .heroMessageActive {
+    transform: none;
+    transition: none;
   }
 
-  .dataBeam b,
-  .dataBeam span,
-  .dataBeam i {
+  .heroPagerItem span,
+  .heroPagerItemRunning span::after {
     animation: none;
+    transition: none;
   }
 
   .outcomeCard,

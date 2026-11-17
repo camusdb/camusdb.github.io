@@ -4,9 +4,9 @@ sidebar_position: 3.66
 
 # Engine stats
 
-When a node logs a slow operation, or latency rises, you need to know whether
-the storage engine or the consensus layer is the cause. `SHOW ENGINE STATS`
-answers that from any SQL prompt, so you need no monitoring system to use it.
+`SHOW ENGINE STATS` tells you, from any SQL prompt, whether the storage engine
+or the consensus layer is behind a slow operation or rising latency. You need
+no monitoring system to use it.
 
 ```camussql
 SHOW ENGINE STATS;
@@ -26,7 +26,7 @@ view of your data, see
 [`ANALYZE`](/docs/automatic-analyze), and
 [the query planner guide](/docs/query-planning).
 
-## What it is for
+## Tell a spike from a pattern
 
 Kommander logs latency warnings like this one:
 
@@ -50,8 +50,9 @@ recent dispatch.
 
 Compare `max` with the average, which is `total` divided by `count`. A `max`
 far above that average, together with a normal `last`, is the signature of a
-periodic stall, not of sustained pressure. The next section shows how to find
-the cause.
+periodic stall, not of sustained pressure.
+[Correlate a slow dispatch with a background cycle](#correlate-a-slow-dispatch-with-a-background-cycle)
+shows how to find the cause.
 
 ## Result columns
 
@@ -71,7 +72,7 @@ the statement compare cleanly.
 
 ## Read the window correctly
 
-These properties will mislead you if you assume otherwise:
+Keep these properties in mind when you read the numbers:
 
 - Counters and histograms accumulate from process start, with no reset. To
   measure a window, run the statement twice and subtract. A single reading of
@@ -81,9 +82,9 @@ These properties will mislead you if you assume otherwise:
   `last` is its running total.
 - The statement is local to one node and never forwards to the
   [leader](/docs/concepts#leader). In a cluster, each node answers for its own
-  process, which is exactly what you need when one node is slow. To see the
-  whole cluster, you must query each node. That is why the `node` column
-  exists: output you paste into an issue names the node that produced it.
+  process, so you can inspect a slow node directly. To see the whole cluster,
+  query each node. The `node` column names the node that produced each row, so
+  output you paste into an issue stays attributable.
 
 ## Correlate a slow dispatch with a background cycle
 

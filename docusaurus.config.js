@@ -53,6 +53,13 @@ const config = {
         content: 'CCAE52A1C7A7537A',
       },
     },
+    {
+      tagName: 'meta',
+      attributes: {
+        name: 'google-site-verification',
+        content: 'AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM',
+      },
+    },
   ],
 
   plugins: [
@@ -190,7 +197,7 @@ const config = {
             title: 'Project',
             items: [
               {label: 'GitHub', href: 'https://github.com/camusdb/camusdb'},
-              {label: 'Caraxes Jepsen tests', to: '/docs/caraxes'},
+              {label: 'Caraxes fault tests', to: '/docs/caraxes'},
               {label: 'Blog', to: '/blog'},
             ],
           },
