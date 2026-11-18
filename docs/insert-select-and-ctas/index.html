@@ -15,8 +15,8 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.12eea1e1.js" defer="defer"></script>
-<script src="/assets/js/main.af31f2af.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.bed2d8c5.js" defer="defer"></script>
+<script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -83,6 +83,11 @@ exempt; see below.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="create-table--as-select">CREATE TABLE ... AS SELECT<a href="#create-table--as-select" class="hash-link" aria-label="Direct link to CREATE TABLE ... AS SELECT" title="Direct link to CREATE TABLE ... AS SELECT" translate="no">​</a></h2>
 <p>The new table&#x27;s columns are the source query&#x27;s output columns, with the types
 the query would report to a client.</p>
+<p>Parameters in the source projection take their supplied value&#x27;s type. For
+example, a FLOAT64 <code>@price</code> in <code>SELECT @price AS price</code> creates a FLOAT64
+column. A NULL parameter produces a STRING column; write
+<code>CAST(@price AS FLOAT64)</code> when its type must be explicit. INSERT SELECT also
+uses parameter values when determining source expression types.</p>
 <p>Nothing else is inherited: no indexes, <code>CHECK</code> constraints, <code>NOT NULL</code>,
 defaults, comments, or table settings. CamusDB uses only the shape of the
 result.</p>

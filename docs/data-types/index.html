@@ -15,8 +15,8 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.12eea1e1.js" defer="defer"></script>
-<script src="/assets/js/main.af31f2af.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.bed2d8c5.js" defer="defer"></script>
+<script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -387,7 +387,7 @@ and <code>%</code>), and subquery results are not constant divisions for this ch
 Stored view and CHECK definitions defer constant division errors until use;
 CTAS and materialized-view creation execute the query immediately.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="conditional-result-types">Conditional result types<a href="#conditional-result-types" class="hash-link" aria-label="Direct link to Conditional result types" title="Direct link to Conditional result types" translate="no">​</a></h2>
-<p><code>CASE</code>, <code>COALESCE</code>, <code>IFNULL</code>, <code>NVL</code>, and <code>IF</code> must return one common type across
+<p><code>CASE</code>, <code>COALESCE</code>, <code>IFNULL</code>, <code>NVL</code>, <code>IF</code>, <code>GREATEST</code>, and <code>LEAST</code> return one common type across
 all branches. A branch&#x27;s value is converted to that type in every row:</p>
 <table><thead><tr><th>Inputs</th><th>Common result type</th></tr></thead><tbody><tr><td>NULL with another type</td><td>The other type.</td></tr><tr><td>Same type</td><td>That type; array element types must also agree, or one array must be empty/untyped.</td></tr><tr><td>Numeric types</td><td>Their arithmetic result type: <code>INT64</code> with <code>NUMERIC</code> stays <code>NUMERIC</code>; a float with <code>NUMERIC</code> gives <code>FLOAT64</code>.</td></tr><tr><td><code>DATE</code> with <code>DATETIME</code></td><td><code>DATETIME</code>.</td></tr><tr><td>Quoted string literal with a temporal type</td><td>That temporal type; the literal is parsed.</td></tr><tr><td>Other combinations</td><td><code>CADB0400</code>; use an explicit <code>CAST</code>.</td></tr></tbody></table>
 <p>For example, <code>CASE WHEN enabled THEN 1 ELSE 1.5 END</code> always returns <code>FLOAT64</code>.

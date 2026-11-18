@@ -15,8 +15,8 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.12eea1e1.js" defer="defer"></script>
-<script src="/assets/js/main.af31f2af.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.bed2d8c5.js" defer="defer"></script>
+<script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -55,6 +55,10 @@ an unexpected internal state, or an inconsistency in the storage layer.</p>
 step or row limit (HTTP 400). Add a stopping predicate or adjust the
 <a class="" href="/docs/sql-queries/#recursive-ctes">recursive query limits</a> after checking the
 query. Retrying unchanged will reach the same limit.</p>
+<p><code>CADB0561 TableFunctionRowLimitExceeded</code> means one read of a function in FROM
+produced more rows than <code>max_table_function_rows</code> permits (HTTP 400).
+Narrow its arguments or adjust the <a class="" href="/docs/functions-set-returning/#row-limit">row limit</a>.
+Retrying unchanged will fail again.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="backup-and-restore-errors">Backup and restore errors<a href="#backup-and-restore-errors" class="hash-link" aria-label="Direct link to Backup and restore errors" title="Direct link to Backup and restore errors" translate="no">​</a></h2>
 <p>Only the backup and point-in-time recovery administration API raises
 <code>CADB07xx</code> codes. Each code maps to a specific HTTP status. See
