@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.cf0dd1ee.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.df8a11dc.js" defer="defer"></script>
 <script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
@@ -78,7 +78,9 @@ materialized view like a table:</p>
 </ul>
 <p>After a refresh, the planner uses the new row and index entry counts.
 Histograms from an earlier <code>ANALYZE</code> describe the old rows, and the refresh
-drops them. <a class="" href="/docs/automatic-analyze/">Automatic analyze</a> then rebuilds them.
+drops them. <a class="" href="/docs/automatic-analyze/">Automatic analyze</a> rebuilds them for a
+view with at least 624 rows, with the default settings. For a smaller view, run
+<code>ANALYZE TABLE</code> after the refresh.
 <a class="" href="/docs/show-statistics/"><code>SHOW STATISTICS FOR &lt;view&gt;</code></a> shows the statistics for
 the current rows.</p>
 <p>Writes to a materialized view return an error:</p>
@@ -168,7 +170,7 @@ This differs from a view, which reads its tables with the privileges of its
 owner.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="inspect-materialized-views">Inspect materialized views<a href="#inspect-materialized-views" class="hash-link" aria-label="Direct link to Inspect materialized views" title="Direct link to Inspect materialized views" translate="no">​</a></h2>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">MATERIALIZED</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">VIEWS</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">┌────────────────────┬───────────┬────────────────────────┐</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">│ materialized_views │ populated │ refreshed_at           │</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">├─────────── ─────────┼───────────┼────────────────────────┤</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">│ customer_totals    │ True      │ HLC(1:1795038630137:7) │</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">└────────────────────┴───────────┴────────────────────────┘</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">1 rows in set (00:00:00.0011032)</span><br></div></code></pre></div></div>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">┌────────────────────┬───────────┬────────────────────────┐</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">│ materialized_views │ populated │ refreshed_at           │</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">├────────────────────┼───────────┼────────────────────────┤</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">│ customer_totals    │ True      │ HLC(1:1795038630137:7) │</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">└────────────────────┴───────────┴────────────────────────┘</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">1 rows in set (00:00:00.0011032)</span><br></div></code></pre></div></div>
 <p><code>populated</code> shows whether the materialized view has data. <code>refreshed_at</code> shows
 the snapshot of the last refresh as a
 <a class="" href="/docs/distributed-transactions/">hybrid logical clock</a> (HLC) timestamp. A
