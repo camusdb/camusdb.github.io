@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
-<title data-rh="true">Distributed queries | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/distributed-queries/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Distributed queries | CamusDB"><meta data-rh="true" name="description" content="Distributed query execution speeds up large scans and aggregates in a cluster."><meta data-rh="true" property="og:description" content="Distributed query execution speeds up large scans and aggregates in a cluster."><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/distributed-queries/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-queries/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-queries/" hreflang="x-default"><link data-rh="true" rel="preconnect" href="https://SPBBUBI3JT-dsn.algolia.net" crossorigin="anonymous"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Distributed queries","item":"https://camusdb.github.io/docs/distributed-queries"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
+<title data-rh="true">Distributed queries | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/distributed-queries/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Distributed queries | CamusDB"><meta data-rh="true" name="description" content="Distributed query execution makes large scans and aggregates faster in a"><meta data-rh="true" property="og:description" content="Distributed query execution makes large scans and aggregates faster in a"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/distributed-queries/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-queries/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/distributed-queries/" hreflang="x-default"><link data-rh="true" rel="preconnect" href="https://SPBBUBI3JT-dsn.algolia.net" crossorigin="anonymous"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Distributed queries","item":"https://camusdb.github.io/docs/distributed-queries"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed">
 
 
@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.bed2d8c5.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.cf0dd1ee.js" defer="defer"></script>
 <script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
@@ -23,183 +23,173 @@
 <symbol id="theme-svg-external-link" viewBox="0 0 24 24"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
 </defs></svg>
 <script>!function(){var t=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();document.documentElement.setAttribute("data-theme",t||"light"),document.documentElement.setAttribute("data-theme-choice",t||"light")}(),function(){try{const c=new URLSearchParams(window.location.search).entries();for(var[t,e]of c)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="theme-layout-navbar navbar navbar--fixed-top"><div class="navbar__inner"><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/"><div class="navbar__logo"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">CamusDB</b></a><a aria-current="page" class="navbar__item navbar__link navbar__link--active" href="/docs/why-camusdb/">Docs</a><a class="navbar__item navbar__link" href="/docs/why-camusdb/">Why CamusDB?</a><a class="navbar__item navbar__link" href="/blog/">Blog</a><a class="navbar__item navbar__link" href="/playground/">Playground</a></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"></path></svg></button></div><div class="navbarSearchContainer_Bca1"><button type="button" class="DocSearch DocSearch-Button" aria-label="Search (Meta+k)" aria-keyshortcuts="Meta+k"><span class="DocSearch-Button-Container"><svg width="20" height="20" class="DocSearch-Search-Icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8" stroke="currentColor" fill="none" stroke-width="1.4"></circle><path d="m21 21-4.3-4.3" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg><span class="DocSearch-Button-Placeholder">Search</span></span><span class="DocSearch-Button-Keys"></span></button></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class="docsWrapper_hBAB"><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type="button"></button><div class="docRoot_UBD9"><aside class="theme-doc-sidebar-container docSidebarContainer_YfHR"><div class="sidebarViewport_aRkj"><div class="sidebar_njMd"><nav aria-label="Docs sidebar" class="menu thin-scrollbar menu_SIkG"><ul class="theme-doc-sidebar-menu menu__list"><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" href="/docs/why-camusdb/"><span class="categoryLinkLabel_W154">Start here</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/why-camusdb/"><span class="linkLabel_WmDU">Why CamusDB?</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/intro/"><span class="linkLabel_WmDU">CamusDB tutorial</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/concepts/"><span class="linkLabel_WmDU">Key concepts</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/playground/"><span class="linkLabel_WmDU">Playground</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/databases/"><span class="linkLabel_WmDU">Databases</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/database-branching/"><span class="linkLabel_WmDU">Database branching</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/recover-dropped-objects/"><span class="linkLabel_WmDU">Recover dropped objects</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/advanced-samples/"><span class="linkLabel_WmDU">Advanced samples</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret menu__link--active" role="button" aria-expanded="true" href="/docs/sql/"><span class="categoryLinkLabel_W154">SQL</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql/"><span class="linkLabel_WmDU">SQL overview</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/data-types/"><span class="linkLabel_WmDU">Data types</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/json/"><span class="linkLabel_WmDU">JSON documents</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/sql-schema/"><span class="categoryLinkLabel_W154">Schema</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-schema/"><span class="linkLabel_WmDU">Tables and columns</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-indexes/"><span class="linkLabel_WmDU">Indexes</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/check-constraints/"><span class="linkLabel_WmDU">Check constraints</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/foreign-keys/"><span class="linkLabel_WmDU">Foreign keys</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sequences/"><span class="linkLabel_WmDU">Sequences</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/comment-on/"><span class="linkLabel_WmDU">Schema comments</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/sql-writes/"><span class="categoryLinkLabel_W154">Writing data</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-writes/"><span class="linkLabel_WmDU">Insert, update, delete</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/insert-select-and-ctas/"><span class="linkLabel_WmDU">Copying query results</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/truncate-table/"><span class="linkLabel_WmDU">Emptying a table</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/sql-queries/"><span class="categoryLinkLabel_W154">Reading data</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-queries/"><span class="linkLabel_WmDU">SELECT</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/joins-and-subqueries/"><span class="linkLabel_WmDU">Joins and subqueries</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/vector-search/"><span class="linkLabel_WmDU">Vector search</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/time-travel-reads/"><span class="linkLabel_WmDU">Time-travel reads</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-fromless-select/"><span class="linkLabel_WmDU">SELECT without FROM</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/views/"><span class="categoryLinkLabel_W154">Views</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/views/"><span class="linkLabel_WmDU">Views</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/materialized-views/"><span class="linkLabel_WmDU">Materialized views</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="false" tabindex="0" href="/docs/functions/"><span class="categoryLinkLabel_W154">Functions</span></a></div></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/csharp-extensions/"><span class="linkLabel_WmDU">C# extensions</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-transactions/"><span class="linkLabel_WmDU">Transactions in SQL</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret menu__link--active" role="button" aria-expanded="true" tabindex="0" href="/docs/query-planning/"><span class="categoryLinkLabel_W154">Query performance</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/query-planning/"><span class="linkLabel_WmDU">Query planning</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/explain/"><span class="linkLabel_WmDU">EXPLAIN</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/show-statistics/"><span class="linkLabel_WmDU">SHOW STATISTICS</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/query-result-cache/"><span class="linkLabel_WmDU">Result cache</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/query-result-cache-internals/"><span class="linkLabel_WmDU">Result cache internals</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/query-activity/"><span class="linkLabel_WmDU">Query activity</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-routing-advice/"><span class="linkLabel_WmDU">SQL routing advice</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link menu__link--active" aria-current="page" tabindex="0" href="/docs/distributed-queries/"><span class="linkLabel_WmDU">Distributed queries</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/show-ranges/"><span class="linkLabel_WmDU">SHOW RANGES</span></a></li></ul></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/prepared-statements/"><span class="linkLabel_WmDU">Parameters and prepared statements</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-inspection/"><span class="linkLabel_WmDU">Inspecting the database</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/best-practices/"><span class="linkLabel_WmDU">Best practices</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" href="/docs/serializable-transactions/"><span class="categoryLinkLabel_W154">Operations</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/serializable-transactions/"><span class="categoryLinkLabel_W154">Transactions</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/serializable-transactions/"><span class="linkLabel_WmDU">Transactions and isolation</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/serializable-retries/"><span class="linkLabel_WmDU">Retries and conflicts</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/transaction-limits/"><span class="linkLabel_WmDU">Transaction limits</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/transaction-priority/"><span class="linkLabel_WmDU">Transaction priority</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/distributed-transactions/"><span class="linkLabel_WmDU">Distributed transactions and HLC</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/server-installation/"><span class="categoryLinkLabel_W154">Deployment</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/server-installation/"><span class="linkLabel_WmDU">Server installation</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/cluster/"><span class="linkLabel_WmDU">Cluster mode</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/growing-a-one-node-cluster/"><span class="linkLabel_WmDU">Grow a one-node cluster</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/kubernetes-operator/"><span class="linkLabel_WmDU">Kubernetes Operator</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/key-range-sharding/"><span class="linkLabel_WmDU">Key-range sharding</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/configuration/"><span class="linkLabel_WmDU">Configuration</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/settings-reference/"><span class="linkLabel_WmDU">Settings reference</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/runtime-cluster-settings/"><span class="linkLabel_WmDU">Runtime cluster settings</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-authentication/"><span class="linkLabel_WmDU">Authentication and authorization</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/backup-and-restore/"><span class="linkLabel_WmDU">Backup and restore</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/logical-dump-and-reimport/"><span class="linkLabel_WmDU">Logical dump and reimport</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/automatic-analyze/"><span class="categoryLinkLabel_W154">Background jobs</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/automatic-analyze/"><span class="linkLabel_WmDU">Automatic analyze</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/row-level-ttl/"><span class="linkLabel_WmDU">Row-level TTL</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/performance-diagnostics/"><span class="categoryLinkLabel_W154">Monitoring</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/performance-diagnostics/"><span class="linkLabel_WmDU">Performance diagnostics</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/operator-dashboard/"><span class="linkLabel_WmDU">Operator dashboard</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/engine-stats/"><span class="linkLabel_WmDU">Engine stats</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/node-stats/"><span class="linkLabel_WmDU">Node resource stats</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/slow-query-log/"><span class="linkLabel_WmDU">Slow query log</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/statement-stats/"><span class="linkLabel_WmDU">Statement statistics</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/index-usage/"><span class="linkLabel_WmDU">Index usage</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/show-variables/"><span class="linkLabel_WmDU">SHOW VARIABLES</span></a></li></ul></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="false" href="/docs/architecture/"><span class="categoryLinkLabel_W154">Internals</span></a></div></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" href="/docs/browser-playground/"><span class="categoryLinkLabel_W154">Reference</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/browser-playground/"><span class="linkLabel_WmDU">Browser playground</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/mcp-server/"><span class="linkLabel_WmDU">MCP server</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/agent-skills/"><span class="linkLabel_WmDU">Agent skills</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/web-console/"><span class="linkLabel_WmDU">Web Console</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/camus-cli/"><span class="linkLabel_WmDU">camus-cli</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/camus-dump/"><span class="linkLabel_WmDU">camus-dump</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/dotnet-driver/"><span class="categoryLinkLabel_W154">.NET</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/dotnet-driver/"><span class="linkLabel_WmDU">.NET driver</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/dapper/"><span class="linkLabel_WmDU">Dapper</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/ef-core/"><span class="linkLabel_WmDU">EF Core provider</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/typescript-connector/"><span class="categoryLinkLabel_W154">TypeScript</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/typescript-connector/"><span class="linkLabel_WmDU">TypeScript driver</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/prisma/"><span class="linkLabel_WmDU">Prisma</span></a></li></ul></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/python-driver/"><span class="linkLabel_WmDU">Python driver</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/aspire/"><span class="linkLabel_WmDU">.NET Aspire</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/testcontainers/"><span class="linkLabel_WmDU">Testcontainers</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/workload-utility/"><span class="linkLabel_WmDU">Workload utility</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/caraxes/"><span class="linkLabel_WmDU">Caraxes chaos testing</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/error-codes/"><span class="linkLabel_WmDU">Error codes</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="false" tabindex="0" href="/docs/http-api/"><span class="categoryLinkLabel_W154">Protocol reference</span></a></div></li></ul></li></ul></nav><button type="button" title="Collapse sidebar" aria-label="Collapse sidebar" class="button button--secondary button--outline collapseSidebarButton_PEFL"><svg width="20" height="20" aria-hidden="true" class="collapseSidebarButtonIcon_kv0_"><g fill="#7a7a7a"><path d="M9.992 10.023c0 .2-.062.399-.172.547l-4.996 7.492a.982.982 0 01-.828.454H1c-.55 0-1-.453-1-1 0-.2.059-.403.168-.551l4.629-6.942L.168 3.078A.939.939 0 010 2.528c0-.548.45-.997 1-.997h2.996c.352 0 .649.18.828.45L9.82 9.472c.11.148.172.347.172.55zm0 0"></path><path d="M19.98 10.023c0 .2-.058.399-.168.547l-4.996 7.492a.987.987 0 01-.828.454h-3c-.547 0-.996-.453-.996-1 0-.2.059-.403.168-.551l4.625-6.942-4.625-6.945a.939.939 0 01-.168-.55 1 1 0 01.996-.997h3c.348 0 .649.18.828.45l4.996 7.492c.11.148.168.347.168.55zm0 0"></path></g></svg></button></div></div></aside><main class="docMainContainer_TBSr"><div class="container padding-top--md padding-bottom--lg"><div class="row"><div class="col docItemCol_VOVn"><div class="docItemContainer_Djhp"><article><nav class="theme-doc-breadcrumbs breadcrumbsContainer_Z_bl" aria-label="Breadcrumbs"><ul class="breadcrumbs"><li class="breadcrumbs__item"><a aria-label="Home page" class="breadcrumbs__link" href="/"><svg viewBox="0 0 24 24" class="breadcrumbHomeIcon_YNFT"><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill="currentColor"></path></svg></a></li><li class="breadcrumbs__item"><span class="breadcrumbs__link">SQL</span></li><li class="breadcrumbs__item"><span class="breadcrumbs__link">Query performance</span></li><li class="breadcrumbs__item breadcrumbs__item--active"><span class="breadcrumbs__link">Distributed queries</span></li></ul></nav><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type="button" class="clean-btn tocCollapsibleButton_TO0P">On this page</button></div><div class="theme-doc-markdown markdown"><header><h1>Distributed queries</h1></header>
-<p>Distributed query execution speeds up large scans and aggregates in a cluster.
-It sends each part of an eligible scan to the node that already holds those
-rows, so one node no longer pulls every row across the network and does all the
-work alone. Filters and aggregates run at the data, the parts run at the same
-time, and only the results travel back. Query results are identical with the
-feature on or off; only the place where the work runs changes.</p>
+<p>Distributed query execution makes large scans and aggregates faster in a
+cluster. CamusDB sends each part of an eligible scan to the node that stores
+those rows. Filters and aggregates run where the data is, the parts run at the
+same time, and only the results come back. One node doesn&#x27;t have to read all
+rows across the network and do all the work. The query results are the same
+with the feature on or off.</p>
 <p>In a cluster, CamusDB spreads the rows of a table across
 <a class="" href="/docs/concepts/#partition">partitions</a>. Each partition has a
-<a class="" href="/docs/concepts/#leader">leader</a>, and that leader already holds its data.</p>
+<a class="" href="/docs/concepts/#leader">leader</a>, and that leader stores the data of the
+partition.</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">key_range_sharding</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">distributed_query_execution</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">true</span><br></div></code></pre></div></div>
-<p>The feature is off by default. While it is off, planning and execution are
-exactly the same as on a single node today.</p>
-<p>While it is on, CamusDB splits an eligible scan into one fragment for each
-<a class="" href="/docs/concepts/#ranges-and-spans">span</a> of the placement, where a span is one
-contiguous slice of the table&#x27;s keys and the placement says which partition
-serves each span. A fragment whose data lives elsewhere runs on the node that
-owns that data. The coordinator then joins the results together.</p>
-<p>This is a performance feature. Every part of it falls back to local execution
-rather than failing.</p>
+<p>The feature is off by default. When it is off, planning and execution are the
+same as on a single node.</p>
+<p>When it is on, CamusDB splits an eligible scan into one fragment for each
+<a class="" href="/docs/concepts/#ranges-and-spans">span</a> of the table. A span is a contiguous
+range of the table&#x27;s keys, and the placement of the table says which partition
+serves each span. A fragment for data on another node is executed on that node. The
+coordinator, the node that received the query, then combines the results.</p>
+<p>If a part of the distributed execution fails, CamusDB executes it locally, and
+the query doesn&#x27;t fail.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="where-the-savings-come-from">Where the savings come from<a href="#where-the-savings-come-from" class="hash-link" aria-label="Direct link to Where the savings come from" title="Direct link to Where the savings come from" translate="no">​</a></h2>
 <ul>
-<li class="">Filters run at the data. A peer that executes a fragment applies the residual
-predicate before it ships anything, so a scan that keeps one row in a
-thousand moves one row in a thousand across the network, not the whole
-table.</li>
-<li class="">Spans run at the same time. A table with four spans scans on four leaders at
-once, so the wall-clock cost of a full scan follows the largest span, not the
-sum of all spans.</li>
-<li class="">Aggregates collapse before they travel. CamusDB computes <code>COUNT</code>, <code>SUM</code>,
-<code>MIN</code>, <code>MAX</code>, and <code>AVG</code> per span and merges them on the coordinator, so a
-rollup over one hundred million rows ships one row per group per span.</li>
-<li class="">The coordinator keeps less in memory. It merges the streams instead of
-decoding every row of the table itself.</li>
-<li class="">Results stay correct when placement changes or a peer fails. Placement
-snapshots are advisory, the spans always cover the whole key space, and a
-failed fragment continues locally, so a stale view or a dead peer costs only
-a retry.</li>
+<li class=""><strong>Filters run at the data.</strong> A peer applies the filter before it sends rows.
+A scan that matches one row in a thousand sends one row in a thousand over
+the network.</li>
+<li class=""><strong>Spans run at the same time.</strong> A table with four spans is scanned on four
+leaders at once. The time of a full scan depends on the largest span.</li>
+<li class=""><strong>Aggregates are combined before they travel.</strong> CamusDB computes <code>COUNT</code>,
+<code>SUM</code>, <code>MIN</code>, <code>MAX</code>, and <code>AVG</code> for each span and merges them on the
+coordinator. A rollup over one hundred million rows sends one row per group
+per span.</li>
+<li class=""><strong>The coordinator uses less memory.</strong> It merges the result streams. It doesn&#x27;t
+decode each row of the table.</li>
+<li class=""><strong>Results stay correct when placement changes or a peer fails.</strong> The spans
+always cover the full key space, and a failed fragment continues locally. A
+stale placement or a failed peer costs only a retry.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="turn-it-on">Turn it on<a href="#turn-it-on" class="hash-link" aria-label="Direct link to Turn it on" title="Direct link to Turn it on" translate="no">​</a></h2>
-<table><thead><tr><th>Setting</th><th>Default</th><th>Scope</th><th>Meaning</th></tr></thead><tbody><tr><td><code>key_range_sharding</code></td><td><code>false</code></td><td>cluster</td><td>Required. Distribution splits a table by key range, so the table must use key-range routing.</td></tr><tr><td><code>distributed_query_execution</code></td><td><code>false</code></td><td>cluster</td><td>Enables planner fragments and sending fragments to peers.</td></tr><tr><td><code>max_query_parallelism</code></td><td><code>1</code></td><td>node</td><td>The number of concurrent row-decoding workers for each full scan. It applies with or without distribution, including on a standalone node.</td></tr><tr><td><code>broadcast_join_max_build_rows</code></td><td><code>10000</code></td><td>node</td><td>The largest hash-join build side, in rows, that CamusDB may send to the remote spans of the other table. See <a href="#broadcast-hash-joins" class="">Broadcast hash joins</a>. <code>0</code> disables broadcast joins.</td></tr></tbody></table>
-<p><code>distributed_query_execution</code> is a <code>restart</code> class setting with <code>cluster</code>
-scope, and every node must agree on it. A node that plans a statement assumes
-an execution model, and CamusDB asks that node&#x27;s peers to honor it. Set the
-value in <code>config.yml</code>, then restart the node.</p>
-<p><code>max_query_parallelism</code> and <code>broadcast_join_max_build_rows</code> are <code>runtime</code> class
-settings with <code>node</code> scope, so you can change them while a node runs.
-<code>SET CLUSTER SETTING</code> applies the new value on every node and overrides each
-node&#x27;s <code>config.yml</code>. Without a cluster override, nodes can differ only through
-their own <code>config.yml</code> files:</p>
+<table><thead><tr><th>Setting</th><th>Default</th><th>Scope</th><th>Meaning</th></tr></thead><tbody><tr><td><code>key_range_sharding</code></td><td><code>false</code></td><td>cluster</td><td>Required. Distribution splits a table by key range, and the table must use key-range routing.</td></tr><tr><td><code>distributed_query_execution</code></td><td><code>false</code></td><td>cluster</td><td>Turns on query fragments and sends them to peers.</td></tr><tr><td><code>max_query_parallelism</code></td><td><code>1</code></td><td>node</td><td>The number of concurrent row-decoding workers for each full scan. It applies with or without distribution, also on a standalone node.</td></tr><tr><td><code>broadcast_join_max_build_rows</code></td><td><code>10000</code></td><td>node</td><td>The largest hash-join build side, in rows, that CamusDB can send to the remote spans of the other table. See <a href="#broadcast-hash-joins" class="">Broadcast hash joins</a>. <code>0</code> turns off broadcast joins.</td></tr></tbody></table>
+<p><code>distributed_query_execution</code> is a <code>restart</code> setting with <code>cluster</code> scope, and
+all nodes must have the same value. Set it in <code>config.yml</code>, then restart the
+node.</p>
+<p><code>max_query_parallelism</code> and <code>broadcast_join_max_build_rows</code> are <code>runtime</code>
+settings with <code>node</code> scope. You can change them while a node is up.
+<code>SET CLUSTER SETTING</code> applies the new value on all nodes and overrides each
+node&#x27;s <code>config.yml</code>:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SET</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">CLUSTER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SETTING</span><span class="token plain"> max_query_parallelism </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">4</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SET</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">CLUSTER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SETTING</span><span class="token plain"> broadcast_join_max_build_rows </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">50000</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p>See <a class="" href="/docs/runtime-cluster-settings/">Runtime Cluster Settings</a> for how a live
-change propagates, and <a class="" href="/docs/show-variables/"><code>SHOW VARIABLES</code></a> for the value a
-node is running.</p>
-<p>A cluster deployment must fill in <code>http_peers</code> alongside <code>peers</code>. Fragments
-travel over HTTP, and CamusDB maps each peer&#x27;s internal cluster address to its
-HTTP address through those two parallel lists.</p>
-<p>Without those lists, CamusDB assumes that every node uses the same HTTP port as
-this node. That holds for the Docker Compose topology, but is often false for a
-topology you build by hand. See <a class="" href="/docs/cluster/">Cluster Mode</a>.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="what-becomes-eligible">What becomes eligible<a href="#what-becomes-eligible" class="hash-link" aria-label="Direct link to What becomes eligible" title="Direct link to What becomes eligible" translate="no">​</a></h2>
-<p>The planner wraps a scan in a <code>gather</code> when all of these conditions hold:</p>
+<p>See <a class="" href="/docs/runtime-cluster-settings/">Runtime cluster settings</a> for how a live
+change reaches the nodes, and <a class="" href="/docs/show-variables/"><code>SHOW VARIABLES</code></a> for the
+value that a node uses.</p>
+<p>In a cluster deployment, set <code>http_peers</code> together with <code>peers</code>. Fragments
+travel over HTTP, and CamusDB uses the two parallel lists to map the internal
+cluster address of each peer to its HTTP address. If you omit <code>http_peers</code>,
+CamusDB assumes that all nodes use the HTTP port of the current node. This is
+true for the Docker Compose setup, but it is often false for a cluster that you
+set up by hand. See <a class="" href="/docs/cluster/">Cluster mode</a>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="which-queries-are-distributed">Which queries are distributed<a href="#which-queries-are-distributed" class="hash-link" aria-label="Direct link to Which queries are distributed" title="Direct link to Which queries are distributed" translate="no">​</a></h2>
+<p>The planner adds a <code>gather</code> above a scan when all of these conditions are true:</p>
 <ul>
-<li class="">The statement is a full scan of the primary rows, not an index point lookup,
-an index range scan, or a forced-index scan.</li>
-<li class="">The node is in cluster mode with key-range sharding on.</li>
-<li class="">The table&#x27;s current placement reports more than one span.</li>
-<li class="">The transaction does not validate its reads at commit. Two kinds do:
-optimistic transactions, and pessimistic ones whose read validation is
-<code>track_and_validate</code> (see <code>default_read_validation</code>). CamusDB must build the
-read set of such a transaction from a single session stream.</li>
-<li class="">The statement is not the read half of an <code>UPDATE</code> or <code>DELETE</code>, which takes
+<li class="">The statement is a full scan of the primary rows. Index lookups, index range
+scans, and forced-index scans aren&#x27;t distributed.</li>
+<li class="">The node is in cluster mode, with key-range sharding on.</li>
+<li class="">The current placement of the table has more than one span.</li>
+<li class="">The transaction doesn&#x27;t validate its reads at commit. Two kinds of
+transaction do: optimistic transactions, and pessimistic transactions with the
+read validation <code>track_and_validate</code> (see <code>default_read_validation</code>). CamusDB
+must build the read set of such a transaction from one session stream.</li>
+<li class="">The statement isn&#x27;t the read part of an <code>UPDATE</code> or <code>DELETE</code>, which takes
 exclusive predicate locks.</li>
 </ul>
-<p>Every other statement plans exactly as it does with the feature off.</p>
-<p>CamusDB decides eligibility per statement, against the live placement, so it
-never serves a fragmented plan from the plan cache. A table that splits into
-more spans starts using them on the next query.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-a-fragment-runs">How a fragment runs<a href="#how-a-fragment-runs" class="hash-link" aria-label="Direct link to How a fragment runs" title="Direct link to How a fragment runs" translate="no">​</a></h2>
-<p>A <code>gather</code> runs its scan once per span, and each run stays inside that span&#x27;s
-row id range. The <code>gather</code> then joins the results in span order.</p>
-<p>The spans are contiguous and ascending, and together they cover the whole key
-space, so the joined stream is exactly the row stream of an unbounded scan.
-<code>ORDER BY</code>, <code>LIMIT</code>, and every streaming operator above the gather behave as
-they always did.</p>
-<p>CamusDB sends a span to a peer when two conditions hold: another node leads the
-span, and a peer can evaluate the query&#x27;s residual filter.</p>
-<p>A shippable filter is a pure function of the row. That rule excludes:</p>
-<table><thead><tr><th>Not shippable</th><th>Why</th></tr></thead><tbody><tr><td>Subqueries and <code>EXISTS</code></td><td>Evaluating them would make the peer re-enter the coordinator&#x27;s executor.</td></tr><tr><td>Parameter placeholders</td><td>The bound values live in the coordinator&#x27;s ticket, not on the peer.</td></tr><tr><td>Volatile functions such as <code>NOW()</code></td><td>CamusDB must evaluate them once, in one place, or two nodes would disagree.</td></tr></tbody></table>
-<p>CamusDB also keeps a query with no filter at all on the local node. There is
-nothing to push down, and the storage locator already streams the pages of a
-remote span.</p>
-<p>A query that is a candidate for the <a class="" href="/docs/query-result-cache/">result cache</a>
-also stays local. The coordinator records cache dependencies for each scanned
-row, and a remote filter would drop the rows it rejected. A later update to one
-of those rows would then fail to invalidate the entry.</p>
-<p>A span that CamusDB does not ship scans locally through the ordinary routed
-read path, inside the same gather and at the same time as the remote spans.</p>
-<!-- -->
-<p>With a <code>LIMIT</code>, the gather caps each span at <code>limit + offset</code> surviving rows.
-Span order matches the global row order, so the final cut can never need more
-than that many rows from one span. A remote fragment stops shipping when it
-reaches the cap.</p>
-<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="when-a-peer-fails">When a peer fails<a href="#when-a-peer-fails" class="hash-link" aria-label="Direct link to When a peer fails" title="Direct link to When a peer fails" translate="no">​</a></h3>
-<p>A remote fragment can fail midway, for any reason. The coordinator then
-continues that span locally, starting after the last row it received. CamusDB
-loses no row and delivers no row twice.</p>
-<p>CamusDB also invalidates the table&#x27;s cached placement, so the next query
-resolves it again, and counts the event in <code>distributed.fragment_fallbacks</code>.</p>
-<!-- -->
-<p>If the coordinator cancels or dies, its fragments go with it. A remote
-execution is bound to the lifetime of the request that started it, so no
-fragment outlives its caller.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="aggregates">Aggregates<a href="#aggregates" class="hash-link" aria-label="Direct link to Aggregates" title="Direct link to Aggregates" translate="no">​</a></h2>
-<p>An aggregate directly above a gather can run as a partial result per span,
-merged on the coordinator. Each fragment aggregates its own span and ships one
-row per group, and the coordinator aggregates those rows again into the final
-answer.</p>
-<p><code>COUNT</code> merges by summing. <code>SUM</code>, <code>MIN</code>, and <code>MAX</code> each merge with themselves.
-<code>AVG</code> travels as an internal sum and count pair, which CamusDB divides after
-the merge, so an average over an integer column does not silently become
-integer division.</p>
-<p>Both halves run through the engine&#x27;s own aggregator. That keeps <code>NULL</code> and
-empty-input semantics identical to sequential execution.</p>
-<p>The split applies to a simple aliased aggregate whose group keys are plain
-column names in the projection.</p>
-<p>CamusDB does not split the aggregate in these cases, and runs it over the
-gathered rows instead:</p>
+<p>Other statements are planned as if the feature were off.</p>
+<p>CamusDB decides for each statement, with the current placement. A distributed
+plan doesn&#x27;t go into the plan cache. When a table splits into more spans, the
+next query uses them.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-a-fragment-is-executed">How a fragment is executed<a href="#how-a-fragment-is-executed" class="hash-link" aria-label="Direct link to How a fragment is executed" title="Direct link to How a fragment is executed" translate="no">​</a></h2>
+<p>A <code>gather</code> executes its scan once for each span, in the row ID range of that span.
+Then it combines the results in span order. The spans are contiguous and in
+ascending order, and together they cover the full key space. The combined
+stream is the same as the rows of a regular full scan. <code>ORDER BY</code>, <code>LIMIT</code>, and
+the other operators above the gather work as usual.</p>
+<p>CamusDB sends a span to a peer when two conditions are true: another node leads
+the span, and the peer can evaluate the filter of the query.</p>
+<p>A filter can go to a peer only if it depends on the row alone. These filters
+stay on the coordinator:</p>
+<table><thead><tr><th>Filter</th><th>Reason</th></tr></thead><tbody><tr><td>Subqueries and <code>EXISTS</code></td><td>The peer would need the coordinator&#x27;s executor.</td></tr><tr><td>Parameter placeholders</td><td>The values are on the coordinator.</td></tr><tr><td>Volatile functions such as <code>NOW()</code></td><td>CamusDB evaluates them once, in one place, and two nodes could disagree.</td></tr></tbody></table>
+<p>These queries also stay on the local node:</p>
 <ul>
-<li class="">A <code>HAVING</code> clause. Its hidden aggregate expansion needs the original rows.</li>
-<li class="">An expression, instead of a plain column, as a group key.</li>
-<li class="">A global aggregate with more than one projection, or a global <code>AVG</code>.</li>
-<li class=""><code>EXPLAIN (ANALYZE)</code>, which reports the row-gather strategy it measured.</li>
-<li class="">Result cache dependency collection.</li>
+<li class="">A query with no filter. A peer has no filter to apply, and the local scan
+already streams the pages of a remote span.</li>
+<li class="">A query that can use the <a class="" href="/docs/query-result-cache/">result cache</a>. The cache
+needs to record each row that the query scanned.</li>
+</ul>
+<p>A span that isn&#x27;t sent to a peer is scanned locally, in the same gather and at
+the same time as the remote spans.</p>
+<!-- -->
+<p>With a <code>LIMIT</code>, the gather takes at most <code>limit + offset</code> matching rows from
+each span. A remote fragment stops sending rows when it reaches that number.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="when-a-peer-fails">When a peer fails<a href="#when-a-peer-fails" class="hash-link" aria-label="Direct link to When a peer fails" title="Direct link to When a peer fails" translate="no">​</a></h3>
+<p>A remote fragment can fail during the scan. The coordinator then continues that
+span locally, after the last row it received. No row is lost, and no row is
+returned twice.</p>
+<p>CamusDB also clears the cached placement of the table, and the next query looks
+it up again. The event is counted in <code>distributed.fragment_fallbacks</code>.</p>
+<!-- -->
+<p>If the coordinator cancels the query or stops, its remote fragments stop too.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="aggregates">Aggregates<a href="#aggregates" class="hash-link" aria-label="Direct link to Aggregates" title="Direct link to Aggregates" translate="no">​</a></h2>
+<p>An aggregate directly above a gather can run as a partial result for each span.
+Each fragment aggregates its span and sends one row per group, and the
+coordinator merges those rows into the final result.</p>
+<p><code>COUNT</code> merges by addition. <code>SUM</code>, <code>MIN</code>, and <code>MAX</code> merge with the same
+function. <code>AVG</code> is sent as a sum and a count, and CamusDB divides after the
+merge. An average of an integer column is therefore correct, and it isn&#x27;t an
+integer division. <code>NULL</code> values and empty inputs give the same results as
+without distribution.</p>
+<p>The split applies to a simple aggregate with an alias, where the group keys are
+column names in the select list. CamusDB aggregates the gathered rows in these
+cases:</p>
+<ul>
+<li class="">A <code>HAVING</code> clause.</li>
+<li class="">An expression as a group key.</li>
+<li class="">A global aggregate with more than one select item, or a global <code>AVG</code>.</li>
+<li class=""><code>EXPLAIN (ANALYZE)</code>, which shows the plan that it measured.</li>
+<li class="">A query that can use the result cache.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="broadcast-hash-joins">Broadcast hash joins<a href="#broadcast-hash-joins" class="hash-link" aria-label="Direct link to Broadcast hash joins" title="Direct link to Broadcast hash joins" translate="no">​</a></h2>
-<p>A hash join first loads one input, the build side, into an in-memory hash
-table. It then streams the other input, the probe side, and looks up each row
-in that table. When the build side is small, sending it to the data is cheaper
-than moving the probe side to the coordinator.</p>
-<p>After the build phase finishes, CamusDB sends a build side of at most
-<code>broadcast_join_max_build_rows</code> rows to the leaders of the probe table&#x27;s spans. Each
-peer scans its span and applies the probe-side filter and the <code>ON</code> predicate
-against the build rows it received. It returns only the probe rows that
-matched, together with the build rows they matched. The coordinator then
-assembles the output from its own copy of the build side.</p>
+<p>A hash join first loads one input, the build side, into a hash table in memory.
+Then it reads the other input, the probe side, and looks up each row in the
+hash table. When the build side is small, it&#x27;s cheaper to send it to the data
+than to send the probe side to the coordinator.</p>
+<p>After the build phase, CamusDB sends a build side of at most
+<code>broadcast_join_max_build_rows</code> rows to the leaders of the probe table&#x27;s spans.
+Each peer scans its span and applies the probe filter and the <code>ON</code> condition
+with the build rows. It returns only the probe rows that matched, with their
+matching build rows. The coordinator then builds the output with its copy of
+the build side.</p>
 <!-- -->
-<p>CamusDB decides at execution time, after the build hash table exists, so the
-decision uses the true build row count rather than an estimate. A join that the
-optimizer expected to be small, but is not, simply probes locally.</p>
-<p>CamusDB uses a broadcast when all of these hold:</p>
+<p>CamusDB decides at execution time, after the build hash table exists. The
+decision uses the real build row count. A join that the optimizer expected to
+be small, but that is large, uses the local probe.</p>
+<p>CamusDB uses a broadcast when all of these conditions are true:</p>
 <ol>
 <li class="">Distributed execution is on, and <code>broadcast_join_max_build_rows</code> is above
 <code>0</code>.</li>
-<li class="">The actual build side has at least one row and no more than
+<li class="">The build side has at least one row and at most
 <code>broadcast_join_max_build_rows</code> rows.</li>
-<li class="">The probe side is a plain base table of primary rows, with a placement of
-several spans and at least one leader that is not local.</li>
-<li class="">The transaction shape is safe to split into fragments. For example, CamusDB
-does not broadcast a probe while a query is collecting result-cache
-dependencies, folding reads through one session, or taking exclusive
-predicate locks.</li>
-<li class="">The <code>ON</code> predicate is shippable under the rules above.</li>
-<li class="">The probe filter is shippable too.</li>
+<li class="">The probe side is a base table read by its primary rows. Its placement has
+several spans, and at least one span leader is on another node.</li>
+<li class="">The transaction allows fragments. For example, CamusDB doesn&#x27;t broadcast
+while a query collects result cache dependencies, reads through one session
+stream, or takes exclusive predicate locks.</li>
+<li class="">The <code>ON</code> condition can go to a peer, by the rules above.</li>
+<li class="">The probe filter can go to a peer too.</li>
 </ol>
-<p>If any condition fails, CamusDB uses the ordinary local probe, and a remote
-failure midway falls back to it as well. The output is identical in every case.</p>
-<p>Set <code>broadcast_join_max_build_rows</code> to <code>0</code> to turn off broadcast joins. The
-rest of distributed execution stays on.</p>
+<p>If a condition is false, CamusDB uses the local probe. After a remote failure during
+the join, CamusDB also uses the local probe. The output is the same in all
+cases.</p>
+<p>To turn off broadcast joins, set <code>broadcast_join_max_build_rows</code> to <code>0</code>. The
+rest of distributed execution isn&#x27;t affected.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="see-it-in-explain">See it in EXPLAIN<a href="#see-it-in-explain" class="hash-link" aria-label="Direct link to See it in EXPLAIN" title="Direct link to See it in EXPLAIN" translate="no">​</a></h2>
-<p>With distribution enabled, every <code>EXPLAIN</code> gains a <code>distribution</code> row. It says
-whether CamusDB split the plan into fragments, and gives the reason when it did
-not:</p>
+<p>With distribution on, each <code>EXPLAIN</code> has a <code>distribution</code> row. It shows whether
+CamusDB split the plan into fragments, and the reason when it didn&#x27;t:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">EXPLAIN</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> </span><span class="token operator" style="color:#94a3b8">*</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> orders </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> status </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;open&#x27;</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">physical  distribution  distributed=yes</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">physical  gather        gather(spans: 4, remote_leader_fraction: 0.75)</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">physical  table-scan    table=orders</span><br></div></code></pre></div></div>
-<p>A plan that stayed local names the condition it missed:</p>
+<p>A plan that stayed local names the condition that wasn&#x27;t met:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">physical  distribution  distributed=no (placement has a single span)</span><br></div></code></pre></div></div>
-<p>The reasons map directly to the eligibility list:</p>
+<p>The reasons match the conditions in
+<a href="#which-queries-are-distributed" class="">Which queries are distributed</a>:</p>
 <ul>
 <li class=""><code>key-range sharding is off</code></li>
 <li class=""><code>not a primary-row full scan</code></li>
@@ -208,87 +198,86 @@ not:</p>
 <li class=""><code>transaction folds reads (optimistic read-set needs one session stream)</code></li>
 <li class=""><code>exclusive predicate locks (DML write path)</code></li>
 </ul>
-<p><code>EXPLAIN (ANALYZE)</code> adds one <code>gather-span</code> row per span, which attributes its
-rows to the partition and node that produced them:</p>
+<p><code>EXPLAIN (ANALYZE)</code> adds one <code>gather-span</code> row for each span. The row shows the
+partition and node that produced the rows:</p>
 <div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">analyze  gather-span  partition 1: mode=local, rows_delivered=25000</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">analyze  gather-span  partition 2: mode=remote, node=10.0.0.2:7070, rows_delivered=31, rows_shipped=31, remote_rows_scanned=24180</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">analyze  gather-span  partition 3: mode=remote-fallback, node=10.0.0.3:7070, rows_delivered=24903, rows_shipped=12</span><br></div></code></pre></div></div>
-<p>Read <code>mode</code> first.</p>
-<p>A <code>local</code> span delivers every row it scanned, and its filter runs above the
-gather, on the coordinator.</p>
-<p>A <code>remote</code> span delivers only the survivors. <code>remote_rows_scanned</code> is the
-number of rows the peer read to find them, and the difference between those
-two numbers is what shipping the filter saved.</p>
-<p><code>remote-fallback</code> means the peer failed after shipping <code>rows_shipped</code> rows, and
-the coordinator finished the span itself.</p>
-<p>The row&#x27;s <code>actual_rows</code> column carries <code>rows_delivered</code>, and its <code>rows_read</code>
-column carries <code>remote_rows_scanned</code>, so you can get the numbers without
-parsing the detail text.</p>
+<p>Read <code>mode</code> first:</p>
+<ul>
+<li class="">A <code>local</code> span returns each row that it scanned. Its filter is applied above
+the gather, on the coordinator.</li>
+<li class="">A <code>remote</code> span returns only the matching rows. <code>remote_rows_scanned</code> is the
+number of rows that the peer read. The difference between the two numbers is
+the traffic that the remote filter saved.</li>
+<li class=""><code>remote-fallback</code> means that the peer failed after it sent <code>rows_shipped</code>
+rows, and the coordinator finished the span.</li>
+</ul>
+<p>The <code>actual_rows</code> column of the row contains <code>rows_delivered</code>, and its
+<code>rows_read</code> column contains <code>remote_rows_scanned</code>. You can read the numbers
+from these columns and skip the detail text.</p>
 <p>See <a class="" href="/docs/explain/">EXPLAIN</a> for the rest of the output format.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="counters">Counters<a href="#counters" class="hash-link" aria-label="Direct link to Counters" title="Direct link to Counters" translate="no">​</a></h2>
-<p><code>SHOW ENGINE STATS</code> reports these counters under the source <code>camusdb</code>. Each one
-accumulates over the life of the process, and they appear only while
-distributed execution is enabled:</p>
+<p><code>SHOW ENGINE STATS</code> shows these counters under the source <code>camusdb</code>. Each
+counter covers the life of the process. The counters appear only while
+distributed execution is on.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ENGINE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">STATS</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">LIKE</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;distributed.%&#x27;</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<table><thead><tr><th>Metric</th><th>Meaning</th></tr></thead><tbody><tr><td><code>distributed.fragments_dispatched</code></td><td>Remote fragments that this node started as a coordinator.</td></tr><tr><td><code>distributed.fragment_fallbacks</code></td><td>Remote fragments that failed and that this node finished locally.</td></tr><tr><td><code>distributed.fragments_served</code></td><td>Fragments that this node executed for a peer.</td></tr><tr><td><code>distributed.partial_aggregate_gathers</code></td><td>Aggregations that ran as per-span partial results, merged on the coordinator.</td></tr><tr><td><code>distributed.rows_shipped_in</code></td><td>Rows that this node received from peers: the survivors, plus the groups of partial aggregates.</td></tr><tr><td><code>distributed.rows_shipped_out</code></td><td>Rows that this node returned to peers.</td></tr></tbody></table>
-<p>Every node is both a coordinator and a server, so the useful readings are
-comparative. Collect all of these counters from every node.</p>
-<p>An asymmetry between dispatched and served fragments then reveals two
-patterns: one node that serves everybody, and fallbacks that concentrate on one
-peer.</p>
-<p>Because the counters are cumulative, run the statement twice and subtract to
-get a rate. With the feature disabled, the rows are absent rather than zero, so
-an empty result means distribution is off, not that the node is idle.</p>
+<table><thead><tr><th>Metric</th><th>Meaning</th></tr></thead><tbody><tr><td><code>distributed.fragments_dispatched</code></td><td>Remote fragments that this node started as a coordinator.</td></tr><tr><td><code>distributed.fragment_fallbacks</code></td><td>Remote fragments that failed and that this node finished locally.</td></tr><tr><td><code>distributed.fragments_served</code></td><td>Fragments that this node ran for a peer.</td></tr><tr><td><code>distributed.partial_aggregate_gathers</code></td><td>Aggregations that ran as partial results for each span, merged on the coordinator.</td></tr><tr><td><code>distributed.rows_shipped_in</code></td><td>Rows that this node received from peers: matching rows, plus the groups of partial aggregates.</td></tr><tr><td><code>distributed.rows_shipped_out</code></td><td>Rows that this node sent to peers.</td></tr></tbody></table>
+<p>Each node is both a coordinator and a server for its peers. Collect the
+counters from all nodes and compare them. A large difference between
+dispatched and served fragments shows two patterns: one node that serves all
+others, and fallbacks that occur on one peer.</p>
+<p>The counters only grow. To get a rate, run the statement twice and subtract.
+With the feature off, the rows don&#x27;t appear at all. An empty result means that
+distribution is off.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-traffic-between-two-nodes">Node-to-node traffic<a href="#the-traffic-between-two-nodes" class="hash-link" aria-label="Direct link to Node-to-node traffic" title="Direct link to Node-to-node traffic" translate="no">​</a></h2>
 <p>A fragment travels over an internal HTTP route,
-<code>POST /internal/query-fragment</code>. The peer streams the surviving rows back as
+<code>POST /internal/query-fragment</code>. The peer streams the matching rows back as
 they pass its filter, in one of two formats:</p>
 <ul>
-<li class="">NDJSON, one JSON object per line, with the row bytes encoded as base64.</li>
-<li class="">Binary fragment frames, with the row bytes carried directly.</li>
+<li class="">NDJSON, one JSON object per line, with the row bytes in base64.</li>
+<li class="">Binary fragment frames, with the row bytes as they are.</li>
 </ul>
 <p>The coordinator asks for the binary format when it supports it. An older peer
-can ignore that request and answer with NDJSON, and an older coordinator never
-asks for binary frames, so a rolling upgrade is safe. The binary format only
-removes the base64 overhead on scans that return many rows.</p>
-<p>The node secret authenticates the route, never a client token. While
-authentication is enabled, the route therefore needs <code>CAMUSDB_NODE_SECRET</code>, set
-to the same value across the fleet. See
-<a class="" href="/docs/sql-authentication/">Authentication And Authorization</a>.</p>
-<p>The route is internal machinery, not a client API, and it carries no
-compatibility promise.</p>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="parallel-scans-without-a-cluster">Parallel scans without a cluster<a href="#parallel-scans-without-a-cluster" class="hash-link" aria-label="Direct link to Parallel scans without a cluster" title="Direct link to Parallel scans without a cluster" translate="no">​</a></h2>
-<p><code>max_query_parallelism</code> is a separate setting that needs neither a cluster nor
+can answer with NDJSON, and an older coordinator doesn&#x27;t ask for binary frames.
+This means that a rolling upgrade is safe. The binary format removes the base64
+overhead on scans that return many rows.</p>
+<p>The node secret authenticates the route. Client tokens don&#x27;t work on it. With
+authentication enabled, set <code>CAMUSDB_NODE_SECRET</code> to the same value on all
+nodes. See <a class="" href="/docs/sql-authentication/">Authentication and authorization</a>.</p>
+<p>The route is for nodes only. It isn&#x27;t a client API, and it can change in any
+release.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="parallel-scans-on-one-node">Parallel scans on one node<a href="#parallel-scans-on-one-node" class="hash-link" aria-label="Direct link to Parallel scans on one node" title="Direct link to Parallel scans on one node" translate="no">​</a></h2>
+<p><code>max_query_parallelism</code> is a separate setting. It doesn&#x27;t need a cluster or
 key-range sharding.</p>
-<p>Above <code>1</code>, a full scan of the primary rows still streams once, but it decodes
-the rows in fixed-size chunks on the thread pool. The consumer takes the chunks
-in dispatch order:</p>
+<p>Above <code>1</code>, a full scan of the primary rows reads the rows once, and it decodes
+them in fixed-size chunks on the thread pool. The consumer takes the chunks in
+the order they were dispatched:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SET</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">CLUSTER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SETTING</span><span class="token plain"> max_query_parallelism </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">4</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p>Row order is identical to a sequential scan for every plan shape: the producer
-reads in scan order, and the consumer waits for the chunks in that same order.</p>
-<p>The filter and every record stay on the consumer&#x27;s single thread.</p>
-<p>The setting buys decode throughput on wide rows. It costs one bounded buffer
-per worker, and more concurrent storage reads. The default of <code>1</code> keeps the
-sequential pipeline.</p>
+<p>The row order is the same as in a sequential scan for all plan shapes. The
+filter and the records stay on one consumer thread.</p>
+<p>The setting increases decode throughput on wide rows. It uses one bounded
+buffer per worker and more concurrent storage reads. The default, <code>1</code>, uses the
+sequential scan.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="limits">Limits<a href="#limits" class="hash-link" aria-label="Direct link to Limits" title="Direct link to Limits" translate="no">​</a></h2>
 <ul>
-<li class="">Only full scans of the primary rows split into fragments. Index scans, point
-lookups, and forced-index scans all plan locally.</li>
-<li class="">Writes never split into fragments. <code>UPDATE</code> and <code>DELETE</code> read under exclusive
-predicate locks, and those reads stay on the coordinator.</li>
-<li class="">Optimistic transactions never split into fragments, because CamusDB must
-build their read set from a single session stream.</li>
-<li class="">Result cache candidates stay local, so their dependencies stay complete.</li>
-<li class=""><code>EXPLAIN (ANALYZE)</code> disables partial aggregation, so the plan it reports is
-the plan it measured, not the plan of a run without measurement.</li>
-<li class="">Fragmented plans bypass the plan cache, because their shape depends on the
-live placement.</li>
+<li class="">Only full scans of the primary rows are split into fragments. Index scans,
+point lookups, and forced-index scans run locally.</li>
+<li class="">Writes aren&#x27;t split into fragments. <code>UPDATE</code> and <code>DELETE</code> read with exclusive
+predicate locks, and these reads stay on the coordinator.</li>
+<li class="">Optimistic transactions aren&#x27;t split into fragments. CamusDB must build their
+read set from one session stream.</li>
+<li class="">Queries that can use the result cache stay local.</li>
+<li class=""><code>EXPLAIN (ANALYZE)</code> turns off partial aggregation. The plan it shows is the
+plan it measured.</li>
+<li class="">Distributed plans don&#x27;t go into the plan cache, because their shape depends
+on the current placement.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="related-pages">Related pages<a href="#related-pages" class="hash-link" aria-label="Direct link to Related pages" title="Direct link to Related pages" translate="no">​</a></h2>
 <ul>
-<li class=""><a class="" href="/docs/cluster/">Cluster Mode</a> for how nodes find each other.</li>
-<li class=""><a class="" href="/docs/query-planning/">Query Planning</a> for plan selection in general.</li>
-<li class=""><a class="" href="/docs/explain/">EXPLAIN</a> for reading a plan.</li>
-<li class=""><a class="" href="/docs/engine-stats/">Engine Stats</a> for the rest of the metrics.</li>
-<li class=""><a class="" href="/docs/configuration/">Configuration</a> for every setting on this page.</li>
-</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/distributed-queries.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/sql-routing-advice/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">SQL routing advice</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/show-ranges/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">SHOW RANGES</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#where-the-savings-come-from" class="table-of-contents__link toc-highlight">Where the savings come from</a></li><li><a href="#turn-it-on" class="table-of-contents__link toc-highlight">Turn it on</a></li><li><a href="#what-becomes-eligible" class="table-of-contents__link toc-highlight">What becomes eligible</a></li><li><a href="#how-a-fragment-runs" class="table-of-contents__link toc-highlight">How a fragment runs</a><ul><li><a href="#when-a-peer-fails" class="table-of-contents__link toc-highlight">When a peer fails</a></li></ul></li><li><a href="#aggregates" class="table-of-contents__link toc-highlight">Aggregates</a></li><li><a href="#broadcast-hash-joins" class="table-of-contents__link toc-highlight">Broadcast hash joins</a></li><li><a href="#see-it-in-explain" class="table-of-contents__link toc-highlight">See it in EXPLAIN</a></li><li><a href="#counters" class="table-of-contents__link toc-highlight">Counters</a></li><li><a href="#the-traffic-between-two-nodes" class="table-of-contents__link toc-highlight">Node-to-node traffic</a></li><li><a href="#parallel-scans-without-a-cluster" class="table-of-contents__link toc-highlight">Parallel scans without a cluster</a></li><li><a href="#limits" class="table-of-contents__link toc-highlight">Limits</a></li><li><a href="#related-pages" class="table-of-contents__link toc-highlight">Related pages</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/python-driver/">Python driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes fault tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
+<li class=""><a class="" href="/docs/cluster/">Cluster mode</a> for how nodes find each other.</li>
+<li class=""><a class="" href="/docs/query-planning/">Query planning</a> for plan selection in general.</li>
+<li class=""><a class="" href="/docs/explain/">EXPLAIN</a> for how to read a plan.</li>
+<li class=""><a class="" href="/docs/engine-stats/">Engine stats</a> for the other metrics.</li>
+<li class=""><a class="" href="/docs/configuration/">Configuration</a> for all the settings on this page.</li>
+</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/distributed-queries.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/sql-routing-advice/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">SQL routing advice</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/show-ranges/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">SHOW RANGES</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#where-the-savings-come-from" class="table-of-contents__link toc-highlight">Where the savings come from</a></li><li><a href="#turn-it-on" class="table-of-contents__link toc-highlight">Turn it on</a></li><li><a href="#which-queries-are-distributed" class="table-of-contents__link toc-highlight">Which queries are distributed</a></li><li><a href="#how-a-fragment-is-executed" class="table-of-contents__link toc-highlight">How a fragment is executed</a><ul><li><a href="#when-a-peer-fails" class="table-of-contents__link toc-highlight">When a peer fails</a></li></ul></li><li><a href="#aggregates" class="table-of-contents__link toc-highlight">Aggregates</a></li><li><a href="#broadcast-hash-joins" class="table-of-contents__link toc-highlight">Broadcast hash joins</a></li><li><a href="#see-it-in-explain" class="table-of-contents__link toc-highlight">See it in EXPLAIN</a></li><li><a href="#counters" class="table-of-contents__link toc-highlight">Counters</a></li><li><a href="#the-traffic-between-two-nodes" class="table-of-contents__link toc-highlight">Node-to-node traffic</a></li><li><a href="#parallel-scans-on-one-node" class="table-of-contents__link toc-highlight">Parallel scans on one node</a></li><li><a href="#limits" class="table-of-contents__link toc-highlight">Limits</a></li><li><a href="#related-pages" class="table-of-contents__link toc-highlight">Related pages</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/python-driver/">Python driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes fault tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
 </body>
 </html>

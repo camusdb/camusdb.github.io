@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkcamusdb_docs=globalThis.webpackChunkcamusdb_docs||[]).push([[3192],{13192(c,s,e){e.d(s,{createArchitectureServices:()=>a.S});var a=e(84549);e(80184)}}]);
