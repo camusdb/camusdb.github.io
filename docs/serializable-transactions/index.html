@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.df8a11dc.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.328bdcaa.js" defer="defer"></script>
 <script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
@@ -49,9 +49,13 @@ the funds check.</p>
 <p>Use a <strong>serializable read-only transaction</strong> for reports that need several
 queries to see the same data:</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">BEGIN</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SET</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TRANSACTION</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ISOLATION</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">LEVEL</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SERIALIZABLE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">READ</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ONLY</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">SUM</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain">balance</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> accounts</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">COUNT</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token operator" style="color:#94a3b8">*</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> accounts</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">COMMIT</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
-<p>All queries use one snapshot fixed at <code>BEGIN</code>. Later commits stay invisible,
-and the reads take no locks. You can keep that snapshot across requests by
-resuming the same transaction ID.</p>
+<p>All queries use one snapshot, fixed when <code>SET TRANSACTION</code> executes. A
+transaction that you start read-only from the client fixes it when it starts.
+Later commits stay invisible, and the reads take no locks. You can keep that
+snapshot across requests by resuming the same transaction ID.</p>
+<p>A statement that changes data or schema in a read-only transaction returns
+<code>CADB0849</code> (<code>ReadOnlyTransaction</code>).
+For more information, see <a class="" href="/docs/sql-transactions/#read-only-transactions">Read-only transactions</a>.</p>
 <p>Use a <strong>serializable read-write transaction</strong> when a later write depends on an
 earlier read. CamusDB protects the rows and scanned ranges you read, including
 against new matching rows appearing (phantoms). Conflicting work may wait or

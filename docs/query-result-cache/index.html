@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.df8a11dc.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.328bdcaa.js" defer="defer"></script>
 <script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
@@ -219,10 +219,11 @@ CamusDB treats the entry as stale and executes the query.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="configuration">Configuration<a href="#configuration" class="hash-link" aria-label="Direct link to Configuration" title="Direct link to Configuration" translate="no">​</a></h2>
 <p>Set these keys in <code>config.yml</code>. A change to <code>query_result_cache_enabled</code> needs a
-restart. For <code>query_result_cache_default_ttl_ms</code>, <code>query_result_cache_max_entries</code>,
-<code>query_result_cache_max_bytes</code>, and <code>query_result_cache_sweep_interval_ms</code>, the
-node uses its startup values until it restarts. A live change of these four keys
-doesn&#x27;t take effect yet.</p>
+restart. You can change the other keys on a running node with
+<a class="" href="/docs/runtime-cluster-settings/"><code>SET CLUSTER SETTING</code></a>. A lower
+<code>query_result_cache_max_entries</code> or <code>query_result_cache_max_bytes</code> evicts
+entries at once. A new <code>query_result_cache_default_ttl_ms</code> applies to new
+entries, and existing entries keep their expiry.</p>
 <table><thead><tr><th>Key</th><th>Default</th><th>Meaning</th></tr></thead><tbody><tr><td><code>query_result_cache_enabled</code></td><td><code>true</code></td><td>The main switch. When it is off, a hint gives <code>bypass</code> with the reason <code>cache-disabled</code>, and CamusDB does no cache work. Turn it off to remove the cache memory and the small bookkeeping on each write, if you don&#x27;t use <code>{cache=…}</code>.</td></tr><tr><td><code>query_result_cache_default_ttl_ms</code></td><td><code>5000</code></td><td>The TTL of an entry whose hint doesn&#x27;t set <code>ttl</code>.</td></tr><tr><td><code>query_result_cache_max_entries</code></td><td><code>1024</code></td><td>The maximum number of entries. Above that number, CamusDB evicts the least recently used entry.</td></tr><tr><td><code>query_result_cache_max_bytes</code></td><td><code>67108864</code></td><td>The byte budget for all entries (64 MiB).</td></tr><tr><td><code>query_result_cache_max_entry_bytes</code></td><td><code>1048576</code></td><td>The byte limit for one entry (1 MiB). CamusDB doesn&#x27;t store a larger result.</td></tr><tr><td><code>query_result_cache_max_entry_rows</code></td><td><code>10000</code></td><td>The row limit for one entry. CamusDB doesn&#x27;t store a larger result.</td></tr><tr><td><code>query_result_cache_max_deps</code></td><td><code>4096</code></td><td>The limit on total dependencies for one entry. Above it, CamusDB doesn&#x27;t publish the entry.</td></tr><tr><td><code>query_result_cache_max_point_deps</code></td><td><code>2048</code></td><td>The limit on point dependencies for one entry. Above it, CamusDB drops point dependencies, and it doesn&#x27;t publish a strict entry.</td></tr><tr><td><code>query_result_cache_max_ranges</code></td><td><code>256</code></td><td>The limit on range dependencies for one entry.</td></tr><tr><td><code>query_result_cache_singleflight_wait_ms</code></td><td><code>250</code></td><td>How long a concurrent miss on the same fingerprint waits for the first caller before it executes the query itself. See <a href="#how-the-cache-stays-correct" class="">How the cache stays correct</a>.</td></tr><tr><td><code>query_result_cache_strict_validation_max_keys</code></td><td><code>10000</code></td><td>The maximum number of keys that strict validation reads. Above it, the entry is treated as stale.</td></tr><tr><td><code>query_result_cache_sweep_interval_ms</code></td><td><code>10000</code></td><td>The interval of the background TTL sweep.</td></tr></tbody></table>
 <p>When a limit is reached, the query returns correct live rows. The cache doesn&#x27;t
 store the entry, or it evicts another entry to make room. It doesn&#x27;t store an

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
-<title data-rh="true">Configuration | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/configuration/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Configuration | CamusDB"><meta data-rh="true" name="description" content="A node&#x27;s configuration controls how it starts and runs: its ports, data"><meta data-rh="true" property="og:description" content="A node&#x27;s configuration controls how it starts and runs: its ports, data"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/configuration/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/configuration/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/configuration/" hreflang="x-default"><link data-rh="true" rel="preconnect" href="https://SPBBUBI3JT-dsn.algolia.net" crossorigin="anonymous"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Configuration","item":"https://camusdb.github.io/docs/configuration"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
+<title data-rh="true">Configuration | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/camusdb-social-card.png"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/docs/configuration/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Configuration | CamusDB"><meta data-rh="true" name="description" content="The configuration of a node controls how it starts and works, for example its ports and its storage engine. The"><meta data-rh="true" property="og:description" content="The configuration of a node controls how it starts and works, for example its ports and its storage engine. The"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/docs/configuration/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/configuration/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/docs/configuration/" hreflang="x-default"><link data-rh="true" rel="preconnect" href="https://SPBBUBI3JT-dsn.algolia.net" crossorigin="anonymous"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Configuration","item":"https://camusdb.github.io/docs/configuration"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed">
 
 
@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.df8a11dc.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.328bdcaa.js" defer="defer"></script>
 <script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
@@ -23,468 +23,395 @@
 <symbol id="theme-svg-external-link" viewBox="0 0 24 24"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
 </defs></svg>
 <script>!function(){var t=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();document.documentElement.setAttribute("data-theme",t||"light"),document.documentElement.setAttribute("data-theme-choice",t||"light")}(),function(){try{const c=new URLSearchParams(window.location.search).entries();for(var[t,e]of c)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="theme-layout-navbar navbar navbar--fixed-top"><div class="navbar__inner"><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/"><div class="navbar__logo"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">CamusDB</b></a><a aria-current="page" class="navbar__item navbar__link navbar__link--active" href="/docs/why-camusdb/">Docs</a><a class="navbar__item navbar__link" href="/docs/why-camusdb/">Why CamusDB?</a><a class="navbar__item navbar__link" href="/blog/">Blog</a><a class="navbar__item navbar__link" href="/playground/">Playground</a></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"></path></svg></button></div><div class="navbarSearchContainer_Bca1"><button type="button" class="DocSearch DocSearch-Button" aria-label="Search (Meta+k)" aria-keyshortcuts="Meta+k"><span class="DocSearch-Button-Container"><svg width="20" height="20" class="DocSearch-Search-Icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8" stroke="currentColor" fill="none" stroke-width="1.4"></circle><path d="m21 21-4.3-4.3" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg><span class="DocSearch-Button-Placeholder">Search</span></span><span class="DocSearch-Button-Keys"></span></button></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class="docsWrapper_hBAB"><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type="button"></button><div class="docRoot_UBD9"><aside class="theme-doc-sidebar-container docSidebarContainer_YfHR"><div class="sidebarViewport_aRkj"><div class="sidebar_njMd"><nav aria-label="Docs sidebar" class="menu thin-scrollbar menu_SIkG"><ul class="theme-doc-sidebar-menu menu__list"><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" href="/docs/why-camusdb/"><span class="categoryLinkLabel_W154">Start here</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/why-camusdb/"><span class="linkLabel_WmDU">Why CamusDB?</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/intro/"><span class="linkLabel_WmDU">CamusDB tutorial</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/concepts/"><span class="linkLabel_WmDU">Key concepts</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/playground/"><span class="linkLabel_WmDU">Playground</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/databases/"><span class="linkLabel_WmDU">Databases</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/database-branching/"><span class="linkLabel_WmDU">Database branching</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/recover-dropped-objects/"><span class="linkLabel_WmDU">Recover dropped objects</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/advanced-samples/"><span class="linkLabel_WmDU">Advanced samples</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" href="/docs/sql/"><span class="categoryLinkLabel_W154">SQL</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql/"><span class="linkLabel_WmDU">SQL overview</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/data-types/"><span class="linkLabel_WmDU">Data types</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/json/"><span class="linkLabel_WmDU">JSON documents</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/sql-schema/"><span class="categoryLinkLabel_W154">Schema</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-schema/"><span class="linkLabel_WmDU">Tables and columns</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-indexes/"><span class="linkLabel_WmDU">Indexes</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/check-constraints/"><span class="linkLabel_WmDU">Check constraints</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/foreign-keys/"><span class="linkLabel_WmDU">Foreign keys</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sequences/"><span class="linkLabel_WmDU">Sequences</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/comment-on/"><span class="linkLabel_WmDU">Schema comments</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/sql-writes/"><span class="categoryLinkLabel_W154">Writing data</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-writes/"><span class="linkLabel_WmDU">Insert, update, delete</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/insert-select-and-ctas/"><span class="linkLabel_WmDU">Copying query results</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/truncate-table/"><span class="linkLabel_WmDU">Emptying a table</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/sql-queries/"><span class="categoryLinkLabel_W154">Reading data</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-queries/"><span class="linkLabel_WmDU">SELECT</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/joins-and-subqueries/"><span class="linkLabel_WmDU">Joins and subqueries</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/vector-search/"><span class="linkLabel_WmDU">Vector search</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/time-travel-reads/"><span class="linkLabel_WmDU">Time-travel reads</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-fromless-select/"><span class="linkLabel_WmDU">SELECT without FROM</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/views/"><span class="categoryLinkLabel_W154">Views</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/views/"><span class="linkLabel_WmDU">Views</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/materialized-views/"><span class="linkLabel_WmDU">Materialized views</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="false" tabindex="0" href="/docs/functions/"><span class="categoryLinkLabel_W154">Functions</span></a></div></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/csharp-extensions/"><span class="linkLabel_WmDU">C# extensions</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-transactions/"><span class="linkLabel_WmDU">Transactions in SQL</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/query-planning/"><span class="categoryLinkLabel_W154">Query performance</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/query-planning/"><span class="linkLabel_WmDU">Query planning</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/explain/"><span class="linkLabel_WmDU">EXPLAIN</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/show-statistics/"><span class="linkLabel_WmDU">SHOW STATISTICS</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/query-result-cache/"><span class="linkLabel_WmDU">Result cache</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/query-result-cache-internals/"><span class="linkLabel_WmDU">Result cache internals</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/query-activity/"><span class="linkLabel_WmDU">Query activity</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-routing-advice/"><span class="linkLabel_WmDU">SQL routing advice</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/distributed-queries/"><span class="linkLabel_WmDU">Distributed queries</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/show-ranges/"><span class="linkLabel_WmDU">SHOW RANGES</span></a></li></ul></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/prepared-statements/"><span class="linkLabel_WmDU">Parameters and prepared statements</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-inspection/"><span class="linkLabel_WmDU">Inspecting the database</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/best-practices/"><span class="linkLabel_WmDU">Best practices</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret menu__link--active" role="button" aria-expanded="true" href="/docs/serializable-transactions/"><span class="categoryLinkLabel_W154">Operations</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/serializable-transactions/"><span class="categoryLinkLabel_W154">Transactions</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/serializable-transactions/"><span class="linkLabel_WmDU">Transactions and isolation</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/serializable-retries/"><span class="linkLabel_WmDU">Retries and conflicts</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/transaction-limits/"><span class="linkLabel_WmDU">Transaction limits</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/transaction-priority/"><span class="linkLabel_WmDU">Transaction priority</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/distributed-transactions/"><span class="linkLabel_WmDU">Distributed transactions and HLC</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret menu__link--active" role="button" aria-expanded="true" tabindex="0" href="/docs/server-installation/"><span class="categoryLinkLabel_W154">Deployment</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/server-installation/"><span class="linkLabel_WmDU">Server installation</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/cluster/"><span class="linkLabel_WmDU">Cluster mode</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/growing-a-one-node-cluster/"><span class="linkLabel_WmDU">Grow a one-node cluster</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/kubernetes-operator/"><span class="linkLabel_WmDU">Kubernetes Operator</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/key-range-sharding/"><span class="linkLabel_WmDU">Key-range sharding</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link menu__link--active" aria-current="page" tabindex="0" href="/docs/configuration/"><span class="linkLabel_WmDU">Configuration</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/settings-reference/"><span class="linkLabel_WmDU">Settings reference</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/runtime-cluster-settings/"><span class="linkLabel_WmDU">Runtime cluster settings</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/sql-authentication/"><span class="linkLabel_WmDU">Authentication and authorization</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/backup-and-restore/"><span class="linkLabel_WmDU">Backup and restore</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/logical-dump-and-reimport/"><span class="linkLabel_WmDU">Logical dump and reimport</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/automatic-analyze/"><span class="categoryLinkLabel_W154">Background jobs</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/automatic-analyze/"><span class="linkLabel_WmDU">Automatic analyze</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/row-level-ttl/"><span class="linkLabel_WmDU">Row-level TTL</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/performance-diagnostics/"><span class="categoryLinkLabel_W154">Monitoring</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/performance-diagnostics/"><span class="linkLabel_WmDU">Performance diagnostics</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/operator-dashboard/"><span class="linkLabel_WmDU">Operator dashboard</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/engine-stats/"><span class="linkLabel_WmDU">Engine stats</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/node-stats/"><span class="linkLabel_WmDU">Node resource stats</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/slow-query-log/"><span class="linkLabel_WmDU">Slow query log</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/statement-stats/"><span class="linkLabel_WmDU">Statement statistics</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/index-usage/"><span class="linkLabel_WmDU">Index usage</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/show-variables/"><span class="linkLabel_WmDU">SHOW VARIABLES</span></a></li></ul></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="false" href="/docs/architecture/"><span class="categoryLinkLabel_W154">Internals</span></a></div></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" href="/docs/browser-playground/"><span class="categoryLinkLabel_W154">Reference</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/browser-playground/"><span class="linkLabel_WmDU">Browser playground</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/mcp-server/"><span class="linkLabel_WmDU">MCP server</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/agent-skills/"><span class="linkLabel_WmDU">Agent skills</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/web-console/"><span class="linkLabel_WmDU">Web Console</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/camus-cli/"><span class="linkLabel_WmDU">camus-cli</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/camus-dump/"><span class="linkLabel_WmDU">camus-dump</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/dotnet-driver/"><span class="categoryLinkLabel_W154">.NET</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/dotnet-driver/"><span class="linkLabel_WmDU">.NET driver</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/dapper/"><span class="linkLabel_WmDU">Dapper</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/ef-core/"><span class="linkLabel_WmDU">EF Core provider</span></a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="true" tabindex="0" href="/docs/typescript-connector/"><span class="categoryLinkLabel_W154">TypeScript</span></a></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/typescript-connector/"><span class="linkLabel_WmDU">TypeScript driver</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-3 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/prisma/"><span class="linkLabel_WmDU">Prisma</span></a></li></ul></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/python-driver/"><span class="linkLabel_WmDU">Python driver</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/aspire/"><span class="linkLabel_WmDU">.NET Aspire</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/testcontainers/"><span class="linkLabel_WmDU">Testcontainers</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/workload-utility/"><span class="linkLabel_WmDU">Workload utility</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/caraxes/"><span class="linkLabel_WmDU">Caraxes chaos testing</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/error-codes/"><span class="linkLabel_WmDU">Error codes</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-2 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="false" tabindex="0" href="/docs/http-api/"><span class="categoryLinkLabel_W154">Protocol reference</span></a></div></li></ul></li></ul></nav><button type="button" title="Collapse sidebar" aria-label="Collapse sidebar" class="button button--secondary button--outline collapseSidebarButton_PEFL"><svg width="20" height="20" aria-hidden="true" class="collapseSidebarButtonIcon_kv0_"><g fill="#7a7a7a"><path d="M9.992 10.023c0 .2-.062.399-.172.547l-4.996 7.492a.982.982 0 01-.828.454H1c-.55 0-1-.453-1-1 0-.2.059-.403.168-.551l4.629-6.942L.168 3.078A.939.939 0 010 2.528c0-.548.45-.997 1-.997h2.996c.352 0 .649.18.828.45L9.82 9.472c.11.148.172.347.172.55zm0 0"></path><path d="M19.98 10.023c0 .2-.058.399-.168.547l-4.996 7.492a.987.987 0 01-.828.454h-3c-.547 0-.996-.453-.996-1 0-.2.059-.403.168-.551l4.625-6.942-4.625-6.945a.939.939 0 01-.168-.55 1 1 0 01.996-.997h3c.348 0 .649.18.828.45l4.996 7.492c.11.148.168.347.168.55zm0 0"></path></g></svg></button></div></div></aside><main class="docMainContainer_TBSr"><div class="container padding-top--md padding-bottom--lg"><div class="row"><div class="col docItemCol_VOVn"><div class="docItemContainer_Djhp"><article><nav class="theme-doc-breadcrumbs breadcrumbsContainer_Z_bl" aria-label="Breadcrumbs"><ul class="breadcrumbs"><li class="breadcrumbs__item"><a aria-label="Home page" class="breadcrumbs__link" href="/"><svg viewBox="0 0 24 24" class="breadcrumbHomeIcon_YNFT"><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill="currentColor"></path></svg></a></li><li class="breadcrumbs__item"><span class="breadcrumbs__link">Operations</span></li><li class="breadcrumbs__item"><span class="breadcrumbs__link">Deployment</span></li><li class="breadcrumbs__item breadcrumbs__item--active"><span class="breadcrumbs__link">Configuration</span></li></ul></nav><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type="button" class="clean-btn tocCollapsibleButton_TO0P">On this page</button></div><div class="theme-doc-markdown markdown"><header><h1>Configuration</h1></header>
-<p>A node&#x27;s configuration controls how it starts and runs: its ports, data
-directory, standalone or cluster mode, TLS, storage engine, caches, and
-background jobs. The <a class="" href="/docs/settings-reference/">Settings reference</a> lists every key.</p>
-<p>You do not need a configuration file to start a local node; the built-in
-defaults work for development and for the tutorial. Edit the configuration
-when you:</p>
+<p>The configuration of a node controls how it starts and works, for example its ports and its storage engine. The
+<a class="" href="/docs/settings-reference/">settings reference</a> lists all the keys.</p>
+<p>You don&#x27;t need a configuration file to start a local node. The built-in
+defaults work for development and for the tutorial. Edit the configuration in
+these cases:</p>
 <ul>
-<li class="">Prepare a node for production, for example with a data directory on a
-dedicated disk, TLS, and authentication.</li>
-<li class="">Set up a <a class="" href="/docs/cluster/">cluster</a>. Each node needs its name, its peers, and
-the <a class="" href="/docs/concepts/#partition">partition</a> count.</li>
-<li class="">Turn on a feature that is off by default, such as
-<a class="" href="/docs/spill-to-disk/">spill to disk</a> or
+<li class="">You prepare a node for production, for example with TLS
+and authentication.</li>
+<li class="">You set up a <a class="" href="/docs/cluster/">cluster</a>. Each node needs its name and its peers.
+The cluster also needs a <a class="" href="/docs/concepts/#partition">partition</a> count.</li>
+<li class="">You turn on a feature that is off by default, such as
 <a class="" href="/docs/performance-diagnostics/">performance diagnostics</a>.</li>
-<li class="">Deploy <a class="" href="/docs/csharp-extensions/">C# extensions</a> that add scalar functions,
-triggers, or procedures to a node.</li>
+<li class="">You deploy <a class="" href="/docs/csharp-extensions/">C# extensions</a>.</li>
 </ul>
-<p>Some settings can change while the cluster runs, without a restart. See
-<a class="" href="/docs/runtime-cluster-settings/">Runtime cluster settings</a>. To see the values a
-running node uses, run <a class="" href="/docs/show-variables/"><code>SHOW VARIABLES</code></a>.</p>
+<p>Some settings can change while the cluster is running. See
+<a class="" href="/docs/runtime-cluster-settings/">Runtime cluster settings</a>. To see the values
+that a running node uses, run <a class="" href="/docs/show-variables/"><code>SHOW VARIABLES</code></a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-configuration-file">The configuration file<a href="#the-configuration-file" class="hash-link" aria-label="Direct link to The configuration file" title="Direct link to The configuration file" translate="no">​</a></h2>
-<p>CamusDB reads the first configuration file it finds at startup. For an
-installed node, run <code>camusdb init</code> to write a user-owned starter file:</p>
+<p>At startup, CamusDB reads the first configuration file that it finds. For an
+installed node, run <code>camusdb init</code> to write a starter file that you own:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token plain">camusdb init</span><br></div></code></pre></div></div>
-<p>That creates <code>~/.camusdb/config.yml</code> on macOS and Linux, or
-<code>%APPDATA%\camusdb\config.yml</code> on Windows. Set <code>CAMUS_HOME</code> to relocate both the
-user configuration and the default data directory.</p>
-<p>The source-tree <code>CamusDB/Config/config.yml</code> is an annotated reference. It is not
-the right place to keep settings for an installed node, because a checkout or
-pull can replace it.</p>
+<p>The file is <code>~/.camusdb/config.yml</code> on macOS and Linux, or
+<code>%APPDATA%\camusdb\config.yml</code> on Windows. To move the user configuration and
+the default data directory, set <code>CAMUS_HOME</code>.</p>
+<p><code>CamusDB/Config/config.yml</code> in the source tree is an annotated reference. Don&#x27;t keep the settings of an installed node in it. A checkout or pull can
+replace it.</p>
 <p>CamusDB merges the selected YAML file with CLI flags and environment variables
-into one resolved configuration object.</p>
+into one resolved configuration.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="configuration-discovery">Configuration discovery<a href="#configuration-discovery" class="hash-link" aria-label="Direct link to Configuration discovery" title="Direct link to Configuration discovery" translate="no">​</a></h2>
-<p>CamusDB searches in this order:</p>
+<p>CamusDB looks for a file in this order:</p>
 <ol>
 <li class=""><code>--config &lt;path&gt;</code></li>
 <li class=""><code>CAMUS_CONFIG_PATH</code></li>
 <li class=""><code>./camusdb.yml</code></li>
 <li class=""><code>./Config/config.yml</code></li>
-<li class=""><code>~/.camusdb/config.yml</code> on macOS/Linux, or
+<li class=""><code>~/.camusdb/config.yml</code> on macOS and Linux, or
 <code>%APPDATA%\camusdb\config.yml</code> on Windows</li>
-<li class="">built-in defaults</li>
+<li class="">The built-in defaults</li>
 </ol>
-<p>If <code>--config</code> or <code>CAMUS_CONFIG_PATH</code> names a missing file, startup fails instead
-of silently falling through to another location.</p>
-<p>To see what a node resolved, run <a class="" href="/docs/show-variables/"><code>SHOW VARIABLES</code></a>
-against it instead of reconstructing the merge by hand. The output names the
-layer that supplied each value.</p>
+<p>If <code>--config</code> or <code>CAMUS_CONFIG_PATH</code> names a file that doesn&#x27;t exist, the node
+doesn&#x27;t start. It doesn&#x27;t use the next location.</p>
+<p>To see what a node resolved, run <a class="" href="/docs/show-variables/"><code>SHOW VARIABLES</code></a>. The
+<code>source</code> column names the layer that supplied each value.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="precedence">Precedence<a href="#precedence" class="hash-link" aria-label="Direct link to Precedence" title="Direct link to Precedence" translate="no">​</a></h2>
 <p>The highest layer wins:</p>
 <ol>
-<li class="">A CLI flag. Only flags you pass explicitly override YAML; the options are
-nullable and have no sentinel defaults.</li>
-<li class="">An environment variable. <code>CAMUS_KEY_RANGE_SHARDING</code> overrides
-<code>key_range_sharding</code>. Authentication is switched on with
-<code>CAMUSDB_AUTH_ENABLED</code>, and its secrets are read only from the environment.</li>
+<li class="">A CLI flag. Only the flags that you pass override YAML.</li>
+<li class="">An environment variable. For example, <code>CAMUS_KEY_RANGE_SHARDING</code> overrides
+<code>key_range_sharding</code>. <code>CAMUSDB_AUTH_ENABLED</code> turns on authentication, and
+the authentication secrets are read from the environment only.</li>
 <li class=""><code>config.yml</code>.</li>
-<li class="">The built-in default, listed in the <a class="" href="/docs/settings-reference/">settings reference</a>.</li>
+<li class="">The built-in default, as listed in the
+<a class="" href="/docs/settings-reference/">settings reference</a>.</li>
 </ol>
-<p>For example, if YAML holds <code>mode: cluster</code>, passing <code>--mode standalone</code> starts
-the node in standalone mode. Without a <code>--mode</code> flag, the node stays in cluster
-mode.</p>
+<p>For example, if YAML has <code>mode: cluster</code>, <code>--mode standalone</code> starts the node in
+standalone mode. If you don&#x27;t pass the flag,
+the node starts in cluster mode.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="cli-flags-and-yaml-fields">CLI flags and YAML fields<a href="#cli-flags-and-yaml-fields" class="hash-link" aria-label="Direct link to CLI flags and YAML fields" title="Direct link to CLI flags and YAML fields" translate="no">​</a></h2>
-<p>These keys also have a CLI flag or an environment variable:</p>
-<table><thead><tr><th>YAML field</th><th>CLI flag</th><th>Default</th></tr></thead><tbody><tr><td>configuration file</td><td><code>--config</code></td><td>Search order described above</td></tr><tr><td><code>data_dir</code></td><td><code>--data-dir</code></td><td><code>~/.camusdb/data</code>, or <code>$CAMUS_HOME/data</code> when set</td></tr><tr><td><code>mode</code></td><td><code>--mode</code></td><td><code>standalone</code></td></tr><tr><td><code>memory_profile</code></td><td><code>--memory-profile</code></td><td><code>prod</code></td></tr><tr><td><code>node_name</code></td><td><code>--raft-nodename</code></td><td><code>&quot;&quot;</code>. In cluster mode, the machine name.</td></tr><tr><td><code>raft_node_id</code></td><td><code>--raft-nodeid</code></td><td><code>1</code></td></tr><tr><td><code>raft_host</code></td><td><code>--raft-host</code></td><td><code>localhost</code></td></tr><tr><td><code>raft_port</code></td><td><code>--raft-port</code></td><td><code>7070</code></td></tr><tr><td><code>initial_partitions</code></td><td><code>--initial-cluster-partitions</code></td><td><code>1</code> in standalone mode, <code>3</code> in cluster mode</td></tr><tr><td><code>peers</code></td><td><code>--initial-cluster</code></td><td><code>[]</code></td></tr><tr><td><code>http_peers</code></td><td><code>--http-peers</code></td><td><code>[]</code></td></tr><tr><td><code>join_existing</code></td><td><code>--join-existing</code></td><td><code>false</code>. Join a running cluster using <code>peers</code> as seeds; see <a class="" href="/docs/growing-a-one-node-cluster/">growing a cluster</a>.</td></tr><tr><td><code>pitr_bootstrap_from</code></td><td><code>--pitr-bootstrap-from</code></td><td>Unset. Backup id used to seed a joining node; see <a class="" href="/docs/backup-and-restore/#seed-a-joining-node-from-a-backup">Backup and restore</a>.</td></tr><tr><td><code>pitr_bootstrap_target_time_ms</code></td><td><code>--pitr-bootstrap-target-time-ms</code></td><td><code>0</code>, the latest point covered by the chain.</td></tr><tr><td><code>schema_ack_wait_timeout_ms</code></td><td><code>--schema-ack-wait-timeout-ms</code></td><td><code>30000</code></td></tr><tr><td><code>schema_ack_live_node_lease_ms</code></td><td><code>--schema-ack-live-node-lease-ms</code></td><td><code>30000</code></td></tr><tr><td><code>http_port</code></td><td><code>--http-port</code></td><td><code>5095</code></td></tr><tr><td><code>https_port</code></td><td><code>--https-port</code></td><td><code>7141</code></td></tr><tr><td><code>https_certificate</code></td><td><code>--https-certificate</code></td><td><code>&quot;&quot;</code></td></tr><tr><td><code>raft_certificate</code></td><td><code>--raft-certificate</code></td><td><code>&quot;&quot;</code></td></tr><tr><td><code>grpc_port</code></td><td><code>--grpc-port</code></td><td><code>5096</code></td></tr><tr><td><code>require_tls_when_auth_enabled</code></td><td><code>--require-tls-when-auth-enabled</code></td><td><code>true</code></td></tr><tr><td><code>extension_assemblies</code></td><td><code>--extension-assemblies</code></td><td><code>[]</code>. Absolute paths of safe C# extension DLLs.</td></tr><tr><td><code>unsafe_extension_assemblies</code></td><td><code>--unsafe-extension-assemblies</code></td><td><code>[]</code>. Absolute paths of reviewed extension DLLs loaded without safe-assembly checks.</td></tr></tbody></table>
-<p>| <code>key_range_sharding</code> | (none. Use the <code>CAMUS_KEY_RANGE_SHARDING</code> variable.) | <code>false</code> |</p>
-<p>These lists make extensions available on each node after a restart. A superuser
-must also run <code>CREATE EXTENSION</code> in each database that uses them. Deploy the
-same builds on every node; see
+<p>The following keys also have a CLI flag or an environment variable:</p>
+<table><thead><tr><th>YAML field</th><th>CLI flag</th><th>Default</th></tr></thead><tbody><tr><td>configuration file</td><td><code>--config</code></td><td>The search order above.</td></tr><tr><td><code>data_dir</code></td><td><code>--data-dir</code></td><td><code>~/.camusdb/data</code>, or <code>$CAMUS_HOME/data</code> when it is set.</td></tr><tr><td><code>mode</code></td><td><code>--mode</code></td><td><code>standalone</code></td></tr><tr><td><code>memory_profile</code></td><td><code>--memory-profile</code></td><td><code>prod</code></td></tr><tr><td><code>node_name</code></td><td><code>--raft-nodename</code></td><td><code>&quot;&quot;</code>. In cluster mode, the machine name.</td></tr><tr><td><code>raft_node_id</code></td><td><code>--raft-nodeid</code></td><td><code>1</code></td></tr><tr><td><code>raft_host</code></td><td><code>--raft-host</code></td><td><code>localhost</code></td></tr><tr><td><code>raft_port</code></td><td><code>--raft-port</code></td><td><code>7070</code></td></tr><tr><td><code>initial_partitions</code></td><td><code>--initial-cluster-partitions</code></td><td><code>1</code> in standalone mode, <code>3</code> in cluster mode.</td></tr><tr><td><code>peers</code></td><td><code>--initial-cluster</code></td><td><code>[]</code></td></tr><tr><td><code>http_peers</code></td><td><code>--http-peers</code></td><td><code>[]</code></td></tr><tr><td><code>join_existing</code></td><td><code>--join-existing</code></td><td><code>false</code>. Joins a running cluster with <code>peers</code> as seeds. See <a class="" href="/docs/growing-a-one-node-cluster/">Growing a cluster</a>.</td></tr><tr><td><code>pitr_bootstrap_from</code></td><td><code>--pitr-bootstrap-from</code></td><td>Unset. The backup id that seeds a joining node. See <a class="" href="/docs/backup-and-restore/#seed-a-joining-node-from-a-backup">Backup and restore</a>.</td></tr><tr><td><code>pitr_bootstrap_target_time_ms</code></td><td><code>--pitr-bootstrap-target-time-ms</code></td><td><code>0</code>, the latest point of the chain.</td></tr><tr><td><code>schema_ack_wait_timeout_ms</code></td><td><code>--schema-ack-wait-timeout-ms</code></td><td><code>30000</code></td></tr><tr><td><code>schema_ack_live_node_lease_ms</code></td><td><code>--schema-ack-live-node-lease-ms</code></td><td><code>30000</code></td></tr><tr><td><code>http_port</code></td><td><code>--http-port</code></td><td><code>5095</code></td></tr><tr><td><code>https_port</code></td><td><code>--https-port</code></td><td><code>7141</code></td></tr><tr><td><code>https_certificate</code></td><td><code>--https-certificate</code></td><td><code>&quot;&quot;</code></td></tr><tr><td><code>raft_certificate</code></td><td><code>--raft-certificate</code></td><td><code>&quot;&quot;</code></td></tr><tr><td><code>grpc_port</code></td><td><code>--grpc-port</code></td><td><code>5096</code></td></tr><tr><td><code>require_tls_when_auth_enabled</code></td><td><code>--require-tls-when-auth-enabled</code></td><td><code>true</code></td></tr><tr><td><code>extension_assemblies</code></td><td><code>--extension-assemblies</code></td><td><code>[]</code>. The absolute paths of safe C# extension DLLs.</td></tr><tr><td><code>unsafe_extension_assemblies</code></td><td><code>--unsafe-extension-assemblies</code></td><td><code>[]</code>. The absolute paths of reviewed extension DLLs. The safe-assembly checks don&#x27;t apply.</td></tr><tr><td><code>key_range_sharding</code></td><td>The <code>CAMUS_KEY_RANGE_SHARDING</code> variable.</td><td><code>false</code></td></tr></tbody></table>
+<p>The extension lists make extensions available on a node after a restart. A
+superuser must also run <code>CREATE EXTENSION</code> in each database that uses them.
+Deploy the same builds on all nodes. See
 <a class="" href="/docs/csharp-extensions/#deploy-extensions">C# extension deployment</a>.</p>
-<p>Every other key is YAML only. The <a class="" href="/docs/settings-reference/">settings reference</a>
-lists them all.</p>
+<p>The other keys are YAML only. The <a class="" href="/docs/settings-reference/">settings reference</a>
+lists them.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="inline-c-functions-and-triggers">Inline C# functions and triggers<a href="#inline-c-functions-and-triggers" class="hash-link" aria-label="Direct link to Inline C# functions and triggers" title="Direct link to Inline C# functions and triggers" translate="no">​</a></h2>
-<p>Inline definitions let database users create C# functions and row triggers
-without deploying DLLs. Both creation features are off by default and enabled
-independently:</p>
+<p>Inline definitions let database users create C# functions and row triggers, and
+you don&#x27;t deploy DLLs. Both features are off by default, and you turn them on
+separately:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">inline_functions_enabled</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">inline_triggers_enabled</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">true</span><br></div></code></pre></div></div>
-<p>Restart after changing these settings, and use the same cluster-scope values
-on every node. Disabling a feature prevents new definitions; existing
-functions remain callable and existing triggers still fire. See
-<a class="" href="/docs/csharp-extensions/#inline-functions">C# inline functions</a>,
-<a class="" href="/docs/csharp-extensions/#inline-triggers">inline triggers</a>, and the
-<a class="" href="/docs/settings-reference/#inline-c-functions-and-triggers">budget settings</a>.</p>
-<p>Inline bodies are checked against an allowlist and execute with resource
-budgets. Checks happen between framework operations; a process heap hard
-limit is the memory backstop. See
-<a href="#cache-defaults-proportional-to-memory" class="">memory-proportional cache defaults</a>.</p>
+<p>A change needs a restart. Use the same values on all nodes. If you turn a feature
+off, new definitions aren&#x27;t allowed. Existing functions can be called, and
+existing triggers continue to fire. See <a class="" href="/docs/csharp-extensions/#inline-functions">inline functions</a> and
+<a class="" href="/docs/csharp-extensions/#inline-triggers">inline triggers</a>. For the budgets, see
+the <a class="" href="/docs/settings-reference/#inline-c-functions-and-triggers">settings reference</a>.</p>
+<p>Inline bodies are checked against an allowlist, and they execute with resource
+budgets. The checks happen between framework operations. A hard limit on the
+process heap is the last protection for memory. See
+<a href="#cache-defaults-proportional-to-memory" class="">Cache defaults proportional to memory</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="http3-on-the-https-port">HTTP/3 on the HTTPS port<a href="#http3-on-the-https-port" class="hash-link" aria-label="Direct link to HTTP/3 on the HTTPS port" title="Direct link to HTTP/3 on the HTTPS port" translate="no">​</a></h2>
-<p>The REST API can also serve HTTP/3 over QUIC. HTTP/3 is off by default; to
-turn it on, set <code>http3_enabled: true</code> and give the node an HTTPS certificate:</p>
+<p>The REST API can also serve HTTP/3 over QUIC. HTTP/3 is off by default. To turn
+it on, set <code>http3_enabled: true</code>. The node also needs an HTTPS certificate:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">https_port</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">7141</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">https_certificate</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> /etc/camusdb/api.pfx</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">http3_enabled</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">true</span><br></div></code></pre></div></div>
-<p>The HTTPS port then serves HTTP/1.1, HTTP/2, and HTTP/3. The setting is read
-when the node starts, so changing it requires a restart.</p>
-<p>HTTP/3 requires:</p>
+<p>The HTTPS port then serves HTTP/3 too. A change needs a restart. HTTP/3 has the following requirements:</p>
 <ul>
-<li class=""><strong>TLS.</strong> HTTP/3 always uses TLS, so the setting applies to the HTTPS port
-only. Without <code>https_certificate</code>, the node has no HTTPS port and the setting
-has no effect. The plain HTTP port, the <a class="" href="/docs/concepts/#raft">Raft</a> port
-(node-to-node cluster traffic), and the gRPC port do not change.</li>
-<li class=""><strong>UDP.</strong> QUIC uses UDP, so open <code>https_port</code> for both UDP and TCP, in the
-firewall and in any container port mapping, for example
+<li class=""><strong>TLS.</strong> HTTP/3 always uses TLS. This means that it applies to the HTTPS port
+only. If <code>https_certificate</code> isn&#x27;t set, the node doesn&#x27;t have an HTTPS port, and
+HTTP/3 isn&#x27;t available. The other ports don&#x27;t change.</li>
+<li class=""><strong>UDP.</strong> QUIC uses UDP. Open <code>https_port</code> for both UDP and TCP, in the firewall
+and in container port mappings, for example
 <code>-p 7141:7141/tcp -p 7141:7141/udp</code>.</li>
-<li class=""><strong>A QUIC library.</strong> Linux and macOS need <code>libmsquic</code>. Windows needs Windows 11,
-Windows Server 2022, or later. Without the library, the port serves HTTP/1.1
-and HTTP/2 only. On macOS, .NET does not search the Homebrew library folder
-by default, so start the node with
-<code>DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib</code>. macOS strips <code>DYLD_*</code>
-variables for system binaries such as <code>nohup</code>, so set the variable in the
-node process&#x27;s own environment.</li>
+<li class=""><strong>A QUIC library.</strong> Linux and macOS need <code>libmsquic</code>. Windows needs Windows 11 or
+Windows Server 2022, or later. If the library is missing, the port serves
+HTTP/1.1 and HTTP/2 only. On macOS, .NET doesn&#x27;t search the Homebrew library folder.
+Start the node with <code>DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib</code> in the
+environment of the node process. macOS removes <code>DYLD_*</code> variables for system
+binaries such as <code>nohup</code>.</li>
 </ul>
-<p>Clients that connect over TCP receive an <code>Alt-Svc</code> header on each response,
-telling them the same port serves HTTP/3. Browsers and other HTTP/3-capable
-clients then use it for later requests.</p>
-<p>If <code>http3_enabled</code> is on but HTTP/3 cannot start, the node still starts and
-logs a warning that names the cause: no <code>https_certificate</code>, or no QUIC
-library.
-<code>SHOW CONNECTIONS</code> shows an HTTP/3 connection with the protocol <code>HTTP/3</code>.</p>
+<p>A client that connects over TCP receives an <code>Alt-Svc</code> header on each response.
+The header tells it that the same port serves HTTP/3. Browsers and other HTTP/3
+clients then use HTTP/3 for later requests.</p>
+<p>If <code>http3_enabled</code> is on, but HTTP/3 can&#x27;t start, the node starts and logs a
+warning with the cause. <code>SHOW CONNECTIONS</code> shows an HTTP/3 connection with the
+protocol <code>HTTP/3</code>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="grpc-listener">gRPC listener<a href="#grpc-listener" class="hash-link" aria-label="Direct link to gRPC listener" title="Direct link to gRPC listener" translate="no">​</a></h2>
-<p>The client-facing gRPC API is enabled by default:</p>
+<p>The client gRPC API is on by default:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">grpc_enabled</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">grpc_port</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">5096</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">grpc_batch_max_in_flight</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">64</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">grpc_tls_enabled</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">true</span><br></div></code></pre></div></div>
-<p><code>grpc_port</code> is separate from the HTTP API port. When <code>raft_certificate</code> is set,
-CamusDB reuses that certificate for the gRPC listener unless
-<code>grpc_certificate</code> names a separate PFX certificate. Otherwise the listener
-uses plaintext HTTP/2, which is suitable for local development and trusted
-private test networks.</p>
-<p>Set <code>grpc_tls_enabled: false</code> to force plaintext h2c (HTTP/2 without TLS) on
-the client-facing gRPC port even when <code>grpc_certificate</code> or <code>raft_certificate</code>
-is configured. This does not change the Raft port. Use it only on a trusted
-network or behind a proxy that terminates TLS for clients.</p>
-<p>Use <code>grpc_certificate</code> when the Raft port and the client-facing gRPC port serve
-different trust domains. A cluster-internal certificate is often right for Raft,
-while clients need a certificate that their own trust store accepts.</p>
-<p><code>grpc_batch_max_in_flight</code> bounds how many operations one <code>BatchExecute</code> stream
-can run at once before the server applies backpressure.</p>
-<p>See <a class="" href="/docs/grpc-api/">gRPC API</a>.</p>
+<p><code>grpc_port</code> is separate from the HTTP port. If <code>raft_certificate</code> is set, the
+gRPC listener uses that certificate, unless <code>grpc_certificate</code> names a separate
+PFX certificate. If there is no certificate, the listener uses plaintext HTTP/2. Use it for local
+development and private test networks.</p>
+<p><code>grpc_tls_enabled: false</code> forces plaintext HTTP/2 on the client gRPC port, also
+when a certificate is set. The Raft port doesn&#x27;t change. Use it on a trusted
+network only, or behind a proxy that terminates TLS for clients.</p>
+<p>Use <code>grpc_certificate</code> when the Raft port and the client gRPC port serve
+different trust domains. A cluster-internal certificate is often correct for
+Raft, but clients need a certificate that their trust store recognizes.</p>
+<p><code>grpc_batch_max_in_flight</code> sets how many operations one <code>BatchExecute</code> stream
+can execute at the same time before the server applies backpressure. See
+<a class="" href="/docs/grpc-api/">gRPC API</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="cluster-peer-transport">Cluster peer transport<a href="#cluster-peer-transport" class="hash-link" aria-label="Direct link to Cluster peer transport" title="Direct link to Cluster peer transport" translate="no">​</a></h2>
-<p>In cluster mode, CamusDB uses peer HTTP endpoints for schema-DDL forwarding,
-cluster-settings forwarding, and query-fragment exchange. Set
-<code>peer_tls_enabled: true</code> when those peer HTTP endpoints serve HTTPS:</p>
+<p>In cluster mode, CamusDB uses the HTTP endpoints of the other nodes for
+internal requests, for example forwarded schema changes. If those endpoints
+serve HTTPS, set <code>peer_tls_enabled: true</code>:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">peer_tls_enabled</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">true</span><br></div></code></pre></div></div>
-<p>An <code>http_peers</code> entry with an explicit <code>https://</code> scheme overrides this
-default for that peer. Without peer TLS, the shared node secret that internal
-routes use travels over plaintext peer HTTP. CamusDB logs startup warnings for
-exposed cluster configurations that leave peer HTTP, Raft gRPC, or
-client-facing gRPC traffic in plaintext.</p>
+<p>An <code>http_peers</code> entry with an explicit <code>https://</code> scheme overrides this setting
+for that peer. If peer TLS is off, the shared node secret of the internal routes
+is sent over plaintext HTTP. At startup, CamusDB logs warnings for cluster
+configurations with plaintext traffic between nodes or to clients.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="dashboard">Dashboard<a href="#dashboard" class="hash-link" aria-label="Direct link to Dashboard" title="Direct link to Dashboard" translate="no">​</a></h2>
-<p>The read-only operator dashboard is enabled by default on the HTTP port:</p>
+<p>The read-only operator dashboard is on by default, on the HTTP port:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">dashboard_enabled</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">dashboard_refresh_seconds</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">2</span><br></div></code></pre></div></div>
-<p>Disable it with <code>dashboard_enabled: false</code>; the dashboard pages and endpoints
-then return 404. With authentication disabled, the dashboard is loopback-only.
-With authentication enabled, it uses a dashboard session cookie and applies the
-user&#x27;s privileges to each panel.</p>
-<p>See <a class="" href="/docs/operator-dashboard/">Operator Dashboard</a>.</p>
+<p>With <code>dashboard_enabled: false</code>, the dashboard pages and endpoints return 404.
+With authentication off, the dashboard is available from the same machine only.
+With authentication on, it uses a session cookie, and each panel applies the
+privileges of the user. See <a class="" href="/docs/operator-dashboard/">Operator dashboard</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="slow-query-log">Slow query log<a href="#slow-query-log" class="hash-link" aria-label="Direct link to Slow query log" title="Direct link to Slow query log" translate="no">​</a></h2>
 <p>The slow query log is off by default:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">slow_query_log_enabled</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">false</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">slow_query_log_threshold_ms</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">1000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">slow_query_log_max_entries</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">200</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">slow_query_log_max_sql_length</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">4096</span><br></div></code></pre></div></div>
-<p>Turn it on when you are diagnosing a node. It records qualifying statements in
-a bounded in-memory ring and exposes them through <code>SHOW SLOW QUERIES</code>. The log
-is node-local and does not survive a restart. If the node started with the log
-off, it can still be enabled at runtime.</p>
-<p>See <a class="" href="/docs/slow-query-log/">Slow Query Log</a>.</p>
+<p>Turn it on when you diagnose a node. It records slow statements in memory, and
+<code>SHOW SLOW QUERIES</code> shows them. The log is local to the node, and a restart
+clears it. You can turn it on at runtime. See
+<a class="" href="/docs/slow-query-log/">Slow query log</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="statement-statistics-and-index-usage">Statement statistics and index usage<a href="#statement-statistics-and-index-usage" class="hash-link" aria-label="Direct link to Statement statistics and index usage" title="Direct link to Statement statistics and index usage" translate="no">​</a></h2>
-<p>Use <a class="" href="/docs/statement-stats/">statement statistics</a> to find expensive repeated
-query shapes and <a class="" href="/docs/index-usage/">index usage</a> to assess indexes against
-their write cost:</p>
+<p>Use <a class="" href="/docs/statement-stats/">statement statistics</a> to find expensive query
+shapes, and <a class="" href="/docs/index-usage/">index usage</a> to find indexes that aren&#x27;t used:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">statement_stats_enabled</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">false</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">statement_stats_max_shapes</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">2000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">index_usage_enabled</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">true</span><br></div></code></pre></div></div>
-<p>The two enable flags can change at runtime. Shape capacity requires a restart.
-Both features keep in-memory, node-local totals that reset when the node restarts.</p>
+<p>The two switches can change at runtime. A change to the shape capacity needs a
+restart. Both features count in memory on each node. A restart resets
+them.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="key-range-sharding-and-range-splits">Key-range sharding and range splits<a href="#key-range-sharding-and-range-splits" class="hash-link" aria-label="Direct link to Key-range sharding and range splits" title="Direct link to Key-range sharding and range splits" translate="no">​</a></h2>
-<p><code>key_range_sharding</code> defaults to false for new clusters. The cluster records
-its routing mode at creation; a restart cannot change it on existing data:</p>
+<p><code>key_range_sharding</code> is off by default for new clusters. A cluster records its
+routing mode when it is created, and a restart can&#x27;t change it for existing
+data:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">key_range_sharding</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">false</span><br></div></code></pre></div></div>
-<p>When it is on, eligible table and index key spaces can split by key range
-instead of staying on one hash-routed partition. The nested <code>kahuna:</code> settings
-control automatic splitting:</p>
-<div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">kahuna</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_threshold</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">0</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_min_range_size</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">10</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_load_threshold</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">500</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_load_min_queue_depth</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">8</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_load_min_commit_wait_ms</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">0</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_load_window_ms</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">15000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_load_poll_interval_ms</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">5000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_load_imbalance_max</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">0.8</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_settle_window_ms</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">10000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_indivisible_cooldown_ms</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">300000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_move_settle_timeout_ms</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">10000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_merge_min_size</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">10</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">enable_load_reports</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">false</span><br></div></code></pre></div></div>
-<p>Both kinds of split stay off until you set a threshold for them. Count-based
-splits use <code>range_split_threshold</code>. Load-based splits use
-<code>range_split_load_threshold</code>, gated by queue depth and, optionally, commit
-wait.</p>
-<p>See <a class="" href="/docs/key-range-sharding/">Key-Range Sharding</a> and
+<p>When it is on, table and index key spaces can split by key range. Splits are off
+until you set a threshold. Count-based splits use <code>range_split_threshold</code>.
+Load-based splits use <code>range_split_load_threshold</code>, with a queue-depth gate and
+an optional commit-wait gate:</p>
+<div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">kahuna</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_threshold</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">0</span><span class="token plain">        </span><span class="token comment" style="color:#64748b;font-style:italic"># default: off</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_load_threshold</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">0</span><span class="token plain">   </span><span class="token comment" style="color:#64748b;font-style:italic"># default: off</span><br></div></code></pre></div></div>
+<p>The other split and merge keys are in the
+<a class="" href="/docs/settings-reference/#kahuna-keys">settings reference</a>. See
+<a class="" href="/docs/key-range-sharding/">Key-range sharding</a> and
 <a class="" href="/docs/show-ranges/"><code>SHOW RANGES</code></a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="transaction-outcome-retention">Transaction outcome retention<a href="#transaction-outcome-retention" class="hash-link" aria-label="Direct link to Transaction outcome retention" title="Direct link to Transaction outcome retention" translate="no">​</a></h2>
-<p>Kahuna can keep a transaction&#x27;s final outcome record after the transaction
-finishes. CamusDB uses these records when a finalize path needs to resume, or
-to diagnose an uncertain commit outcome:</p>
+<p>Kahuna can keep the final outcome of a transaction after it finishes. CamusDB
+uses these records to continue a finalize, or to diagnose an uncertain commit.
+By default, a record is retained for 300000 ms (5 minutes), with at most 10000
+records. For an investigation or a long fault-injection run, raise
+both together:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">kahuna</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">transaction_outcome_retention_ttl_ms</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">600000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">transaction_outcome_retention_max</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">100000</span><br></div></code></pre></div></div>
-<p><code>transaction_outcome_retention_ttl_ms</code> sets the age window; <code>0</code> disables age
-pruning and leaves only the size cap. <code>transaction_outcome_retention_max</code> sets
-the maximum number of retained records. For an investigation or a long
-fault-injection run, raise both together, because a large TTL does nothing if
-the count cap evicts records first.</p>
+<p><code>transaction_outcome_retention_ttl_ms</code> sets the age limit, and <code>0</code> turns off age
+pruning. <code>transaction_outcome_retention_max</code> sets the maximum number of records.
+If the count limit evicts records first, a large age limit doesn&#x27;t help.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="kahuna-engine-section">Kahuna engine section<a href="#kahuna-engine-section" class="hash-link" aria-label="Direct link to Kahuna engine section" title="Direct link to Kahuna engine section" translate="no">​</a></h2>
-<p>The nested <code>kahuna:</code> map tunes <a class="" href="/docs/concepts/#kahuna">Kahuna</a>, the
-transactional key/value layer embedded in each node, and through it
-<a class="" href="/docs/concepts/#kommander">Kommander</a> (the Raft library) and the on-disk
-engine: RocksDB by default, with SQLite and <a href="https://solariumdb.github.io/" target="_blank" rel="noopener noreferrer" class="">Solarium</a> as alternatives. See
-<a class="" href="/docs/architecture/#storage-components">Architecture: storage components</a> for
-their roles. CamusDB applies the map in both standalone and cluster mode, and
-an unset key keeps the CamusDB baseline for that mode. The node reads the map
-once at startup, so a change requires a restart.</p>
-<p><a class="" href="/docs/settings-reference/#kahuna-keys">Kahuna keys</a> lists every accepted key with its default.
-An unknown key fails validation at startup, and the error message lists every
-accepted key. The <code>kahuna:</code> block in <code>CamusDB/Config/config.yml</code> is commented
-out and documents each key inline.</p>
-<p><code>storage_revision</code> names the directory that Kahuna opens under
-<code>{data_dir}/kv</code>. The current CamusDB baseline pins it, together with the WAL
-revision, to the current key layout. Do not set it to an older revision to
-reach older data. A server that finds an older revision directory leaves it
-untouched; to move data across revisions, use a
-<a class="" href="/docs/logical-dump-and-reimport/">logical dump and reimport</a>.</p>
+<p>The <code>kahuna:</code> map tunes <a class="" href="/docs/concepts/#kahuna">Kahuna</a>, the transactional
+key/value layer in each node. Through Kahuna, it also tunes
+<a class="" href="/docs/concepts/#kommander">Kommander</a> (the Raft library) and the storage engine.
+The engine is RocksDB by default, and SQLite and
+<a href="https://solariumdb.github.io/" target="_blank" rel="noopener noreferrer" class="">Solarium</a> are the alternatives. See
+<a class="" href="/docs/architecture/#storage-components">Architecture: storage components</a>.</p>
+<p>The map applies in standalone and cluster mode. An unset key uses the CamusDB
+baseline for the mode. The node reads the map at startup, and a change needs a
+restart. <a class="" href="/docs/settings-reference/#kahuna-keys">Kahuna keys</a> lists the keys and
+their defaults. An unknown key stops the node at startup, and the error message
+lists the accepted keys. The commented <code>kahuna:</code> block in
+<code>CamusDB/Config/config.yml</code> describes each key.</p>
+<p><code>storage_revision</code> names the directory under <code>{data_dir}/kv</code> that Kahuna opens.
+The CamusDB baseline pins it, and the WAL revision, to the current key layout.
+Don&#x27;t set it to an older revision to reach older data. A server that finds an
+older revision directory doesn&#x27;t change it. To move data across revisions, use
+a <a class="" href="/docs/logical-dump-and-reimport/">logical dump and reimport</a>.</p>
 <p>Kahuna serves keys and locks through a fixed set of in-memory workers called
 actors (<code>key_value_workers</code> and <code>locks_workers</code>). Each key-value actor caches
-the entries it serves, and evicts them in two ways:</p>
+the entries that it serves, and it evicts them in two ways:</p>
 <ul>
-<li class="">A size cap: <code>max_entries_per_actor</code> and <code>max_bytes_per_actor</code> bound what one
-actor holds in memory.</li>
-<li class="">A timed collection sweep: every <code>collection_interval_ms</code>, a pass evicts up to
+<li class="">A size limit: <code>max_entries_per_actor</code> and <code>max_bytes_per_actor</code>.</li>
+<li class="">A timed sweep: at each <code>collection_interval_ms</code>, a pass evicts up to
 <code>cache_entries_to_remove</code> entries older than <code>cache_entry_ttl_ms</code>.</li>
 </ul>
-<p>Three keys govern Raft log compaction: <code>compact_every_operations</code> sets how
-often it runs, <code>compact_number_entries</code> sets how many trailing entries stay,
-and <code>max_entries_per_compaction</code> caps how many entries one pass removes.</p>
-<p><code>compact_every_operations</code> counts persisted WAL batches, not individual log
-entries. A busy batch can hold many entries, so this setting is a compaction
-cadence rather than a direct row count. With the RocksDB Raft log, a pass also
-drops whole files that lie below the persisted compaction floor, so it can free
-more disk than <code>max_entries_per_compaction</code> suggests. This holds for the Kahuna
-1.12.8 release that CamusDB ships with.</p>
-<p>The storage backends are <code>memory</code>, <code>sqlite</code>, <code>rocksdb</code>, and <code>solarium</code>.</p>
-<p>RocksDB buffers recent writes in memory (memtables) and flushes them to sorted
-files on disk (SST files). See
-<a class="" href="/docs/storage/#the-rocksdb-backend">The RocksDB backend</a>.</p>
-<p><code>kahuna.rocksdb_direct_reads</code> is off in CamusDB&#x27;s baseline. With the default
-buffered reads, a read that misses the RocksDB block cache and goes to an SST
-file can be served from the operating system page cache, which helps when the
-same disk is also handling Raft WAL fsyncs. Set it to <code>true</code> when you need
-RocksDB reads to bypass the page cache and rely on the RocksDB block cache
-alone.</p>
+<p>Three keys control Raft log compaction. <code>compact_every_operations</code> sets how
+often it happens, <code>compact_number_entries</code> sets how many recent entries stay,
+and <code>max_entries_per_compaction</code> limits one pass. <code>compact_every_operations</code>
+counts persisted WAL batches, and a batch can have many entries. With the
+RocksDB Raft log, a pass also drops the files below the persisted compaction
+floor. This means that it can free more disk than <code>max_entries_per_compaction</code>
+suggests.</p>
+<p>The storage backends are <code>memory</code>, <code>sqlite</code>, <code>rocksdb</code>, and <code>solarium</code>. RocksDB
+buffers recent writes in memory (memtables), and it flushes them to sorted files
+on disk (SST files). See <a class="" href="/docs/storage/#the-rocksdb-backend">The RocksDB backend</a>.</p>
+<p><code>kahuna.rocksdb_direct_reads</code> is off in the CamusDB baseline. With buffered
+reads, a read that misses the RocksDB block cache can be served from the page
+cache of the operating system. This helps when the same disk also handles Raft
+WAL fsyncs. To read from the RocksDB block cache only, and bypass the page
+cache, set it to <code>true</code>.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="storage-damage-and-lost-log-entries">Storage damage and lost log entries<a href="#storage-damage-and-lost-log-entries" class="hash-link" aria-label="Direct link to Storage damage and lost log entries" title="Direct link to Storage damage and lost log entries" translate="no">​</a></h3>
-<p>With RocksDB or Solarium, a store that detects damage stops serving data. The node gives
-up leadership and withholds candidacy; it does not rewrite the damaged files.
-Reads that surface <code>CADB0837 StorageCorrupted</code> have failed, rather than found
-no rows. Do not retry this error as a transient transaction conflict. See
-<a class="" href="/docs/cluster/#check-storage-health">storage health</a> for monitoring.</p>
+<p>With RocksDB or Solarium, a store that detects damage stops serving data. The
+node gives up leadership and doesn&#x27;t become a candidate, and it doesn&#x27;t rewrite
+the damaged files. A read that returns <code>CADB0837 StorageCorrupted</code> failed. It
+didn&#x27;t find &quot;no rows&quot;. Don&#x27;t retry this error as a transient conflict. See
+<a class="" href="/docs/cluster/#check-storage-health">storage health</a>.</p>
 <p>After a restart, <code>kahuna.raft_lost_acknowledged_entries_policy</code> controls a
-replica that discovers it lost log entries it had acknowledged:</p>
-<table><thead><tr><th>Value</th><th>Behavior</th></tr></thead><tbody><tr><td><code>quarantine</code> (default)</td><td>The replica neither votes nor campaigns until its leader repairs it. With one replica there is no peer to repair from, so the partition stays leaderless and emits a Critical log.</td></tr><tr><td><code>accept_and_log</code></td><td>Accepts and logs the loss, disabling this safety fence. It does not restore entries; with one replica the loss is permanent.</td></tr></tbody></table>
-<p>Changing the policy requires a restart. It is separate from repairing damaged
-storage or restoring a <a class="" href="/docs/backup-and-restore/">backup</a>.</p>
-<p>Solarium&#x27;s adapter now implements the storage-damage contract, including
-stopping service and reporting a fault when corruption is detected. These
-protections remain backend-specific: SQLite lacks page checksums, and its WAL
-replay can stop at a damaged frame.
-Its Raft metadata uses <code>synchronous=NORMAL</code> regardless of <code>wal_sync_writes</code>.
-A healthy endpoint alone does not verify every stored byte.</p>
+replica that finds that it lost log entries that it had acknowledged:</p>
+<table><thead><tr><th>Value</th><th>Behavior</th></tr></thead><tbody><tr><td><code>quarantine</code> (default)</td><td>The replica doesn&#x27;t vote or campaign until its leader repairs it. With one replica, no peer can repair it. The partition then doesn&#x27;t have a leader, and a Critical log entry is written.</td></tr><tr><td><code>accept_and_log</code></td><td>Logs the loss, and continues. This turns off the protection. It doesn&#x27;t restore entries. With one replica, the loss is permanent.</td></tr></tbody></table>
+<p>A change of the policy needs a restart. It is separate from the repair of
+damaged storage, or a restore from a <a class="" href="/docs/backup-and-restore/">backup</a>.</p>
+<p>Solarium also stops service and raises a fault when it detects corruption.
+SQLite doesn&#x27;t have page checksums, and its WAL replay can stop at a damaged
+frame. Its Raft metadata uses <code>synchronous=NORMAL</code>, whatever <code>wal_sync_writes</code>
+is. Note that a healthy endpoint doesn&#x27;t verify each stored byte.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="solarium-storage-engine">Solarium storage engine<a href="#solarium-storage-engine" class="hash-link" aria-label="Direct link to Solarium storage engine" title="Direct link to Solarium storage engine" translate="no">​</a></h3>
-<p><a href="https://solariumdb.github.io/" target="_blank" rel="noopener noreferrer" class="">Solarium</a> is a managed key/value engine that can store the KV state, the Raft
-WAL, or both without a native RocksDB library. CamusDB includes and registers
-its providers; no extension DLL is needed:</p>
+<p><a href="https://solariumdb.github.io/" target="_blank" rel="noopener noreferrer" class="">Solarium</a> is a managed key/value engine. It can store
+the KV state and the Raft WAL. It doesn&#x27;t need a native library. CamusDB includes its providers, and you don&#x27;t need an extension DLL:</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">kahuna</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">storage</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> solarium</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">wal_storage</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> solarium</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">solarium_environment</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> default</span><br></div></code></pre></div></div>
-<p>All nodes must agree on <code>storage</code> and <code>wal_storage</code>. Solarium and RocksDB files
-are incompatible; switch engines using a
-<a class="" href="/docs/logical-dump-and-reimport/">logical dump and reimport</a>, not by opening
-existing files with another engine. PITR bootstrap through
-<code>pitr_bootstrap_from</code> still requires RocksDB for both layers.</p>
-<p><code>solarium_environment</code> selects file I/O for both Solarium layers. <code>default</code>
-uses the portable environment; <code>io_uring</code> needs a Linux kernel able to create
-a ring, otherwise startup fails. RocksDB tuning and WAL-shard settings do not
-apply to Solarium, except the two shared-budget keys below.</p>
+<p>All nodes must use the same <code>storage</code> and <code>wal_storage</code>. Solarium and RocksDB
+files aren&#x27;t compatible. To change engines, use a
+<a class="" href="/docs/logical-dump-and-reimport/">logical dump and reimport</a>. PITR bootstrap with
+<code>pitr_bootstrap_from</code> needs RocksDB for both layers.</p>
+<p><code>solarium_environment</code> selects the file I/O of both Solarium layers. <code>default</code>
+is the portable environment. <code>io_uring</code> needs a Linux kernel that can create a
+ring, and otherwise the node doesn&#x27;t start. RocksDB tuning and WAL shard settings
+don&#x27;t apply to Solarium, except the two shared budget keys below.</p>
 <h4 class="anchor anchorTargetStickyNavbar_Vzrq" id="managed-memory-budgets">Cache and memtable budgets<a href="#managed-memory-budgets" class="hash-link" aria-label="Direct link to Cache and memtable budgets" title="Direct link to Cache and memtable budgets" translate="no">​</a></h4>
-<p><a href="https://solariumdb.github.io/" target="_blank" rel="noopener noreferrer" class="">Solarium</a> 0.1.4 and later hold memtable entries
-and cached data blocks in native memory. Index and filter partitions and their
-handles remain managed; the partitions account for roughly 2% of table bytes.
-Shared cache and memtable budgets therefore sit outside the GC heap limit,
-while still counting toward the node or container&#x27;s total memory use.</p>
-<p><code>rocksdb_shared_memory_budget_mb</code> and <code>rocksdb_shared_memtable_budget_mb</code>
-configure Solarium&#x27;s shared cache and memtable sub-budget. Positive budgets
-are shared regardless of <code>rocksdb_shared_memory</code>; that boolean controls
-RocksDB sharing only. Unset prod budgets derive from machine or container
-memory, as they do for RocksDB. Explicit values win.</p>
-<p>The startup log identifies these budgets as native. The older warning about
-them exceeding one third of the managed heap was removed. Leave room for
-native storage budgets alongside the managed application and actor caches.
-<a class="" href="/docs/node-stats/">Node stats</a> reports <code>gc_memory_limit_bytes</code>.</p>
-<p>The Solarium WAL&#x27;s flush unit plus headroom is 256 MiB. The computed memtable
-budget tries to cover it, but stops at half the shared cache. With 10% cache
-sizing, that unit fits from roughly 5 GiB of machine memory. Smaller nodes can
-log budget-forced WAL flush warnings; size both budgets explicitly to cover it.</p>
+<p>Solarium stores memtable entries and cached data blocks in native memory. Index
+and filter partitions, about 2% of the table bytes, are managed memory. This
+means that the shared cache and memtable budgets are outside the GC heap limit,
+but they count toward the total memory of the node or container.</p>
+<p><code>rocksdb_shared_memory_budget_mb</code> and <code>rocksdb_shared_memtable_budget_mb</code> set
+the shared cache and memtable budgets of Solarium. Positive budgets are shared,
+whatever <code>rocksdb_shared_memory</code> is. That switch applies to RocksDB only.
+Unset <code>prod</code> budgets come from the machine or container memory, as for RocksDB.
+Explicit values win.</p>
+<p>The startup log shows these budgets as native. Leave room for them next to the
+managed heap. <a class="" href="/docs/node-stats/">Node stats</a> shows <code>gc_memory_limit_bytes</code>.</p>
+<p>The flush unit of the Solarium WAL, with headroom, is 256 MiB. The computed
+memtable budget tries to cover it, but it stops at half the shared cache. With
+10% cache sizing, the unit fits from about 5 GiB of machine memory. A smaller
+node can log warnings about forced WAL flushes. To prevent them, set both
+budgets explicitly.</p>
 <h4 class="anchor anchorTargetStickyNavbar_Vzrq" id="flush-and-compaction-pacing">Flush and compaction pacing<a href="#flush-and-compaction-pacing" class="hash-link" aria-label="Direct link to Flush and compaction pacing" title="Direct link to Flush and compaction pacing" translate="no">​</a></h4>
-<p>For either RocksDB or <a href="https://solariumdb.github.io/" target="_blank" rel="noopener noreferrer" class="">Solarium</a>, <code>storage_compaction_rate_mbps</code> limits KV-store
-flush and compaction writes in decimal MB/s; zero or unset leaves them unpaced.
-<code>storage_max_background_compactions</code> sets parallel compactions; zero or unset
-uses the engine default. Both are nonnegative, restart-time settings.</p>
-<p>Solarium defaults to one compaction at a time without pacing. Setting a rate
-also enables max(2, CPUs / 2) compactions unless an explicit concurrency wins.
-RocksDB defaults to max(2, CPUs / 2). Choose pacing for the disk and workload:
-too little bandwidth lets pending compactions accumulate and can slow writes.</p>
+<p>For RocksDB and Solarium, <code>storage_compaction_rate_mbps</code> limits the flush and
+compaction writes of the KV store, in decimal MB/s. Zero or unset doesn&#x27;t limit
+them. <code>storage_max_background_compactions</code> sets the number of parallel
+compactions, and zero or unset uses the engine default. Both are nonnegative,
+and a change needs a restart.</p>
+<p>Solarium does one compaction at a time by default, and it isn&#x27;t paced. A rate
+also allows max(2, CPUs / 2) compactions, unless you set the concurrency. RocksDB
+uses max(2, CPUs / 2) by default. Choose the pacing for the disk and the
+workload. With too little bandwidth, pending compactions accumulate. Then writes can slow
+down.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="one-phase-apply-time-validation">One-phase apply-time validation<a href="#one-phase-apply-time-validation" class="hash-link" aria-label="Direct link to One-phase apply-time validation" title="Direct link to One-phase apply-time validation" translate="no">​</a></h3>
 <p><code>kahuna.one_phase_apply_time_validation</code> is on by default. It lets an eligible
-read-modify-write transaction commit in one durable Raft round instead of the
-normal two-phase path. To be eligible, the transaction must have one
-participant partition, its anchor on that partition, and a read set that can be
-validated there. Cross-partition transactions still use two-phase commit.</p>
-<p><code>kahuna.staged_base_fence_retention_ms</code> (default <code>600000</code>) is how far back the
-validation fence and committed-head ledger remember transactionally written
-keys. Set it above the longest transaction lifetime your deployment allows;
-otherwise long transactions can be refused because their validation base fell
-out of the retained window.</p>
-<p>Treat the setting as a cluster-wide operational switch:</p>
+read-modify-write transaction commit in one durable Raft round. The transaction
+must have one participant partition, with its anchor on that partition, and a
+read set that can be validated there. Transactions across partitions use
+two-phase commit.</p>
+<p><code>kahuna.staged_base_fence_retention_ms</code> (default <code>600000</code>) sets how far back the
+validation fence remembers transactionally written keys. You should set it above
+the longest transaction lifetime that you allow. Otherwise, a long transaction can return an error. Its validation base can be
+older than the window.</p>
+<p>Treat the setting as a switch for the full cluster:</p>
 <ul>
-<li class="">Give every node the same values for both keys.</li>
+<li class="">Give all nodes the same values for both keys.</li>
 <li class="">During a rolling upgrade across Kahuna versions, set
-<code>one_phase_apply_time_validation: false</code> until every node runs a version that
-supports the apply-time check.</li>
-<li class="">When you start a data directory or snapshot that predates the committed-head
-ledger, start once with the setting off and let a checkpoint run. After that
-checkpoint rewrites the ledger, remove the override and restart.</li>
+<code>one_phase_apply_time_validation: false</code> until all nodes support the check.</li>
+<li class="">If you start a data directory or snapshot that is older than the
+committed-head ledger, start once with the setting off, and let a checkpoint
+happen. Then remove the override and restart.</li>
 </ul>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="persistent-mvcc-revision-retention">Persistent MVCC revision retention<a href="#persistent-mvcc-revision-retention" class="hash-link" aria-label="Direct link to Persistent MVCC revision retention" title="Direct link to Persistent MVCC revision retention" translate="no">​</a></h3>
-<p>Kahuna keeps several versions of each row so that readers see a consistent
-snapshot (<a class="" href="/docs/concepts/#mvcc">MVCC</a>). Every version of every row is stored
-physically in the key-value layer, so without pruning, a hot table&#x27;s retained
-history and disk usage grow for the life of the store.</p>
-<p>When both retention keys are unset, CamusDB keeps persisted history by age,
-aligned with the effective point-in-time recovery window
-(<code>kahuna.pitr_window_seconds</code>, default <code>3600</code>). In-window restores stay valid,
-and older revision rows can be reclaimed. Snapshot reads older than the
-retention age are not guaranteed. Branch forks pin their own snapshot floors,
-and reclamation honors those pins while they remain protected.</p>
+<p>Kahuna stores several versions of each row. Then readers see a consistent
+snapshot (<a class="" href="/docs/concepts/#mvcc">MVCC</a>). Each version is stored in the key/value
+layer. This means that, if history isn&#x27;t pruned, the history and the disk use of a busy
+table grow for the life of the store.</p>
+<p>When both retention keys are unset, history is retained by age, aligned with
+the point-in-time recovery window (<code>kahuna.pitr_window_seconds</code>, default
+<code>3600</code>). Restores in the window stay valid, and older revisions can be
+reclaimed. Snapshot reads older than the retention age aren&#x27;t guaranteed. A
+branch pins the snapshot that it forked from, and reclamation respects the pin.</p>
 <ul>
-<li class=""><code>kahuna.persistent_revision_retention_age_seconds</code> sets an explicit age bound.
-It must be at least the effective PITR window. <code>0</code> disables age pruning.</li>
-<li class=""><code>kahuna.persistent_revision_retention_count</code> sets a hard per-key revision cap.
-The default <code>0</code> disables it. A count cap can trim history below the PITR
-window on hot keys, so prefer the age bound unless you specifically want a
-per-key cap.</li>
+<li class=""><code>kahuna.persistent_revision_retention_age_seconds</code> sets an explicit age limit.
+It must be at least the PITR window, and <code>0</code> turns off age pruning.</li>
+<li class=""><code>kahuna.persistent_revision_retention_count</code> sets a limit of revisions for
+each key. The default <code>0</code> turns it off. A count limit can remove history in the
+PITR window on busy keys. You should prefer the age limit.</li>
 </ul>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="write-aggregation">Write aggregation<a href="#write-aggregation" class="hash-link" aria-label="Direct link to Write aggregation" title="Direct link to Write aggregation" translate="no">​</a></h3>
-<p>Kahuna groups key-value writes into Raft batches before replication:</p>
-<ul>
-<li class=""><code>kahuna.key_value_write_max_in_flight_batches_per_partition</code> (default <code>1</code>)
-controls how many write batches a partition may have waiting on Raft at once.
-Higher values pipeline batches, but change it only after an A/B test on the
-workload you are tuning.</li>
-<li class=""><code>kahuna.key_value_write_linger_ms</code> (default <code>1</code>) is how long the oldest queued
-write may wait, while nothing is in flight, before a batch is dispatched.</li>
-<li class=""><code>kahuna.key_value_write_max_batch_items</code> (default <code>512</code>) caps the number of
-items in one write batch.</li>
-<li class=""><code>kahuna.key_value_write_post_completion_hold_ms</code> (default <code>1</code>) waits after a
-batch completes before dispatching the next one. CamusDB ships a nonzero
-default to increase batch density at full occupancy. Set it to <code>0</code> to restore
-Kahuna&#x27;s dispatch-at-once behavior.</li>
-<li class=""><code>kahuna.key_value_write_precise_wake</code> (default <code>false</code>) moves the write
-aggregator&#x27;s hold, linger, and queue-age wakeups onto a dedicated timer
-thread. Use it when testing low-latency write aggregation, because it can
-wake closer to the configured millisecond deadline than the shared timer
-queue.</li>
-<li class=""><code>kahuna.key_value_write_fill_target_trigger</code> (default <code>false</code>) dispatches a
-held or lingering partition buffer as soon as it reaches the learned fill
-target, instead of always waiting for the timer. Kahuna keeps probing the
-timer path so the target can follow the current load.</li>
-</ul>
-<p>These settings affect write latency and throughput. Record them alongside
-benchmark results, because runs with different batching settings are not
+<p>Kahuna groups key/value writes into Raft batches before replication:</p>
+<table><thead><tr><th>Key</th><th>Default</th><th>Effect</th></tr></thead><tbody><tr><td><code>kahuna.key_value_write_max_in_flight_batches_per_partition</code></td><td><code>1</code></td><td>The batches of a partition that can wait on Raft at the same time. Change it only after an A/B test on your workload.</td></tr><tr><td><code>kahuna.key_value_write_linger_ms</code></td><td><code>1</code></td><td>How long the oldest queued write can wait, while no batch is in flight, before a batch is sent.</td></tr><tr><td><code>kahuna.key_value_write_max_batch_items</code></td><td><code>512</code></td><td>The maximum items in one batch.</td></tr><tr><td><code>kahuna.key_value_write_post_completion_hold_ms</code></td><td><code>1</code></td><td>The wait after a batch completes before the next one is sent. It increases batch density at full load. <code>0</code> sends at once, as Kahuna does by default.</td></tr><tr><td><code>kahuna.key_value_write_precise_wake</code></td><td><code>false</code></td><td>Uses a dedicated timer thread for the aggregator wakeups. It can wake closer to the deadline.</td></tr><tr><td><code>kahuna.key_value_write_fill_target_trigger</code></td><td><code>false</code></td><td>Sends a buffer as soon as it reaches the learned fill target, and doesn&#x27;t always wait for the timer.</td></tr></tbody></table>
+<p>These settings change write latency and throughput. Record them with benchmark
+results. Results with different batching settings aren&#x27;t
 directly comparable.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="raft-wal-shard-column-families">Raft WAL shard column families<a href="#raft-wal-shard-column-families" class="hash-link" aria-label="Direct link to Raft WAL shard column families" title="Direct link to Raft WAL shard column families" translate="no">​</a></h3>
-<p>Eight <code>kahuna.wal_shard_*</code> keys override the RocksDB column-family settings for
-the Raft log. CamusDB leaves them all unset by default, so Kommander&#x27;s measured
-defaults apply field by field. They take effect only when <code>kahuna.wal_storage</code>
-is <code>rocksdb</code>.</p>
-<table><thead><tr><th>Key</th><th>Kommander default</th><th>Meaning</th></tr></thead><tbody><tr><td><code>wal_shard_write_buffer_size_mb</code></td><td><code>64</code></td><td>Size of one shard memtable.</td></tr><tr><td><code>wal_shard_min_write_buffer_number_to_merge</code></td><td><code>2</code></td><td>Immutable memtables merged into one flush.</td></tr><tr><td><code>wal_shard_max_write_buffer_number</code></td><td><code>4</code></td><td>Memtables per shard, mutable plus immutable. Must exceed the merge count.</td></tr><tr><td><code>wal_shard_level0_file_num_compaction_trigger</code></td><td><code>8</code></td><td>L0 files that trigger compaction.</td></tr><tr><td><code>wal_shard_level0_slowdown_writes_trigger</code></td><td><code>28</code></td><td>L0 files at which writers are slowed.</td></tr><tr><td><code>wal_shard_level0_stop_writes_trigger</code></td><td><code>44</code></td><td>L0 files at which writers are stopped.</td></tr><tr><td><code>wal_shard_max_bytes_for_level_base_mb</code></td><td>RocksDB&#x27;s <code>256</code></td><td>Base-level size for leveled compaction.</td></tr><tr><td><code>wal_shard_universal_compaction</code></td><td><code>false</code></td><td>Uses universal compaction instead of leveled compaction.</td></tr></tbody></table>
-<p>Treat these as storage-engine tuning knobs. Larger flush units can reduce write
-amplification in the Raft log, but they also raise memory pressure and restart
-replay work. If <code>wal_shard_universal_compaction</code> is <code>true</code>,
-<code>wal_shard_max_bytes_for_level_base_mb</code> has no effect, because RocksDB ignores
-level sizing under universal compaction.</p>
+<p>Eight <code>kahuna.wal_shard_*</code> keys override the RocksDB column-family settings of
+the Raft log. CamusDB leaves them unset by default, and the Kommander defaults
+apply. They apply when <code>kahuna.wal_storage</code> is <code>rocksdb</code>.</p>
+<table><thead><tr><th>Key</th><th>Kommander default</th><th>Meaning</th></tr></thead><tbody><tr><td><code>wal_shard_write_buffer_size_mb</code></td><td><code>64</code></td><td>The size of one shard memtable.</td></tr><tr><td><code>wal_shard_min_write_buffer_number_to_merge</code></td><td><code>2</code></td><td>The immutable memtables merged into one flush.</td></tr><tr><td><code>wal_shard_max_write_buffer_number</code></td><td><code>4</code></td><td>The memtables of a shard. Must be above the merge count.</td></tr><tr><td><code>wal_shard_level0_file_num_compaction_trigger</code></td><td><code>8</code></td><td>The L0 files that start a compaction.</td></tr><tr><td><code>wal_shard_level0_slowdown_writes_trigger</code></td><td><code>28</code></td><td>The L0 files at which writes slow down.</td></tr><tr><td><code>wal_shard_level0_stop_writes_trigger</code></td><td><code>44</code></td><td>The L0 files at which writes stop.</td></tr><tr><td><code>wal_shard_max_bytes_for_level_base_mb</code></td><td>RocksDB&#x27;s <code>256</code></td><td>The base-level size for leveled compaction.</td></tr><tr><td><code>wal_shard_universal_compaction</code></td><td><code>false</code></td><td>Uses universal compaction, and not leveled compaction.</td></tr></tbody></table>
+<p>Larger flush units can reduce write amplification in the Raft log. However,
+they also increase memory pressure and replay work at restart. With universal compaction, <code>wal_shard_max_bytes_for_level_base_mb</code> is ignored.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="memory-profile">Memory profile<a href="#memory-profile" class="hash-link" aria-label="Direct link to Memory profile" title="Direct link to Memory profile" translate="no">​</a></h3>
-<p><code>memory_profile</code> (or <code>--memory-profile</code>) selects the defaults for the four
-cache-size settings below, and nothing else. It does not change the number of
-workers or durability. The only effect an application can observe is how
-often a read comes from cache instead of disk.</p>
-<table><thead><tr><th>Profile</th><th>Block cache</th><th>Memtable sub-budget</th><th>Actor caches</th><th>Total</th></tr></thead><tbody><tr><td><code>prod</code>, the default</td><td>10% of machine memory (RocksDB or <a href="https://solariumdb.github.io/" target="_blank" rel="noopener noreferrer" class="">Solarium</a>), up to 2 GiB</td><td>One quarter of the block cache, raised to the Raft-log flush unit when possible, up to 1 GiB</td><td>6.25% of the managed heap budget, 64 MiB or more</td><td>Depends on engine and heap limit; see cache sizing below</td></tr><tr><td><code>dev</code></td><td>64 MiB</td><td>16 MiB</td><td>32 MiB</td><td>About 96 MiB, on any machine</td></tr></tbody></table>
-<p>Use <code>dev</code> for a node that shares a developer machine with the application you
-are building. Its budgets are fixed, so the node is the same size on a 64 GiB
-workstation and in a 2 GiB container.</p>
-<p>The cost of <code>dev</code> is throughput once the working set outgrows the cache (see
-the TPC-C measurement under
-<a href="#cache-defaults-proportional-to-memory" class="">Cache defaults proportional to memory</a>),
-so <code>dev</code> is not a server setting.</p>
-<p>An explicit <code>kahuna.*</code> budget always beats the profile, so you can combine
-<code>dev</code> with one raised budget.</p>
-<p>The caches are ceilings, and CamusDB fills them lazily. A burst of large writes
-can still push the process&#x27;s resident memory far above the cache total. That
-peak is dominated by transient managed allocations and the .NET garbage
-collector. The server garbage collector is the default and uses one heap per
-core. <code>DOTNET_gcServer=0</code> in the environment controls that half of the memory
-footprint; it is a runtime setting, not a CamusDB setting.</p>
-<p><code>CAMUS_THREADPOOL_MIN_THREADS</code> overrides CamusDB&#x27;s .NET worker-thread floor. The
-default floor is <code>1024</code> worker threads, with a completion-port floor of <code>512</code>.
-Use the override for controlled load tests or diagnostics when runtime metrics
-show work queued in the thread pool. It is an environment variable and takes
-effect when the process starts.</p>
+<p><code>memory_profile</code> (or <code>--memory-profile</code>) selects the defaults of the four cache
+sizes below. It doesn&#x27;t change the worker counts or durability. An application
+can see the profile only in how often a read comes from cache.</p>
+<table><thead><tr><th>Profile</th><th>Block cache</th><th>Memtable sub-budget</th><th>Actor caches</th><th>Total</th></tr></thead><tbody><tr><td><code>prod</code> (default)</td><td>10% of machine memory, up to 2 GiB</td><td>A quarter of the block cache, raised to the Raft-log flush unit when possible, up to 1 GiB</td><td>6.25% of the managed heap budget, at least 64 MiB</td><td>Depends on the engine and the heap limit. See below.</td></tr><tr><td><code>dev</code></td><td>64 MiB</td><td>16 MiB</td><td>32 MiB</td><td>About 96 MiB, on any machine.</td></tr></tbody></table>
+<p>Use <code>dev</code> for a node that shares a developer machine with your application. Its
+budgets are fixed. This means that the node has the same size on a 64 GiB
+workstation and in a 2 GiB container. When the working set is larger than the
+cache, <code>dev</code> costs throughput. See the TPC-C measurement under
+<a href="#cache-defaults-proportional-to-memory" class="">Cache defaults proportional to memory</a>.
+Don&#x27;t use <code>dev</code> on a server.</p>
+<p>An explicit <code>kahuna.*</code> budget always overrides the profile. You can combine
+<code>dev</code> with one larger budget.</p>
+<p>The caches are limits, and they fill as they are used. A burst of large writes
+can push the resident memory far above the cache total. Transient managed
+allocations and the .NET garbage collector cause most of that peak. The server
+garbage collector is the default, with one heap for each core.
+<code>DOTNET_gcServer=0</code> changes that part of the memory use. It is a runtime
+setting, and not a CamusDB setting.</p>
+<p><code>CAMUS_THREADPOOL_MIN_THREADS</code> overrides the minimum of .NET worker threads.
+The default is <code>1024</code> worker threads, and <code>512</code> completion-port threads. Use it
+for load tests or diagnostics, when runtime metrics show queued work in the
+thread pool. It is an environment variable, read when the process starts.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="cache-defaults-proportional-to-memory">Cache defaults proportional to memory<a href="#cache-defaults-proportional-to-memory" class="hash-link" aria-label="Direct link to Cache defaults proportional to memory" title="Direct link to Cache defaults proportional to memory" translate="no">​</a></h3>
-<p>Under <code>memory_profile: prod</code>, most unset keys keep the Kahuna default. The four
-cache-size settings are the exception: when you leave them unset, CamusDB
-computes them at startup from the node&#x27;s memory instead of using a fixed
-constant.</p>
-<p>Two memory sizes feed the computation:</p>
+<p>With <code>memory_profile: prod</code>, most unset keys keep the Kahuna default. The four
+cache sizes are different. If you don&#x27;t set them, CamusDB computes them at
+startup from the memory of the node. Two memory sizes are used:</p>
 <ul>
-<li class="">Machine memory sizes the RocksDB and Solarium block cache and memtable budgets. It is the
-container cgroup limit when one is set, otherwise physical RAM.</li>
-<li class="">The managed heap budget sizes the actor caches. It is the GC-reported limit:
-an explicit hard limit, the runtime&#x27;s container default (normally 75% of the
-container limit), or machine memory when no heap limit applies.</li>
+<li class="">Machine memory sizes the block cache and the memtable budget. It is the container cgroup limit if one is set.
+Otherwise, it is the physical RAM.</li>
+<li class="">The managed heap budget sizes the actor caches. It is the limit of the GC: an explicit hard limit, the default of the runtime in a container
+(normally 75% of the container limit), or the machine memory.</li>
 </ul>
-<p>RocksDB and Solarium use native memory for these storage budgets, which sit
-outside a .NET heap hard limit
-but still count against the container. Leave room for both when you set
-<code>DOTNET_GCHeapHardLimit</code>, <code>DOTNET_GCHeapHardLimitPercent</code>, or related runtime
-limits.</p>
-<p>A measurement motivated this behavior. A fixed 320 MB block cache forced a
-1.2 GB TPC-C working set through a disk read on almost every statement. Sizing
-the cache to the machine took the same workload from 24.5 to 119.6
-transactions per second, at 8 clients.</p>
-<table><thead><tr><th>Key</th><th>Computed value when unset</th><th>Clamp</th></tr></thead><tbody><tr><td><code>rocksdb_shared_memory_budget_mb</code></td><td>10% of machine memory (RocksDB or Solarium)</td><td>64 MiB to 2 GiB; the 320 MiB floor yields on small nodes</td></tr><tr><td><code>rocksdb_shared_memtable_budget_mb</code></td><td>One quarter of the block cache, raised to the Raft-log flush unit when possible</td><td>16 MiB to 1 GiB; the 128 MiB floor yields on small nodes</td></tr><tr><td><code>max_bytes_per_actor</code></td><td>6.25% of the managed heap budget, and at least 64 MiB for the layer, divided by <code>key_value_workers</code></td><td>1 MiB to 2 GiB for each actor; the 8 MiB floor yields on small nodes</td></tr><tr><td><code>max_entries_per_actor</code></td><td><code>max_bytes_per_actor</code> divided by about 512 B</td><td>2k to 4M; the 10k floor yields on small nodes</td></tr></tbody></table>
-<p>Across the two cache layers, the total never exceeds 4 GiB, however large the
-machine.</p>
-<p>The fractions and ceilings are conservative because an unconfigured node is
-more often a developer workstation, or a CI container sharing the machine with
-a compiler and an editor, than a dedicated database server.</p>
-<p>For example, on an 8 GiB machine with 8 cores, no heap limit, and none of the
-four keys set, the block cache is 819 MiB and the memtable sub-budget is 204
+<p>RocksDB and Solarium keep these storage budgets in native memory, outside a .NET
+heap hard limit, but they count toward the container limit. Leave room for both
+when you set <code>DOTNET_GCHeapHardLimit</code> or a similar runtime limit.</p>
+<p>A measurement led to this behavior. With a fixed 320 MB block cache, a 1.2 GB
+TPC-C working set needed a disk read for almost each statement. When the cache
+was sized to the machine, the same workload went from 24.5 to 119.6
+transactions per second, with 8 clients.</p>
+<table><thead><tr><th>Key</th><th>Computed value when unset</th><th>Limits</th></tr></thead><tbody><tr><td><code>rocksdb_shared_memory_budget_mb</code></td><td>10% of machine memory.</td><td>64 MiB to 2 GiB. The 320 MiB minimum doesn&#x27;t apply on small nodes.</td></tr><tr><td><code>rocksdb_shared_memtable_budget_mb</code></td><td>A quarter of the block cache, raised to the Raft-log flush unit when possible.</td><td>16 MiB to 1 GiB. The 128 MiB minimum doesn&#x27;t apply on small nodes.</td></tr><tr><td><code>max_bytes_per_actor</code></td><td>6.25% of the managed heap budget, at least 64 MiB for the layer, divided by <code>key_value_workers</code>.</td><td>1 MiB to 2 GiB for each actor. The 8 MiB minimum doesn&#x27;t apply on small nodes.</td></tr><tr><td><code>max_entries_per_actor</code></td><td><code>max_bytes_per_actor</code> divided by about 512 B.</td><td>2k to 4M. The 10k minimum doesn&#x27;t apply on small nodes.</td></tr></tbody></table>
+<p>The total of the two cache layers is at most 4 GiB, on any machine. The fractions are conservative. An unconfigured node is often a developer
+workstation or a CI container.</p>
+<p>For example, take an 8 GiB machine with 8 cores and no heap limit, where none of
+the four keys is set. The block cache is 819 MiB, and the memtable sub-budget is 204
 MiB. The 8 cores give 32 key-value workers, each with a 16 MiB actor cache, for
-512 MiB together. The total is about 1.3 GiB.</p>
-<p>On a dedicated server, raise all four values explicitly. The computed sizes
-are only a starting point for a machine whose only job is CamusDB.</p>
-<p>The 6.25% share and its 64 MiB floor bound the actor-cache layer as a whole.
-CamusDB divides that budget by <code>key_value_workers</code> (default
-max(32, 4 × CPU cores)), and only the 8 MiB minimum applies per actor. More
-cores divide the same budget into more parts rather than enlarging it, so a
-machine with many cores and little RAM does not get a multiple of the intended
-share. Because <code>max_bytes_per_actor</code> applies to one actor, multiply it by
-<code>key_value_workers</code> to get the total.</p>
-<p>The two RocksDB budgets are shared by the KV store and the Raft WAL. See
-<a class="" href="/docs/storage/#shared-rocksdb-memory">Shared RocksDB memory</a> for how
-<code>rocksdb_shared_memory</code> works and when it applies.</p>
-<p>CamusDB charges the memtable sub-budget inside the block-cache budget rather
-than adding it on top, so the sub-budget must not exceed the total. CamusDB
-compares the two values after merging all layers, so overriding only one of
-them can produce an inconsistent pair, such as a 100 MiB total with an
-explicit 512 MiB memtable budget. Set both values together. The computed
-memtable default never exceeds the total, including the flush-unit floor.</p>
-<p>When <code>rocksdb_shared_memory</code> is on and both the KV store and the Raft WAL use
-RocksDB, CamusDB tries to keep the computed memtable budget large enough for
-the Raft-log flush unit, which is 192 MiB at the default WAL shard settings. If
-a small container cannot fit that budget inside half of the block cache,
-CamusDB keeps the smaller percentage-based value and Kommander logs a startup
-warning. If that warning matters for your workload, raise both RocksDB budgets
-explicitly or reduce WAL shard sizing.</p>
+512 MiB. The total is about 1.3 GiB.</p>
+<p>On a dedicated server, you should set all four values explicitly. The computed
+sizes are a starting point.</p>
+<p>The 6.25% share and its 64 MiB minimum apply to the full actor-cache layer. CamusDB divides that budget by <code>key_value_workers</code> (default
+max(32, 4 × CPU cores)), and the 8 MiB minimum applies to each actor. This means
+that more cores divide the same budget into more parts. To get the total,
+multiply <code>max_bytes_per_actor</code> by <code>key_value_workers</code>.</p>
+<p>The KV store and the Raft WAL share the two RocksDB budgets. See
+<a class="" href="/docs/storage/#shared-rocksdb-memory">Shared RocksDB memory</a>.</p>
+<p>The memtable sub-budget is charged to the block cache budget, and it must
+not be larger. The two values are compared after all layers are merged. This
+means that an override of one of them can give an invalid pair, such as a
+100 MiB total with an explicit 512 MiB memtable budget. Set both values
+together. The computed memtable default isn&#x27;t above the total.</p>
+<p>When <code>rocksdb_shared_memory</code> is on, and both the KV store and the Raft WAL use
+RocksDB, CamusDB tries to keep the computed memtable budget large enough for the
+Raft-log flush unit. The unit is 192 MiB with the default WAL shard settings. If
+a small container can&#x27;t fit that budget in half of the block cache, CamusDB uses
+the smaller value, and Kommander logs a warning at startup. To fix it, raise both
+RocksDB budgets explicitly, or reduce the WAL shard sizes.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="validation-errors">Validation errors<a href="#validation-errors" class="hash-link" aria-label="Direct link to Validation errors" title="Direct link to Validation errors" translate="no">​</a></h2>
-<table><thead><tr><th>Condition</th><th>Error</th></tr></thead><tbody><tr><td>Unknown <code>mode</code></td><td><code>InvalidConfig</code></td></tr><tr><td>Unknown <code>memory_profile</code>, which is neither <code>prod</code> nor <code>dev</code></td><td><code>InvalidConfig</code></td></tr><tr><td>A port outside the range 1 to 65535</td><td><code>InvalidConfig</code></td></tr><tr><td>The count of <code>http_peers</code> differs from the count of <code>peers</code></td><td><code>InvalidConfig</code></td></tr><tr><td>Invalid <code>default_isolation_level</code></td><td><code>InvalidConfig</code></td></tr><tr><td><code>range_lock_expires_ms</code> is too short for the effective collection interval</td><td><code>InvalidConfig</code></td></tr><tr><td><code>transaction_finalize_retry_budget_ms</code> is smaller than the minimum safe retry budget</td><td><code>InvalidConfig</code></td></tr><tr><td><code>spill_threshold_rows</code> is 0 or below</td><td><code>InvalidConfig</code></td></tr><tr><td><code>spill_merge_fan_in</code> is 0 or below</td><td><code>InvalidConfig</code></td></tr><tr><td><code>large_value_rewrite_batch_rows</code> is 0 or below, or is above half of <code>max_mutations_per_transaction</code> when that limit is enabled</td><td><code>InvalidConfig</code></td></tr><tr><td><code>slow_query_log_threshold_ms</code> is below 0, or slow-query capacity settings are below 1</td><td><code>InvalidConfig</code></td></tr><tr><td>A parser-cache limit is below 0, or its sweep interval is below 1</td><td><code>InvalidConfig</code></td></tr><tr><td>Unknown <code>kahuna</code> key</td><td><code>InvalidConfig</code></td></tr><tr><td>Unknown <code>kahuna.storage</code> or <code>kahuna.wal_storage</code></td><td><code>InvalidConfig</code></td></tr><tr><td>Invalid <code>kahuna.raft_lost_acknowledged_entries_policy</code> (expected <code>quarantine</code> or <code>accept_and_log</code>)</td><td><code>InvalidConfig</code></td></tr><tr><td>Invalid <code>kahuna.solarium_environment</code>, or negative compaction pacing/concurrency</td><td><code>InvalidConfig</code></td></tr><tr><td><code>kahuna.start_election_timeout_ms</code> is at or above <code>kahuna.end_election_timeout_ms</code></td><td><code>InvalidConfig</code></td></tr><tr><td>Effective <code>kahuna.recent_heartbeat_ms</code> is at or above effective <code>kahuna.heartbeat_interval_ms</code></td><td><code>InvalidConfig</code></td></tr><tr><td><code>kahuna.staged_base_fence_retention_ms</code> is 0 or below</td><td><code>InvalidConfig</code></td></tr><tr><td><code>kahuna.persistent_revision_retention_count</code> or <code>kahuna.persistent_revision_retention_age_seconds</code> is below 0</td><td><code>InvalidConfig</code></td></tr><tr><td><code>kahuna.persistent_revision_retention_age_seconds</code> is nonzero but below the effective <code>kahuna.pitr_window_seconds</code></td><td><code>InvalidConfig</code></td></tr><tr><td><code>kahuna.wal_shard_write_buffer_size_mb</code> or <code>kahuna.wal_shard_max_bytes_for_level_base_mb</code> is outside 1 to 65536</td><td><code>InvalidConfig</code></td></tr><tr><td>Any <code>kahuna.wal_shard_*</code> count is outside 1 to 64</td><td><code>InvalidConfig</code></td></tr><tr><td>Effective <code>kahuna.wal_shard_max_write_buffer_number</code> is less than or equal to effective <code>kahuna.wal_shard_min_write_buffer_number_to_merge</code></td><td><code>InvalidConfig</code></td></tr><tr><td>Effective <code>kahuna.wal_shard_level0_*</code> triggers are not strictly increasing</td><td><code>InvalidConfig</code></td></tr><tr><td>A range split threshold/window/imbalance setting cannot be satisfied</td><td><code>InvalidConfig</code></td></tr></tbody></table>
-<p>See <code>CamusDB/Config/config.yml</code> for the inline documentation of every field.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/configuration.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/key-range-sharding/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Key-range sharding</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/settings-reference/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Settings reference</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#the-configuration-file" class="table-of-contents__link toc-highlight">The configuration file</a></li><li><a href="#configuration-discovery" class="table-of-contents__link toc-highlight">Configuration discovery</a></li><li><a href="#precedence" class="table-of-contents__link toc-highlight">Precedence</a></li><li><a href="#cli-flags-and-yaml-fields" class="table-of-contents__link toc-highlight">CLI flags and YAML fields</a></li><li><a href="#inline-c-functions-and-triggers" class="table-of-contents__link toc-highlight">Inline C# functions and triggers</a></li><li><a href="#http3-on-the-https-port" class="table-of-contents__link toc-highlight">HTTP/3 on the HTTPS port</a></li><li><a href="#grpc-listener" class="table-of-contents__link toc-highlight">gRPC listener</a></li><li><a href="#cluster-peer-transport" class="table-of-contents__link toc-highlight">Cluster peer transport</a></li><li><a href="#dashboard" class="table-of-contents__link toc-highlight">Dashboard</a></li><li><a href="#slow-query-log" class="table-of-contents__link toc-highlight">Slow query log</a></li><li><a href="#statement-statistics-and-index-usage" class="table-of-contents__link toc-highlight">Statement statistics and index usage</a></li><li><a href="#key-range-sharding-and-range-splits" class="table-of-contents__link toc-highlight">Key-range sharding and range splits</a></li><li><a href="#transaction-outcome-retention" class="table-of-contents__link toc-highlight">Transaction outcome retention</a></li><li><a href="#kahuna-engine-section" class="table-of-contents__link toc-highlight">Kahuna engine section</a><ul><li><a href="#storage-damage-and-lost-log-entries" class="table-of-contents__link toc-highlight">Storage damage and lost log entries</a></li><li><a href="#solarium-storage-engine" class="table-of-contents__link toc-highlight">Solarium storage engine</a></li><li><a href="#one-phase-apply-time-validation" class="table-of-contents__link toc-highlight">One-phase apply-time validation</a></li><li><a href="#persistent-mvcc-revision-retention" class="table-of-contents__link toc-highlight">Persistent MVCC revision retention</a></li><li><a href="#write-aggregation" class="table-of-contents__link toc-highlight">Write aggregation</a></li><li><a href="#raft-wal-shard-column-families" class="table-of-contents__link toc-highlight">Raft WAL shard column families</a></li><li><a href="#memory-profile" class="table-of-contents__link toc-highlight">Memory profile</a></li><li><a href="#cache-defaults-proportional-to-memory" class="table-of-contents__link toc-highlight">Cache defaults proportional to memory</a></li></ul></li><li><a href="#validation-errors" class="table-of-contents__link toc-highlight">Validation errors</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/python-driver/">Python driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes fault tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
+<p>The following conditions stop the node at startup with <code>InvalidConfig</code>:</p>
+<table><thead><tr><th>Condition</th></tr></thead><tbody><tr><td>An unknown <code>mode</code>, or a <code>memory_profile</code> that isn&#x27;t <code>prod</code> or <code>dev</code>.</td></tr><tr><td>A port outside the range 1 to 65535.</td></tr><tr><td>A different number of <code>http_peers</code> and <code>peers</code>.</td></tr><tr><td>An invalid <code>default_isolation_level</code>.</td></tr><tr><td>A <code>range_lock_expires_ms</code> that is too short for the collection interval.</td></tr><tr><td>A <code>transaction_finalize_retry_budget_ms</code> below the minimum safe budget.</td></tr><tr><td>A <code>spill_threshold_rows</code> or <code>spill_merge_fan_in</code> of 0 or less.</td></tr><tr><td>A <code>large_value_rewrite_batch_rows</code> of 0 or less, or above half of <code>max_mutations_per_transaction</code> when that limit is on.</td></tr><tr><td>A <code>slow_query_log_threshold_ms</code> below 0, or a slow query capacity below 1.</td></tr><tr><td>A parser-cache limit below 0, or a sweep interval below 1.</td></tr><tr><td>An unknown <code>kahuna</code> key, or an unknown <code>kahuna.storage</code> or <code>kahuna.wal_storage</code>.</td></tr><tr><td>An invalid <code>kahuna.raft_lost_acknowledged_entries_policy</code> (the values are <code>quarantine</code> and <code>accept_and_log</code>).</td></tr><tr><td>An invalid <code>kahuna.solarium_environment</code>, or negative compaction pacing or concurrency.</td></tr><tr><td>A <code>kahuna.start_election_timeout_ms</code> at or above <code>kahuna.end_election_timeout_ms</code>.</td></tr><tr><td>An effective <code>kahuna.recent_heartbeat_ms</code> at or above the effective <code>kahuna.heartbeat_interval_ms</code>.</td></tr><tr><td>A <code>kahuna.staged_base_fence_retention_ms</code> of 0 or less.</td></tr><tr><td>A negative <code>kahuna.persistent_revision_retention_count</code> or <code>kahuna.persistent_revision_retention_age_seconds</code>.</td></tr><tr><td>A <code>kahuna.persistent_revision_retention_age_seconds</code> above zero, but below the effective <code>kahuna.pitr_window_seconds</code>.</td></tr><tr><td>A <code>kahuna.wal_shard_write_buffer_size_mb</code> or <code>kahuna.wal_shard_max_bytes_for_level_base_mb</code> outside 1 to 65536.</td></tr><tr><td>A <code>kahuna.wal_shard_*</code> count outside 1 to 64.</td></tr><tr><td>An effective <code>kahuna.wal_shard_max_write_buffer_number</code> at or below the effective <code>kahuna.wal_shard_min_write_buffer_number_to_merge</code>.</td></tr><tr><td>Effective <code>kahuna.wal_shard_level0_*</code> triggers that don&#x27;t strictly increase.</td></tr><tr><td>A range split setting that can&#x27;t be satisfied, such as a window.</td></tr></tbody></table>
+<p>For the inline documentation of each field, see <code>CamusDB/Config/config.yml</code>.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/docs/configuration.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/key-range-sharding/"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Key-range sharding</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/settings-reference/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Settings reference</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#the-configuration-file" class="table-of-contents__link toc-highlight">The configuration file</a></li><li><a href="#configuration-discovery" class="table-of-contents__link toc-highlight">Configuration discovery</a></li><li><a href="#precedence" class="table-of-contents__link toc-highlight">Precedence</a></li><li><a href="#cli-flags-and-yaml-fields" class="table-of-contents__link toc-highlight">CLI flags and YAML fields</a></li><li><a href="#inline-c-functions-and-triggers" class="table-of-contents__link toc-highlight">Inline C# functions and triggers</a></li><li><a href="#http3-on-the-https-port" class="table-of-contents__link toc-highlight">HTTP/3 on the HTTPS port</a></li><li><a href="#grpc-listener" class="table-of-contents__link toc-highlight">gRPC listener</a></li><li><a href="#cluster-peer-transport" class="table-of-contents__link toc-highlight">Cluster peer transport</a></li><li><a href="#dashboard" class="table-of-contents__link toc-highlight">Dashboard</a></li><li><a href="#slow-query-log" class="table-of-contents__link toc-highlight">Slow query log</a></li><li><a href="#statement-statistics-and-index-usage" class="table-of-contents__link toc-highlight">Statement statistics and index usage</a></li><li><a href="#key-range-sharding-and-range-splits" class="table-of-contents__link toc-highlight">Key-range sharding and range splits</a></li><li><a href="#transaction-outcome-retention" class="table-of-contents__link toc-highlight">Transaction outcome retention</a></li><li><a href="#kahuna-engine-section" class="table-of-contents__link toc-highlight">Kahuna engine section</a><ul><li><a href="#storage-damage-and-lost-log-entries" class="table-of-contents__link toc-highlight">Storage damage and lost log entries</a></li><li><a href="#solarium-storage-engine" class="table-of-contents__link toc-highlight">Solarium storage engine</a></li><li><a href="#one-phase-apply-time-validation" class="table-of-contents__link toc-highlight">One-phase apply-time validation</a></li><li><a href="#persistent-mvcc-revision-retention" class="table-of-contents__link toc-highlight">Persistent MVCC revision retention</a></li><li><a href="#write-aggregation" class="table-of-contents__link toc-highlight">Write aggregation</a></li><li><a href="#raft-wal-shard-column-families" class="table-of-contents__link toc-highlight">Raft WAL shard column families</a></li><li><a href="#memory-profile" class="table-of-contents__link toc-highlight">Memory profile</a></li><li><a href="#cache-defaults-proportional-to-memory" class="table-of-contents__link toc-highlight">Cache defaults proportional to memory</a></li></ul></li><li><a href="#validation-errors" class="table-of-contents__link toc-highlight">Validation errors</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/python-driver/">Python driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes fault tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
 </body>
 </html>

@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.df8a11dc.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.328bdcaa.js" defer="defer"></script>
 <script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
@@ -148,7 +148,7 @@ accounts, use <code>SHOW USERS</code>. The statement requires a superuser.</p>
 superuser. Other users can see their own grants. The error for
 <code>SHOW GRANTS FOR &lt;other&gt;</code> doesn&#x27;t show whether that user exists.</p>
 <p>CamusDB supports these privileges:</p>
-<table><thead><tr><th>Privilege</th><th>Allows</th></tr></thead><tbody><tr><td><code>SELECT</code></td><td>Read the data of a table, and its metadata with <code>SHOW COLUMNS</code> and <code>SHOW CREATE TABLE</code>.</td></tr><tr><td><code>INSERT</code></td><td>Insert a row.</td></tr><tr><td><code>UPDATE</code></td><td>Update a row.</td></tr><tr><td><code>DELETE</code></td><td>Delete a row.</td></tr><tr><td><code>CREATE TABLE</code></td><td>Create a table in the target database scope.</td></tr><tr><td><code>DROP</code></td><td>Drop a database or a table in the scope.</td></tr><tr><td><code>ALTER</code></td><td>Alter table or database metadata in the scope.</td></tr><tr><td><code>INDEX</code></td><td>Create, alter, or drop an index in the scope.</td></tr><tr><td><code>CREATE</code></td><td>Create a database, or another object with a create scope where that applies.</td></tr><tr><td><code>MONITOR</code></td><td>Read node resource statistics. It is valid on <code>*.*</code> only, and it gives no access to application data.</td></tr><tr><td><code>ALL PRIVILEGES</code></td><td>All the concrete privileges above, except <code>MONITOR</code>.</td></tr></tbody></table>
+<table><thead><tr><th>Privilege</th><th>Allows</th></tr></thead><tbody><tr><td><code>SELECT</code></td><td>Read the data of a table, and its metadata with <code>SHOW COLUMNS</code> and <code>SHOW CREATE TABLE</code>.</td></tr><tr><td><code>INSERT</code></td><td>Insert a row.</td></tr><tr><td><code>UPDATE</code></td><td>Update a row.</td></tr><tr><td><code>DELETE</code></td><td>Delete a row.</td></tr><tr><td><code>CREATE TABLE</code></td><td>Create a table, a view, a materialized view, or a sequence in the scope.</td></tr><tr><td><code>DROP</code></td><td>Drop a table in the scope. Dropping a database needs a superuser.</td></tr><tr><td><code>ALTER</code></td><td>Alter table or database metadata in the scope.</td></tr><tr><td><code>INDEX</code></td><td>Create, alter, or drop an index in the scope.</td></tr><tr><td><code>CREATE</code></td><td>Create an inline C# function in the scope. Creating a database needs a superuser.</td></tr><tr><td><code>MONITOR</code></td><td>Read node resource statistics. It is valid on <code>*.*</code> only, and it gives no access to application data.</td></tr><tr><td><code>ALL PRIVILEGES</code></td><td>All the concrete privileges above, except <code>MONITOR</code>.</td></tr></tbody></table>
 <p>To create a foreign key, you also need <code>SELECT</code> on the referenced parent table.
 There is no separate <code>REFERENCES</code> privilege.</p>
 <p>A grant has one of three scopes, from the broadest to the narrowest:</p>
