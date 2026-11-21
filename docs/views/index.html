@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.328bdcaa.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.d65bfe02.js" defer="defer"></script>
 <script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
@@ -113,8 +113,10 @@ shows. Otherwise, the statement returns <code>CADB0527</code>, and it doesn&#x27
 <p>A row whose condition is <code>NULL</code> isn&#x27;t shown by the view, and it fails too. Note
 that a <code>CHECK</code> constraint lets a <code>NULL</code> result pass.</p>
 <table><thead><tr><th>Form</th><th>Checks</th></tr></thead><tbody><tr><td><code>WITH CHECK OPTION</code> or <code>WITH CASCADED CHECK OPTION</code></td><td>The condition of this view, and of each view below it.</td></tr><tr><td><code>WITH LOCAL CHECK OPTION</code></td><td>The condition of this view. Below it, only the views that have a check option.</td></tr></tbody></table>
-<p>Only a view that you can write through can have a check option. On another
-view, <code>CREATE VIEW</code> returns <code>CADB0525</code>.</p>
+<p>At creation, <code>WITH CHECK OPTION</code> checks whether the view&#x27;s query is updatable.
+If the query reads another view, that underlying view is checked at write time.
+For example, a write through a view over an aggregate view returns <code>CADB0525</code>.
+Replacing an underlying view with an aggregate view can cause the same error.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="privileges-for-writes">Privileges for writes<a href="#privileges-for-writes" class="hash-link" aria-label="Direct link to Privileges for writes" title="Direct link to Privileges for writes" translate="no">​</a></h3>
 <p>You need the write privilege of the statement on the view, for example <code>INSERT</code>.
 You don&#x27;t need a grant on the table. The owner of the view needs that
@@ -236,7 +238,8 @@ statement over the limit returns <code>CADB0564</code>. With the defaults, this 
 usually stops such a chain first.</li>
 <li class=""><code>max_view_expanded_relations</code> and <code>max_view_expanded_nodes</code> limit the
 expansion of one statement. <code>CREATE VIEW</code> expands the views in its body with
-the same limits. This means that such a definition fails at creation.</li>
+the same limits. A write through a view also counts against
+<code>max_view_expanded_nodes</code>.</li>
 <li class="">At <code>CREATE</code>, the size of one definition is also limited, for example its
 output columns.</li>
 </ul>
@@ -301,10 +304,8 @@ PostgreSQL, it doesn&#x27;t return the text you typed:</p>
 <p>You can run the output to recreate the view. It parses back into the same
 query.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="in-a-cluster">In a cluster<a href="#in-a-cluster" class="hash-link" aria-label="Direct link to In a cluster" title="Direct link to In a cluster" translate="no">​</a></h2>
-<p>In a cluster, send view DDL to the schema leader of the database. Note that in
-the current release, view DDL on another node returns <code>CADB0504</code>, and a retry
-on that node fails again. See
-<a class="" href="/docs/distributed-schema/#ddl-that-isnt-forwarded">DDL that isn&#x27;t forwarded</a>.</p>
+<p>In a cluster, you can send view DDL to any node. See
+<a class="" href="/docs/distributed-schema/#how-a-schema-change-flows">Distributed schema</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="configuration">Configuration<a href="#configuration" class="hash-link" aria-label="Direct link to Configuration" title="Direct link to Configuration" translate="no">​</a></h2>
 <table><thead><tr><th>Setting</th><th>Default</th><th>Meaning</th></tr></thead><tbody><tr><td><code>max_view_expansion_depth</code></td><td><code>32</code></td><td>The maximum depth of views nested in other views.</td></tr><tr><td><code>max_view_expanded_relations</code></td><td><code>10000</code></td><td>The view references that the expansion of one statement can add. A view counts each time that it is expanded.</td></tr><tr><td><code>max_view_expanded_nodes</code></td><td><code>2000000</code></td><td>The syntax-tree nodes that the expansion of one statement can produce.</td></tr><tr><td><code>max_view_definition_bytes</code></td><td><code>1048576</code></td><td>The bytes of one view body, checked at <code>CREATE</code>.</td></tr><tr><td><code>max_view_definition_nodes</code></td><td><code>200000</code></td><td>The syntax-tree nodes of one view body, checked at <code>CREATE</code>.</td></tr><tr><td><code>max_view_output_columns</code></td><td><code>1600</code></td><td>The output columns of one view, checked at <code>CREATE</code>.</td></tr><tr><td><code>max_view_direct_dependencies</code></td><td><code>1000</code></td><td>The relations that one view body reads directly, checked at <code>CREATE</code>.</td></tr></tbody></table>
 <p>These are runtime cluster settings. A value of <code>0</code> or less turns off a limit.</p>

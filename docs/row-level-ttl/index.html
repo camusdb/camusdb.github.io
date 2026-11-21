@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.328bdcaa.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.d65bfe02.js" defer="defer"></script>
 <script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
@@ -68,9 +68,8 @@ parameter back to its node default.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="parameters">Parameters<a href="#parameters" class="hash-link" aria-label="Direct link to Parameters" title="Direct link to Parameters" translate="no">​</a></h2>
 <p>Set parameters with <code>ALTER TABLE t SET (key = value, ...)</code>, and clear them with
 <code>RESET</code>.</p>
-<p>In a cluster, run <code>ALTER TABLE ... SET</code> and <code>ALTER TABLE ... RESET</code> on the
-database&#x27;s schema <a class="" href="/docs/concepts/#leader">leader</a>. On another node, they return
-<code>CADB0099</code> with a message that names the leader&#x27;s Raft address.</p>
+<p>In a cluster, you can send <code>ALTER TABLE ... SET</code> and <code>ALTER TABLE ... RESET</code>
+to any node. See <a class="" href="/docs/distributed-schema/#how-a-schema-change-flows">Distributed schema</a>.</p>
 <table><thead><tr><th>Parameter</th><th>Type</th><th>Default</th><th>What it does</th></tr></thead><tbody><tr><td><code>ttl_expiration_expression</code></td><td>column name</td><td>(none)</td><td>The column that contains the expiry time. Setting it turns on TTL for the table.</td></tr><tr><td><code>ttl_pause</code></td><td>boolean</td><td><code>false</code></td><td>Stops the sweep. The configuration doesn&#x27;t change.</td></tr><tr><td><code>ttl_job_cron</code></td><td>cron macro</td><td><code>&#x27;@daily&#x27;</code></td><td>How often CamusDB sweeps the table.</td></tr><tr><td><code>ttl_select_batch_size</code></td><td>integer</td><td><code>500</code></td><td>Rows read per scan batch.</td></tr><tr><td><code>ttl_delete_batch_size</code></td><td>integer</td><td><code>100</code></td><td>Rows deleted per transaction.</td></tr><tr><td><code>ttl_select_rate_limit</code></td><td>integer</td><td><code>0</code></td><td>Maximum rows scanned per second. <code>0</code> means no limit.</td></tr><tr><td><code>ttl_delete_rate_limit</code></td><td>integer</td><td><code>100</code></td><td>Maximum rows deleted per second. <code>0</code> means no limit.</td></tr><tr><td><code>ttl_grace_ms</code></td><td>integer</td><td><code>0</code></td><td>Extra delay after the expiry time before a row can be deleted.</td></tr></tbody></table>
 <p>The values of <code>ttl_job_cron</code> are <code>&#x27;@hourly&#x27;</code>, <code>&#x27;@daily&#x27;</code>, <code>&#x27;@weekly&#x27;</code>, and
 <code>&#x27;@monthly&#x27;</code>.

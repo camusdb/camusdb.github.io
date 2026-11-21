@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.328bdcaa.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.d65bfe02.js" defer="defer"></script>
 <script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
@@ -138,6 +138,8 @@ limit. See <a class="" href="/docs/transaction-limits/">Transaction limits</a>.<
 <li class="">If a refresh fails, the materialized view doesn&#x27;t change. The partial rebuild
 is discarded.</li>
 </ul>
+<p><code>SHOW ORPHAN TABLES</code> lists recoverable dropped tables and contents retired by
+<code>TRUNCATE</code>. Refreshes replace derived rows, which are hidden from that list.</p>
 <p><code>REFRESH MATERIALIZED VIEW ... CONCURRENTLY</code> returns error <code>CADB0533</code>. In
 PostgreSQL, <code>CONCURRENTLY</code> lets readers continue during a refresh, and a CamusDB
 refresh already works that way. <code>CONCURRENTLY</code> in PostgreSQL also writes only
@@ -187,14 +189,12 @@ materialized view created <code>WITH NO DATA</code> shows <code>False</code> and
 that isn&#x27;t populated. Its output recreates the same unpopulated materialized
 view.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="in-a-cluster">In a cluster<a href="#in-a-cluster" class="hash-link" aria-label="Direct link to In a cluster" title="Direct link to In a cluster" translate="no">​</a></h2>
-<p>In a cluster, send materialized-view DDL and <code>REFRESH MATERIALIZED VIEW</code> to the
-schema leader of the database. Note that in the current release, these
-statements can fail on another node with <code>CADB0504</code>, and a retry on that node
-fails again. See
-<a class="" href="/docs/distributed-schema/#ddl-that-isnt-forwarded">DDL that isn&#x27;t forwarded</a>.</p>
+<p>In a cluster, you can send materialized-view DDL and <code>REFRESH MATERIALIZED VIEW</code>
+to any node. The receiving node handles the rebuild. The schema leader publishes
+the change. See <a class="" href="/docs/distributed-schema/#how-a-schema-change-flows">Distributed schema</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="configuration">Configuration<a href="#configuration" class="hash-link" aria-label="Direct link to Configuration" title="Direct link to Configuration" translate="no">​</a></h2>
-<table><thead><tr><th>Setting</th><th>Default</th><th>Meaning</th></tr></thead><tbody><tr><td><code>materialized_view_refresh_chunk_rows</code></td><td><code>10000</code></td><td>Rows CamusDB writes per transaction during a rebuild. Keep it well below <code>max_mutations_per_transaction</code>.</td></tr><tr><td><code>materialized_view_refresh_enabled</code></td><td><code>true</code></td><td>Set to <code>false</code> to refuse refreshes on a node that must not run bulk work. <code>WITH NO DATA</code> is allowed with either value.</td></tr><tr><td><code>materialized_view_refresh_takeover_attempts</code></td><td><code>3</code></td><td>How many times CamusDB restarts a refresh interrupted by a crash or leadership change. With <code>0</code>, it restarts none and only reclaims the abandoned storage.</td></tr></tbody></table>
-<p>The three settings appear in <a class="" href="/docs/show-variables/"><code>SHOW VARIABLES</code></a>.</p>
+<table><thead><tr><th>Setting</th><th>Default</th><th>Meaning</th></tr></thead><tbody><tr><td><code>materialized_view_refresh_chunk_rows</code></td><td><code>10000</code></td><td>Rows CamusDB writes per transaction during a rebuild. Keep it well below <code>max_mutations_per_transaction</code>.</td></tr><tr><td><code>materialized_view_refresh_enabled</code></td><td><code>true</code></td><td>Set to <code>false</code> to refuse refreshes on a node that must not run bulk work. <code>WITH NO DATA</code> is allowed with either value.</td></tr><tr><td><code>materialized_view_refresh_takeover_attempts</code></td><td><code>3</code></td><td>How many times CamusDB restarts a refresh interrupted by a crash or leadership change. With <code>0</code>, it restarts none and only reclaims the abandoned storage.</td></tr><tr><td><code>materialized_view_refresh_hold_lease_ms</code></td><td><code>300000</code></td><td>How long a refresh can retain its source snapshot before it must renew the lease. Minimum <code>5000</code> ms.</td></tr></tbody></table>
+<p>These settings appear in <a class="" href="/docs/show-variables/"><code>SHOW VARIABLES</code></a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="not-implemented-yet">Not implemented yet<a href="#not-implemented-yet" class="hash-link" aria-label="Direct link to Not implemented yet" title="Direct link to Not implemented yet" translate="no">​</a></h2>
 <ul>
 <li class="">Incremental refresh (<code>REFRESH MATERIALIZED VIEW ... CONCURRENTLY</code>). See

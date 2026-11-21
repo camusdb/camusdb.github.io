@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.328bdcaa.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.d65bfe02.js" defer="defer"></script>
 <script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
@@ -78,8 +78,9 @@ first row. This means that the statement doesn&#x27;t read the rows it inserts, 
 it always ends.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="size-limit-and-locks">Size limit and locks<a href="#size-limit-and-locks" class="hash-link" aria-label="Direct link to Size limit and locks" title="Direct link to Size limit and locks" translate="no">​</a></h3>
 <p>A transaction can insert at most <code>max_mutations_per_transaction</code> rows (default
-20,000). A larger copy returns error <code>CADB0506</code>. Split the copy into several
-transactions with a <code>WHERE</code> clause or a <code>LIMIT</code>.</p>
+20,000). A larger copy returns <code>CADB0506</code>. Split the copy into several
+transactions with a <code>WHERE</code> clause or a <code>LIMIT</code>. A value of <code>0</code> or less disables
+the <a class="" href="/docs/transaction-limits/#mutation-limit">mutation limit</a>.</p>
 <p>During the copy, CamusDB locks the key range that the source scan read.
 Concurrent writes to that range wait until the transaction ends, and a large
 copy can block writers for a long time. A

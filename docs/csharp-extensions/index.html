@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.328bdcaa.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.d65bfe02.js" defer="defer"></script>
 <script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
@@ -85,6 +85,10 @@ C# language, for example lambdas and LINQ. The following aren&#x27;t allowed:</p
 <li class="">SQL statements, and calls to other SQL functions.</li>
 <li class="">The clock, <code>Random</code>, and <code>Guid.NewGuid()</code>.</li>
 <li class="">A regex call that doesn&#x27;t set a match timeout.</li>
+<li class="">Custom sort comparisons such as <code>List&lt;T&gt;.Sort((a, b) =&gt; ...)</code> and
+<code>Comparer&lt;T&gt;.Create(...)</code>. Use a key with <code>OrderBy</code>, or a built-in comparer
+such as <code>StringComparer.Ordinal</code>. Stored functions and triggers that use a
+custom sort comparison return <code>CADB0845</code> until you replace the body.</li>
 <li class="">A LINQ query kept in a local variable. End the query with <code>ToList()</code> or
 <code>ToArray()</code>.</li>
 </ul>
@@ -97,11 +101,12 @@ compile error returns <code>CADB0838</code> with the line and column.</p>
 <p>A call over a budget returns <code>CADB0840</code>, and the message names the setting.
 Recursion that is too deep for the stack returns the same error. The checks are
 made between calls to .NET methods. This means that one .NET operation can
-finish before the call stops.</p>
+finish before the call stops. A budget error skips pending <code>finally</code> blocks in
+the function or trigger body.</p>
 <p><code>CANCEL QUERY</code> doesn&#x27;t stop a running inline call. The call budget stops it. A
 statement that calls a function for each row of a large table can take a long
 time, even when each call is in its budget. To limit the statement, set the
-<code>statement_timeout_ms</code> <a class="" href="/docs/settings-reference/#request-resource-limits">runtime cluster setting</a>.
+<code>statement_timeout_ms</code> <a class="" href="/docs/settings-reference/#statement-timeout">runtime cluster setting</a>.
 A statement over that limit returns <code>CADB0562</code>.</p>
 <p>The code executes in the server process. Set a
 <a class="" href="/docs/configuration/#cache-defaults-proportional-to-memory">process heap limit</a>

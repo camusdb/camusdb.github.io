@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.328bdcaa.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.d65bfe02.js" defer="defer"></script>
 <script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
@@ -87,8 +87,8 @@ comments, use <code>SHOW CREATE TABLE</code>.</p>
 <li class="">A sequence comment, after <code>ALTER SEQUENCE ... RENAME TO</code>.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="limits-and-escapes">Limits and escapes<a href="#limits-and-escapes" class="hash-link" aria-label="Direct link to Limits and escapes" title="Direct link to Limits and escapes" translate="no">​</a></h2>
-<p>A comment can be at most 65,535 characters long. A longer comment returns
-<code>CADB0511 CommentTooLong</code>.</p>
+<p>A comment can be at most 65,535 UTF-16 code units long. If a comment exceeds
+the limit, <code>CADB0511 CommentTooLong</code> names the object and gives the length.</p>
 <p>A comment can contain any character, such as a quotation mark or a newline. <code>SHOW CREATE TABLE</code> writes each comment back as a valid SQL
 string. It uses an <code>E&#x27;...&#x27;</code> escape string when a control character needs an
 escape.</p>

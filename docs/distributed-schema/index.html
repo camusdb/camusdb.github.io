@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.328bdcaa.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.d65bfe02.js" defer="defer"></script>
 <script src="/assets/js/main.0e45e96f.js" defer="defer"></script>
 </head>
 <body>
@@ -75,10 +75,10 @@ lost acknowledgement can&#x27;t make a DDL statement return early.</p>
 <p>As a result, the schema versions on the nodes are close to each other. A transaction
 and the row encoding always see a coherent schema.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="how-a-schema-change-flows">How a schema change flows<a href="#how-a-schema-change-flows" class="hash-link" aria-label="Direct link to How a schema change flows" title="Direct link to How a schema change flows" translate="no">​</a></h2>
-<p>A DDL request in a cluster follows this path:</p>
+<p>A DDL request that supports forwarding follows this path in a cluster:</p>
 <ol>
 <li class="">A client sends a DDL statement to a node.</li>
-<li class="">If that node isn&#x27;t the schema leader, it forwards the request to the leader.</li>
+<li class="">A follower forwards the statement or the resulting change to the leader.</li>
 <li class="">The leader validates the change against the current schema version.</li>
 <li class="">The leader writes the change to the schema log, and Raft commits it.</li>
 <li class="">Each node applies the committed change.</li>
@@ -89,13 +89,8 @@ acknowledge the applied version before the next stage.</li>
 <p>A forwarded request has a stable operation id. This means that a retry after a
 lost response doesn&#x27;t apply the change twice.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="ddl-that-isnt-forwarded">DDL that isn&#x27;t forwarded<a href="#ddl-that-isnt-forwarded" class="hash-link" aria-label="Direct link to DDL that isn&#x27;t forwarded" title="Direct link to DDL that isn&#x27;t forwarded" translate="no">​</a></h3>
-<p>Not all DDL is forwarded. The following table shows where to send each kind of
-statement in a cluster:</p>
-<table><thead><tr><th>DDL</th><th>Where to send it</th></tr></thead><tbody><tr><td>Tables, columns, indexes, constraints, renames, <code>TRUNCATE</code>, and <code>COMMENT ON</code></td><td>Any node. A follower forwards it.</td></tr><tr><td>Functions, triggers, extensions, and <code>ALTER TABLE ... SET</code> / <code>RESET</code></td><td>The schema leader. Another node returns <code>CADB0099</code>, and the message names the leader.</td></tr><tr><td>Views, materialized views, and sequences</td><td>The schema leader.</td></tr></tbody></table>
-<p>Note that in the current release, the DDL of the last row in the table returns
-<code>CADB0504</code> on another node, with a message that says that the schema
-leader moved and that you should retry. A retry on the same node fails again.
-Send these statements to the schema leader.</p>
+<p>The following table shows where to send schema statements in a cluster.</p>
+<table><thead><tr><th>Statement</th><th>Where to send it</th></tr></thead><tbody><tr><td>Tables, columns, indexes, constraints, renames, <code>TRUNCATE</code>, and <code>COMMENT ON</code></td><td>Any node.</td></tr><tr><td>View and materialized-view DDL, including <code>REFRESH MATERIALIZED VIEW</code></td><td>Any node. A follower forwards the schema change for publication.</td></tr><tr><td><code>ALTER TABLE ... SET</code> and <code>ALTER TABLE ... RESET</code></td><td>Any node.</td></tr><tr><td>Functions, triggers, and extensions</td><td>The database&#x27;s schema leader. Another node returns <code>CADB0099</code> and names the leader.</td></tr><tr><td>Sequence DDL</td><td>The database&#x27;s schema leader. Another node returns <code>CADB0504</code>.</td></tr></tbody></table>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-slow-node-and-bounded-progress-of-a-ddl-statement">A slow node and bounded DDL progress<a href="#a-slow-node-and-bounded-progress-of-a-ddl-statement" class="hash-link" aria-label="Direct link to A slow node and bounded DDL progress" title="Direct link to A slow node and bounded DDL progress" translate="no">​</a></h2>
 <p>The wait for the slowest node is bounded. After a schema
 step commits, the leader waits for all the live nodes to acknowledge it. A node
