@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en" dir="ltr" class="blog-wrapper blog-post-page plugin-blog plugin-id-default" data-has-hydrated="false">
+<head>
+<meta charset="UTF-8">
+<meta name="generator" content="Docusaurus v3.10.2">
+<title data-rh="true">What the dragon found, part four: backups, schema changes and branches under load | CamusDB</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://camusdb.github.io/blog/what-the-dragon-found-part-four/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docusaurus_tag" content="default"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docsearch:docusaurus_tag" content="default"><meta data-rh="true" property="og:title" content="What the dragon found, part four: backups, schema changes and branches under load | CamusDB"><meta data-rh="true" name="description" content="Five weeks of Caraxes tests on backups, node replacement, online schema changes, deletes, range splits, joins and database branches: each defect, its fix, and the tests that are not done yet."><meta data-rh="true" property="og:description" content="Five weeks of Caraxes tests on backups, node replacement, online schema changes, deletes, range splits, joins and database branches: each defect, its fix, and the tests that are not done yet."><meta data-rh="true" property="og:image" content="https://camusdb.github.io/img/caraxes.png"><meta data-rh="true" name="twitter:image" content="https://camusdb.github.io/img/caraxes.png"><meta data-rh="true" property="og:type" content="article"><meta data-rh="true" property="article:published_time" content="2026-11-21T00:00:00.000Z"><meta data-rh="true" property="article:author" content="https://github.com/andresgutierrez"><meta data-rh="true" property="article:tag" content="camusdb,reliability,chaos-testing,distributed-systems"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://camusdb.github.io/blog/what-the-dragon-found-part-four/"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/blog/what-the-dragon-found-part-four/" hreflang="en"><link data-rh="true" rel="alternate" href="https://camusdb.github.io/blog/what-the-dragon-found-part-four/" hreflang="x-default"><link data-rh="true" rel="preconnect" href="https://SPBBUBI3JT-dsn.algolia.net" crossorigin="anonymous"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","@id":"https://camusdb.github.io/blog/what-the-dragon-found-part-four","mainEntityOfPage":"https://camusdb.github.io/blog/what-the-dragon-found-part-four","url":"https://camusdb.github.io/blog/what-the-dragon-found-part-four","headline":"What the dragon found, part four: backups, schema changes and branches under load","name":"What the dragon found, part four: backups, schema changes and branches under load","description":"Five weeks of Caraxes tests on backups, node replacement, online schema changes, deletes, range splits, joins and database branches: each defect, its fix, and the tests that are not done yet.","datePublished":"2026-11-21T00:00:00.000Z","author":{"@type":"Person","name":"Andres Gutierrez","description":"Creator of CamusDB","url":"https://github.com/andresgutierrez","image":"https://github.com/andresgutierrez.png"},"image":{"@type":"ImageObject","@id":"https://camusdb.github.io/img/caraxes.png","url":"https://camusdb.github.io/img/caraxes.png","contentUrl":"https://camusdb.github.io/img/caraxes.png","caption":"title image for the blog post: What the dragon found, part four: backups, schema changes and branches under load"},"keywords":[],"isPartOf":{"@type":"Blog","@id":"https://camusdb.github.io/blog","name":"Blog"}}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="CamusDB RSS Feed">
+<link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="CamusDB Atom Feed">
+
+
+
+
+<link rel="search" type="application/opensearchdescription+xml" title="CamusDB" href="/opensearch.xml">
+
+
+<meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
+<meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
+<script src="/assets/js/runtime~main.eff556bf.js" defer="defer"></script>
+<script src="/assets/js/main.7433aad9.js" defer="defer"></script>
+</head>
+<body>
+<svg style="display: none;"><defs>
+<symbol id="theme-svg-external-link" viewBox="0 0 24 24"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
+</defs></svg>
+<script>!function(){var t=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();document.documentElement.setAttribute("data-theme",t||"light"),document.documentElement.setAttribute("data-theme-choice",t||"light")}(),function(){try{const c=new URLSearchParams(window.location.search).entries();for(var[t,e]of c)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="theme-layout-navbar navbar navbar--fixed-top"><div class="navbar__inner"><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/"><div class="navbar__logo"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="/img/camusdb-logo.png" alt="CamusDB logo" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">CamusDB</b></a><a class="navbar__item navbar__link" href="/docs/why-camusdb/">Docs</a><a class="navbar__item navbar__link" href="/docs/why-camusdb/">Why CamusDB?</a><a aria-current="page" class="navbar__item navbar__link navbar__link--active" href="/blog/">Blog</a><a class="navbar__item navbar__link" href="/playground/">Playground</a></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"></path></svg></button></div><div class="navbarSearchContainer_Bca1"><button type="button" class="DocSearch DocSearch-Button" aria-label="Search (Meta+k)" aria-keyshortcuts="Meta+k"><span class="DocSearch-Button-Container"><svg width="20" height="20" class="DocSearch-Search-Icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8" stroke="currentColor" fill="none" stroke-width="1.4"></circle><path d="m21 21-4.3-4.3" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg><span class="DocSearch-Button-Placeholder">Search</span></span><span class="DocSearch-Button-Keys"></span></button></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class="container margin-vert--lg"><div class="row"><aside class="col col--3"><nav class="sidebar_re4s thin-scrollbar" aria-label="Blog recent posts navigation"><div class="sidebarItemTitle_pO2u margin-bottom--md">Recent posts</div><div role="group"><h3 class="yearGroupHeading_rMGB">2026</h3><ul class="sidebarItemList_Yudw clean-list"><li class="sidebarItem__DBe"><a aria-current="page" class="sidebarItemLink_mo7H sidebarItemLinkActive_I1ZP" href="/blog/what-the-dragon-found-part-four/">What the dragon found, part four: backups, schema changes and branches under load</a></li><li class="sidebarItem__DBe"><a class="sidebarItemLink_mo7H" href="/blog/camusdb-in-production-at-bacon-games/">CamusDB in production at Bacon Games: a first-party report</a></li><li class="sidebarItem__DBe"><a class="sidebarItemLink_mo7H" href="/blog/camusdb-vs-cockroachdb-bank-benchmark/">CamusDB and CockroachDB on the same host: a serializable bank benchmark</a></li><li class="sidebarItem__DBe"><a class="sidebarItemLink_mo7H" href="/blog/how-much-we-test-camusdb/">How much we test CamusDB</a></li><li class="sidebarItem__DBe"><a class="sidebarItemLink_mo7H" href="/blog/what-a-sql-fuzzer-catches/">What a SQL fuzzer catches</a></li></ul></div></nav></aside><main class="col col--7"><article class=""><header><h1 class="title_f1Hy">What the dragon found, part four: backups, schema changes and branches under load</h1><div class="container_mt6G margin-vert--md"><time datetime="2026-11-21T00:00:00.000Z">November 21, 2026</time> · <!-- -->19 min read</div><div class="margin-top--md margin-bottom--sm row"><div class="col col--12 authorCol_Hf19"><div class="avatar margin-bottom--sm"><a href="https://github.com/andresgutierrez" target="_blank" rel="noopener noreferrer" class="avatar__photo-link"><img class="avatar__photo authorImage_XqGP" src="https://github.com/andresgutierrez.png" alt="Andres Gutierrez"></a><div class="avatar__intro authorDetails_lV9A"><div class="avatar__name"><a href="https://github.com/andresgutierrez" target="_blank" rel="noopener noreferrer"><span class="authorName_yefp" translate="no">Andres Gutierrez</span></a></div><small class="authorTitle_nd0D" title="Creator of CamusDB">Creator of CamusDB</small><div class="authorSocials_rSDt"></div></div></div></div></div></header><div id="__blog-post-container" class="markdown"><p><img decoding="async" loading="lazy" alt="A dragon burning a city of glowing pyramids at night" src="/assets/images/caraxes-c4fa57eb03047cde9f4604a3d0b83dc8.png" width="1448" height="1086" class="img_ev3q"></p>
+<p>This post lists the defects that Caraxes found in CamusDB in the five weeks
+since part three, with the fix for each one. In that period, the tool gained
+five faults and five workloads.</p>
+<p>The most serious defects returned wrong data. Two transactions read one row
+through a join, and both overwrote it. Six rows lost one acknowledged write
+after a range split. A database branch read 3,400 of its 3,600 rows. A query
+through a new index returned rows that didn&#x27;t match its filter. Incremental
+backups were also refused under load.</p>
+<p>If you are evaluating CamusDB, this post shows how routine maintenance
+behaves while a cluster is busy and nodes fail.</p>
+<p><a class="" href="/blog/a-dragon-to-attack-our-own-database/">Part one</a> introduced Caraxes, the
+tool that attacks a real CamusDB cluster in Docker.
+<a class="" href="/blog/what-the-dragon-found/">Part two</a> and
+<a class="" href="/blog/what-the-dragon-found-part-three/">part three</a> listed what it found in
+its first two months.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="commits-and-releases-in-five-weeks">Commits and releases in five weeks<a href="#commits-and-releases-in-five-weeks" class="hash-link" aria-label="Direct link to Commits and releases in five weeks" title="Direct link to Commits and releases in five weeks" translate="no">​</a></h2>
+<p>CamusDB uses two lower layers. Kahuna is the replicated key-value store under
+the SQL engine. Kommander is the Raft implementation under Kahuna, and Raft is
+the protocol with which nodes agree on the order of writes.
+<a class="" href="/blog/introducing-solariumdb/">SolariumDB</a> is a storage engine in C# that a
+node can use in place of RocksDB.</p>
+<table><thead><tr><th>Repository</th><th>Commits since 2026-10-14</th><th>Versions consumed by CamusDB</th></tr></thead><tbody><tr><td>CamusDB</td><td>262</td><td></td></tr><tr><td>Kahuna</td><td>151</td><td>from 1.11.10 to 1.18.0</td></tr><tr><td>Kommander</td><td>58</td><td>from 1.10.9 to 1.15.0</td></tr><tr><td>SolariumDB</td><td>23</td><td>from 0.1.3 to 0.2.1</td></tr><tr><td>Caraxes</td><td>62</td><td></td></tr><tr><td>.NET client</td><td>44</td><td></td></tr></tbody></table>
+<p>Caraxes now has 739 scenario files, up from 332 in part three.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="terms-in-this-post">Terms in this post<a href="#terms-in-this-post" class="hash-link" aria-label="Direct link to Terms in this post" title="Direct link to Terms in this post" translate="no">​</a></h2>
+<table><thead><tr><th>Term</th><th>Meaning</th></tr></thead><tbody><tr><td>Partition</td><td>A part of the data that is replicated on several nodes.</td></tr><tr><td>Leader</td><td>The replica of a partition that coordinates its writes.</td></tr><tr><td>Snapshot install</td><td>A full copy of a partition, sent from the leader to a replica that is too far behind to catch up from the log.</td></tr><tr><td>Ledger check</td><td>The bank workload moves money between accounts. After a test, the sum of the balances must be unchanged, and each row must be at the version that its acknowledged writes account for.</td></tr><tr><td>Soak</td><td>A long test.</td></tr><tr><td>Arm</td><td>One of two or more tests that differ in one setting.</td></tr><tr><td>Elle</td><td>An open tool that checks a history of transactions for isolation anomalies.</td></tr></tbody></table>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="incremental-backups-were-refused-under-load">Incremental backups were refused under load<a href="#incremental-backups-were-refused-under-load" class="hash-link" aria-label="Direct link to Incremental backups were refused under load" title="Direct link to Incremental backups were refused under load" translate="no">​</a></h2>
+<p>The <code>backup</code> fault takes a full or an incremental
+<a class="" href="/docs/backup-and-restore/">backup</a> on one node while the bank workload is
+active. After the workload, a verify stage restores the backup chain and
+starts a second cluster from the restored data. The ledger of each restored
+node must be equal to the live ledger.</p>
+<p>The comparison includes the sum of all row versions. A transfer conserves the
+sum of the balances. This means that a restore that lost the last ten minutes
+of writes would conserve it too. The version sum increases with each
+transfer, and a lost tail changes it.</p>
+<p>On Kahuna 1.11.9, each incremental backup was refused. The backup used the
+wrong log position as the start of the retained log. The retention floor that
+protects the log for the next incremental also didn&#x27;t engage on a busy node.
+Full backups passed.</p>
+<p>Kahuna 1.12 fixed both defects, and the second soak on the fix passed.</p>
+<table><thead><tr><th>Measure</th><th>Result</th></tr></thead><tbody><tr><td>Backups under load</td><td>11 in 45 minutes: one full and ten incrementals, all at the first attempt</td></tr><tr><td>Full backup</td><td>4.7 seconds</td></tr><tr><td>Incremental backup</td><td>41 to 83 seconds</td></tr><tr><td>Restore</td><td>12 links, 9,623,338 log entries replayed in 653 seconds</td></tr><tr><td>Ledger on the three restored nodes</td><td>2,000 rows, balance sum 2,993,071,553, version sum 10,807,982: equal to the live ledger</td></tr></tbody></table>
+<p>The 12 links of the chain are the 11 backups and one closing incremental that
+is taken after the workload.</p>
+<p>The cost to the workload is measured for the full backup. In the first soak,
+the full backup took 6.7 seconds, and throughput fell from 9,014 to 3,412
+operations per second in its window. The cost of an incremental isn&#x27;t graded
+yet. The host&#x27;s NVMe changed to its slow regime after the full backup, as
+part three described, and the harness marks a throughput window as
+inadmissible when the device changes. In those windows, the workload measured
+53 to 95 percent of its earlier rate.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-replacement-node-needed-four-attempts-to-join-from-a-backup">A replacement node needed four attempts to join from a backup<a href="#a-replacement-node-needed-four-attempts-to-join-from-a-backup" class="hash-link" aria-label="Direct link to A replacement node needed four attempts to join from a backup" title="Direct link to A replacement node needed four attempts to join from a backup" translate="no">​</a></h2>
+<p>The <code>add-node</code> fault replaces a lost node. One node is killed at minute 30
+and doesn&#x27;t come back. At minute 36, a new node is
+<a class="" href="/docs/backup-and-restore/#seed-a-joining-node-from-a-backup">seeded from the backup chain</a>
+of a live node, and it joins the cluster under load. A node is a voter when
+it counts toward the Raft majority.</p>
+<table><thead><tr><th>Attempt</th><th>Result</th><th>Cause</th></tr></thead><tbody><tr><td>n1</td><td>The new node exited 60 seconds after its start.</td><td>The time limit for a join was a constant of 60 seconds. Kommander now extends the limit while the node makes progress.</td></tr><tr><td>n2</td><td>The workload ended before the new node started.</td><td>The harness copied the full backup catalog, 17 GB, to the new node. It now copies the links of one chain.</td></tr><tr><td>n3</td><td>After 15 minutes, the node had 2.5 million of 22.5 million log entries.</td><td>The restored data wasn&#x27;t used as the start position, and the leader sent the log from entry 1.</td></tr><tr><td>n4</td><td>Pass: ready in 140 seconds, a voter in 329 seconds.</td><td>Kahuna 1.12.2 certifies the restored position.</td></tr></tbody></table>
+<p>In the fourth attempt, the new node started at the restored position, 580,000
+entries behind the leader. After the workload, it read the live ledger
+exactly.</p>
+<p>In these soaks, an incremental backup that was taken after a membership
+change was also published, and the engine then refused to resolve its chain.
+Kahuna 1.12.2 takes a full backup at that point.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="online-schema-changes-failed-on-a-busy-table">Online schema changes failed on a busy table<a href="#online-schema-changes-failed-on-a-busy-table" class="hash-link" aria-label="Direct link to Online schema changes failed on a busy table" title="Direct link to Online schema changes failed on a busy table" translate="no">​</a></h2>
+<p>The <code>sql</code> fault sends one statement to a node while the workload is active.
+The first scenario changes the schema of the table that takes all the
+transfers.</p>
+<div class="language-yml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">nemesis</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">events</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token punctuation" style="color:#94a3b8">-</span><span class="token plain"> </span><span class="token punctuation" style="color:#94a3b8">{</span><span class="token plain"> </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">at</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> 20s</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">fault</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> sql</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">target</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> camus1</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">duration</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> 5s</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">sql</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;CREATE INDEX acct_balance ON workload_accounts (balance) INCLUDE (version)&quot;</span><span class="token plain"> </span><span class="token punctuation" style="color:#94a3b8">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token punctuation" style="color:#94a3b8">-</span><span class="token plain"> </span><span class="token punctuation" style="color:#94a3b8">{</span><span class="token plain"> </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">at</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> 50s</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">fault</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> sql</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">target</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> camus2</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">duration</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> 5s</span><span class="token punctuation" style="color:#94a3b8">,</span><span class="token plain"> </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">sql</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&quot;ALTER TABLE workload_accounts ADD COLUMN tier INT64 NOT NULL DEFAULT (7)&quot;</span><span class="token plain"> </span><span class="token punctuation" style="color:#94a3b8">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">    </span><span class="token comment" style="color:#64748b;font-style:italic"># ... a new table, a bulk insert, a foreign key and a bulk delete ...</span><br></div></code></pre></div></div>
+<p>After the workload, the index must contain exactly the rows of the primary
+key with the same values, on all nodes. The new column must be 7 in each row.</p>
+<p>The ledger check passed in each test that completed, which means that no
+transfer was lost. The schema changes had six defects, and all six are fixed.</p>
+<table><thead><tr><th>Statement</th><th>Defect on October 20</th><th>Result after the fix</th></tr></thead><tbody><tr><td><code>CREATE INDEX</code></td><td>The statement could not complete on a table under constant writes. A batch of the index build that lost a conflict with a transfer was not retried, and eleven attempts failed in 40 seconds.</td><td>The statement completes at the first attempt. A build of 20,000 rows takes about 40 seconds.</td></tr><tr><td><code>CREATE INDEX</code></td><td>After the first fix, 3 to 21 rows had a second index entry at an old balance. A query with a filter on the old balance returned the row with its current balance.</td><td>The index is equal to the primary key on the three nodes.</td></tr><tr><td><code>ADD COLUMN</code></td><td>Transfers that didn&#x27;t name the new column got <code>CADB0301</code>, a <code>NOT NULL</code> violation. With an identity column, 7,993 transfers got it in 23 seconds, 51 percent of the writes.</td><td>No transfer gets the error.</td></tr><tr><td><code>ADD COLUMN</code></td><td>A transaction that was open across the schema change failed with <code>CADB0099</code>, a code that clients don&#x27;t retry.</td><td>The transaction gets the retryable <code>CADB0502</code>.</td></tr><tr><td><code>ADD COLUMN</code></td><td>When one batch of the column fill lost a conflict eight times, the column was removed.</td><td>The fill completes, and a new schema leader resumes it.</td></tr><tr><td>Any DDL</td><td>All the DDL of a database waited behind an index build. A <code>CREATE TABLE</code> waited 87 seconds.</td><td><code>CREATE TABLE</code> answers in 0.2 seconds during a build.</td></tr></tbody></table>
+<p>Two more scenarios kill the three nodes one by one during the statement. The
+node that drives the schema change dies, and the next leader of the schema
+partition must resume the work.</p>
+<p><strong>An index build that wasn&#x27;t resumed.</strong> A node that had just restarted won
+the leadership of the schema partition and didn&#x27;t resume the build. The index
+wasn&#x27;t published, and reads through it failed until the end of the test. In
+the four tests after the fix, all interrupted builds were published. One
+build needed four resumes across five leader changes.</p>
+<p><strong>Three nodes that exited at startup.</strong> The first node to restart had no
+majority. It waited 10 seconds for a leader and exited. The other two nodes
+then did the same, and the cluster didn&#x27;t come back. Since Kahuna 1.13.2, a
+node that starts waits for a leader. A new scenario kills all three nodes
+within 4 seconds, and the cluster must serve again with an exact ledger.</p>
+<p>During the 40-second index build, the bank measured 52 percent of its earlier
+rate. For more information, see
+<a class="" href="/docs/distributed-schema/">Distributed schema changes</a>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-snapshot-count-was-short-after-a-leader-change">A snapshot count was short after a leader change<a href="#a-snapshot-count-was-short-after-a-leader-change" class="hash-link" aria-label="Direct link to A snapshot count was short after a leader change" title="Direct link to A snapshot count was short after a leader change" translate="no">​</a></h2>
+<p>The <code>tokens</code> workload tests deletes. Each write deletes one token row and
+inserts its successor in one transaction. This means that the table has the
+same number of rows at each committed state. A probe counts the rows in a
+read-only snapshot during the test.</p>
+<p>In the first fault test, two counts returned 490 and 491 of 500 rows while no
+fault was active. In that second, an election moved the leader of the
+partition, and 13 transactions in flight were aborted. The snapshot hid rows
+whose deletes didn&#x27;t commit. The final table was equal to the journal of the
+workload, which means that the tokens were intact and the snapshot read was
+wrong.</p>
+<p>A scenario that removed the leader at intervals of 25 seconds didn&#x27;t
+reproduce the defect, and its 834 counts were exact. The short count then
+appeared in a range split test (2,998 of 3,000 rows), in an index build test
+(19,999 of 20,000 rows), and after a leader handover (499 of 500 rows, in 3
+of 694 probes).</p>
+<p>Kahuna 1.13.1 reads a row from its history when a pending write blocks the
+current value. Kahuna 1.13.3 records the pending writes of a range before it
+reads each page of a scan. On 1.13.3, three tests made 1,879 probes across 74
+elections, and no count was short.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="range-splits-lost-acknowledged-writes-twice">Range splits lost acknowledged writes twice<a href="#range-splits-lost-acknowledged-writes-twice" class="hash-link" aria-label="Direct link to Range splits lost acknowledged writes twice" title="Direct link to Range splits lost acknowledged writes twice" translate="no">​</a></h2>
+<p><a class="" href="/docs/key-range-sharding/">Key-range sharding</a> splits a table into ranges of
+keys, and a range can move to a new partition as it grows. The feature is
+opt-in.</p>
+<p><strong>October 27.</strong> The bank scenario with a cascade of splits failed its ledger
+check on Kahuna 1.14.3. During a split, a transfer could commit on an old
+value of a row that had moved. Kahuna 1.14.5 was the first fix, and both
+ten-minute tests on it failed. Kahuna 1.14.6 passed two ten-minute tests with
+26 and 22 range moves and an exact ledger.</p>
+<p>On 1.14.3, the ledger check caught this race in one test of two. The pass
+rule for these scenarios now also requires that the node logs don&#x27;t contain
+the error line of the race.</p>
+<p><strong>November 8.</strong> The nightly split scenario failed. Six rows ended one commit
+below their acknowledged count.</p>
+<!-- -->
+<p>The range moved to a new partition while one node was down for 20 seconds.
+That node restarted and caught up the logs of the two partitions in the wrong
+order. It applied the commit records of two transactions from the new
+partition before it applied their writes from the source partition. It then
+treated those writes as pending, and 39 later commits on those keys failed on
+that node. The node was one revision behind its peers, became the leader of
+the new partition 17 seconds after its restart, and served the old rows.</p>
+<p>Earlier nights had the same faults and passed, with the range moves at other
+moments.</p>
+<p>Kahuna 1.16.3 fixed it on the same day. A node that catches up the two logs
+in either order now ends at the state of its peers. The new <code>split</code> fault
+starts the range move at second 76, while a node is down from second 70 to
+second 90. This scenario is now part of the nightly job, and it fails when
+the scheduled split doesn&#x27;t commit.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="serializable-reads-through-a-join-took-no-range-lock">Serializable reads through a join took no range lock<a href="#serializable-reads-through-a-join-took-no-range-lock" class="hash-link" aria-label="Direct link to Serializable reads through a join took no range lock" title="Direct link to Serializable reads through a join took no range lock" translate="no">​</a></h2>
+<p>Until November, the Elle scenarios appended to lists. On November 2 we added
+a register shape, which reads and writes single values, and a predicate
+shape, which reads a filter with <code>COUNT(*)</code>. Both shapes are tested with no
+fault. A matrix tests them at each isolation level and locking mode, on one
+node and on three.</p>
+<p>In the first tests, the arms that read by primary key, by index and by
+predicate passed. The arms that read through a join failed at the
+Serializable level. Their read reaches each register row through a reference
+row.</p>
+<div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> r</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">v</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> elle_rw_i64_ref j</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">JOIN</span><span class="token plain"> elle_rw_i64 r </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ON</span><span class="token plain"> r</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">k </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> j</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">target</span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> j</span><span class="token punctuation" style="color:#94a3b8">.</span><span class="token plain">k </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token variable" style="color:#60a5fa">@k</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
+<p>In 60 seconds, Elle found 63 lost updates and 22 non-repeatable reads. A lost
+update is two transactions that read one value and both overwrite it. In this
+history, two committed transactions each read the value 12 for key 0 through
+the join, and both overwrote it.</p>
+<p>A Serializable read needs a shared range lock before it reads. The join paths
+skipped that lock, which the scan of one table takes. A key that a join read
+as absent was unprotected, and another transaction could insert it and
+commit.</p>
+<p>CamusDB fixed it on the same day. Each join and subquery path now takes the
+lock that the single-table read takes, and 16 test cases check the locks of
+each join shape. CamusDB 0.17.0 had this defect. If your Serializable
+transactions read through joins, you should use a later release.</p>
+<p>Note that the Elle join arms are not in the nightly matrix yet. Until they
+are, the 16 test cases guard this fix.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-database-branch-read-fewer-rows-after-an-install-or-a-split">A database branch read fewer rows after an install or a split<a href="#a-database-branch-read-fewer-rows-after-an-install-or-a-split" class="hash-link" aria-label="Direct link to A database branch read fewer rows after an install or a split" title="Direct link to A database branch read fewer rows after an install or a split" translate="no">​</a></h2>
+<p>A <a class="" href="/docs/database-branching/">database branch</a> is an isolated copy of a
+database that shares the data of its source. A branch reads the rows of its
+parent as they were at the fork. For this, the storage layer must retain the
+old revisions of rows that the parent changes later.</p>
+<p>New test drivers fork a branch under load and change rows in the parent. They
+then read the branch through a replica that was rebuilt, with control reads
+before and after.</p>
+<table><thead><tr><th>Event</th><th>Defect</th></tr></thead><tbody><tr><td>Snapshot install</td><td>The copy contained the current row of each key, and the install deleted the older revisions. On that replica, a branch read showed a row as missing when the parent had changed the row after the fork. The read returned no error.</td></tr><tr><td>Range split</td><td>The split copied one revision of each key. A replica of the new partition that didn&#x27;t host the source had no older revision, and a branch read 3,400 of its 3,600 rows.</td></tr><tr><td>Large partition</td><td>The receiver didn&#x27;t take a snapshot above 512 MiB and gave no reason, and the sender retried it. The export was also built in memory: a table of 900,000 rows put two of three replicas out of memory at 4 GiB per node.</td></tr></tbody></table>
+<p>Kahuna 1.16.3 and 1.16.4 fixed these on November 8 and 9. An install and a
+range move now carry the revisions that each live branch needs. When a
+replica can&#x27;t answer a read of old history, the read returns a retryable
+error. The added revisions make the snapshot larger. With one branch on a
+table of 200,000 rows, a partition snapshot grew from 237 MB to 313 MB.</p>
+<p>On a five-node cluster with the fixes, a branch read 900,000 of 900,000 rows
+through a new replica of a partition above the old limit. A partition with
+100 live branches seeded a replica, and all the branch reads were correct.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="two-node-deaths-on-solarium-in-the-two-hour-soak">Two node deaths on Solarium in the two-hour soak<a href="#two-node-deaths-on-solarium-in-the-two-hour-soak" class="hash-link" aria-label="Direct link to Two node deaths on Solarium in the two-hour soak" title="Direct link to Two node deaths on Solarium in the two-hour soak" translate="no">​</a></h2>
+<p>SolariumDB became a storage option at the end of October. The two-hour fault
+soak from part three now has a Solarium arm and a RocksDB arm on one image.</p>
+<table><thead><tr><th>Solarium version</th><th>Result</th><th>Change</th></tr></thead><tbody><tr><td>0.1.3</td><td>The leader died at minute 57, with 2,420 of 2,458 MiB of managed heap in use. The cache and the write buffers were objects on that heap.</td><td>Version 0.1.4 moves both to native memory.</td></tr><tr><td>0.1.4</td><td>A restarted node that received a snapshot install died while it deleted its old rows.</td><td>Version 0.1.5 deletes the rows of a key with one range delete.</td></tr><tr><td>0.1.5</td><td>In six kills, no restart needed an install. This means that the fix was not tested.</td><td>A new schedule has kills of 2 and 4 minutes, which force an install.</td></tr></tbody></table>
+<p>That schedule found the three defects in
+<a class="" href="/blog/how-much-we-test-camusdb/#three-defects-the-soak-found-this-week">How much we test CamusDB</a>.
+The soak with long kills is now the acceptance test for each release of the
+storage stack. On Kahuna 1.15.6 it passed at 7,808 operations per second.
+Each leader kill failed over in 2 to 4 seconds, and the two long kills were
+repaired by one install each, of 4.7 and 8.5 seconds.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-pinned-raft-log-and-a-flipped-bit">A pinned Raft log and a flipped bit<a href="#a-pinned-raft-log-and-a-flipped-bit" class="hash-link" aria-label="Direct link to A pinned Raft log and a flipped bit" title="Direct link to A pinned Raft log and a flipped bit" translate="no">​</a></h2>
+<p><strong>The recovery window pinned the Raft log.</strong> After the fix for incremental
+backups, the point-in-time recovery window, one hour by default, retained the
+Raft log on a busy node. The log grew about 300 MB per minute on each node.
+These tests store their data in memory. One test froze the host, and in the
+next test two nodes reached their memory limit at minute 11. Kahuna now
+retains that log when a backup directory is configured. The verification test
+passed at 10,412 operations per second, with the log flat at about 210 MB per
+node.</p>
+<p><strong>One flipped bit in a data file.</strong> The <code>disk-corrupt</code> fault kills a node and
+damages one of its files before the restart. With three replicas, a follower
+with one flipped bit in its largest data file flagged the damage within
+seconds, and the ledger of 2,000 rows reconciled exactly. A statement that
+reads damaged data gets <code>CADB0837</code>. Each injection writes a record with the
+hash of the file before and after the damage. A test that lacks this record
+didn&#x27;t inject the fault. The fault doesn&#x27;t damage the files of a live node
+yet.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="two-cost-measurements">Two cost measurements<a href="#two-cost-measurements" class="hash-link" aria-label="Direct link to Two cost measurements" title="Direct link to Two cost measurements" translate="no">​</a></h2>
+<ul>
+<li class=""><strong>Key-range routing against hash routing.</strong> On the bank workload with 256
+workers, key-range routing measured 0.98 of the throughput of hash routing,
+with equal CPU per operation. On a workload with three tables and three
+partitions it measured 0.69, because the first placement put two of the
+tables on one partition. With five partitions, the two modes were level.
+Kahuna now places a new key-range table on the partition that hash routing
+would use.</li>
+<li class=""><strong>One node against three.</strong> On one build with data in memory and no faults,
+one node with one replica ran 17,634 transactions per second on Solarium,
+and three nodes with three replicas ran 14,319. On RocksDB, the figures
+were 17,027 and 13,434. On this workload, where one leader already serves
+all the requests, three replicas cost about 20 percent of the throughput
+and about 2 ms of median commit time.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="false-passes-and-false-alarms-from-the-test-setup">False passes and false alarms from the test setup<a href="#false-passes-and-false-alarms-from-the-test-setup" class="hash-link" aria-label="Direct link to False passes and false alarms from the test setup" title="Direct link to False passes and false alarms from the test setup" translate="no">​</a></h2>
+<ul>
+<li class=""><strong>Two green nights with 3 and 5 operations.</strong> The Read Committed Elle
+scenario completed 3 and 5 operations on two nights, and it passed. A
+scenario can now set a minimum number of committed transactions, and a test
+below it fails as vacuous.</li>
+<li class=""><strong>An Elle verdict of &quot;unknown&quot;.</strong> A change made each Read Committed
+statement read at a new snapshot. The level permits this, and it adds
+dependency cycles to the history. Elle&#x27;s search timed out on groups of 138
+to 505 transactions. The scenario now limits each list to 8 appends, and
+Elle answers in 11 seconds.</li>
+<li class=""><strong>Backups that were counted as failed.</strong> The harness stopped a restore of 12
+links and one slow backup at its request limit of 300 seconds. A backup now
+has 20 minutes, and the restore has a separate limit.</li>
+<li class=""><strong>A recovery rule that measured a schema change.</strong> A new index on the
+balance column adds two index entries to each later transfer, and the bank
+settles near 70 percent of its earlier rate. The rule &quot;regain 90 percent of
+the throughput&quot; then measures the new schema. The schema scenarios now show
+the recovery numbers ungraded.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="behavior-of-the-database-today">Behavior of the database today<a href="#behavior-of-the-database-today" class="hash-link" aria-label="Direct link to Behavior of the database today" title="Direct link to Behavior of the database today" translate="no">​</a></h2>
+<ul>
+<li class="">A chain of incremental backups that is taken under load restores to the
+exact live ledger. A replacement node that is seeded from it joins a loaded
+cluster in minutes.</li>
+<li class=""><code>CREATE INDEX</code> and <code>ADD COLUMN</code> complete on a table under constant writes,
+and a new schema leader resumes an interrupted change.</li>
+<li class="">A node that restarts while the cluster has no majority waits for a leader.</li>
+<li class="">A snapshot count is exact across leader changes.</li>
+<li class="">A node that catches up a moved range in the wrong order ends at the state
+of its peers.</li>
+<li class="">A Serializable read through a join takes the range lock of a single-table
+read.</li>
+<li class="">A branch read through an installed or a moved replica is correct, or it
+returns an error.</li>
+<li class="">A follower with a damaged data file flags the damage within seconds.</li>
+</ul></div><footer class="docusaurus-mt-lg"><div class="row margin-top--sm theme-blog-footer-edit-meta-row"><div class="col"><b>Tags:</b><ul class="tags_jXut padding--none margin-left--sm"><li class="tag_QGVx"><a rel="tag" class="tag_zVej tagRegular_sFm0" href="/blog/tags/camusdb/">camusdb</a></li><li class="tag_QGVx"><a rel="tag" class="tag_zVej tagRegular_sFm0" href="/blog/tags/reliability/">reliability</a></li><li class="tag_QGVx"><a rel="tag" class="tag_zVej tagRegular_sFm0" href="/blog/tags/chaos-testing/">chaos-testing</a></li><li class="tag_QGVx"><a rel="tag" class="tag_zVej tagRegular_sFm0" href="/blog/tags/distributed-systems/">distributed-systems</a></li></ul></div></div><div class="row margin-top--sm theme-blog-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/camusdb/camusdb.github.io/tree/main/blog/2026-11-21-what-the-dragon-found-part-four/index.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="pagination-nav docusaurus-mt-lg" aria-label="Blog post page navigation"><a class="pagination-nav__link pagination-nav__link--next" href="/blog/camusdb-in-production-at-bacon-games/"><div class="pagination-nav__sublabel">Older post</div><div class="pagination-nav__label">CamusDB in production at Bacon Games: a first-party report</div></a></nav></main><div class="col col--2"><div class="tableOfContents_bqdL thin-scrollbar"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#commits-and-releases-in-five-weeks" class="table-of-contents__link toc-highlight">Commits and releases in five weeks</a></li><li><a href="#terms-in-this-post" class="table-of-contents__link toc-highlight">Terms in this post</a></li><li><a href="#incremental-backups-were-refused-under-load" class="table-of-contents__link toc-highlight">Incremental backups were refused under load</a></li><li><a href="#a-replacement-node-needed-four-attempts-to-join-from-a-backup" class="table-of-contents__link toc-highlight">A replacement node needed four attempts to join from a backup</a></li><li><a href="#online-schema-changes-failed-on-a-busy-table" class="table-of-contents__link toc-highlight">Online schema changes failed on a busy table</a></li><li><a href="#a-snapshot-count-was-short-after-a-leader-change" class="table-of-contents__link toc-highlight">A snapshot count was short after a leader change</a></li><li><a href="#range-splits-lost-acknowledged-writes-twice" class="table-of-contents__link toc-highlight">Range splits lost acknowledged writes twice</a></li><li><a href="#serializable-reads-through-a-join-took-no-range-lock" class="table-of-contents__link toc-highlight">Serializable reads through a join took no range lock</a></li><li><a href="#a-database-branch-read-fewer-rows-after-an-install-or-a-split" class="table-of-contents__link toc-highlight">A database branch read fewer rows after an install or a split</a></li><li><a href="#two-node-deaths-on-solarium-in-the-two-hour-soak" class="table-of-contents__link toc-highlight">Two node deaths on Solarium in the two-hour soak</a></li><li><a href="#a-pinned-raft-log-and-a-flipped-bit" class="table-of-contents__link toc-highlight">A pinned Raft log and a flipped bit</a></li><li><a href="#two-cost-measurements" class="table-of-contents__link toc-highlight">Two cost measurements</a></li><li><a href="#false-passes-and-false-alarms-from-the-test-setup" class="table-of-contents__link toc-highlight">False passes and false alarms from the test setup</a></li><li><a href="#behavior-of-the-database-today" class="table-of-contents__link toc-highlight">Behavior of the database today</a></li></ul></div></div></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Get started</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/intro/">Install CamusDB</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/why-camusdb/">Why CamusDB?</a></li><li class="footer__item"><a class="footer__link-item" href="/playground/">Try it in the browser</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/kubernetes-operator/">Kubernetes Operator</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/architecture/">Architecture</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Features</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/serializable-transactions/">Serializable transactions</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/cluster/">Cluster mode</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/query-planning/">Query planning</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/database-branching/">Database branching</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/time-travel-reads/">Time-travel reads</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/vector-search/">Vector search</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Connect</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/dotnet-driver/">.NET driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/ef-core/">EF Core provider</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/typescript-connector/">TypeScript connector</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/python-driver/">Python driver</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/http-api/">HTTP API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/mcp-server/">MCP server</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/camusdb/camusdb" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a class="footer__link-item" href="/docs/caraxes/">Caraxes fault tests</a></li><li class="footer__item"><a class="footer__link-item" href="/blog/">Blog</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2021-2026 CamusDB.</div></div></div></footer></div>
+</body>
+</html>
