@@ -5,14 +5,13 @@ description: "CamusDB column types: exact NUMERIC decimals for money, native UUI
 
 # Data types
 
-Every CamusDB column has a strong type, so each value is stored, compared, and
-indexed in its native form. That gives you:
+Each CamusDB column has a strong type. Values are stored, compared, and indexed
+in their native form, and you get:
 
 - Exact `NUMERIC` decimals for money and balances. `0.1` is stored exactly, with
   no floating-point drift.
-- Native `UUID` and `OID` keys, stored as compact binary values instead of
-  text.
-- `ARRAY(T)` columns for short lists, such as tags, without a join table.
+- Native `UUID` and `OID` keys, stored as compact binary values.
+- `ARRAY(T)` columns for short lists, such as tags, with no join table.
 - `JSONB` columns for [JSON documents](/docs/json), with PostgreSQL operators
   and GIN indexes.
 - `BYTES(N)` columns that hold [vector embeddings](/docs/vector-search) for
@@ -24,34 +23,35 @@ CamusDB type. You declare a column's type in `CREATE TABLE` or in
 `ALTER TABLE ... ADD COLUMN`. CamusDB then uses that type for storage,
 comparisons, indexes, casts, defaults, and JSON values.
 
-For application parameters and results, use the [.NET](/docs/dotnet-driver),
-[TypeScript](/docs/typescript-connector), or [Python](/docs/python-driver)
-type mappings. Drivers convert application values to the server's transport
-format; SQL types below describe the values and rules your application uses.
+For application parameters and results, see the type mappings of the
+[.NET](/docs/dotnet-driver), [TypeScript](/docs/typescript-connector), and
+[Python](/docs/python-driver) drivers. The drivers convert application values
+to the transport format. The SQL types below describe the values and rules that
+your application uses.
 
 ## Type reference
 
 | SQL type | Stores | Indexable | Notes |
 | --- | --- | --- | --- |
-| `OID` | A 12-byte ObjectId | Yes | The native identifier type. SQL also accepts `OBJECT_ID`. |
-| `UUID` | A 128-bit UUID | Yes | The native UUID or GUID type. CamusDB also accepts `GUID`. |
+| `OID` | A 12-byte ObjectId | Yes | The native identifier type. Alias: `OBJECT_ID`. |
+| `UUID` | A 128-bit UUID | Yes | The native UUID or GUID type. Alias: `GUID`. |
 | `INT64` | A 64-bit signed integer | Yes | Alias: `BIGINT`. Narrower declarations have their own range limits below. |
 | `SMALLINT` | A signed 16-bit range, stored as `INT64` | Yes | Values from -32768 to 32767. |
 | `INT`, `INTEGER` | A signed 32-bit range, stored as `INT64` | Yes | Values from -2147483648 to 2147483647. |
 | `SERIAL`, `BIGSERIAL` | A generated `INT64` value | Yes | Shorthand for an `INT64` identity column backed by an owned sequence. |
-| `NUMERIC` | An exact decimal number with precision 38 and scale 9 | Yes | CamusDB also accepts `DECIMAL`. |
-| `FLOAT64` | An IEEE-754 double | Yes | Aliases: `FLOAT` and `DOUBLE PRECISION`. `CAST` also accepts `DOUBLE`. |
-| `FLOAT32` | An IEEE-754 single | Yes | CamusDB also accepts `REAL`. It stores and compares the value at single precision. |
-| `BOOL` | A boolean | Yes | CamusDB also accepts `BOOLEAN`. |
-| `STRING` | Unicode text | Yes | Uses the default string length limit. CamusDB also accepts `CHAR`, `VARCHAR`, and `TEXT`. |
+| `NUMERIC` | An exact decimal number with precision 38 and scale 9 | Yes | Alias: `DECIMAL`. |
+| `FLOAT64` | An IEEE-754 double | Yes | Aliases: `FLOAT` and `DOUBLE PRECISION`. `CAST` also takes `DOUBLE`. |
+| `FLOAT32` | An IEEE-754 single | Yes | Alias: `REAL`. CamusDB stores and compares the value at single precision. |
+| `BOOL` | A boolean | Yes | Alias: `BOOLEAN`. |
+| `STRING` | Unicode text | Yes | Uses the default string length limit. Aliases: `CHAR`, `VARCHAR`, and `TEXT`. |
 | `STRING(N)` | Unicode text, up to `N` code points | Yes | `N` must be a positive integer. `CHAR(N)` and `VARCHAR(N)` use the same bound. |
 | `DATE` | A calendar date without a time | Yes | Stored as UTC ticks, truncated to midnight. |
-| `DATETIME` | An instant in UTC | Yes | CamusDB also accepts `TIMESTAMP`. |
+| `DATETIME` | An instant in UTC | Yes | Alias: `TIMESTAMP`. |
 | `INTERVAL` | A span of months, days, and microseconds | No | Expression-only: use in calculations, not table columns. See [Intervals](#intervals). |
-| `BYTES` | An opaque byte string | Yes | CamusDB also accepts `BLOB`. |
+| `BYTES` | An opaque byte string | Yes | Alias: `BLOB`. |
 | `BYTES(N)` | An opaque byte string, up to `N` bytes | Yes | `N` must be a positive integer. `BLOB(N)` uses the same bound. |
 | `ARRAY(T)` | An ordered list of scalar values of type `T` | No | `T` must be a scalar type. Arrays cannot be used in a primary key or an index. |
-| `JSONB` | A JSON document, stored in a binary form | GIN only | CamusDB also accepts `JSON`. A `JSONB` column cannot be part of a primary key, a `UNIQUE` constraint, an ordered index, or a foreign key. See [JSON documents](/docs/json). |
+| `JSONB` | A JSON document, stored in a binary form | GIN only | Alias: `JSON`. A `JSONB` column cannot be part of a primary key, a `UNIQUE` constraint, an ordered index, or a foreign key. See [JSON documents](/docs/json). |
 
 ```camussql
 CREATE TABLE events (
@@ -98,13 +98,12 @@ See [Sequences](/docs/sequences) for identity columns, owned sequences, and
 `nextval`.
 
 In SQL, an ObjectId column uses `OID` or `OBJECT_ID`. In an HTTP table
-definition, the same type is called `id`. In SQL, `id` is still an ordinary
-column name.
+definition, the same type is called `id`. In SQL, `id` is a regular column name.
 
-Use a `UUID` or `GUID` column for UUID identifiers, not a `STRING` column.
-CamusDB stores a native UUID as a compact 128-bit value with a fixed-width,
-order-preserving index encoding, so it is more efficient than UUID text in
-memory, on disk, and in indexes.
+Store UUID identifiers in a `UUID` or `GUID` column. CamusDB stores a native
+UUID as a compact 128-bit value with a fixed-width, order-preserving index
+encoding. It uses less memory, disk, and index space than UUID text in a
+`STRING` column.
 
 ## Integer type names
 
@@ -129,25 +128,27 @@ CREATE TABLE inventory (
 SELECT CAST(32768 AS SMALLINT); -- CADB0420
 ```
 
-All integer widths use INT64 storage, arithmetic, indexes, and result values.
-If `quantity` holds 32767, selecting `quantity + 1` returns 32768; writing it
-back to that SMALLINT column fails. `CREATE TABLE ... AS SELECT` produces
-INT64 integer columns, even from a narrower source. `INT16` and `INT32` are unsupported.
+All integer widths use `INT64` for storage, arithmetic, indexes, and results.
+If `quantity` contains 32767, `quantity + 1` returns 32768, and a write of that
+value to the `SMALLINT` column fails. `CREATE TABLE ... AS SELECT` creates
+`INT64` columns, also from a narrower source. `INT16` and `INT32` aren't
+supported.
 
-**Existing columns retain their old range.** Before this change, INT and
-SMALLINT were unbounded INT64 aliases. Those columns still accept any INT64
-and render as INT64. Old stored views and CHECK bodies retain their normalized
-INT64 casts. New declarations enforce their widths; use BIGINT or INT64 when
-values can exceed the 32-bit range.
+**Columns created with an earlier version have their old range.** In earlier
+versions, `INT` and `SMALLINT` were aliases of `INT64` with no range check.
+Those columns accept any `INT64` value and show as `INT64`. Stored views and
+`CHECK` bodies from that time keep their `INT64` casts. New declarations check
+their widths. Use `BIGINT` or `INT64` when values can be larger than 32 bits.
 
-SERIAL and BIGSERIAL both remain INT64. A sequence attached to a narrow column
-keeps its own bounds; an out-of-range generated value fails the write.
+`SERIAL` and `BIGSERIAL` are `INT64`. A sequence attached to a narrow column has
+separate bounds, and a generated value outside the column range fails the
+write.
 
 ## Integer overflow
 
 `INT64` ranges from `-9223372036854775808` to `9223372036854775807`. Arithmetic,
 literals, casts, and `abs` fail with `CADB0420` (`IntegerValueOutOfRange`) when
-the result is outside that range. Values never wrap around. Use an exact
+the result is outside that range. Values don't wrap around. Use an exact
 `NUMERIC` literal for larger numbers:
 
 ```camussql
@@ -161,7 +162,7 @@ exceed `INT64` if the final result fits. `AVG` divides the exact total and does
 not overflow an integer accumulator. The remainder of the minimum `INT64`
 divided by `-1` is `0`; dividing it by `-1` raises `CADB0420`.
 
-An overflow fails the whole statement. Inside an explicit transaction, it also
+An overflow fails the statement. In an explicit transaction, it also
 [aborts the transaction](/docs/sql-transactions#failed-statements).
 
 ## Floating-point values
@@ -178,16 +179,16 @@ The text is case-insensitive; `inf`, `+inf`, and `-inf` also work. These values
 can be stored, indexed, grouped, and compared:
 
 - Values sort as `-Infinity`, finite numbers, `Infinity`, then `NaN`.
-- All NaNs compare equal, so `GROUP BY` and `DISTINCT` combine them.
+- All NaNs are equal, and `GROUP BY` and `DISTINCT` combine them.
 - Negative zero equals zero. A unique index cannot store both as distinct
   keys. A covering index read returns `0` for a stored `-0`.
 
-Finite arithmetic that overflows, or rounds a nonzero result down to zero,
-fails with `CADB0421` (`FloatValueOutOfRange`). For example, `1e308 * 10` and
+Finite arithmetic that overflows, or that rounds a nonzero result down to zero,
+returns `CADB0421` (`FloatValueOutOfRange`). For example, `1e308 * 10` and
 `1e-300 * 1e-300` fail. Nonzero subnormal values remain valid. The same checks
 apply to literals, casts, math functions, and narrowing to `FLOAT32`.
 
-A plain floating-point `SUM` checks its running total; a window `SUM` checks
+A regular floating-point `SUM` checks its running total; a window `SUM` checks
 the exact frame total. Explicit infinity and NaN inputs follow IEEE arithmetic,
 but division by zero, `sqrt` of a negative value, and `sign(NaN)` fail with
 `CADB0400`. Casting infinity or NaN to `INT64` raises `CADB0420`; `NUMERIC`
@@ -199,7 +200,7 @@ Use your driver's numeric types and typed parameters. The
 [.NET driver](/docs/dotnet-driver#infinity-and-nan) supports native infinity
 and NaN values. Check the [TypeScript](/docs/typescript-connector) and
 [Python](/docs/python-driver) mappings before using non-finite parameters;
-Python currently rejects them.
+Python supports them from driver 0.2.2.
 
 <details>
 <summary>Non-finite float encoding for client implementers</summary>
@@ -241,14 +242,13 @@ INSERT INTO invoices (total)
 VALUES (0.1), (NUMERIC '12345678901234567890.123456789');
 ```
 
-`DECIMAL` is an alias for `NUMERIC`. Precision and scale parameters are not
-supported yet, so `NUMERIC(10, 2)` and `DECIMAL(10, 2)` are rejected.
+`DECIMAL` is an alias of `NUMERIC`. Precision and scale parameters aren't
+supported yet. `NUMERIC(10, 2)` and `DECIMAL(10, 2)` return `CADB0533`.
 
-A bare decimal literal still has the ordinary floating-point literal behavior in
-general expressions. When CamusDB writes one into a `NUMERIC` column or casts it
-to `NUMERIC`, it uses the source text so values such as `0.1` can be stored
-exactly. Use `NUMERIC '...'` when you want a typed numeric literal in an
-expression.
+In general expressions, a bare decimal literal is a floating-point value. When
+CamusDB writes one to a `NUMERIC` column, or casts it to `NUMERIC`, it uses the
+source text, and values such as `0.1` are stored exactly. Use `NUMERIC '...'`
+for a typed numeric literal in an expression.
 
 Arithmetic follows these rules:
 
@@ -262,21 +262,20 @@ Arithmetic follows these rules:
 ## String and bytes length
 
 `STRING(N)`, CHAR(N), and VARCHAR(N) accept at most `N` Unicode code points.
-An emoji such as `🙂` counts as one, so it fits in CHAR(1). A bare `STRING`
+An emoji such as `🙂` counts as one, and it fits in `CHAR(1)`. A bare `STRING`
 column uses the default maximum of `2,621,440` code points.
 
 `BYTES(N)` accepts at most `N` bytes. A bare `BYTES` column uses the default
 maximum length of `10,485,760` bytes, which is 10 MB.
 
-Both bounds are maximums, not fixed widths, so a `BYTES(3072)` column accepts
-shorter values without complaint. Add a `CHECK` constraint when a column must
-hold an exact number of bytes. [Vector search](/docs/vector-search) shows that
+Both bounds are maximum lengths. A `BYTES(3072)` column also takes shorter
+values. Add a `CHECK` constraint when a column must contain an exact number of
+bytes. [Vector search](/docs/vector-search) shows that
 pattern for embeddings.
 
-CamusDB rejects values that are too long instead of truncating them. An insert,
-update, or cast that exceeds the column's bound fails with
-`CADB0302 ValueTooLong`. A `NULL` has no length, so CamusDB does not check it
-against these bounds.
+A value that is too long returns `CADB0302 ValueTooLong`, and CamusDB doesn't
+truncate it. This applies to inserts, updates, and casts. A `NULL` has no
+length, and the bounds don't apply to it.
 
 ```camussql
 CREATE TABLE documents (
@@ -287,39 +286,39 @@ CREATE TABLE documents (
 );
 ```
 
-`CHAR(N)` uses the same maximum-length rule as VARCHAR: it neither pads nor
-trims spaces. For example, `'ab'` differs from `'ab '`, and `'abc '` exceeds
-CHAR(3). This differs from PostgreSQL CHAR semantics.
+`CHAR(N)` uses the same maximum-length rule as `VARCHAR`. It doesn't pad or trim
+spaces. For example, `'ab'` is different from `'ab '`, and `'abc '` is too long
+for `CHAR(3)`. This is different from `CHAR` in PostgreSQL.
 
-Strings use binary UTF-16 code-unit order for comparisons, sorting, MIN/MAX,
-and indexes. There is no locale-sensitive collation or COLLATE clause. Use
-LOWER when a comparison should ignore case.
+Strings use binary UTF-16 code-unit order for comparisons, sorting, `MIN`,
+`MAX`, and indexes. There is no locale-sensitive collation and no `COLLATE`
+clause. Use `LOWER` when a comparison must ignore case.
 
 ### Characters and valid Unicode
 
 Text lengths, substring positions, POSITION/STRPOS, trim character sets, and
 regex start/result positions count Unicode code points. For example,
 `length('x🙂y')` is 3 and `substring('x🙂y', 2, 1)` is `🙂`.
-Combining marks count separately; the count is not a count of displayed glyphs.
-String sorting still uses binary UTF-16 order.
+Combining marks count separately, and the count can differ from the number of
+displayed glyphs. String sorting uses binary UTF-16 order.
 
-A lone half of a UTF-16 surrogate pair is invalid text. SQL string parameters
-and string-array elements containing one fail with CADB0400 before execution,
-even when the parameter is unused. The message names the parameter and
-position. Typed row writes also reject it and identify the column.
-Previously stored replacement characters (U+FFFD) remain unchanged.
+One half of a UTF-16 surrogate pair alone is invalid text. A SQL string
+parameter or string-array element that contains one returns `CADB0400` before
+execution, also when the parameter isn't used. The message names the parameter
+and the position. Typed row writes return an error too, with the column name.
+Replacement characters (U+FFFD) that are already stored don't change.
 
-The [HTTP SQL API](/docs/http-api#status-and-errors) rejects malformed JSON,
-including escaped surrogate halves. Protobuf clients can replace a surrogate
-half with U+FFFD before sending gRPC; the server receives valid replacement
-text and cannot detect that change. Validate text at application boundaries.
-[Regex matching](/docs/functions-regex#matching-rules) still operates on
-UTF-16 units and can therefore differ from PostgreSQL for emoji.
+The [HTTP SQL API](/docs/http-api#status-and-errors) returns an error for
+malformed JSON, including escaped surrogate halves. Protobuf clients can replace
+a surrogate half with U+FFFD before they send a gRPC request. The server gets
+valid text and can't detect the change. Validate text at the boundaries of your
+application. [Regex matching](/docs/functions-regex#matching-rules) uses UTF-16
+units, and its results for emoji can differ from PostgreSQL.
 
 ### Large values
 
-A large `STRING`, `BYTES`/`BLOB`, or `ARRAY` value can be stored compressed or
-under its own key outside the row. Each column has a storage strategy: `PLAIN`,
+A large `STRING`, `BYTES`, or `ARRAY` value can be stored compressed, or under a
+separate key outside the row. Each column has a storage strategy: `PLAIN`,
 `MAIN`, `EXTERNAL`, or the default `EXTENDED`.
 
 ```camussql
@@ -332,8 +331,8 @@ CREATE TABLE files (
 ALTER TABLE files ALTER COLUMN content SET STORAGE PLAIN;
 ```
 
-The strategy never changes the value a query returns, only the I/O the query
-does and the size of each stored row version. See
+The strategy doesn't change the values that queries return. It changes the I/O
+of queries and the size of each stored row version. See
 [Large Values](/docs/storage-layout).
 
 ## Arrays
@@ -351,18 +350,18 @@ CREATE TABLE measurements (
 
 These rules apply to arrays today:
 
-- CamusDB rejects nested arrays, such as `ARRAY(ARRAY(INT64))`.
-- You cannot use an array column in a primary key or a secondary index.
-- SQL supports inline `ARRAY[...]` literals in expressions and in DML values.
-- CamusDB rejects nested array literals, such as `ARRAY[ARRAY[1]]`.
+- Nested arrays, such as `ARRAY(ARRAY(INT64))`, aren't supported.
+- An array column can't be in a primary key or a secondary index.
+- Inline `ARRAY[...]` literals work in expressions and in DML values.
+- Nested array literals, such as `ARRAY[ARRAY[1]]`, return `CADB0400`.
 - Array elements can be `NULL`.
 
 Read one element with a subscript, such as `tags[1]`. The first element is at
 index `1`, and an index outside the array returns `NULL`. See
 [PostgreSQL Expression Syntax](/docs/sql-expression-syntax#array-subscripts).
 
-Use [Array Functions](/docs/functions-array) to read an array as a whole with
-`cardinality`, `array_length`, and `array_contains`. CamusDB also supports
+To read a full array, use the [array functions](/docs/functions-array), such as
+`cardinality` and `array_contains`. CamusDB also supports
 quantified comparisons such as `value = ANY(array)` and `value > ALL(array)`. See
 [PostgreSQL Expression Syntax](/docs/sql-expression-syntax#quantified-comparisons).
 
@@ -396,7 +395,7 @@ Numeric literals use invariant formatting, so the decimal separator is always
 
 CamusDB parses date and datetime text as UTC, and returns UUID text in
 canonical form: lowercase, with hyphens. Invalid date, datetime, UUID, or byte
-input, or an invalid cast, fails with `InvalidInput`.
+input, or an invalid cast, returns `InvalidInput`.
 
 #### Typed date/time literals
 
@@ -411,17 +410,17 @@ SELECT TIMESTAMP '2026-03-15T12:00:00Z' + INTERVAL '2 hours';
 
 Use ISO-8601 timestamp text with `T` between date and time. A PostgreSQL-style
 space separator, such as `TIMESTAMP '2026-03-15 12:00:00'`, is rejected.
-Put a typed literal inside parentheses for a default: `DEFAULT (DATE '2026-03-15')`.
-Malformed temporal text containing a non-ASCII character reports its code point
-and position, with an ASCII replacement hint when available.
+For a default, put a typed literal in parentheses:
+`DEFAULT (DATE '2026-03-15')`. For malformed temporal text with a non-ASCII
+character, the error shows the code point and the position, and an ASCII
+replacement when one exists.
 
 ## String literals
 
 CamusDB supports two forms of string literal.
 
-A plain string uses single or double quotation marks. It does not treat a
-backslash as an escape; CamusDB stores it as a normal character. To escape the
-active quotation mark, repeat it:
+A regular string uses single or double quotation marks. A backslash in it is a
+regular character. To include the quotation mark, repeat it:
 
 ```camussql
 SELECT 'plain text';
@@ -430,8 +429,8 @@ SELECT 'it''s ready';
 SELECT "say ""hello""";
 ```
 
-A plain string is the right form for most values, including regular expression
-patterns and Windows paths:
+A regular string is the right form for most values, including regular
+expression patterns and Windows paths:
 
 ```camussql
 SELECT name FROM files WHERE path = 'C:\Users\data';
@@ -466,11 +465,11 @@ These escapes fail with `InvalidInput`:
 
 A malformed octal escape is not an error.
 
-For an escape CamusDB does not recognize, only the escaped character is kept,
-so `E'\d+'` stores `d+`. Use a plain string when you want a literal backslash.
+For an escape that CamusDB doesn't recognize, only the escaped character is
+kept: `E'\d+'` stores `d+`. For a literal backslash, use a regular string.
 
-`SHOW CREATE TABLE` and the other schema renderers emit literals that the
-parser accepts again. They prefer the plain form and use `E'...'` only when the
+`SHOW CREATE TABLE` and the other schema renderers write literals that the
+parser can read again. They use the regular form, and they use `E'...'` if the
 value contains a control character.
 
 ### Bytes literals
@@ -485,11 +484,11 @@ SELECT X'4d5a';
 SELECT X''; -- empty byte string
 ```
 
-The number of hexadecimal digits must be even. CamusDB also accepts `x'...'`.
+The number of hexadecimal digits must be even. Lowercase `x'...'` also works.
 
-`0xFF` is an integer literal, not a bytes literal. CamusDB can still coerce
-string text such as `'0xDEADBEEF'` to `BYTES` when it knows the target type,
-but `X'...'` carries the bytes type directly and is the preferred SQL literal.
+`0xFF` is an integer literal. CamusDB can convert text such as `'0xDEADBEEF'` to
+`BYTES` when it knows the target type. `X'...'` has the bytes type, and it is
+the recommended literal.
 
 ### Array literals
 
@@ -504,8 +503,8 @@ INSERT INTO measurements (id, samples)
 VALUES (GEN_ID(), ARRAY[1, 2, 3]);
 ```
 
-CamusDB infers the element type from the first non-`NULL` element. Every other
-element must have exactly that type or be `NULL`. Numeric types do not mix:
+CamusDB takes the element type from the first element that isn't `NULL`. The
+other elements must have that type, or be `NULL`. Numeric types do not mix:
 `ARRAY[1, 2.5]` fails because `1` is `INT64` and `2.5` is `FLOAT64`. Where
 necessary, CamusDB coerces elements to the target column's declared type.
 
@@ -519,13 +518,13 @@ INSERT INTO measurements (id, samples)
 VALUES (GEN_ID(), ARRAY[]);
 ```
 
-CamusDB rejects nested array literals.
+Nested array literals return an error.
 
 ## Intervals
 
-Use intervals for rolling time windows, billing dates, and elapsed durations.
-Unlike a fixed number of seconds, a calendar month follows the calendar:
-January 31 plus one month becomes the last day of February.
+Use intervals for rolling time windows, billing dates, and elapsed durations. A
+calendar month follows the calendar: January 31 plus one month is the last day
+of February.
 
 ```camussql
 SELECT * FROM orders
@@ -552,10 +551,10 @@ Units are `microsecond`, `millisecond`, `second`, `minute`, `hour`, `day`,
 Plural names and short forms such as `mons`, `hrs`, and `us` also work,
 regardless of case.
 
-Text accepts signed parts (`'-1 day +2 hours'`), `ago` (`'3 hours ago'`),
+The text can have signed parts (`'-1 day +2 hours'`), `ago` (`'3 hours ago'`),
 and fractions. `'1.5 days'` means one day and 12 hours; `'1.5 months'` means
-one month and 15 days. Fractional years round to whole months. A bare number
-inside interval text means seconds. With an explicit trailing unit, the text
+one month and 15 days. Fractional years round to full months. A bare number
+in interval text means seconds. With an explicit trailing unit, the text
 must be numeric: `INTERVAL '3' HOUR` works; `INTERVAL '1 day' HOUR` fails.
 Only text casts to an interval. Give numeric values a unit, or multiply them
 by an interval: `days_to_ship * INTERVAL '1 day'`.
@@ -571,7 +570,7 @@ by an interval: `days_to_ship * INTERVAL '1 day'`.
 | `INTERVAL * number`, `number * INTERVAL`, `INTERVAL / number` | `INTERVAL` |
 | Two intervals with `=`, `<>`, `<`, `<=`, `>`, `>=` | `BOOL` |
 
-CamusDB keeps months, days, and microseconds separate. Date arithmetic applies
+CamusDB stores months, days, and microseconds separately. Date arithmetic applies
 months first, then days, then time, clipping an invalid day to the month's
 last day. All temporal values use UTC, so an interval day is 24 hours.
 Scaling moves fractional months into days at 30 days per month, and fractional
@@ -579,11 +578,11 @@ days into time: `INTERVAL '1 month' * 0.5` is 15 days.
 
 Comparison uses 30 days per month and 24 hours per day. Thus
 `INTERVAL '1 month' = INTERVAL '30 days'` is true; `GROUP BY` and `DISTINCT`
-also treat them as equal. Adding those intervals to a date can still produce
-different dates because calendar addition preserves the month part.
+also treat them as equal. Added to a date, the two intervals can give
+different dates, because calendar addition uses the month part.
 
-A `NULL` operand returns `NULL`. Unsupported pairs, such as an interval plus
-a plain number, interval times interval, or interval minus a date, fail.
+A `NULL` operand returns `NULL`. Unsupported pairs return an error, for
+example an interval plus a number, or an interval times an interval.
 Overflow raises `CADB0400`: months and days must each fit a signed 32-bit
 integer, microseconds a signed 64-bit integer, and resulting timestamps years
 1 through 9999.
@@ -598,7 +597,10 @@ Use `EXPLAIN` to inspect the plan.
 The .NET, TypeScript, and Python drivers return interval results as ISO-8601
 strings, such as `P1Y2M3DT4H5M6.5S`. Zero is `PT0S`; mixed signs are preserved,
 for example `P-1DT2H`. Casting an interval to `STRING` or concatenating it
-with `||` produces the same text.
+with `||` produces the same text. Driver helpers parse that text and bind
+interval parameters: [.NET](/docs/dotnet-driver#intervals),
+[TypeScript](/docs/typescript-connector#intervals), and
+[Python](/docs/python-driver#intervals).
 
 Intervals are expression values only. You cannot declare interval columns,
 write interval values into columns, use them as array elements, or persist
@@ -607,8 +609,8 @@ A regular view can return an interval. To store one, cast it to `STRING` and
 cast the stored text back to `INTERVAL` when reading.
 
 `SUM` and `AVG` of intervals, implicit comparisons with text, and MySQL compound
-units such as `HOUR_MINUTE` are unsupported. Compare against
-`INTERVAL '1 day'`, rather than the plain string `'1 day'`.
+units such as `HOUR_MINUTE` are unsupported. Compare with
+`INTERVAL '1 day'`. A comparison with the string `'1 day'` returns an error.
 
 See [Interval functions](/docs/functions-datetime#interval-functions) for
 calendar ages, interval construction, normalization, and time buckets.
@@ -641,19 +643,19 @@ zero: `CAST(2.5 AS INT64)` is 3 and `CAST(-2.5 AS INT64)` is -3. Narrow casts
 round first, then enforce the target range. PostgreSQL's float-to-bigint cast
 instead rounds halfway values to the nearest even integer.
 
-NaN, infinity, and out-of-range values fail with CADB0420. Places requiring an
-integer, including LIMIT, OFFSET, subscripts, and integer columns, still reject
-a float unless you cast it explicitly.
+NaN, infinity, and values out of range return `CADB0420`. Places that need an
+integer, such as `LIMIT` and integer columns, return an error for a float unless
+you cast it.
 
-Stored CHECK expressions use the new rounding for subsequent writes;
-materialized views keep their existing values until refreshed. Keep nodes on
-the same version when results must agree during a rolling upgrade.
+Stored `CHECK` expressions use the current rounding for later writes. A
+materialized view has its old values until the next refresh. During a rolling
+upgrade, keep the nodes on the same version when results must agree.
 
 ## Comparing different types
 
-CamusDB rejects comparisons without a defined type rule instead of silently
-returning false. For example, `5 = '5'` raises `CADB0400` (`InvalidInput`);
-write `5 = CAST('5' AS INT64)` when conversion is intended.
+A comparison with no defined type rule returns an error. It doesn't return
+`false`. For example, `5 = '5'` returns `CADB0400` (`InvalidInput`). Write
+`5 = CAST('5' AS INT64)` when you want the conversion.
 
 | Types | Comparison rule |
 | --- | --- |
@@ -666,63 +668,65 @@ write `5 = CAST('5' AS INT64)` when conversion is intended.
 | Any other pair | Error naming the operator and both types. |
 
 These rules apply to predicates, joins, `BETWEEN`, `IN`, quantified comparisons,
-simple `CASE` comparisons, `NULLIF`, and `array_contains`. A NULL operand yields
-unknown for valid operand types. Known incompatible types are rejected before
-reading rows, including on empty input; unknown types are checked when evaluated. An incompatible `IN` item still fails
-even if another item matches: `1 IN (1, 'a')` is an error.
+simple `CASE` comparisons, `NULLIF`, and `array_contains`. For valid operand types, a `NULL` operand gives unknown. Known incompatible types
+return an error before rows are read, also on empty input. Unknown types are
+checked when they are evaluated. An incompatible `IN` item returns an error,
+also if another item matches: `1 IN (1, 'a')` is an error.
 
 A new CHECK definition with known incompatible types is rejected at definition
-time. A type error reached while evaluating an existing check rejects the
-write with CADB0303.
+time. A type error while CamusDB evaluates an existing check fails the
+write with `CADB0303`.
 
 ## Errors before reading rows
 
-Mistakes whose types are known from literals, casts, columns, or operators fail
-even on an empty table, under LIMIT 0 or WHERE FALSE, or in an unused branch.
-This includes unknown functions (CADB0407), wrong argument counts (CADB0400),
-incompatible operators/comparisons, and known invalid assignments (CADB0401).
-Tables with BEFORE triggers defer assignment checks until after the trigger,
-which may replace the value.
+Errors whose types are known from literals, casts, columns, or operators fail
+also on an empty table, with `LIMIT 0` or `WHERE FALSE`, or in an unused
+branch. This includes unknown functions (`CADB0407`), wrong argument counts
+(`CADB0400`), incompatible operators and comparisons, and known invalid
+assignments (`CADB0401`). On tables with `BEFORE` triggers, the assignment
+checks wait until after the trigger, which can replace the value.
 
-WHERE, HAVING, JOIN ON, and CHECK conditions must be boolean or NULL.
-`WHERE 1` and `WHERE 'true'` fail with CADB0400; use `WHERE TRUE` to match all
-rows on purpose. These checks also cover writes, subqueries, CTAS, views,
-and new CHECK definitions. Parameters, function argument types, and some
-derived results still require checks when their values are evaluated.
+`WHERE`, `HAVING`, `JOIN ON`, and `CHECK` conditions must be boolean or `NULL`.
+`WHERE 1` and `WHERE 'true'` return `CADB0400`. To match all rows on purpose,
+use `WHERE TRUE`. These checks also apply to writes, subqueries, CTAS, views,
+and new `CHECK` definitions. Parameters, function argument types, and some
+derived results are checked when their values are evaluated.
 
-A division with constant operands and a zero divisor fails with CADB0400
-before reading rows: `SELECT 1 / 0 WHERE FALSE` is an error. A proven unused
-branch, such as `IF(TRUE, 1, 1 / 0)`, is skipped. A row-dependent condition
-cannot hide a constant error; use `CASE WHEN quantity <> 0 THEN 1 / quantity END`
-to guard a row's divisor. Columns, parameters, function calls (including MOD
-and `%`), and subquery results are not constant divisions for this check.
-Stored view and CHECK definitions defer constant division errors until use;
-CTAS and materialized-view creation execute the query immediately.
+A division with constant operands and a zero divisor returns `CADB0400` before
+rows are read: `SELECT 1 / 0 WHERE FALSE` is an error. A branch that is known
+to be unused, such as in `IF(TRUE, 1, 1 / 0)`, is skipped. A condition that
+depends on the row can't hide a constant error. To protect the divisor of a
+row, use `CASE WHEN quantity <> 0 THEN 1 / quantity END`. Columns, parameters,
+function calls (including `MOD` and `%`), and subquery results aren't constant
+divisions for this check. Stored view and `CHECK` definitions report constant
+division errors when they are used. CTAS and materialized view creation execute
+the query immediately.
 
 ## Conditional result types
 
-`CASE`, `COALESCE`, `IFNULL`, `NVL`, and `IF` must return one common type across
-all branches. A branch's value is converted to that type in every row:
+`CASE`, `COALESCE`, `IFNULL`, `NVL`, `IF`, `GREATEST`, and `LEAST` return one
+common type for all branches. The value of a branch is converted to that type
+in each row:
 
 | Inputs | Common result type |
 | --- | --- |
 | NULL with another type | The other type. |
 | Same type | That type; array element types must also agree, or one array must be empty/untyped. |
-| Numeric types | Their arithmetic result type: `INT64` with `NUMERIC` stays `NUMERIC`; a float with `NUMERIC` gives `FLOAT64`. |
+| Numeric types | Their arithmetic result type: `INT64` with `NUMERIC` gives `NUMERIC`, and a float with `NUMERIC` gives `FLOAT64`. |
 | `DATE` with `DATETIME` | `DATETIME`. |
 | Quoted string literal with a temporal type | That temporal type; the literal is parsed. |
 | Other combinations | `CADB0400`; use an explicit `CAST`. |
 
 For example, `CASE WHEN enabled THEN 1 ELSE 1.5 END` always returns `FLOAT64`.
-`COALESCE(1, '2')` fails: a numeric-looking string does not become a number.
-A quoted date literal can adopt a temporal type, but a typed string column
-cannot. Parameters whose types are known only from their values are checked
+`COALESCE(1, '2')` returns an error, because a string that looks like a number
+doesn't become a number. A quoted date literal can take a temporal type, but a
+typed string column can't. Parameters whose types are known only from their values are checked
 when evaluated. Built-in calls with known argument types, and extension
 functions with a declared C# return type, contribute their result type even
 when unused. Thus `COALESCE(1, upper('a'))` fails, while
 `COALESCE(1, sqrt(4.0))` consistently returns FLOAT64. Calls with parameters or
-unknown argument types, and JSON_VALUE's document-dependent result, can still
-require value-time checks.
+unknown argument types, and the result of `JSON_VALUE`, which depends on the
+document, are checked when they are evaluated.
 
 Known branch types are checked before reading rows, including unused branches
 and queries over empty tables. CASE and IF select one branch; COALESCE,
@@ -739,7 +743,7 @@ serial bigserial numeric decimal float float32 float64 real date datetime
 timestamp bytes blob uuid guid array
 ```
 
-`BIGINT` and `PRECISION` remain usable as identifiers despite their type syntax.
+`BIGINT` and `PRECISION` can also be identifiers.
 
-Only the exact keyword is reserved. An identifier that merely starts with a type
-name stays valid, such as `internal`, `dates`, or `blob_store`.
+Only the exact keyword is reserved. An identifier that starts with a type name
+is valid, such as `internal`, `dates`, or `blob_store`.

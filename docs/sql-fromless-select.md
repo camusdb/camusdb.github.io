@@ -4,20 +4,16 @@ sidebar_position: 2.45
 
 # SELECT without FROM
 
-A `SELECT` without a `FROM` clause evaluates its projection list against one
-synthetic row. Without filtering or pagination, it returns one row:
+A `SELECT` without a `FROM` clause evaluates its expressions against one
+synthetic row and returns one row. You can use it for connection health
+checks, for a quick test of a cast or a function, and for the utility queries
+that ORMs send.
 
 ```camussql
 SELECT 1 + 1;
 ```
 
-Common uses include:
-
-- Connection health probes.
-- Cast checks.
-- Utility SQL that an ORM emits on its own.
-
-It is also the shortest way to ask the database a yes-or-no question:
+It's also the shortest way to ask the database a yes-or-no question:
 
 ```camussql
 SELECT EXISTS (SELECT 1 FROM accounts WHERE email = @email);
@@ -25,34 +21,22 @@ SELECT EXISTS (SELECT 1 FROM accounts WHERE email = @email);
 
 ## Supported forms
 
-Evaluate a scalar expression:
+The following queries evaluate expressions, bind a parameter, and return two
+columns:
 
 ```camussql
-SELECT 1 + 1;
 SELECT upper('abc');
 SELECT CAST('5' AS INT64);
 SELECT CASE WHEN 1 = 1 THEN 'ok' ELSE 'fail' END;
-SELECT regexp_split_to_array('one,two,three', ',');
-```
-
-Bind a parameter:
-
-```camussql
 SELECT @value;
-```
-
-Return several projections:
-
-```camussql
 SELECT 41 + 1 AS answer, 'ok' AS status;
 ```
 
-Projections without an alias get ordinal column names, such as `0`, `1`, and
-`2`.
+An unnamed column gets an ordinal name, such as `0` or `1`.
 
-Literal projections declare their SQL type in result metadata and copied-table
-schemas: `SELECT 1 AS id` has an `INT64` output column. You can combine these
-queries with [set operations](/docs/sql-queries#set-operations):
+A literal has a SQL type in the result metadata and in a table that you create
+from the query. For example, `SELECT 1 AS id` returns an `INT64` column. You can
+combine these queries with [set operations](/docs/sql-queries#set-operations):
 
 ```camussql
 SELECT 1 AS id UNION ALL SELECT 2 ORDER BY 1;
@@ -60,82 +44,56 @@ SELECT 1 AS id UNION ALL SELECT 2 ORDER BY 1;
 
 Here `ORDER BY` applies to the combined result.
 
-Use `LIMIT` and `OFFSET` to keep or skip the single synthetic row:
+`LIMIT` and `OFFSET` keep or skip the synthetic row. Both of the following
+queries return no rows:
 
 ```camussql
 SELECT 1 LIMIT 0;
 SELECT 1 LIMIT 1 OFFSET 1;
 ```
 
-Both examples return zero rows.
-
 ## Filter the synthetic row
 
-A WHERE clause keeps the row when its condition is TRUE; FALSE or NULL returns
-no rows. Use this for conditional probes or inserts based on an existence check:
+With a `WHERE` clause, the row is returned when the condition is `TRUE`. When the condition
+is `FALSE` or `NULL`, the query returns no rows. You can use this for a
+conditional check, or for an insert that depends on an existence check:
 
 ```camussql
 SELECT 'ready' WHERE TRUE;
-SELECT 'ready' WHERE FALSE; -- no rows
+SELECT 'ready' WHERE FALSE;   -- no rows
 SELECT 'seed' WHERE NOT EXISTS (SELECT 1 FROM accounts);
 ```
 
-The condition must be boolean or NULL; `SELECT 5 WHERE 1` and
-`SELECT 5 WHERE 'true'` fail with CADB0400. Projection expressions do not run
-when the filter drops the row. However, constant division by zero is checked
-before execution: `SELECT 1 / 0 WHERE FALSE` fails with CADB0400. See
-[statement checks](/docs/data-types#errors-before-reading-rows).
+The condition must be a boolean or `NULL`. `SELECT 5 WHERE 1` returns
+`CADB0400`.
 
-With WHERE, the query uses a one-row source, supports EXPLAIN (ANALYZE), and
-can be an INSERT ... SELECT or CTAS source or a set-operation operand.
-Sequence calls in this form are refused with CADB0547 unless the filter drops
-the row before the call runs; `SELECT nextval('s') WHERE FALSE` draws nothing.
+When the filter removes the row, the expressions in the select list aren't
+evaluated. However, a constant division by zero is found before execution.
+This means that `SELECT 1 / 0 WHERE FALSE` returns `CADB0400`. For more information,
+see [statement checks](/docs/data-types#errors-before-reading-rows).
 
-## Subqueries in the projection
+A sequence call such as `nextval('s')` works in this form. With a `WHERE`
+clause, it returns `CADB0547`, unless the filter removes the row. In
+that case, the query returns no rows, and no value is drawn.
 
-When a `SELECT` without a `FROM` clause has a subquery in its projection,
-CamusDB evaluates the subquery first and replaces it with its scalar result.
-The `EXISTS` example at the top of this page works that way, and `NOT EXISTS`
-works too:
+## Subqueries in the select list
 
-```camussql
-SELECT NOT EXISTS (
-  SELECT 1
-  FROM accounts
-  WHERE email = 'nobody@example.com'
-);
-```
-
-You can compare a scalar subquery or return it directly:
+A subquery in the select list is evaluated first, and its result replaces it.
+The `EXISTS` example at the top of this page works this way. You can also
+compare the result of a scalar subquery, or return it:
 
 ```camussql
+SELECT NOT EXISTS (SELECT 1 FROM accounts WHERE email = 'nobody@example.com');
 SELECT (SELECT COUNT(*) FROM accounts) > 0;
-
 SELECT (SELECT COUNT(*) FROM accounts);
 ```
 
-The subquery can also read from a derived table:
+At the top level, there is no outer row. This means that its subqueries
+can't be correlated.
 
-```camussql
-SELECT (
-  SELECT COUNT(*)
-  FROM (
-    SELECT 1
-    FROM accounts
-    WHERE email = @email
-  ) AS matched
-) > 0;
-```
+## In another statement
 
-A top-level `SELECT` without a `FROM` clause has no outer row, so these subqueries are
-never correlated. A SELECT with a FROM clause also supports uncorrelated
-projection subqueries. When used inside another statement, a FROM-less
-subquery can read outer columns too; see [subquery positions](/docs/joins-and-subqueries#subqueries-in-where).
-
-## Inside another statement
-
-A SELECT without FROM also works as a scalar or IN subquery, a derived
-table, or a stored view body:
+The query also works as a subquery, a derived table, or the body of a view:
 
 ```camussql
 SELECT (SELECT 1);                         -- 1
@@ -144,51 +102,51 @@ SELECT x FROM (SELECT 5 AS x) d;           -- 5
 CREATE VIEW readiness AS SELECT 'ready' AS status;
 ```
 
-The same WHERE, LIMIT, and OFFSET rules apply. Aggregates and ORDER BY remain
-unsupported, and a sequence call in a nested SELECT is refused with CADB0547.
-A FROM-less subquery can reference an outer column in supported correlated
-positions, for example `SELECT u.id FROM app_users u WHERE EXISTS
-(SELECT 1 WHERE u.active = true)`.
+It can also be the source of `INSERT ... SELECT` and `CREATE TABLE ... AS`.
 
-CREATE VIEW binds a plain expression without evaluating it: a body such as
-`SELECT 1 / 0 AS x` is accepted, and reading the view fails. Subqueries in the
-body are also bound without execution; unknown names and known type errors
-still fail CREATE VIEW. A materialized view executes its body during its
-separate data-population step, unless WITH NO DATA is specified.
+The `WHERE`, `LIMIT`, and `OFFSET` rules are the same. Aggregates and
+`ORDER BY` aren't supported, and a sequence call returns `CADB0547`.
 
-## Rejected shapes
+As a subquery, it can read a column of the outer query in the
+[supported positions](/docs/joins-and-subqueries#subqueries-in-where):
 
-A `SELECT` without a `FROM` clause is limited by design: it evaluates a
-projection and accepts optional WHERE, LIMIT, and OFFSET clauses.
+```camussql
+SELECT u.id FROM app_users u WHERE EXISTS (SELECT 1 WHERE u.active = true);
+```
 
-| Query shape | Result |
+`CREATE VIEW` checks names and types, but it doesn't evaluate the body. A view
+such as `CREATE VIEW v AS SELECT 1 / 0 AS x` is created, and a read from it
+returns the error. An unknown column or a type error in the body makes
+`CREATE VIEW` fail.
+
+## Unsupported forms
+
+The following forms return an error, also when the query has a `WHERE` clause:
+
+| Query | Error |
 | --- | --- |
-| `SELECT *` | CamusDB rejects it, because `*` needs a table source. |
-| `SELECT COUNT(*)` | CamusDB rejects it, because an aggregate needs a table source. Use a scalar subquery instead, such as `SELECT (SELECT COUNT(*) FROM accounts)`. |
-| `SELECT 1 GROUP BY ...` | CamusDB rejects it. An aggregation needs a table source. |
-| `SELECT 1 HAVING ...` | CamusDB rejects it. An aggregation needs a table source. |
-| `SELECT 1 ORDER BY ...` | CamusDB rejects it. There is only one synthetic row. |
-| `SELECT * WHERE ...` or `SELECT COUNT(*) WHERE ...` | Refused for the same reasons as their unfiltered forms. |
-| `SELECT missing_name` | It fails with `UnknownColumn`, because CamusDB cannot resolve the identifier. |
+| `SELECT *` | `CADB0400`: `*` needs a table. |
+| `SELECT COUNT(*)` | `CADB0400`: an aggregate needs a table. Use a scalar subquery, such as `SELECT (SELECT COUNT(*) FROM accounts)`. |
+| `SELECT 1 GROUP BY ...` or `SELECT 1 HAVING ...` | `CADB0406`, a syntax error. |
+| `SELECT 1 ORDER BY ...` | `CADB0400`: there is only one row to sort. |
+| `SELECT missing_name` | `CADB0404` `UnknownColumn`. |
 
 ## EXPLAIN
 
-Without WHERE, a plain EXPLAIN of a SELECT without FROM returns a fixed plan
-shape:
+If the query doesn't have a `WHERE` clause, `EXPLAIN` returns a fixed plan:
 
 ```camussql
 EXPLAIN SELECT 41 + 1 AS answer;
 ```
 
-Typical output:
-
 ```text
-physical  project          answer
 physical  constant-source  1 row
+physical  project          columns: answer
 ```
 
-The plan includes a `limit` node when the query has a `LIMIT` or an `OFFSET`.
+The plan also has a `limit` node when the query has `LIMIT` or `OFFSET`.
 
-Without WHERE, EXPLAIN (ANALYZE) is refused. With WHERE, the one-row source
-appears as `function-scan` (`*single_row*`), and ANALYZE executes the filter and
-projection.
+With a `WHERE` clause, the plan shows the one-row source as `function-scan`
+(`*single_row*`), and `EXPLAIN (ANALYZE)` measures the filter and the select list.
+If the query doesn't have a `WHERE` clause, `EXPLAIN (ANALYZE)` returns
+`CADB0400`. There is no table access to measure.

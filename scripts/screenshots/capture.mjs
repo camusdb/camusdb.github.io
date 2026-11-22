@@ -7,6 +7,10 @@
 // cwebp (brew install webp) and the Playwright Chromium browser (npx playwright install chromium).
 //
 // Usage: npm run screenshots [-- --only=webconsole,dashboard,cli,tui] [-- --png]
+//                            [-- --webconsole-project=<path>]
+//
+// --webconsole-project publishes the web console from a source checkout (its folder or its
+// .csproj) and captures that build in place of the installed camusdb-webconsole tool.
 
 import {spawn, spawnSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -35,6 +39,7 @@ const themes = ['dark', 'light'];
 const args = process.argv.slice(2);
 const only = args.find((a) => a.startsWith('--only='))?.slice('--only='.length).split(',');
 const keepPng = args.includes('--png');
+const webConsoleProject = args.find((a) => a.startsWith('--webconsole-project='))?.slice('--webconsole-project='.length);
 const wanted = (name) => !only || only.includes(name);
 
 const children = [];
@@ -46,13 +51,13 @@ JOIN customers c ON c.id = o.customer_id
 WHERE o.status = 'paid'
 ORDER BY o.total DESC;`;
 
-const planSql = `EXPLAIN SELECT c.name, SUM(i.quantity * p.price) AS revenue
-FROM orders o
-JOIN customers c ON c.id = o.customer_id
-JOIN order_items i ON i.order_id = o.id
-JOIN products p ON p.id = i.product_id
-WHERE o.status = 'paid'
-GROUP BY c.name;`;
+// A semi-join, a top-k sort and a limit: the Graph view fits all of it in the pane, from the
+// table and its subquery on the left to the result on the right.
+const planSql = `EXPLAIN SELECT *
+FROM orders
+WHERE customer_id IN (SELECT id FROM customers WHERE country = 'US')
+ORDER BY total DESC
+LIMIT 5;`;
 
 // Opens in the TUI editor through its scratch file, so the tape does not need to type it.
 const tuiSql = `SELECT p.name, SUM(i.quantity) AS units
@@ -142,10 +147,30 @@ async function startStack() {
   run('camus-cli', ['shop', '-f', path.join(here, 'seed.sql')]);
 
   if (wanted('webconsole')) {
-    log('starting the web console');
-    start('camusdb-webconsole', ['--endpoint', endpoint, '--database', 'shop', '--no-browser', '--port', '5164'], 'webconsole.log');
+    const consoleArgs = ['--endpoint', endpoint, '--database', 'shop', '--no-browser', '--port', '5164'];
+    if (webConsoleProject) {
+      log('publishing the web console from source');
+      const publishDir = path.join(work, 'webconsole');
+      fs.rmSync(publishDir, {recursive: true, force: true});
+      run('dotnet', ['publish', webConsoleCsproj(webConsoleProject), '-c', 'Release', '-o', publishDir, '--nologo', '-v', 'q']);
+      log('starting the web console');
+      start('dotnet', [path.join(publishDir, 'CamusDB.WebConsole.dll'), ...consoleArgs], 'webconsole.log', {cwd: publishDir});
+    } else {
+      log('starting the web console');
+      start('camusdb-webconsole', consoleArgs, 'webconsole.log');
+    }
     await waitFor('the web console', async () => (await fetch(consoleUrl)).ok);
   }
+}
+
+// Accepts the checkout folder or the project file itself.
+function webConsoleCsproj(location) {
+  const full = path.resolve(location);
+  const candidates = [full, path.join(full, 'src/CamusDB.WebConsole/CamusDB.WebConsole.csproj'), path.join(full, 'CamusDB.WebConsole.csproj')];
+  const found = candidates.find((p) => p.endsWith('.csproj') && fs.existsSync(p));
+  if (!found)
+    throw new Error(`No CamusDB.WebConsole.csproj found at ${full}.`);
+  return found;
 }
 
 async function setEditor(page, sql) {
@@ -232,8 +257,14 @@ async function captureWebConsolePage(page, theme) {
 
   await setEditor(page, planSql);
   await runStatement(page);
-  await page.locator('.results-view-toggle button', {hasText: 'Flow'}).click();
-  await page.locator('.results-view-toggle button.active', {hasText: 'Flow'}).waitFor();
+  const graph = page.locator('.results-view-toggle button', {hasText: 'Graph'});
+  if (!await graph.count())
+    throw new Error('This web console has no Graph view for plans. Update camusdb-webconsole, or pass --webconsole-project=<checkout>.');
+  await graph.click();
+  await page.locator('.results-view-toggle button.active', {hasText: 'Graph'}).waitFor();
+  // The graph opens with an operator selected, so the inspector is part of the capture.
+  await page.locator('.pg-svg').waitFor();
+  await page.locator('.pg-inspector').waitFor();
   await page.waitForTimeout(500);
   await page.mouse.move(0, viewport.height - 1);
   await page.screenshot({path: path.join(raw, `webconsole-plan-${theme}.png`)});
@@ -296,7 +327,9 @@ async function frame(browser, shots) {
 async function main() {
   requireTool('camusdb', 'Install it with: dotnet tool install -g CamusDB.Server');
   requireTool('camus-cli', 'Install it with: dotnet tool install -g CamusDB.SqlSh');
-  if (wanted('webconsole'))
+  if (wanted('webconsole') && webConsoleProject)
+    requireTool('dotnet', 'Install the .NET SDK to build the web console from source.');
+  else if (wanted('webconsole'))
     requireTool('camusdb-webconsole', 'Install it with: dotnet tool install -g CamusDB.WebConsole');
   if (wanted('cli') || wanted('tui'))
     requireTool('vhs', 'Install it with: brew install vhs');

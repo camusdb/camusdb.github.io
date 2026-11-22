@@ -22,24 +22,23 @@ issues show what to expect today.
 <!-- truncate -->
 
 In a distributed database, writes and strongly consistent reads require
-coordination across multiple nodes, which limits throughput. Every write must
+coordination across multiple nodes, which limits throughput. A write must
 be synchronously replicated to other nodes, wait for a majority to persist
 and acknowledge it, and only then return a confirmation to the client.
 
 Reads face similar challenges. The system needs to verify that the node
-serving the results is still the leader to avoid inconsistencies. On top of
-that, network latency, buffers, and queues can all become bottlenecks as the
-workload increases.
+serving the results is the current leader to avoid inconsistencies. On top of
+that, network latency and queues can become bottlenecks as the workload
+increases.
 
-These challenges aren't unique to CamusDB. Other strongly consistent
-distributed databases, such as Spanner and CockroachDB, have had to solve
-similar problems. Traditional single-node databases like PostgreSQL and MySQL
+Other strongly consistent distributed databases, such as Spanner and
+CockroachDB, have had to solve the same problems. Traditional single-node databases like PostgreSQL and MySQL
 don't face these same challenges. They make different architectural
 tradeoffs, favoring single-node performance over some of the guarantees and
 capabilities of distributed systems.
 
 Throughout CamusDB's development, the goal has been to improve performance
-without weakening strong consistency.
+and preserve strong consistency.
 
 To understand how CamusDB performs against established databases, I decided
 to benchmark it against CockroachDB (a distributed SQL database written in
@@ -57,10 +56,10 @@ is the same as if the transactions ran one at a time.
 - CockroachDB v26.3.5 completed **7,389 operations per second**.
 - CamusDB with its single-row read locks, the default when the comparison
   began, completed **6,857**, and gave up on 0.3% of transfers.
-- CamusDB without those locks, the default now, completed **12,618**, with no
-  failed transfer.
+- CamusDB without those locks, the default now, completed **12,618**, and no
+  transfer failed.
 
-CamusDB locked every row it read, although its storage layer already
+CamusDB locked the rows that it read, although its storage layer already
 validates those reads at commit. It took three changes to replace the lock.
 The lock-free form is now the CamusDB default, and a setting restores the
 locks. The default changed on the day of the last measurement, and it is not
@@ -68,8 +67,8 @@ in a release yet. The
 [changes for applications and the open issues](#changes-for-applications-and-open-issues)
 are below.
 
-Before it became the default, the lock-free form passed three full runs of
-our nightly consistency checks and three 2-hour fault soaks.
+Before it became the default, the lock-free form passed our nightly
+consistency checks in full three times, and three 2-hour fault soaks.
 
 Read CockroachDB's numbers with care. Running three nodes on the same machine
 is probably far from ideal. Its settings might not be properly tuned for
@@ -85,7 +84,7 @@ are listed below.
 The workload is the bank test from the
 [10K ops/sec post](/blog/from-400-to-10k-ops): a table of 2,000 accounts.
 Half of the operations are single-row balance reads. The other half are
-transfers between two accounts:
+transfers between two accounts.
 
 ```camussql
 BEGIN;
@@ -101,16 +100,16 @@ SET balance = @high_balance, version = version + 1 WHERE id = @high_id;
 COMMIT;
 ```
 
-256 concurrent workers on 2,000 rows make transfers collide often. When the
-database rejects a transfer because of a conflict, the client retries it, up
-to ten attempts.
+256 concurrent workers on 2,000 rows make transfers collide often. When a
+transfer is rejected because of a conflict, the client retries it, up to ten
+attempts.
 
 After each run, a reconciliation checks that the sum of balances is unchanged
 and that each row's version matches the committed transfers.
 
 The host is a laptop with an Intel Core i7-13620H (16 logical cores) and
-31 GiB of memory. It runs the three nodes and the load generator. Each node
-keeps a full copy of the table (replication factor 3), and one node, the
+31 GiB of memory. The three nodes and the load generator share it. Each node
+has a full copy of the table (replication factor 3), and one node, the
 leader, orders the writes. Each node's container is limited to 8,192 MiB,
 with data on a 6,144 MiB memory-backed file system (tmpfs). Each run has a
 6-minute warm-up and a 10-minute measured window.
@@ -123,11 +122,11 @@ with data on a 6,144 MiB memory-backed file system (tmpfs). Each run has a
 | Client | CamusDB .NET client 0.18.1, 256 workers over 64 logical connections | Npgsql 9.0.4, 256 connections |
 | Memory settings | Defaults for the limit | `--cache=.25 --max-sql-memory=.25` |
 
-Some terms in the table:
+### Terms in the table
 
-- **Optimistic locking:** a transaction works without waiting for other
-  transactions. The database checks for conflicts and rejects the loser.
-- **Partition and range:** a slice of a table with its own leader. CamusDB
+- **Optimistic locking:** a transaction does not wait for other
+  transactions. The database checks for conflicts, and the loser is rejected.
+- **Partition and range:** a slice of a table that has a separate leader. CamusDB
   calls it a partition and CockroachDB calls it a range.
 - **Load splitting:** CockroachDB divides a busy range into smaller ranges,
   and different nodes can lead them.
@@ -160,19 +159,19 @@ CockroachDB with load splitting disabled reached 8,132.
 
 ## Row locks slowed the old default
 
-Under Serializable, CamusDB took a shared lock on every row that a read-write
+Under Serializable, CamusDB took a shared lock on the rows that a read-write
 transaction read. Many transactions can hold a shared lock on one row. To
 write the row, a transaction must upgrade to an exclusive lock, which only
 one transaction can hold. CamusDB took these locks with optimistic locking
 too. On this workload they had three costs.
 
 **A slower commit.** A transaction on one partition can commit in one phase.
-A transaction that holds a row lock must use the two-phase commit, which adds
+A transaction with a row lock must use the two-phase commit, which adds
 a prepare round. 3,317,003 of 3,317,020 commits took the two-phase path, at
 26.0 ms on the server against 13.8 ms.
 
 **Upgrade conflicts.** Two transfers that read the same row both hold a
-shared lock, and neither can upgrade while the other holds it. The younger
+shared lock, and neither can upgrade while the other has it. The younger
 one aborts. A retried transfer is always the youngest, so it tends to lose
 again. 6,203 transfers lost ten times in a row.
 
@@ -195,13 +194,15 @@ sequenceDiagram
 
 ## Three changes that replaced the lock
 
-Kahuna, the key/value storage layer under CamusDB, records every read of an
-optimistic transaction with the row revision it saw, or the fact that the key
-was missing. At commit, it rejects the transaction if any of those reads is
-out of date. A key that is read and then written goes through the same check.
+Kahuna, the key/value storage layer under CamusDB, records the reads of an
+optimistic transaction, each with the row revision it saw, or the fact that
+the key was missing. At commit, the transaction is rejected if any of those
+reads is out of date. A key that is read and then written goes through the same check.
 
-So the lock on a single row adds nothing to what gets committed. But the lock
-also did two other jobs, and each one needed its own replacement.
+So the lock on a single row does not change what gets committed. The lock
+also kept the rows of one transaction consistent, and it made a younger
+writer give way to an older reader. Each of those two jobs needed a
+replacement.
 
 ### 1. Reads are validated at commit
 
@@ -214,7 +215,7 @@ key, and a check of the keys the scan saw cannot find it.
 ### 2. A read floor keeps the rows of one transaction consistent
 
 Without the lock, a transaction could read two rows from two different
-moments. For example, two accounts hold 100 each:
+moments. In this example, two accounts hold 100 each.
 
 ```mermaid
 sequenceDiagram
@@ -233,12 +234,12 @@ The database refused the reader's commit, but the application had the two
 values first.
 
 Each transaction now has a floor: a moment at which every row it read still
-held the value it read. A read of a new row has two paths:
+held the value it read. A read of a new row has two paths.
 
 - If the row is unchanged since the floor, the read is served at once. On the
   bank workload, 82% of second-row reads take this path.
-- If the row changed, the database checks the earlier rows again. It refuses
-  the read if one of them changed.
+- If the row changed, the database checks the earlier rows again. The read
+  is refused if one of them changed.
 
 The floor costs about 3% of throughput.
 
@@ -271,7 +272,7 @@ anomalies. Its workloads pick keys from a skewed distribution.
 The table shows committed transactions in 60 seconds at Serializable with
 optimistic locking, on the same host, in back-to-back runs.
 
-| Workload | Locks on | Without the locks, before change 3 | Without the locks, all three changes |
+| Workload | Locks on | Locks off, before change 3 | Locks off, all three changes |
 | --- | ---: | ---: | ---: |
 | List-append, explicit, 1 node | 56,060 | 36,794 | 66,620 |
 | List-append, pipelined, 1 node | 56,492 | Not measured | 64,283 |
@@ -295,8 +296,8 @@ Elle judged every history in this table serializable.
 
 ## Tests of the lock-free form
 
-**Elle.** The nightly matrix runs list-append, read-write register, and
-predicate-read histories on one node and on three, at every isolation level,
+**Elle.** The nightly matrix has list-append, read-write register, and
+predicate-read histories on one node and on three, at each isolation level,
 locking mode, and wire mode. A cell fails on any anomaly that its isolation
 level forbids. With the lock-free form as the default, the matrix passed in
 full three times: with the first two changes, then with all three, then with
@@ -304,7 +305,7 @@ deletes included. A second nightly job of 18 fault and placement scenarios
 also passed all three times.
 
 **Anomaly tests.** Ten interleavings in which a commit of both transactions
-breaks serializability, each run with the locks on and off:
+breaks serializability, each run with the locks on and off.
 
 - Write skew: two transactions read the same rows, and each writes a
   different row based on what it read.
@@ -353,7 +354,7 @@ lock-free form now applies to Serializable transactions only.
   now be refused at the reader's next read, or at the reader's commit. After
   each refusal, the application can retry the transaction from the start.
 - **Readers on another node.** A write gives way only to an older reader
-  whose session runs on the node that leads the row. We tried to count
+  whose session is on the node that leads the row. We tried to count
   readers on other nodes, and it showed no gain on three nodes.
 - **Transfers run out of attempts during a stall.** See the read wait below.
   33 of the 399 in the second soak were a read that kept answering "retry".
@@ -394,8 +395,8 @@ sequenceDiagram
 The setting `optimistic_intent_wait_ms` (default 100) limits the wait.
 Measured at Read Committed, retries per transfer fell from 0.362 to 0.108.
 
-The wait has one known cost. A retry now takes about 105 ms, so ten attempts
-are spent in about a second. When a server stalls for longer, the transfers
+The known cost of the wait is that a retry now takes about 105 ms, so ten
+attempts are spent in about a second. When a server stalls for longer, the transfers
 queued behind the stalled writer give up: about 300 of 19 million in each
 fault soak, against 12 before. The remedy is not chosen.
 
@@ -404,7 +405,7 @@ fault soak, against 12 before. The remedy is not chosen.
 - A pause of the client after its write gave way removed wasted attempts, but
   committed 4% to 21% fewer transactions. A refused attempt is cheap, and an
   immediate retry gets in sooner.
-- A count of readers on other nodes changed nothing measurable.
+- A count of readers on other nodes made no measurable change.
 
 ### Read Committed results
 
@@ -412,15 +413,15 @@ Read Committed is a weaker isolation level that permits anomalies which
 Serializable forbids. On the bank workload, CamusDB at Read Committed with
 optimistic locking completes 12,870 operations per second. CockroachDB at
 Read Committed with `SELECT ... FOR UPDATE` completes 5,412. The two
-configurations do different things, so the Serializable results are the
-comparison.
+configurations do different things. This means that the Serializable results
+are the comparison.
 
 ## Limits of the comparison
 
 - **The default is new.** The lock-free form became the default on the day
   of the last measurement. It is not in a release yet.
 - **One host.** Nodes and the load generator share 16 cores, which penalizes
-  the system that uses more CPU. The 10-minute runs have no network latency
+  the system that uses more CPU. The 10-minute tests have no network latency
   and no durable disk.
 - **One workload, small data.** 2,000 hot rows on one partition favor a
   single-leader layout. CockroachDB is built to spread ranges over many
@@ -431,7 +432,7 @@ comparison.
   memory flags. An expert could likely tune both databases further.
 - **Single runs.** Same-build noise on the bank workload is about 0.5% for
   CamusDB. The CockroachDB run was not repeated. The 60-second Elle cells
-  vary by a few percent between runs.
+  vary by a few percent from one run to the next.
 
 ## Planned work on the setting and the comparison
 

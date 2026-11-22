@@ -5,32 +5,27 @@ description: "Use familiar SQL with CamusDB. It accepts common PostgreSQL expres
 
 # SQL overview
 
-You talk to CamusDB in SQL, so the skills, queries, and tools you already use
-with a relational database carry over. CamusDB accepts common
+You use CamusDB with SQL. The queries and tools that you use with other
+relational databases work in the same way. Common
 [PostgreSQL expression forms](/docs/sql-expression-syntax), such as `::` casts,
-so SQL that an ORM or a PostgreSQL tool generates usually needs few changes.
-Where CamusDB differs, these pages say so.
+work in CamusDB. This means that SQL from an ORM or a PostgreSQL tool usually needs few changes.
+Where CamusDB is different, these pages say so.
 
-Run SQL from application code with the [.NET](/docs/dotnet-driver),
+From application code, run SQL with the [.NET](/docs/dotnet-driver),
 [TypeScript](/docs/typescript-connector), or [Python](/docs/python-driver)
-driver. They bind values and handle the transport; the SQL reference does not
-require knowledge of JSON requests or gRPC messages. For interactive use,
-choose [camus-cli](/docs/camus-cli) or the [Web Console](/docs/web-console).
+driver. The drivers bind the values and handle the transport. For interactive
+use, use [camus-cli](/docs/camus-cli) or the [Web Console](/docs/web-console).
 
-The dialect covers what you expect from a relational database, plus a few
-additions:
+The dialect includes the following features:
 
-- Schemas with `CHECK` constraints, foreign keys, sequences, identity columns,
-  views, and materialized views.
-- Queries with inner, outer, and cross joins, subqueries, derived tables,
-  recursive CTEs (`WITH` queries), LATERAL and VALUES sources, aggregates,
-  window functions, and `CASE` expressions.
-- Writes with `INSERT ... SELECT`, `UPDATE ... FROM`, `DELETE ... USING`, and `RETURNING`.
-- Serializable transactions, time-travel reads, vector search, row-level TTL,
-  users and grants, and a large library of scalar functions.
+| Area | Features |
+| --- | --- |
+| Schema | `CHECK` constraints, foreign keys, sequences, identity columns, views, and materialized views |
+| Queries | Inner, left, right, and cross joins, subqueries, recursive CTEs, `LATERAL`, `VALUES` lists, aggregates, and window functions |
+| Writes | `INSERT ... SELECT`, `UPDATE ... FROM`, `DELETE ... USING`, `ON CONFLICT`, and `RETURNING` |
+| Other | Serializable transactions, time-travel reads, vector search, row-level TTL, and users and grants |
 
-This page covers the parts that belong to CamusDB alone and maps each statement
-to its page.
+The following example creates a table and reads from it:
 
 ```camussql
 CREATE DATABASE IF NOT EXISTS app;
@@ -44,7 +39,7 @@ CREATE TABLE robots (
 CREATE INDEX robots_year_idx ON robots (year DESC);
 
 INSERT INTO robots (id, name, year)
-VALUES (GEN_ID(), "R2-D2", 1977);
+VALUES (GEN_ID(), 'R2-D2', 1977);
 
 SELECT id, name, year
 FROM robots
@@ -52,15 +47,14 @@ WHERE year >= 1970
 ORDER BY year DESC;
 ```
 
-Use [WITH queries](/docs/sql-queries#with-queries) to name intermediate results,
-and [joined writes](/docs/sql-writes#joined-writes) to update or delete rows
-using other tables.
+This page covers the rules that apply to all statements, and links each
+statement to its page.
 
 ## Identifiers and case
 
-Keywords are not case-sensitive. CamusDB stores database, table, column, and
-index names in the case you use when you create or rename them, and later
-lookups ignore case:
+Keywords aren't case-sensitive. The names of schema objects, such as tables and
+columns, are stored in the case that you use when you create or rename them.
+Later lookups ignore case:
 
 ```camussql
 CREATE TABLE Robots (
@@ -68,78 +62,80 @@ CREATE TABLE Robots (
   RobotName STRING NOT NULL
 );
 
-INSERT INTO robots (id, robotname) VALUES (GEN_ID(), "R2-D2");
+INSERT INTO robots (id, robotname) VALUES (GEN_ID(), 'R2-D2');
 SELECT ROBOTNAME FROM ROBOTS;
 ```
 
-The result still shows the original names `Robots`, `Id`, and `RobotName`, and
-so do `SHOW TABLES`, `SHOW COLUMNS`, and `SHOW CREATE TABLE`. `robots`,
-`ROBOTS`, and `Robots` all refer to the same table.
+`robots` and `ROBOTS` refer to the same table as `Robots`. `SHOW` statements,
+such as `SHOW CREATE TABLE`, show the original names. In a query result, a column has the name that you wrote in the
+select list, for example `ROBOTNAME`.
 
-Names are also unique regardless of case, so `Robots` and `robots` cannot be two
-tables in the same database, and one table cannot have both `RobotName` and
-`robotname` columns.
+Two names that differ only in case are the same name. This means that `Robots`
+and `robots` can't be two tables in the same database. A table also can't have
+both a `RobotName` and a `robotname` column.
 
 ### Backticks
 
-Use backticks when an identifier matches a reserved keyword, a type name, or a
-function name:
+Use backticks for an identifier that is a reserved keyword or a type name:
 
 ```camussql
 CREATE TABLE `order` (
+  id INT64 PRIMARY KEY,
   `select` STRING NOT NULL,
-  `from` STRING
+  `date` DATE
 );
 
-SELECT `select`, `from`
+SELECT `select`, `date`
 FROM `order`;
 ```
 
-`CASE`, `END`, and `OVER` are reserved, so a column named `end` needs
+Some common column names need backticks, for example `date` and `user`.
+Keywords such as `END` and `OVER` are also reserved. A column named `end` needs
 ``SELECT `end` FROM events``.
 
 ## Literals
 
-Backticks quote identifiers only. String literals use single or double
-quotation marks, and the two forms are equivalent:
+String literals use single or double quotes. The two forms are the same:
 
 ```camussql
 SELECT "literal text", 'literal text';
 ```
 
-See [Data Types](/docs/data-types) for the literal format of every type,
-including temporal values, arrays, and object ids.
+Note that this is different from PostgreSQL, where double quotes enclose an
+identifier. In CamusDB, `"name"` is a string. Use backticks for identifiers.
+
+For the literal format of each type, see [Data types](/docs/data-types).
 
 ## Comments
 
-CamusDB accepts both line and block comments. A comment is valid anywhere a
-space is: before a statement, between clauses, or at the end of a line.
+You can use line comments and block comments. A comment can go anywhere that a
+space can go:
 
 ```camussql
--- Line comments run to the end of the line.
+-- A line comment ends at the end of the line.
 SELECT id, name
 FROM robots
 WHERE year >= 1980; -- only newer robots
 
 /*
-  Block comments span multiple lines.
+  A block comment can span lines.
 */
 SELECT id, name
-FROM robots /* or sit inline */
-WHERE active = true;
+FROM robots /* or be inline */
+WHERE year < 1980;
 ```
 
-Block comments do not nest: the first `*/` closes the comment. An unterminated
-comment is a parser error.
+Block comments don't nest. The first `*/` ends the comment. A block comment
+that isn't closed returns `CADB0406`.
 
-A comment marker inside a string literal is just text:
+A comment marker in a string literal is text:
 
 ```camussql
-SELECT "not -- a comment" AS value;
+SELECT 'not -- a comment' AS value;
 ```
 
-`--` always starts a comment, so
-`SELECT 10 FROM t --5` parses as `SELECT 10 FROM t`. To subtract a negative
+`--` starts a comment in all other places. This means that
+`SELECT 10 FROM t --5` is read as `SELECT 10 FROM t`. To subtract a negative
 number, write `10 - -5`, with a space.
 
 ## Statement map
@@ -149,71 +145,72 @@ number, write `10 - -5`, with a space.
 | Task | Page |
 | --- | --- |
 | Create, rename, and drop databases | [Databases](/docs/databases) |
-| Branch a database | [Database Branching](/docs/database-branching) |
-| Restore a dropped database or table | [Recover Dropped Objects](/docs/recover-dropped-objects) |
-| Tables, columns, and `ALTER TABLE` | [Tables And Columns](/docs/sql-schema) |
-| Column types and literals | [Data Types](/docs/data-types) |
-| `CHECK` and `NOT NULL` | [Check Constraints](/docs/check-constraints) |
-| Parent-child integrity | [Foreign Keys](/docs/foreign-keys) |
+| Branch a database | [Database branching](/docs/database-branching) |
+| Restore a dropped database or table | [Recover dropped objects](/docs/recover-dropped-objects) |
+| Tables, columns, and `ALTER TABLE` | [Tables and columns](/docs/sql-schema) |
+| Column types and literals | [Data types](/docs/data-types) |
+| `CHECK` and `NOT NULL` | [Check constraints](/docs/check-constraints) |
+| Parent-child integrity | [Foreign keys](/docs/foreign-keys) |
 | `CREATE INDEX`, `DROP INDEX`, and covering indexes | [Indexes](/docs/sql-indexes) |
-| GIN indexes for JSONB | [JSON Indexes](/docs/json#gin-indexes) |
+| GIN indexes for JSONB | [JSON indexes](/docs/json#gin-indexes) |
 | Sequences and identity columns | [Sequences](/docs/sequences) |
-| Descriptions on schema objects | [Schema Comments](/docs/comment-on) |
-| Column compression and out-of-line storage | [Large Values](/docs/storage-layout) |
+| Descriptions on schema objects | [Schema comments](/docs/comment-on) |
+| Column compression and out-of-line storage | [Large values](/docs/storage-layout) |
 | A stored query | [Views](/docs/views) |
-| A stored query result and `REFRESH MATERIALIZED VIEW` | [Materialized Views](/docs/materialized-views) |
+| A stored query result and `REFRESH MATERIALIZED VIEW` | [Materialized views](/docs/materialized-views) |
 
 ### Read and write
 
 | Task | Page |
 | --- | --- |
-| Named intermediate queries with `WITH` | [WITH queries](/docs/sql-queries#with-queries) |
-| `INSERT`, `UPDATE`, `DELETE`, joined writes; `LIMIT` on plain updates and deletes | [Insert, Update, Delete](/docs/sql-writes) |
-| `RETURNING` from inserts, updates, and deletes | [Return Changed Rows](/docs/sql-writes#returning) |
-| `ON CONFLICT`, `UPSERT` | [Skip or Update Conflicting Rows](/docs/sql-writes#on-conflict) |
-| `INSERT ... SELECT` and CTAS | [Copying Query Results](/docs/insert-select-and-ctas) |
-| `TRUNCATE`, which empties a table | [Emptying A Table](/docs/truncate-table) |
 | `SELECT`, filtering, grouping, sorting, and pagination | [SELECT](/docs/sql-queries) |
-| `FOR UPDATE`, `NOWAIT`, `SKIP LOCKED` | [Lock Rows Before Updating Them](/docs/sql-queries#for-update) |
-| Ranking, running totals, and comparisons between rows | [Window Functions](/docs/sql-queries#window-functions) |
-| Joins, subqueries, derived tables | [Joins And Subqueries](/docs/joins-and-subqueries) |
-| `UNION`, `INTERSECT`, `EXCEPT`, including `ALL` | [Combine Query Results](/docs/sql-queries#set-operations) |
-| A historical snapshot | [Time-Travel Reads](/docs/time-travel-reads) |
-| A `SELECT` with no table source | [SELECT Without FROM](/docs/sql-fromless-select) |
-| JSONB documents, operators, and updates | [JSON Documents](/docs/json) |
-| PostgreSQL-style casts, arrays, and expression forms | [PostgreSQL Expression Syntax](/docs/sql-expression-syntax) |
+| Named intermediate queries with `WITH` | [WITH queries](/docs/sql-queries#with-queries) |
+| Joins, subqueries, derived tables | [Joins and subqueries](/docs/joins-and-subqueries) |
+| `UNION`, `INTERSECT`, `EXCEPT`, including `ALL` | [Combine query results](/docs/sql-queries#set-operations) |
+| Ranking, running totals, and comparisons between rows | [Window functions](/docs/sql-queries#window-functions) |
+| `FOR UPDATE`, `NOWAIT`, `SKIP LOCKED` | [Lock rows before updating them](/docs/sql-queries#for-update) |
+| A `SELECT` that reads no table | [SELECT without FROM](/docs/sql-fromless-select) |
+| A historical snapshot | [Time-travel reads](/docs/time-travel-reads) |
+| `INSERT`, `UPDATE`, `DELETE`, joined writes, and `LIMIT` on updates and deletes | [Insert, update, delete](/docs/sql-writes) |
+| `RETURNING` from inserts, updates, and deletes | [Return changed rows](/docs/sql-writes#returning) |
+| `ON CONFLICT`, `UPSERT` | [Skip or update conflicting rows](/docs/sql-writes#on-conflict) |
+| `INSERT ... SELECT` and CTAS | [Copying query results](/docs/insert-select-and-ctas) |
+| `TRUNCATE`, which empties a table | [TRUNCATE TABLE](/docs/truncate-table) |
+| JSONB documents, operators, and updates | [JSON documents](/docs/json) |
+| PostgreSQL-style casts, arrays, and expression forms | [PostgreSQL expression syntax](/docs/sql-expression-syntax) |
 | Scalar functions | [Functions](/docs/functions) |
-| Generate rows with `generate_series` | [Set-Returning Functions](/docs/functions-set-returning) |
-| Inline C# `CREATE FUNCTION` and `CREATE TRIGGER`, extension DLLs, and `CALL` procedures | [C# Extensions](/docs/csharp-extensions) |
-| Vectors and nearest neighbor search | [Vector Search](/docs/vector-search) |
-| Row expiry | [Row-Level TTL](/docs/row-level-ttl) |
+| Generate rows with `generate_series` | [Set-returning functions](/docs/functions-set-returning) |
+| Inline C# `CREATE FUNCTION` and `CREATE TRIGGER`, extension DLLs, and `CALL` procedures | [C# extensions](/docs/csharp-extensions) |
+| Vectors and nearest neighbor search | [Vector search](/docs/vector-search) |
+| Row expiry | [Row-level TTL](/docs/row-level-ttl) |
 
 ### Transactions, performance, and inspection
 
 | Task | Page |
 | --- | --- |
-| `BEGIN`, `COMMIT`, `ROLLBACK`, isolation, and locks | [Transactions In SQL](/docs/sql-transactions) |
-| Snapshot behavior and isolation guarantees | [Transactions And Isolation](/docs/serializable-transactions) |
-| Retry a transaction after a conflict | [Retries And Conflicts](/docs/serializable-retries) |
-| Transaction size and lifetime limits | [Transaction Limits](/docs/transaction-limits) |
-| `SET TRANSACTION PRIORITY` | [Transaction Priority](/docs/transaction-priority) |
-| How CamusDB selects a plan | [Query Planning](/docs/query-planning) |
+| `BEGIN`, `COMMIT`, `ROLLBACK`, isolation, and locks | [Transactions in SQL](/docs/sql-transactions) |
+| Snapshot behavior and isolation guarantees | [Transactions and isolation](/docs/serializable-transactions) |
+| Retry a transaction after a conflict | [Retries and conflicts](/docs/serializable-retries) |
+| Transaction size and lifetime limits | [Transaction limits](/docs/transaction-limits) |
+| `SET TRANSACTION PRIORITY` | [Transaction priority](/docs/transaction-priority) |
+| How a plan is selected | [Query planning](/docs/query-planning) |
 | How to read a plan | [EXPLAIN](/docs/explain) |
 | The estimates behind a plan | [SHOW STATISTICS](/docs/show-statistics) |
-| Refresh optimizer statistics with `ANALYZE` | [Automatic Analyze](/docs/automatic-analyze) |
-| Caching repeated reads | [Result Cache](/docs/query-result-cache) |
-| Spill large query buffers to temporary files | [Spill To Disk](/docs/spill-to-disk) |
-| Scans across the cluster | [Distributed Queries](/docs/distributed-queries) |
-| Learn routes for repeated SQL | [SQL Routing Advice](/docs/sql-routing-advice) |
+| Refresh optimizer statistics with `ANALYZE` | [Automatic analyze](/docs/automatic-analyze) |
+| Caching repeated reads | [Query result cache](/docs/query-result-cache) |
+| Spill large query buffers to temporary files | [Spill to disk](/docs/spill-to-disk) |
+| Scans across the cluster | [Distributed queries](/docs/distributed-queries) |
+| Learn routes for repeated SQL | [SQL routing advice](/docs/sql-routing-advice) |
+| Partition leaders, replicas, and load with `SHOW PARTITIONS` | [Raft partitions](/docs/sql-inspection#raft-partitions) |
 | The range placement of a table or index | [SHOW RANGES](/docs/show-ranges) |
-| Active queries, connections, and `CANCEL QUERY` | [Query Activity](/docs/query-activity) |
-| Statements that crossed a slow-query threshold | [Slow Query Log](/docs/slow-query-log) |
-| Repeated query costs with `SHOW STATEMENT STATS` | [Statement Statistics](/docs/statement-stats) |
-| Index reads and writes with `SHOW INDEX USAGE` | [Index Usage](/docs/index-usage) |
-| Storage and replication metrics with `SHOW ENGINE STATS` | [Engine Stats](/docs/engine-stats) |
+| Active queries, connections, and `CANCEL QUERY` | [Query activity](/docs/query-activity) |
+| Statements that crossed a slow-query threshold | [Slow query log](/docs/slow-query-log) |
+| Repeated query costs with `SHOW STATEMENT STATS` | [Statement statistics](/docs/statement-stats) |
+| Index reads and writes with `SHOW INDEX USAGE` | [Index usage](/docs/index-usage) |
+| Storage and replication metrics with `SHOW ENGINE STATS` | [Engine stats](/docs/engine-stats) |
 | Effective configuration with `SHOW VARIABLES` | [SHOW VARIABLES](/docs/show-variables) |
-| Placeholders and prepared handles | [Parameters And Prepared Statements](/docs/prepared-statements) |
-| A deeply nested generated statement | [Statement Nesting Limit](/docs/statement-nesting-limit) |
-| List databases, tables, columns, and indexes | [Inspecting The Database](/docs/sql-inspection) |
-| Users, passwords, `GRANT`, and `REVOKE` | [Authentication And Authorization](/docs/sql-authentication) |
-| `SET`/`RESET CLUSTER SETTING` and `SHOW CLUSTER SETTINGS` | [Runtime Cluster Settings](/docs/runtime-cluster-settings) |
+| Placeholders and prepared handles | [Parameters and prepared statements](/docs/prepared-statements) |
+| A deeply nested generated statement | [Statement nesting limit](/docs/statement-nesting-limit) |
+| List databases, tables, columns, and indexes | [Inspecting the database](/docs/sql-inspection) |
+| Users, passwords, `GRANT`, and `REVOKE` | [Authentication and authorization](/docs/sql-authentication) |
+| `SET`/`RESET CLUSTER SETTING` and `SHOW CLUSTER SETTINGS` | [Runtime cluster settings](/docs/runtime-cluster-settings) |

@@ -4,115 +4,162 @@ sidebar_position: 3.74
 
 # SHOW RANGES
 
-`SHOW RANGES` shows how CamusDB currently routes a table or index
-[key space](/docs/concepts#key-space), the storage keys that hold its rows or
-index entries. Use it to see whether a relation is
-[hash-routed or key-range-routed](/docs/concepts#hash-and-key-range-routing),
-whether a [range](/docs/concepts#ranges-and-spans) split happened, and which
-[partition](/docs/concepts#partition) owns a key.
+`SHOW RANGES` shows how the [key space](/docs/concepts#key-space) of a table or
+an index is divided and placed. The key space is the set of storage keys that
+hold the rows or the index entries. Use the statement to answer the following
+questions:
+
+- Is the table [hash-routed or key-range-routed](/docs/concepts#hash-and-key-range-routing)?
+- Did a [range](/docs/concepts#ranges-and-spans) split?
+- Which [partition](/docs/concepts#partition) serves a hot row or index key?
+- Is the [leader](/docs/concepts#leader) of a range on this node? The leader is
+  the node that coordinates the writes of the range.
+
+For the cost of one query, use [EXPLAIN](/docs/explain). For metrics of the
+node, use [SHOW ENGINE STATS](/docs/engine-stats). To list partition leaders and
+replicas from a node, use [SHOW PARTITIONS](/docs/sql-inspection#raft-partitions).
+
+The examples on this page use the following data:
+
+<details>
+<summary>Sample data for the examples on this page</summary>
+
+```camussql
+CREATE TABLE users (
+  id INT64 PRIMARY KEY NOT NULL,
+  email STRING NOT NULL,
+  name STRING NOT NULL
+);
+CREATE INDEX by_email ON users (email);
+INSERT INTO users (id, email, name) VALUES
+  (1000, 'ana@example.com', 'Ana'),
+  (1500, 'a@example.com', 'Alex'),
+  (2000, 'bo@example.com', 'Bo');
+```
+
+</details>
+
+## Examples
 
 ```camussql
 SHOW RANGES FROM TABLE users;
+```
+
+```text
+┌──────────┬───────────┬─────────┬──────┬───────────┬─────────┬───────────────┬─────────────┬──────────────┬────────────┬─────────────┬─────────────────┬────────────────┬──────────┬───────────┐
+│ relation │ key_space │ routing │ span │ start_key │ end_key │ raw_start_key │ raw_end_key │ partition_id │ generation │ leader      │ leader_is_local │ hosted_locally │ replicas │ probe_key │
+├──────────┼───────────┼─────────┼──────┼───────────┼─────────┼───────────────┼─────────────┼──────────────┼────────────┼─────────────┼─────────────────┼────────────────┼──────────┼───────────┤
+│ users    │ 1Il:1ZI|r │ hash    │ 1    │ null      │ null    │ null          │ null        │ 1            │ 0          │ localhost:0 │ True            │ True           │          │ null      │
+└──────────┴───────────┴─────────┴──────┴───────────┴─────────┴───────────────┴─────────────┴──────────────┴────────────┴─────────────┴─────────────────┴────────────────┴──────────┴───────────┘
+1 rows in set (00:00:00.0039400)
+```
+
+This node uses hash routing, the default. The key space has one span on one
+partition.
+
+```camussql
 SHOW RANGES FROM INDEX users@users_pkey;
 SHOW RANGE FROM TABLE users FOR ROW (1500);
 SHOW RANGE FROM INDEX users@by_email FOR ROW ('a@example.com');
 ```
 
-It answers operator questions that table statistics and engine metrics cannot:
-
-- Has this table or index split, or is it still one whole-space range?
-- Which partition serves each range?
-- Which range holds a hot row or index key?
-- Does this node believe a range [leader](/docs/concepts#leader), the node that
-  coordinates its writes, is local or remote?
-- Is a plan's network cost high because the data is actually remote?
-
-For the cost a query paid, use [EXPLAIN](/docs/explain). For process-level
-metrics, use [SHOW ENGINE STATS](/docs/engine-stats).
-
 ## How a key space maps to nodes
 
-The diagram shows a key-range-routed table after one split at key `K`. Each
-span covers part of the key space, one partition serves it, and that partition
-has a leader node. `SHOW RANGES` returns one row per span.
+With [key-range sharding](/docs/key-range-sharding), a key space can split into
+several spans. Each span is a range of keys that one partition serves. Each
+partition has a leader node. `SHOW RANGES` returns one row for each span.
 
 ```mermaid
 flowchart TD
     KS["users row key space"] -->|keys below K| S1["span 1<br/>start_key NULL<br/>end_key K"]
     KS -->|keys from K up| S2["span 2<br/>start_key K<br/>end_key NULL"]
-    S1 --> P1["partition_id 4"]
-    S2 --> P2["partition_id 9"]
+    S1 --> P1["partition_id 1"]
+    S2 --> P2["partition_id 5"]
     P1 --> L1["leader: node A"]
     P2 --> L2["leader: node B"]
 ```
 
-A hash-routed key space has no split keys, so it has a single span. A table's
-row key space and its index key spaces all hash to the same partition.
+For example, after a split of the `users` row key space, the result has two
+rows. The following table shows some of their columns:
+
+| `span` | `start_key` | `end_key` | `partition_id` | `generation` |
+| --- | --- | --- | --- | --- |
+| 1 | `NULL` | `6afef0a2d6062834bd492622` | 1 | 2 |
+| 2 | `6afef0a2d6062834bd492622` | `NULL` | 5 | 2 |
+
+A row key is based on the internal row ID, so the bounds of a table span are
+row IDs. Index spans have bounds made from the index values.
+
+A hash-routed key space can't split. It has one span, both bounds are `NULL`,
+and its `generation` is `0`. With hash routing, the rows and the indexes of a table are
+on the same partition.
 
 ## Result columns
 
 | Column | Type | Meaning |
 | --- | --- | --- |
-| `relation` | `STRING` | Table name, or `table@index` for an index. |
-| `key_space` | `STRING` | Internal key-space prefix, such as `{databaseId}:{tableId}\|r` for table rows or `{databaseId}:{tableId}\|i:{indexId}` for an index. |
-| `routing` | `STRING` | `key_range` or `hash`, as this node routes it. |
-| `span` | `INT64` | 1-based position of this range inside the key space. It is not a stable range id. |
-| `start_key` | `STRING` | Decoded lower bound. `NULL` means unbounded. |
-| `end_key` | `STRING` | Decoded upper bound. `NULL` means unbounded. |
-| `raw_start_key` | `STRING` | Encoded lower bound. |
-| `raw_end_key` | `STRING` | Encoded upper bound. |
-| `partition_id` | `INT64` | Partition currently serving the span. |
-| `generation` | `INT64` | Version of the range's routing. It advances when the range changes, for example after a split. Hash routing reports `0`. |
-| `leader` | `STRING` | Leader endpoint hint. `NULL` means unknown. |
-| `leader_is_local` | `BOOL` | Whether this node believes it leads the span. |
-| `hosted_locally` | `BOOL` | Whether this node hosts the partition. |
-| `replicas` | `STRING` | Comma-separated endpoints of the nodes that hold a copy ([replica](/docs/concepts#replica-and-replication-factor)) of the partition. Empty means full replication: every node holds it. |
-| `probe_key` | `STRING` | Exact key located by `FOR ROW`; `NULL` in plural forms. |
+| `relation` | `STRING` | The table name, or `table@index` for an index. |
+| `key_space` | `STRING` | The internal key-space prefix, such as `{databaseId}:{tableId}\|r` for table rows or `{databaseId}:{tableId}\|i:{indexId}` for an index. |
+| `routing` | `STRING` | `key_range` or `hash`. |
+| `span` | `INT64` | The position of the span in the key space, from 1. It isn't a stable range ID. |
+| `start_key` | `STRING` | The decoded lower bound. `NULL` means no bound. |
+| `end_key` | `STRING` | The decoded upper bound. `NULL` means no bound. |
+| `raw_start_key` | `STRING` | The encoded lower bound. |
+| `raw_end_key` | `STRING` | The encoded upper bound. |
+| `partition_id` | `INT64` | The partition that serves the span. |
+| `generation` | `INT64` | The version of the routing of the range. It increases when the range changes, for example after a split. It's `0` for hash routing. |
+| `leader` | `STRING` | The endpoint of the leader, as known to this node. `NULL` means unknown. |
+| `leader_is_local` | `BOOL` | Whether this node is the leader of the span, as far as this node knows. |
+| `hosted_locally` | `BOOL` | Whether this node has a copy of the partition. |
+| `replicas` | `STRING` | The endpoints of the nodes that have a copy ([replica](/docs/concepts#replica-and-replication-factor)) of the partition, separated by commas. An empty value means full replication: all nodes have a copy. |
+| `probe_key` | `STRING` | The key found by `FOR ROW`. `NULL` in the other forms. |
 
-Read `partition_id`, not `span`, when comparing two runs. A split can renumber
-spans, while the partition identity stays meaningful.
+To compare two results, use `partition_id`. A split can change the `span` numbers.
 
 ## FOR ROW
 
-`SHOW RANGE ... FOR ROW` locates one key.
+`SHOW RANGE ... FOR ROW` finds the span of one key.
 
-For an index, CamusDB computes the index key from the values you provide. The
-row does not need to exist. You may provide a prefix of the index columns.
+For an index, the index key is computed from the values that you give. The row
+doesn't need to exist. You can give only the first columns of the index.
 
-For a table, CamusDB first resolves the primary key to the row id, then locates
-the row-key range. If no row has that primary key, the statement raises an
-error instead of returning an empty result.
+For a table, the row must exist. The primary key is first resolved to the
+internal row ID, and the row key is made from that ID. If no row has that
+primary key, the statement returns `CADB0405`:
 
-The lookup is lock-free and non-tracking. Running it inside a serializable
-transaction does not add to the transaction's read set.
+```camussql
+SHOW RANGE FROM TABLE users FOR ROW (9999);
+```
+
+```text
+CamusException (CADB0405): No row in 'users' has that primary key. A table's row key is derived from the stored row id rather than from the primary key, so the row must exist before its span can be named. Ask SHOW RANGE FROM INDEX instead for a key-space question about a key that need not exist.
+```
+
+The lookup doesn't take locks. In a serializable transaction, it isn't added to
+the read set of the transaction.
 
 ## Targets
 
-- `FROM TABLE t` reports the table's row space.
-- `FROM INDEX t@i` reports a secondary index key space.
-- `t@~pk`, `t@t_pkey`, and `t@primary` can name the primary index when no real
-  index has that exact name.
-- A plain view has no key space. Ask for the base tables. A materialized view is
-  a physical relation and reports ranges normally.
+- `FROM TABLE t` shows the row key space of the table.
+- `FROM INDEX t@i` shows the key space of a secondary index.
+- `t@~pk` names the primary index. The aliases `t@t_pkey` and `t@primary` also
+  work, if no real index has that name.
+- A view doesn't store rows, and returns `CADB0523`. Use the tables that the view
+  reads. A materialized view stores rows, and it has ranges like a table.
 
 ## Node-local output
 
-The answer is this node's applied view of routing. A node that is behind may
-report an older generation than a peer. The leader is only a hint; execution
-re-resolves it through the storage locator.
-
-A hash-routed key space reports one span with unbounded start and end keys,
-generation `0`, and `routing = 'hash'`.
+The result shows the routing as this node knows it. A node that is behind can
+show an older `generation` than another node. The leader is only a hint. A query
+finds the current leader when it executes.
 
 ## Permissions
 
-`SHOW RANGES` requires `SELECT` on the target table. It is not restricted to
-superusers.
+`SHOW RANGES` needs `SELECT` on the table. A superuser isn't required. The
+decoded bounds can contain data values. For this reason, the statement needs the
+same privilege as a read of the table.
 
-Decoded range bounds can contain real data values, so CamusDB gates the
-statement with the same privilege needed to read the relation.
-
-## Related
+## Related pages
 
 - [Key-range sharding](/docs/key-range-sharding)
 - [EXPLAIN](/docs/explain)

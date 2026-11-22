@@ -6,38 +6,42 @@ description: "CamusDB.Client is the ADO.NET provider for CamusDB. Connect .NET a
 # .NET driver
 
 `CamusDB.Client` connects a .NET application to CamusDB. It is an ADO.NET
-provider. ADO.NET is the standard .NET database interface: connections,
-commands, data readers, and transactions work the same way for every database,
-so ADO.NET code you wrote for another database reads the same with CamusDB.
+provider. ADO.NET is the standard database interface of .NET, and it works the same way
+for each database. This means that
+ADO.NET code that you wrote for another database reads the same with CamusDB.
 
-The driver is the foundation of the other .NET packages. It also gives you
-direct access to CamusDB features such as the gRPC transport, learned routing,
-prepared statements, serializable retries, and backups. You use ADO.NET
-methods and .NET values; the driver handles HTTP/JSON or gRPC encoding,
-authentication messages, and transaction handles.
+The other .NET packages are built on the driver. The driver also gives you
+direct access to CamusDB features, such as the gRPC transport and prepared
+statements. You use ADO.NET methods and .NET values, and the driver handles the wire
+protocol and the transaction handles. This page
+describes `CamusDB.Client` 0.19.3.
 
 ## Which .NET package to use
 
 | Package | What it gives you | Choose it when | Targets |
 | --- | --- | --- | --- |
-| [`CamusDB.Client`](/docs/dotnet-driver) | The ADO.NET driver: connections, commands, data readers, and transactions. | You want full control of the SQL text and of each command. | `net8.0`, `net9.0`, `net10.0` |
-| [`CamusDB.Dapper`](/docs/dapper) | Dapper on the same connection: you write the SQL, and Dapper maps each row to a C# object. | You write SQL yourself, but you do not want to read each column by hand. | `net8.0`, `net9.0`, `net10.0` |
-| [`CamusDB.EntityFrameworkCore`](/docs/ef-core) | The EF Core provider: LINQ queries, change tracking, and migrations. | Your application uses C# classes as its data model, and EF Core writes the SQL. | `net10.0` |
+| [`CamusDB.Client`](/docs/dotnet-driver) | The ADO.NET driver. | You want full control of the SQL text and of each command. | `net8.0`, `net9.0`, `net10.0` |
+| [`CamusDB.Dapper`](/docs/dapper) | Dapper on the same connection. You write the SQL, and Dapper maps each row to a C# object. | You write SQL, but you don't want to read each column by hand. | `net8.0`, `net9.0`, `net10.0` |
+| [`CamusDB.EntityFrameworkCore`](/docs/ef-core) | The EF Core provider, with LINQ queries and migrations. | Your data model is C# classes, and EF Core writes the SQL. | `net10.0`, `net11.0` |
 
-All three packages share the same driver underneath, and you can use more than
-one in the same application.
+The three packages share the same driver, and you can use more than one in an
+application.
 
 For integration tests, [Testcontainers](/docs/testcontainers) starts a temporary
-CamusDB server in Docker and supplies connection strings for these packages.
-For local application orchestration, the [.NET Aspire integrations](/docs/aspire)
-connect your AppHost and services with database resources and client registration.
+CamusDB server in Docker, and gives connection strings for these packages. For
+local orchestration, the [.NET Aspire integrations](/docs/aspire) connect your
+AppHost and services to database resources.
 
-Use the driver directly when:
+Use the driver directly in these cases:
 
 - You want full control of the SQL text.
 - You use CamusDB SQL features that an ORM doesn't expose.
-- You want a small dependency without EF Core.
+- You want a small dependency, and you don't need EF Core.
 - You want to control each transaction explicitly.
+
+## Sample application
+
+CamusBank uses `CamusDB.Client` directly for transfers and their retries. See the [CamusBank advanced sample](/docs/advanced-samples#camusbank).
 
 ## Install
 
@@ -57,9 +61,9 @@ await using CamusConnection connection =
 await connection.OpenAsync();
 ```
 
-`ChangeDatabase("otherdb")` changes the connection's target database.
-The target database must already exist; see [Database administration](#database-administration)
-when the application is responsible for provisioning it.
+`ChangeDatabase("otherdb")` changes the target database of the connection. The
+database must exist. If the application creates it, see
+[Database administration](#database-administration).
 
 ## Run DDL
 
@@ -80,14 +84,13 @@ await using CamusCommand ddl = connection.CreateCamusCommand("""
 bool created = await ddl.ExecuteDDLAsync();
 ```
 
-`ExecuteDDLAsync()` is also the direct path for other CamusDB DDL, such as:
+`ExecuteDDLAsync()` is also the path for other CamusDB DDL, for example:
 
-- `CHECK` constraints.
-- Named `NOT NULL` constraints.
-- Index operations.
-- Table renames.
+- Constraints, such as `CHECK` and named `NOT NULL` constraints.
+- Index operations and table renames.
 - `TRUNCATE TABLE`.
-- Schema changes that have no helper method.
+- Inline function and extension DDL, also with dollar-quoted bodies.
+- Schema changes that don't have a helper method.
 
 ## Insert rows
 
@@ -129,8 +132,8 @@ int inserted = await insert.ExecuteNonQueryAsync();
 
 ### RETURNING
 
-Use `ExecuteReaderAsync()` or `ExecuteScalarAsync()` when an `INSERT`, `UPDATE`,
-or `DELETE` has a `RETURNING` list:
+For a write with a `RETURNING` list, use `ExecuteReaderAsync()` or
+`ExecuteScalarAsync()`:
 
 ```csharp
 await using CamusCommand update = connection.CreateCamusCommand("""
@@ -153,18 +156,18 @@ while (await returned.ReadAsync())
 int affected = returned.RecordsAffected;
 ```
 
-`ExecuteNonQueryAsync()` returns the affected-row count only. The driver tells
-the server to discard the returned rows, but the server still validates the
-`RETURNING` list and checks the required `SELECT` privilege on the target table.
+`ExecuteNonQueryAsync()` returns the affected-row count. The driver tells the
+server to discard the returned rows. However, the server validates the
+`RETURNING` list, and it checks the `SELECT` privilege on the table.
 
-`ExecuteReaderAsync()` and `ExecuteScalarAsync()` receive all returned rows in
-one reply. On gRPC, a reply larger than the message limit fails with `CADB0550`
+`ExecuteReaderAsync()` and `ExecuteScalarAsync()` receive all the returned rows
+in one reply. On gRPC, a reply larger than the message limit returns `CADB0550`
 before the commit. For a large `INSERT ... SELECT ... RETURNING`, use
-`ExecuteStreamReaderAsync()` so the query endpoint streams rows.
+`ExecuteStreamReaderAsync()`. Then the rows are streamed.
 
 ## Query rows
 
-Use `ExecuteReaderAsync()` to read result rows:
+Use `ExecuteReaderAsync()` to read rows:
 
 ```csharp
 await using CamusCommand select = connection.CreateSelectCommand(
@@ -182,9 +185,9 @@ while (await reader.ReadAsync())
 }
 ```
 
-`ExecuteReaderAsync()` materializes the result before it returns. For a large
-`SELECT`, use `ExecuteStreamReaderAsync()` so rows are read incrementally from
-the server's streaming endpoint:
+`ExecuteReaderAsync()` reads the full result before it returns. For a large
+`SELECT`, use `ExecuteStreamReaderAsync()`. It reads the rows as they arrive
+from the streaming endpoint of the server:
 
 ```csharp
 await using CamusCommand select = connection.CreateSelectCommand(
@@ -202,42 +205,41 @@ while (await reader.ReadAsync())
 }
 ```
 
-The streaming path uses the same reader API. It does not expose cache metadata,
-and it cannot transparently replay a serializable conflict after rows have
-already been delivered. Use the buffered reader when you need automatic retry
-around a single statement.
+The streaming path uses the same reader API. It doesn't show cache metadata.
+After rows were delivered, it can't replay a serializable conflict. If you need
+automatic retry of a statement, use the buffered reader.
 
-The reader exposes the standard typed getters, such as:
+The reader has the standard typed getters, such as `GetString` or `GetInt64`.
+`GetFieldValue<T>` reads other provider-supported types, such as `DateOnly`. `IsDBNull` checks for `NULL`.
 
-- `GetString`
-- `GetBoolean`
-- `GetInt16` / `GetInt32` / `GetInt64`
-- `GetFloat` / `GetDouble`
-- `GetDecimal`
-- `GetGuid`
-- `GetDateTime`
-- `GetFieldValue<T>` for `DateOnly`, `DateTimeOffset`, `byte[]`, `float`,
-  `Guid`, and other provider-supported values
-- `IsDBNull`
+### WITH queries and writes
+
+Use the normal query and execute APIs for
+[WITH queries](/docs/sql-queries#with-queries), also with a write after the
+`WITH` clause. The driver finds the main statement after the CTE definitions.
+This means that `WITH ... UPDATE ... RETURNING` is treated as a write that
+returns rows. Leading comments and dollar-quoted bodies are handled, and `WITH`
+statements can be prepared. Joined writes follow the rules of
+[UPDATE FROM and DELETE USING](/docs/sql-writes#joined-writes).
 
 ## Parameters
 
-Parameters are input-only. Supported value mappings include:
+Parameters are input only. The following value mappings are supported:
 
 | Camus type | Typical .NET values |
 | --- | --- |
 | `ColumnType.Id` | `string`, `Guid`, `CamusObjectIdValue` |
 | `ColumnType.Uuid` | `Guid`, canonical UUID `string` |
 | `ColumnType.String` | `string` |
-| `ColumnType.Integer64` | `short`, `int`, `long`, other integer-convertible values |
+| `ColumnType.Integer64` | `short`, `int`, `long`, and other integer values |
 | `ColumnType.Numeric` | `decimal`, decimal text `string`, integer values |
-| `ColumnType.Float64` | `double`, `decimal`, other floating-convertible values |
-| `ColumnType.Float32` | `float`, other floating-convertible values |
+| `ColumnType.Float64` | `double`, `decimal`, and other floating values |
+| `ColumnType.Float32` | `float`, and other floating values |
 | `ColumnType.Bool` | `bool` |
 | `ColumnType.Bytes` | `byte[]`, `ReadOnlyMemory<byte>`, `Memory<byte>`, `ArraySegment<byte>`, `IEnumerable<byte>` |
 | `ColumnType.Date` | `DateOnly`, `DateTime`, `DateTimeOffset`, ISO date/time `string` |
 | `ColumnType.DateTime` | `DateTime`, `DateTimeOffset`, ISO date/time `string` |
-| `ColumnType.Array` | `IEnumerable` of a scalar supported type |
+| `ColumnType.Array` | `IEnumerable` of a supported scalar type |
 | `ColumnType.Null` | `null`, `DBNull.Value` |
 
 Examples:
@@ -254,8 +256,8 @@ command.Parameters.Add("@happened", ColumnType.DateTime, DateTimeOffset.UtcNow);
 command.Parameters.Add("@note", ColumnType.Null, null);
 ```
 
-For an array, pass `isArray: true`. Set the element scalar type explicitly
-when the array is empty or every current value is `NULL`.
+For an array, pass `isArray: true`. Set the element type explicitly when the
+array is empty or all its values are `NULL`:
 
 ```csharp
 command.Parameters.Add(
@@ -271,13 +273,11 @@ command.Parameters.Add(
     isArray: true);
 ```
 
-The driver normalizes dates and datetimes to UTC before sending them. It
-stores `DATE` values at midnight UTC and reads `DATETIME` values back with
+The driver converts dates and datetimes to UTC before it sends them. `DATE`
+values are stored at midnight UTC, and `DATETIME` values are read with
 `DateTimeKind.Utc`.
 
 ## Data types
-
-The ADO.NET driver covers CamusDB's current scalar types and its array type:
 
 | SQL DDL type | Driver type | Typical read/write type |
 | --- | --- | --- |
@@ -292,27 +292,58 @@ The ADO.NET driver covers CamusDB's current scalar types and its array type:
 | `BYTES`, `BLOB` | `ColumnType.Bytes` | `byte[]` |
 | `DATE` | `ColumnType.Date` | `DateOnly`, `DateTime` |
 | `DATETIME`, `TIMESTAMP` | `ColumnType.DateTime` | `DateTime`, `DateTimeOffset` |
-| `JSONB`, `JSON` | `ColumnType.Jsonb` | JSON text on read; `JsonDocument`, `JsonElement`, `JsonNode`, or typed text on write. |
+| `JSONB`, `JSON` | `ColumnType.Jsonb` | JSON text on read. `JsonDocument`, `JsonElement`, `JsonNode`, or typed text on write. |
 | `ARRAY(T)` | `ColumnType.Array` | `object?[]` on read, `IEnumerable` on write |
 
-Integer declarations share `ColumnType.Integer64` and the same wire values;
-the server enforces the [declared column range](/docs/data-types#integer-type-names).
+The integer declarations share `ColumnType.Integer64` and the same wire values.
+The server checks the [declared column range](/docs/data-types#integer-type-names).
 
-Store UUIDs in a native `UUID` column, not as text in a `STRING`. The native
-type is more compact in memory and on disk, and it compares as a fixed-width
-value.
+Store UUIDs in a native `UUID` column, and not as text in a `STRING`. The native
+type is more compact, and it compares as a fixed-width value.
 
 `NUMERIC` is an exact decimal type with fixed precision and scale. A `decimal`
-parameter binds as `NUMERIC`; use `ColumnType.Numeric` with a `string` when the
-value has more significant digits than .NET `decimal` can hold. Read small
-values with `GetDecimal()` or `GetFieldValue<decimal>()`; read every value
-without rounding with `GetString()`.
+parameter binds as `NUMERIC`. For a value with more digits than a .NET `decimal`
+can hold, use `ColumnType.Numeric` with a `string`. Read small values with
+`GetDecimal()` or `GetFieldValue<decimal>()`. To read any value
+exactly, use `GetString()`.
+
+### Intervals
+
+Use `TimeSpan` parameters for fixed durations, and `CamusInterval` for calendar
+intervals. Both bind as ISO 8601 text. Cast the parameter in SQL. Then the
+server treats it as an interval:
+
+```csharp
+await using CamusCommand command = connection.CreateCamusCommand("""
+    SELECT finished - started AS duration FROM jobs
+    WHERE finished - started > CAST(@limit AS INTERVAL)
+    """);
+command.Parameters.Add("limit", ColumnType.Null, TimeSpan.FromHours(1));
+await using CamusDataReader reader = await command.ExecuteReaderAsync();
+while (await reader.ReadAsync())
+{
+    CamusInterval duration = reader.GetInterval(0);
+    Console.WriteLine(duration);
+}
+```
+
+Interval results have `STRING` metadata. `GetString()` returns their ISO 8601
+text, and `GetInterval()` or `GetFieldValue<CamusInterval>()` parses the three
+parts. `GetTimeSpan()` and `GetFieldValue<TimeSpan>()` read intervals that don't have
+months. A month part raises `InvalidCastException`. `CamusInterval.Parse()` and
+`ToTimeSpan()` give the same conversion outside a reader.
+
+Months can't be converted to a fixed duration, because the length of a month
+varies.
+Intervals are [expression values](/docs/data-types#intervals), and table
+columns and array elements can't be intervals. To send an array of interval
+texts, set `ArrayElementType = ColumnType.String`.
 
 ### JSON documents
 
-Use JSONB parameters to store and query [JSON documents](/docs/json) without
-serializing them into ordinary string columns. `JsonDocument`, `JsonElement`,
-and `JsonNode` values infer `ColumnType.Jsonb`; type raw text explicitly:
+Use JSONB parameters to store and query [JSON documents](/docs/json).
+`System.Text.Json` values, such as `JsonElement`, are `ColumnType.Jsonb`. For
+raw text, set the type explicitly:
 
 ```csharp
 using System.Text.Json;
@@ -327,28 +358,26 @@ while (await reader.ReadAsync())
 }
 ```
 
-`GetString()` and `GetValue()` return the PostgreSQL JSON text form, preserving
-numeric digits and scale. `GetFieldValue<T>()` can instead parse a
-`JsonDocument`, `JsonElement`, `JsonNode`, `JsonObject`, or `JsonArray`.
-`CamusJsonb.Format(text)` produces the same text form.
+`GetString()` and `GetValue()` return the JSON text form of PostgreSQL, with the
+exact digits of numbers. `GetFieldValue<T>()` can parse a JSON type, such as
+`JsonElement` or `JsonNode`. `CamusJsonb.Format(text)` produces the same text
+form.
 
-A JSON `null` document reads as the string `"null"`; SQL NULL reads as
-`DBNull`. From 0.17.1, REST requests ask for `jsonbAsText` to preserve that
-distinction; an older server that ignores the option cannot distinguish the
-two over REST. Arrays of JSONB documents are unsupported; bind one JSON array
-document instead.
+A JSON `null` document reads as the string `"null"`, and SQL `NULL` reads as
+`DBNull`. Over REST, an older server that doesn't support the `jsonbAsText`
+option can't tell the two apart. Arrays of JSONB documents aren't supported.
+Bind one JSON array document.
 
 ### Infinity and NaN
 
-From 0.17.2, the driver reads and binds infinity and NaN on both REST and gRPC.
-Use `double.PositiveInfinity`, `double.NegativeInfinity`, or `double.NaN`
-with `ColumnType.Float64`, and the corresponding `float` values for `Float32`.
-REST encodes them as named strings; the reader returns native .NET floats,
-including inside float arrays. See [float behavior](/docs/data-types#floating-point-values).
+The driver reads and binds infinity and NaN, on REST and gRPC. Use the special `double` values, such as `double.NaN`, with `ColumnType.Float64`.
+Use the `float` values for `Float32`. The reader returns
+native .NET floats, also in float arrays. See
+[float behavior](/docs/data-types#floating-point-values).
 
 ## Transactions
 
-CamusDB transactions are exposed through `BeginTransactionAsync()`:
+To start a transaction, use `BeginTransactionAsync()`:
 
 ```csharp
 CamusTransaction tx = await connection.BeginTransactionAsync();
@@ -366,17 +395,23 @@ await insert.ExecuteNonQueryAsync();
 await tx.CommitAsync();
 ```
 
-Use `await tx.RollbackAsync()` to abort the transaction.
+To abort the transaction, use `await tx.RollbackAsync()`.
 
-`CamusTransactionOptions` lets you set the concurrency behavior for an explicit
+After a commit, `tx.CommitTimestamp` has the HLC commit timestamp of the
+transaction. It is `null` before the commit, after a rollback or a failed
+commit, and for a transaction that didn't write. Two transactions that write the
+same row are in commit-timestamp order. For the other ordering rules, see
+[Commit timestamp](/docs/grpc-api#commit-timestamp).
+
+`CamusTransactionOptions` sets the concurrency behavior of an explicit
 transaction:
 
 | Option | Values | Default |
 | --- | --- | --- |
-| `IsolationLevel` | `Serializable`, `ReadCommitted` | server default, `Serializable` |
+| `IsolationLevel` | `Serializable`, `ReadCommitted` | The server default, `Serializable`. |
 | `Mode` | `ReadWrite`, `ReadOnly` | `ReadWrite` |
-| `Locking` | `Pessimistic`, `Optimistic` | server default, `Pessimistic` |
-| `Affinity` | exact SQL text of a statement with a learned route | `null` |
+| `Locking` | `Pessimistic`, `Optimistic` | The server default, `Pessimistic`. |
+| `Affinity` | The exact SQL text of a statement with a learned route. | `null` |
 
 ```csharp
 CamusTransaction tx = await connection.BeginTransactionAsync(
@@ -401,44 +436,47 @@ Connection-string defaults apply to transactions and autocommit statements:
 Endpoint=http://localhost:5095;Database=test;IsolationLevel=Serializable;Locking=Optimistic;TransactionMode=ReadWrite
 ```
 
-Precedence is: per-transaction options, then connection-string defaults, then
-the server default.
+The per-transaction options win over the connection-string defaults, and those
+win over the server default.
 
-With learned routing enabled, `BeginTransactionAsync()` can defer `BEGIN` until
-the first statement. The driver then starts the transaction on that statement's
-learned endpoint, and every later statement plus commit or rollback remains
-pinned there. If no route has been learned, it falls back to endpoint rotation.
+With learned routing on, `BeginTransactionAsync()` can wait to send `BEGIN`
+until the first statement. The driver then starts the transaction on the
+learned endpoint of that statement. The later statements, and the commit or
+rollback, go to the same endpoint. If no route is known, the driver uses
+endpoint rotation.
 
-Use `CamusTransactionOptions.Affinity` when a later, hotter statement should
-choose the transaction endpoint. The value must be the exact SQL text whose
-route should be used. With `RoutingMode=Off`, `BeginTransactionAsync()` sends
-`BEGIN` immediately as before.
+Use `CamusTransactionOptions.Affinity` when a later statement should choose the
+endpoint of the transaction. The value is the exact SQL text of that statement.
+With `RoutingMode=Off`, `BeginTransactionAsync()` sends `BEGIN` at once.
 
-In routed mode, `TxnIdPT`, `TxnIdCounter`, and `TransactionId` are zero until
-the transaction starts. Use `IsStarted` when a diagnostic path needs to
-distinguish a deferred transaction from one that already has a server handle.
+In routed mode, the transaction ids, such as `TransactionId`, are zero until the
+transaction starts. To tell a deferred transaction from a started one, use
+`IsStarted`.
 
 ## Serializable retries
 
-Serializable is CamusDB's default isolation level. When two serializable
-read-write transactions conflict, CamusDB aborts one of them, and your
-application must replay that whole unit of work from the start.
+Serializable is the default isolation level. When two serializable read-write
+transactions conflict, CamusDB aborts one of them. Your application must then
+replay that unit of work from the start.
 
-The client package includes a `SerializableRetryHelper` for this retry
-contract. It treats these CamusDB error codes as retryable, and no others:
+`SerializableRetryHelper` handles this. It treats the following codes as
+retryable:
 
 | Code | Name | Meaning |
 | --- | --- | --- |
 | `CADB0502` | `TransactionConflict` | A lock conflict aborted the transaction. |
-| `CADB0504` | `TransactionMustRetry` | A transient routing, [leader](/docs/concepts#leader) change, lock-wait, storage conflict, or temporarily unservable read-range condition exhausted internal retries. |
-| `CADB0505` | `TransactionLifetimeExceeded` | A serializable read-write transaction exceeded the server lifetime cap. |
+| `CADB0504` | `TransactionMustRetry` | A transient condition, such as a [leader](/docs/concepts#leader) change, used up the internal retries. |
+| `CADB0505` | `TransactionLifetimeExceeded` | A serializable read-write transaction was open longer than the lifetime limit. |
 
-The helper intentionally leaves out `CADB0509`
-`TransactionFinalizeUnresolved`. That code means a commit or rollback has no
-final answer yet: retry the same finalize on the same transaction, and don't
-replay the operation from the start.
+It also retries a transient error whose message has a marker, such as
+`MustRetry` or `AlreadyLocked`. Some schema and sequence contention has no code
+of its own, and only the message identifies it.
 
-Use `SerializableRetryHelper.IsRetryable(...)` when you own the retry loop:
+The helper doesn't retry `CADB0509` `TransactionFinalizeUnresolved`. This code
+means that a commit or rollback doesn't have a final answer yet. Retry the same
+finalize on the same transaction, and don't replay the work.
+
+If you write the retry loop, use `SerializableRetryHelper.IsRetryable(...)`:
 
 ```csharp
 catch (CamusException ex) when (SerializableRetryHelper.IsRetryable(ex))
@@ -447,8 +485,7 @@ catch (CamusException ex) when (SerializableRetryHelper.IsRetryable(ex))
 }
 ```
 
-For single-statement autocommit work, use
-`SerializableRetryHelper.ExecuteAutocommitAsync(...)`:
+To wrap a unit of work, use `SerializableRetryHelper.ExecuteAutocommitAsync(...)`:
 
 ```csharp
 await SerializableRetryHelper.ExecuteAutocommitAsync(async ct =>
@@ -475,8 +512,8 @@ await SerializableRetryHelper.ExecuteAutocommitAsync(async ct =>
 }, maxAttempts: 5, cancellationToken);
 ```
 
-For a multi-statement explicit transaction, don't retry the failed statement
-alone. Start a new transaction and run every read and write in the unit again:
+For a multi-statement transaction, don't retry the failed statement alone.
+Start a new transaction, and execute all the reads and writes of the unit again:
 
 ```csharp
 const int MaxAttempts = 5;
@@ -510,14 +547,14 @@ for (int attempt = 1; ; attempt++)
 }
 ```
 
-The helper's default backoff is a bounded exponential delay with random
-jitter: `min(20 ms * 2^attempt, 400 ms)`, plus or minus 25 percent.
+The default backoff of the helper is `min(20 ms * 2^attempt, 400 ms)`, with 25%
+random jitter.
 
 ## Prepared statements
 
-The driver prepares repeated SQL automatically. Once the same SQL shape has
-run enough times, later executions run as a prepared statement, with no change
-to your application code.
+The driver prepares repeated SQL automatically. When the same SQL has executed
+enough times, later executions use a prepared statement. Your application code
+doesn't change:
 
 ```csharp
 for (int i = 0; i < 100; i++)
@@ -533,8 +570,8 @@ for (int i = 0; i < 100; i++)
 }
 ```
 
-By default, the first execution runs inline and the second prepares the
-statement. Tune that policy in the connection string:
+By default, the first execution is inline, and the second prepares the
+statement. To change that policy, use the connection string:
 
 ```csharp
 CamusConnectionStringBuilder eager = new(
@@ -544,7 +581,8 @@ CamusConnectionStringBuilder off = new(
     "Endpoint=http://localhost:5095;Database=test;MaxAutoPrepare=0");
 ```
 
-Call `Prepare()` or `PrepareAsync()` when you already know a statement is hot:
+When you know that a statement is frequent, call `Prepare()` or
+`PrepareAsync()`:
 
 ```csharp
 await using CamusCommand insert = connection.CreateCamusCommand("""
@@ -564,28 +602,22 @@ foreach (Robot robot in robots)
 }
 ```
 
-A prepared execution behaves like an inline one, including transactions,
-isolation, locks, affected-row counts, and the query result cache.
+A prepared execution behaves like an inline one, also for transactions and the
+query result cache. ADO.NET binds parameters by
+name, and the driver maps each name to the positional order of the server.
 
-ADO.NET still binds parameters by name. The driver maps each name to the
-server's positional binding order.
+DML and queries can be prepared. Other statements execute inline. If the server
+returns an unknown handle, the driver prepares the
+statement again, and it replays the execution once.
 
-`SELECT`, `INSERT`, `UPDATE`, `DELETE`, and `SHOW` can be prepared. The driver
-runs other statements inline.
-
-If the server reports an unknown handle, the driver prepares the statement
-again and replays the execution once, transparently.
-
-`CamusConnectionStringBuilder.PreparedStatementCount` and `IsPrepared(sql)` are
-available for diagnostics.
-
-See [Prepared Statements](/docs/prepared-statements) for server-side handle
-scope, handle lifetime over REST and gRPC, and limits.
+For diagnostics, use `CamusConnectionStringBuilder.PreparedStatementCount` and
+`IsPrepared(sql)`. For the handle scope and the limits of the server, see
+[Prepared statements](/docs/prepared-statements).
 
 ## Vectors
 
-CamusDB vector search uses a `BYTES` column that stores tightly packed
-little-endian `float32` values. The driver keeps that layout in one helper:
+CamusDB vector search uses a `BYTES` column with packed little-endian `float32`
+values. The driver has a helper for that layout:
 
 ```csharp
 float[] embedding = await EmbedAsync("robot assembly manual");
@@ -594,13 +626,13 @@ byte[] packed = CamusVector.ToBytes(embedding);
 command.Parameters.Add("@embedding", ColumnType.Bytes, packed);
 ```
 
-Read a vector back with `GetVector(...)`:
+To read a vector, use `GetVector(...)`:
 
 ```csharp
 float[] embedding = reader.GetVector(reader.GetOrdinal("embedding"));
 ```
 
-The dimension is not part of the `BYTES` type. Enforce it with a check
+The dimension isn't part of the `BYTES` type. To enforce it, use a check
 constraint:
 
 ```csharp
@@ -614,7 +646,7 @@ await connection.CreateCamusCommand("""
     """).ExecuteDDLAsync();
 ```
 
-Pass the query vector as a parameter and rank with a vector function:
+Pass the query vector as a parameter, and rank with a vector function:
 
 ```csharp
 byte[] query = CamusVector.ToBytes(await EmbedAsync("warranty claims"));
@@ -629,14 +661,12 @@ await using CamusCommand search = connection.CreateSelectCommand("""
 search.Parameters.Add("@query", ColumnType.Bytes, query);
 ```
 
-See [Vector Search](/docs/vector-search) for the SQL functions, error codes, and
-query-planning behavior.
+See [Vector search](/docs/vector-search).
 
 ## Query result cache
 
-The CamusDB query result cache is available from plain SQL: put a
-`{cache=...}` hint after the table reference. You can also build the hint with
-`CamusCacheHint`.
+The query result cache uses a `{cache=...}` hint after the table reference. You
+can also build the hint with `CamusCacheHint`:
 
 ```csharp
 string hint = CamusCacheHint.Build(
@@ -655,10 +685,7 @@ CamusCacheMetadata? cache = reader.CacheMetadata;
 CamusCacheMetadata? lastCache = select.LastCacheMetadata;
 ```
 
-`CamusCacheMetadata` reports the server cache's decision. Its status is `Hit`,
-`Miss`, `Bypass`, `StaleRevalidated`, or `EvictedBeforePublish`.
-
-Evict cache families through the connection:
+`CamusCacheMetadata` gives the decision of the server cache, for example `Hit`. To evict cache families, use the connection:
 
 ```csharp
 await connection.EvictCacheAsync("recent_orders");
@@ -666,32 +693,30 @@ await connection.EvictAllCacheAsync();
 ```
 
 Cache entries belong to the current database. See
-[Query Result Cache](/docs/query-result-cache) for the query shape rules.
+[Query result cache](/docs/query-result-cache).
 
 ## Authentication
 
-CamusDB authentication is off by default. A connection string without
-credentials sends no `Authorization` header.
+CamusDB authentication is off by default. If the connection string doesn't have credentials,
+the driver doesn't send an `Authorization` header.
 
-Against a server with authentication enabled, add `User` and `Password`:
+For a server with authentication on, add `User` and `Password`:
 
 ```csharp
 CamusConnectionStringBuilder builder = new(
     "Endpoint=https://db.example.com:7141;Database=app;User=myapp;Password=app-secret");
 ```
 
-The driver exchanges the password once for a short-lived bearer token, using
-the REST `/login` endpoint on REST connections and the `CamusAuth` service on
-gRPC connections.
+The driver exchanges the password for a short-lived bearer token, with the REST
+`/login` endpoint or the gRPC `CamusAuth` service. Statements then send the
+token, and not the password. The driver caches the token for each set of credentials, and it renews the token
+before the expiry that the server gives. If a cached token expired or was
+rotated, the driver
+signs in again and sends the statement once more. Permission errors aren't
+retried.
 
-Statements then send the token, not the password. The driver caches the token
-per set of credentials and renews it based on the expiry the server reports. If
-a cached token is rejected because it expired or was rotated out, the driver
-discards it, logs in again, and replays the statement once. Permission errors
-are not retried.
-
-You can also log in explicitly, for example when the password comes from a
-secrets manager:
+You can also sign in explicitly, for example with a password from a secrets
+manager:
 
 ```csharp
 await using CamusConnection connection = new(
@@ -702,22 +727,19 @@ string token = await connection.LoginAsync("myapp", passwordFromSecretManager);
 await connection.LogoutAsync();
 ```
 
-`AccessToken=...` uses a token obtained elsewhere. The driver doesn't renew it,
-so the server returns `CADB0516` once the token expires or is revoked.
+`AccessToken=...` uses a token from another source. The driver doesn't renew it.
+When the token expires or is revoked, the server returns `CADB0516`.
 
-For authenticated deployments beyond loopback, use an `https://` address. The
-driver refuses to send `Password` or `AccessToken` credentials to a remote
-plaintext endpoint unless the connection string sets
+For an authenticated deployment that isn't on loopback, use an `https://`
+address. The driver doesn't send `Password` or `AccessToken` credentials to a
+remote plaintext endpoint, unless the connection string sets
 `AllowInsecureCredentials=true`. See
-[Authentication And Authorization](/docs/sql-authentication) for server
-setup, grants, and TLS behavior.
+[Authentication and authorization](/docs/sql-authentication).
 
 ## Connection string
 
-A `CamusConnection` connection string must include:
-
-- `Endpoint`: the base CamusDB endpoint
-- `Database`: the database name to use
+A connection string must have `Endpoint` (the base CamusDB endpoint) and
+`Database`:
 
 ```csharp
 using CamusDB.Client;
@@ -729,34 +751,32 @@ await using CamusConnection connection = new(builder);
 await connection.OpenAsync();
 ```
 
-Supported keys:
-
 | Key | Required | Description |
 | --- | --- | --- |
-| `Endpoint` | Yes | Base URL for the CamusDB node. Use the REST port by default, or the gRPC port when `Protocol=grpc`. |
-| `Database` | Yes | Database name sent on requests. |
-| `Timeout` | No | Request timeout in seconds. Defaults to `10`. |
-| `Protocol` | No | Wire protocol: `rest` by default, or `grpc`. |
-| `User` | No | User to authenticate as. Aliases: `UserId`, `Uid`, `Username`. |
-| `Password` | No | Password for `User`. Alias: `Pwd`. |
-| `AccessToken` | No | Bearer token obtained elsewhere. Used directly instead of logging in. |
-| `TokenLifetime` | No | Fallback seconds to reuse a token if the server does not report expiry. Defaults to `600`. |
-| `MaxAutoPrepare` | No | Maximum statements the driver keeps prepared. Defaults to `128`; `0` disables automatic preparation. |
-| `AutoPrepareMinUsages` | No | Executions of the same SQL before the driver prepares it. Defaults to `2`. |
-| `IsolationLevel` | No | Default isolation for transactions and autocommit statements: `Serializable` or `ReadCommitted`. Server default is `Serializable`. |
-| `TransactionMode` | No | Default transaction mode: `ReadWrite` or `ReadOnly`. |
-| `Locking` | No | Default locking mode: `Pessimistic` or `Optimistic`. |
-| `ChannelPoolSize` | No | gRPC only: long-lived `BatchExecute` streams per endpoint. Defaults to `2`. |
-| `CoalescingThreshold` | No | gRPC only: operations a batch drain tries to collect before it stops waiting. Defaults to `10`; `1` disables coalescing. |
-| `CoalescingDelay` | No | gRPC only: milliseconds to wait for a larger batch. Defaults to `0` (no wait). Operations that are already waiting still share a frame when `RequestFrames` is on. Set `1` or `2` when many concurrent callers on one connection send bursts. |
-| `RequestFrames` | No | gRPC only: whether the client may pack waiting batch operations into negotiated stream frames. Defaults to `true`; set `false` as a compatibility or measurement switch. |
-| `TraceQueryText` | No | Adds SQL text to driver spans as `db.query.text`. Defaults to `false`, because SQL literals can contain sensitive values. |
-| `BackupEndpoint` | No | HTTP endpoint for the backup admin API. Defaults to `Endpoint`; required when `Protocol=grpc`. |
-| `BackupTimeout` | No | Backup admin timeout in seconds. Defaults to `300`. |
-| `AllowInsecureCredentials` | No | Set `true` to allow credentials over a non-loopback plaintext endpoint. Use only when another trusted layer protects that hop. |
-| `RoutingMode` | No | Learned statement routing: `Auto`, `Learned`, or `Off`. Defaults to `Auto`. |
-| `RoutingNodes` | No | Trust map from server node identities to addresses already listed in `Endpoint`. Quote the value because it contains `=`. |
-| `RoutingMaxHintAge` | No | Maximum age, in milliseconds, for a learned route. Defaults to `5000`. |
+| `Endpoint` | Yes | The base URL of the node. Use the REST port, or the gRPC port with `Protocol=grpc`. |
+| `Database` | Yes | The database name of the requests. |
+| `Timeout` | No | The request timeout in seconds. Default `10`. |
+| `Protocol` | No | `rest` (default) or `grpc`. |
+| `User` | No | The user to sign in as. Aliases: `UserId`, `Uid`, `Username`. |
+| `Password` | No | The password of `User`. Alias: `Pwd`. |
+| `AccessToken` | No | A bearer token from another source. The driver doesn't sign in. |
+| `TokenLifetime` | No | The fallback lifetime of a token in seconds, if the server doesn't report an expiry. Default `600`. |
+| `MaxAutoPrepare` | No | The maximum number of prepared statements of the driver. Default `128`. `0` turns off automatic preparation. |
+| `AutoPrepareMinUsages` | No | The executions of the same SQL before the driver prepares it. Default `2`. |
+| `IsolationLevel` | No | The default isolation for transactions and autocommit statements: `Serializable` or `ReadCommitted`. |
+| `TransactionMode` | No | The default transaction mode: `ReadWrite` or `ReadOnly`. |
+| `Locking` | No | The default locking mode: `Pessimistic` or `Optimistic`. |
+| `ChannelPoolSize` | No | gRPC only. The long-lived `BatchExecute` streams for each endpoint. Default `8`. |
+| `CoalescingThreshold` | No | gRPC only. The operations that a batch drain tries to collect before it stops waiting. Default `10`. `1` turns off coalescing. |
+| `CoalescingDelay` | No | gRPC only. Milliseconds to wait for a larger batch. Default `0`. Waiting operations can share a frame when `RequestFrames` is on. Set `1` or `2` when many callers on one connection send bursts. |
+| `RequestFrames` | No | gRPC only. Whether the client can pack waiting operations into negotiated stream frames. Default `true`. |
+| `TraceQueryText` | No | Adds the SQL text to driver spans as `db.query.text`. Default `false`. SQL literals can contain sensitive values. |
+| `BackupEndpoint` | No | The HTTP endpoint of the backup admin API. Defaults to `Endpoint`. Required with `Protocol=grpc`. |
+| `BackupTimeout` | No | The backup admin timeout in seconds. Default `300`. |
+| `AllowInsecureCredentials` | No | `true` allows credentials over a plaintext endpoint that isn't loopback. Use it if another trusted layer protects that hop. |
+| `RoutingMode` | No | Learned statement routing: `Auto` (default), `Learned`, or `Off`. |
+| `RoutingNodes` | No | A map from server node identities to addresses in `Endpoint`. Quote the value. It contains `=`. |
+| `RoutingMaxHintAge` | No | The maximum age of a learned route, in milliseconds. Default `5000`. |
 
 `Endpoint` can also be a comma-separated pool:
 
@@ -764,24 +784,23 @@ Supported keys:
 Endpoint=http://localhost:5095,http://localhost:5096,http://localhost:5097;Database=test
 ```
 
-The client uses each endpoint in turn. When a transport request cannot reach an
-endpoint, the driver sets that endpoint aside for 30 seconds and skips it
-meanwhile. The rotation and health state are shared by every connection that
-uses the same `Endpoint` value.
+The client uses each endpoint in turn. When a request can't reach an endpoint,
+the driver skips that endpoint for 30 seconds. All connections with the same
+`Endpoint` value share the rotation and the health state.
 
-Connection string keys are case-insensitive and trimmed. Repeating a key is an
-error. Quote a value with single or double quotes when it contains a semicolon
-or surrounding spaces; double the quote character to include the quote itself.
+Connection string keys aren't case-sensitive, and they are trimmed. A repeated
+key is an error. Quote a value that has a semicolon or surrounding spaces, with
+single or double quotes. To include the quote character, double it.
 
-`CamusConnectionStringBuilder.ToString()` returns the original connection string,
-including credentials. Use `ToRedactedString()` or
-`CamusConnectionStringBuilder.Redact(...)` for logs. They mask `Password`, `Pwd`,
-and `AccessToken`. A `CamusConnection` keeps the connection string it was built
-from; assigning a different value later throws `NotSupportedException`.
+`CamusConnectionStringBuilder.ToString()` returns the original connection
+string, with the credentials. For logs, use `ToRedactedString()` or
+`CamusConnectionStringBuilder.Redact(...)`. They mask the credential keys. A `CamusConnection` uses the connection string that it was built
+from. If you assign a different value later, it throws
+`NotSupportedException`.
 
 ## Transport
 
-The driver can use the REST endpoint or the gRPC endpoint with the same
+The driver can use the REST endpoint or the gRPC endpoint, with the same
 `CamusCommand` and `CamusTransaction` APIs:
 
 ```csharp
@@ -792,26 +811,22 @@ CamusConnectionStringBuilder grpc = new(
     "Endpoint=http://localhost:5096;Database=test;Protocol=grpc");
 ```
 
-REST and gRPC listen on separate server ports. When you set `Protocol=grpc`,
-point `Endpoint` at the gRPC port. Use `http://` for local plaintext HTTP/2, or
-`https://` for a TLS-terminated deployment.
+REST and gRPC use separate server ports. With `Protocol=grpc`, point `Endpoint`
+at the gRPC port. Use `http://` for local plaintext HTTP/2, or `https://` for a
+TLS deployment.
 
-Under gRPC, queries, non-queries, and transaction lifecycle messages are
-multiplexed over a small pool of long-lived `BatchExecute` streams. Autocommit
-statements fan out across the pool. A transaction is pinned to one stream so
-the server observes its operations in order. Tune the pool with
-`ChannelPoolSize`, `CoalescingThreshold`, `CoalescingDelay`, and
-`RequestFrames` only when a measured workload needs it. Stream frames are
-negotiated per stream and are a transport optimization only: they add no
-atomicity and keep the same per-operation result contract.
+With gRPC, the driver multiplexes all operations over a small pool of
+long-lived `BatchExecute` streams. Autocommit statements use the full pool. The operations of a transaction use one stream. Then the server sees them in
+order. Change the pool settings if a measured workload needs it. Stream frames
+are a transport optimization. They don't make operations atomic, and each
+operation gets a separate result.
 
 ## Learned routing
 
-A CamusDB server can attach advisory routing metadata to a successful SQL
-response. With learned routing enabled, the .NET driver uses that metadata to
-send later executions of the same statement directly to the node that leads the
-statement's data. This is a latency optimization only. The server still executes
-correctly wherever the request lands.
+A CamusDB server can add routing metadata to a successful SQL response. With
+learned routing on, the driver uses that metadata to send later executions of
+the same statement to the node that leads the data of the statement. This is a
+latency optimization. The server returns the correct result on any node.
 
 ```csharp
 CamusConnectionStringBuilder builder = new(
@@ -819,29 +834,29 @@ CamusConnectionStringBuilder builder = new(
     "RoutingNodes='camus-a:7070=http://a:5095,camus-b:7070=http://b:5095,camus-c:7070=http://c:5095'");
 ```
 
-`RoutingNodes` is the routing authority. The server advertises an opaque node
-identity. The driver uses it only when the connection string maps that identity
-to an address that is also present in the `Endpoint` pool. It never dials an
-address supplied by a server response.
+`RoutingNodes` is the routing authority. The server gives an opaque node
+identity. The driver uses it if the connection string maps that identity to an
+address in the `Endpoint` pool. It doesn't connect to an address from a server
+response.
 
-`RoutingMode=Auto` is the default. It negotiates routing advice only when
-`RoutingNodes` names at least two distinct endpoints. `RoutingMode=Learned`
-negotiates when at least one identity is mapped. `RoutingMode=Off` disables the
-feature and keeps endpoint rotation only.
+`RoutingMode=Auto` (the default) asks for routing advice when `RoutingNodes`
+names at least two distinct endpoints. `RoutingMode=Learned` asks when at least
+one identity is mapped. `RoutingMode=Off` turns off the feature, and the driver
+uses endpoint rotation.
 
-The driver learns routes per database, exact SQL text, and statement kind. The
-TTL is the smaller of the server's `maxAgeMs` and `RoutingMaxHintAge`. The cache
-is bounded, and stale advice only costs an extra forwarding hop until it expires
-or a newer response replaces it. Parameterized and prepared workloads benefit
-the most because they reuse the same SQL text.
+The driver learns a route for each database and exact SQL text. A
+route lasts for the shorter of the server's `maxAgeMs` and `RoutingMaxHintAge`.
+The cache has a fixed size. A stale route costs an extra forwarding hop until it
+expires or a newer response replaces it. Parameterized and prepared workloads benefit
+most. They reuse the same SQL text.
 
-`CamusCommand.LastRoutingAdvice` exposes the most recent advice for diagnostics.
-The eligible statements and the wire contract are described in
-[SQL Routing Advice](/docs/sql-routing-advice).
+`CamusCommand.LastRoutingAdvice` shows the last advice, for diagnostics. For the
+eligible statements and the wire contract, see
+[SQL routing advice](/docs/sql-routing-advice).
 
 ## Ping
 
-Use a ping command to verify connectivity:
+To check connectivity, use a ping command:
 
 ```csharp
 await using CamusCommand ping = connection.CreatePingCommand();
@@ -850,26 +865,26 @@ int result = await ping.ExecuteNonQueryAsync();
 
 ## Node resource stats
 
-The client can read operational statistics over REST or gRPC. Call it without
-an argument to ask the next endpoint in the rotation, or pass one of the
-endpoints from the connection string:
+The client can read operational statistics over REST or gRPC. If you don't pass an
+argument, the call asks the next endpoint of the rotation. You can also pass one
+of the endpoints of the connection string:
 
 ```csharp
 CamusNodeStats current = await connection.GetNodeStatsAsync();
 CamusNodeStats node = await connection.GetNodeStatsAsync("http://db2.example.com:5095");
 ```
 
-The endpoint must match an entry in `Endpoint` exactly. Any other value throws
-`ArgumentException`, so the client never sends its credentials to an
-unconfigured address.
+The endpoint must match an entry in `Endpoint` exactly. Another value throws
+`ArgumentException`. This means that the client doesn't send its credentials to
+an unknown address.
 
-The result covers disk volumes, CPU, memory, node identity, and uptime. With
-authentication enabled, the connection must use a superuser or an account with
-the global `MONITOR` privilege. See [Node resource stats](/docs/node-stats).
+The result has the resource use and the identity of the node. With
+authentication on, the connection needs a superuser, or an account with the
+global `MONITOR` privilege. See [Node resource stats](/docs/node-stats).
 
 ## Database administration
 
-Opening a connection does not create its database. Create or drop databases
+Opening a connection doesn't create its database. Create or drop databases
 explicitly:
 
 ```csharp
@@ -879,11 +894,11 @@ await connection.CreateDatabaseAsync("otherdb", ifNotExists: true);
 await connection.DropDatabaseAsync("old_test_db");
 ```
 
-`CreateDatabaseAsync()` and `DropDatabaseAsync()` both act on the database of
-the connection string. An explicit name changes that target. Database creation
-retries its small set of transient schema-allocation conflicts internally.
+`CreateDatabaseAsync()` and `DropDatabaseAsync()` act on the database of the
+connection string, or on the name that you pass. Database creation retries a
+small set of transient schema conflicts.
 
-For a copy-on-write database branch, use the branch helpers:
+For a copy-on-write branch, use the branch helpers:
 
 ```csharp
 await connection.CreateBranchDatabaseAsync(
@@ -898,14 +913,12 @@ IReadOnlyList<CamusBranchRow> ancestors =
     await connection.ShowAncestorsAsync("factory_test");
 ```
 
-See [Database Branching](/docs/database-branching) for how the SQL behind
-these helpers behaves.
+See [Database branching](/docs/database-branching).
 
 ## Backups
 
-`connection.Backups` exposes the online backup administration API. You can take
-full, incremental, or coordinated backups, inspect the backup catalog, validate
-a restore chain, and run retention:
+`connection.Backups` is the online backup admin API. You can take backups,
+read the backup catalog, and apply retention:
 
 ```csharp
 CamusBackupInfo full = await connection.Backups.TakeFullBackupAsync();
@@ -925,30 +938,28 @@ CamusBackupGcResult applied =
     await connection.Backups.CollectGarbageAsync();
 ```
 
-Backups are node-wide. They are not scoped to the connection's `Database`
-value. The server must have `kahuna.backup_dir` configured before these calls
-can succeed.
+Backups cover the full node, and not only the `Database` of the connection. The
+server must have `kahuna.backup_dir` configured.
 
-The backup admin API is REST-only. If the main connection uses `Protocol=grpc`,
-set `BackupEndpoint` to the HTTP endpoint and use `BackupTimeout` for the
-longer timeout a full backup may need:
+The backup admin API is REST only. If the connection uses `Protocol=grpc`, set
+`BackupEndpoint` to the HTTP endpoint. A full backup can take time, and
+`BackupTimeout` sets its timeout:
 
 ```text
 Endpoint=http://localhost:5096;Database=test;Protocol=grpc;BackupEndpoint=http://localhost:5095;BackupTimeout=300
 ```
 
-See [Backup And Restore](/docs/backup-and-restore) for the server-side backup
-model.
+See [Backup and restore](/docs/backup-and-restore).
 
 ## OpenTelemetry
 
 `CamusDB.Client` emits traces and metrics through the .NET `ActivitySource` and
-`Meter` APIs. The driver itself has no dependency on the OpenTelemetry SDK. Both
-sources use the name `CamusDB.Client`, exposed as
-`CamusTelemetry.ActivitySourceName` and `CamusTelemetry.MeterName`.
+`Meter` APIs. The driver doesn't depend on the OpenTelemetry SDK. Both sources
+have the name `CamusDB.Client`, as `CamusTelemetry.ActivitySourceName` and
+`CamusTelemetry.MeterName`.
 
-Register the sources with the OpenTelemetry SDK and then configure the exporter
-that your application uses:
+Register the sources with the OpenTelemetry SDK, and configure the exporter of
+your application:
 
 ```csharp
 using CamusDB.Client;
@@ -960,8 +971,8 @@ builder.Services.AddOpenTelemetry()
         metrics.AddMeter(CamusTelemetry.MeterName));
 ```
 
-The optional `CamusDB.OpenTelemetry` package provides convenience extension
-methods for the same registration:
+The optional `CamusDB.OpenTelemetry` package has extension methods for the same
+registration:
 
 ```bash
 dotnet add package CamusDB.OpenTelemetry
@@ -976,96 +987,91 @@ builder.Services.AddOpenTelemetry()
     .WithMetrics(metrics => metrics.AddCamusDBInstrumentation());
 ```
 
-The package depends only on `OpenTelemetry.Api`. The application still chooses
-and configures its OpenTelemetry SDK and exporters.
+The package depends only on `OpenTelemetry.Api`. The application chooses and
+configures the OpenTelemetry SDK and the exporters.
 
 ### Traces
 
-The driver creates an `ActivityKind.Client` span for:
+The driver creates an `ActivityKind.Client` span for these operations:
 
-- Each command execution, including queries, writes, and DDL.
+- Each command execution.
 - Each typed insert through `CamusInsertCommand`.
-- `BEGIN`, `COMMIT`, and `ROLLBACK`. One finalize span covers all retries after
-  `CADB0509 TransactionFinalizeUnresolved`.
+- `BEGIN`, `COMMIT`, and `ROLLBACK`. One finalize span covers all the retries
+  after `CADB0509 TransactionFinalizeUnresolved`.
 - Each pipeline exchange, as one `BATCH` span.
 
-Dapper and EF Core execute through the same command APIs, so their operations
-receive driver spans too. A span is a child of the current application activity.
-The HTTP or gRPC transport spans, when enabled, are children of the driver span.
+Dapper and EF Core use the same command APIs, and their operations also get
+driver spans. A span is a child of the current application activity. The HTTP
+or gRPC transport spans, when they are on, are children of the driver span.
 
 A span name has the form `{operation} {target}`, such as `SELECT shop`. The
-target is the table for a typed insert and the database for other operations.
-The driver adds these attributes where they apply:
+target is the table of a typed insert, and the database for other operations.
+The driver adds these attributes:
 
 | Attribute | Value |
 | --- | --- |
 | `db.system.name` | `camusdb` |
-| `db.namespace` | The database from the connection string. |
+| `db.namespace` | The database of the connection string. |
 | `db.operation.name` | The SQL verb, or `BEGIN`, `COMMIT`, `ROLLBACK`, or `BATCH`. |
 | `db.collection.name` | The table of a typed insert. |
 | `db.operation.batch.size` | The number of operations in a pipeline exchange. |
-| `server.address`, `server.port` | The endpoint that received the operation after routing. |
+| `server.address`, `server.port` | The endpoint that received the operation, after routing. |
 | `camusdb.transport` | `rest` or `grpc`. |
-| `db.query.text` | The SQL text, only when `TraceQueryText=true`. |
-| `error.type` | The `CADBxxxx` code, or the exception type for a non-CamusDB failure. |
+| `db.query.text` | The SQL text, if `TraceQueryText=true`. |
+| `error.type` | The `CADBxxxx` code, or the exception type of a failure outside CamusDB. |
 | `db.response.status_code` | The `CADBxxxx` code of a failed CamusDB operation. |
 
-SQL text is off by default because a literal in a statement can contain
-sensitive data. Enable it for one connection with:
+The SQL text is off by default. A literal can contain sensitive data. To
+turn it on for one connection, use:
 
 ```text
 Endpoint=http://localhost:5095;Database=app;TraceQueryText=true
 ```
 
-The driver never records parameter values. A retry made while a driver span is
-current also adds a `camusdb.retry` event with `camusdb.retry.kind` and
-`error.type`.
+The driver doesn't record parameter values. A retry during a driver span adds a
+`camusdb.retry` event, with `camusdb.retry.kind` and `error.type`.
 
-A buffered query span ends when the command returns. A streaming query span
-remains open until the reader reaches the end, fails while reading, or is
-closed. This makes its duration include the time that the application spends
-consuming the stream.
+A buffered query span ends when the command returns. A streaming query span is open until the reader finishes or is closed. This means that its
+duration includes the time that the application takes to read the stream.
 
 ### Metrics
 
-The `CamusDB.Client` meter emits the database operation duration and metrics for
-retries, endpoint health, and automatic prepared statements:
+The `CamusDB.Client` meter emits the following metrics:
 
 | Metric | Type | Meaning |
 | --- | --- | --- |
-| `db.client.operation.duration` | Histogram, seconds | Duration of the same operations that produce spans. It includes database, operation, endpoint, and error attributes, but never SQL text. |
+| `db.client.operation.duration` | Histogram, seconds | The duration of the operations that produce spans. Its attributes don't include SQL text. |
 | `camusdb.client.operation.retries` | Counter | Operations sent again. `camusdb.retry.kind` is `finalize`, `autocommit`, `token_renewal`, or `create_database`. |
-| `camusdb.client.endpoint.quarantines` | Counter | Times a transport failure caused the driver to set an endpoint aside for 30 seconds. |
-| `camusdb.client.endpoint.quarantined` | Gauge | `1` while an endpoint is set aside and `0` while it can receive traffic. |
+| `camusdb.client.auth.logins` | Counter | Sign-ins that the driver sent for a bearer token, by whether a statement waited for them. |
+| `camusdb.client.endpoint.quarantines` | Counter | The times that a transport failure made the driver skip an endpoint for 30 seconds. |
+| `camusdb.client.endpoint.quarantined` | Gauge | `1` while an endpoint is skipped, and `0` while it can receive traffic. |
 | `camusdb.client.prepared_statement.lookups` | Counter | Prepared-statement lookups by result: `hit`, `registered`, or `miss`. |
 | `camusdb.client.prepared_statement.registrations` | Counter | Preparation attempts by result: `success`, `refused`, or `unsupported`. |
-| `camusdb.client.prepared_statement.evictions` | Counter | Prepared statements released to make room for more recently used statements. |
-| `camusdb.client.prepared_statement.count` | Up-down counter | Statements currently held in the driver's prepared-statement cache. |
+| `camusdb.client.prepared_statement.evictions` | Counter | Prepared statements released for more recently used statements. |
+| `camusdb.client.prepared_statement.count` | Up-down counter | The statements in the prepared-statement cache of the driver. |
 
-The operation metrics use low-cardinality attributes such as the database,
-operation name, endpoint, and error code. Prepared-statement metrics use
-`db.namespace` and `camusdb.prepared_statement.result` where applicable.
+The operation metrics use low-cardinality attributes, such as the database and
+the error code. The prepared-statement metrics use `db.namespace` and
+`camusdb.prepared_statement.result`.
 
 Use these signals together:
 
-- Rising endpoint quarantines identify transport failures and endpoint churn.
-- Retry counts separate transaction conflicts, unresolved finalization, token
-  renewal, and database-creation retries.
-- A prepared-statement count that remains at `MaxAutoPrepare` while evictions
-  grow indicates that the cache is too small for the active statement set.
+- More endpoint quarantines show transport failures.
+- Retry counts separate the retry kinds, such as conflicts and token renewals.
+- A prepared-statement count at `MaxAutoPrepare`, with growing evictions, shows
+  that the cache is too small for the active statements.
 
-When no listener enables the activity source or instruments, the driver creates
-no spans, tags, or timestamps for an operation. `OpenAsync()` opens no physical
-database connection, so the driver does not publish `db.client.connection.*`
-metrics. If the application also enables
-`OpenTelemetry.Instrumentation.EntityFrameworkCore`, an EF Core query produces
-both an EF Core span and a CamusDB driver span.
+When no listener is on, the driver doesn't create spans or tags for an
+operation. `OpenAsync()` doesn't open a physical database connection. This
+means that the driver doesn't publish `db.client.connection.*` metrics. If the
+application also uses `OpenTelemetry.Instrumentation.EntityFrameworkCore`, an EF
+Core query produces an EF Core span and a CamusDB driver span.
 
 ## ADO.NET notes
 
-- The provider can use REST/JSON or gRPC with the same ADO.NET surface. Select
-  gRPC with `Protocol=grpc` and point `Endpoint` at the gRPC listener.
-- `Cancel()` is cooperative through cancellation tokens.
+- The provider can use REST/JSON or gRPC with the same ADO.NET surface. See
+  [Transport](#transport).
+- `Cancel()` works through cancellation tokens.
 - Concurrent reads can share a connection session.
-- Transaction-scoped commands are pinned to the transaction endpoint, which is
-  important when the connection string contains multiple endpoints.
+- The commands of a transaction go to the endpoint of the transaction. This
+  matters when the connection string has several endpoints.

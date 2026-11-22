@@ -4,8 +4,9 @@ sidebar_position: 2.6
 
 # Inspecting the database
 
-`SHOW` and `DESCRIBE` report what the database holds: databases, tables,
-columns, indexes, and grants.
+Use `SHOW` and `DESCRIBE` to see the schema and the state of a database. For
+example, you can check a table before a migration, or find the grants of a user.
+This page lists the statements and links to the pages with the details.
 
 ## Databases
 
@@ -14,8 +15,8 @@ SHOW DATABASES;
 SHOW DATABASE;
 ```
 
-`SHOW DATABASES` lists the registered databases. `SHOW DATABASE` reports the
-current database and its comment, if you set one.
+`SHOW DATABASES` lists the databases. `SHOW DATABASE` shows the current
+database and its comment, if it has one.
 
 ### Branches
 
@@ -24,29 +25,14 @@ SHOW BRANCHES FROM prod;
 SHOW ANCESTORS FROM feature_checkout;
 ```
 
-`SHOW BRANCHES` lists every branch below a database, including branches of
-branches. Each row holds the descendant's name, its stable internal id, its
-depth, its immediate parent, and the fork time.
+`SHOW BRANCHES` lists all branches below a database, including branches of
+branches. Each row shows the branch name, its internal ID, its depth, its
+parent, and the fork time.
 
-`SHOW ANCESTORS` walks the other way and returns the parent chain, nearest
-first. A root database returns nothing.
+`SHOW ANCESTORS` returns the chain of parents, with the nearest parent first.
+For a database that isn't a branch, the result is empty.
 
-See [Database Branching](/docs/database-branching).
-
-## Extensions
-
-```camussql
-SHOW EXTENSIONS;
-```
-
-This superuser-only statement reports builds loaded by the serving node and
-extensions installed in the current database. Check `status`: `available`
-means loaded but not selected by this database, `installed` means ready to use,
-and `missing` means the node cannot run the database's selected build. Compare
-`version` and `sha256` across nodes when checking a deployment.
-
-See [C# extensions](/docs/csharp-extensions#inspect-loaded-extensions) for
-all result columns and upgrade instructions.
+For more information, see [Database branching](/docs/database-branching).
 
 ## Tables and columns
 
@@ -60,31 +46,17 @@ DESC robots;
 SHOW CREATE TABLE robots;
 ```
 
-`SHOW TABLES FROM <database>` and `SHOW TABLES IN <database>` inspect a named
-database without changing the current database. They work even when the session
-has no current database. With authentication enabled, an invisible target is
-reported as `DatabaseDoesntExist`, and the result includes only tables on which
-the caller has at least one privilege.
+`SHOW TABLES FROM <database>` and `SHOW TABLES IN <database>` list the tables of
+another database. The current database doesn't change, and the statement also
+works when no database is selected.
 
-Use `SHOW CREATE TABLE` when you want the whole picture. It renders the
-comments on the table, its columns, and its secondary indexes, replays covering
-index `INCLUDE (...)` clauses, and renders public foreign keys. So its output is
-DDL you can run elsewhere.
+With authentication enabled, a database that you can't see returns
+`DatabaseDoesntExist`. The result shows only the tables on which you have at
+least one privilege.
 
-## Workload statistics
-
-```camussql
-SHOW STATEMENT STATS;
-SHOW STATEMENT STATS LIKE '%orders%';
-SHOW INDEX USAGE;
-SHOW INDEX USAGE FROM orders;
-```
-
-[Statement statistics](/docs/statement-stats) group repeated SQL shapes to
-show cumulative cost; collection is off by default.
-[Index usage](/docs/index-usage) counts query reads, constraint checks, and
-index writes; collection is on by default. Both statements require a
-superuser and report node-local, in-memory counters.
+`SHOW CREATE TABLE` returns DDL that you can run to create the same table. The
+output includes the comments, the secondary indexes with their `INCLUDE`
+columns, and the foreign keys.
 
 ## Views
 
@@ -97,19 +69,18 @@ SHOW MATERIALIZED VIEWS;
 SHOW CREATE MATERIALIZED VIEW customer_totals;
 ```
 
-`SHOW TABLES` lists only tables. Views and materialized views do not appear in
-it.
+Views and materialized views don't appear in `SHOW TABLES`.
 
-`SHOW VIEWS` lists only the views the caller can reach.
-`SHOW MATERIALIZED VIEWS` also reports whether each view holds data, and which
-snapshot it holds.
+`SHOW VIEWS` lists the views that you can reach. `SHOW MATERIALIZED VIEWS` also
+shows whether each view is populated, and the snapshot of its last refresh.
 
-Both `SHOW CREATE` forms print the normalized definition, not the text you
-typed, and both outputs parse back into the same object. See
-[Views](/docs/views) and [Materialized Views](/docs/materialized-views).
+The `SHOW CREATE` forms print a normalized definition. For example, `SELECT *`
+is expanded to the column list. You can run the output to create the same
+object. For more information, see [Views](/docs/views) and
+[Materialized views](/docs/materialized-views).
 
-`SHOW COLUMNS` and `DESCRIBE` work on both kinds of view. `SHOW INDEXES` works
-on materialized views, which are real relations.
+`SHOW COLUMNS` and `DESCRIBE` work on views and materialized views.
+`SHOW INDEXES` works on materialized views.
 
 ## Indexes
 
@@ -118,8 +89,9 @@ SHOW INDEXES FROM robots;
 SHOW INDEX FROM robots;
 ```
 
-The `Include` column lists the payload columns of a covering index. See
-[Indexes](/docs/sql-indexes).
+The `Include` column lists the extra columns of a covering index. The `Key`
+column gives the SQL key list, including any expressions. For more
+information, see [Indexes](/docs/sql-indexes).
 
 ## Recoverable objects
 
@@ -128,11 +100,10 @@ SHOW ORPHAN DATABASES;
 SHOW ORPHAN TABLES;
 ```
 
-Both statements list dropped objects that are still recoverable. To bring one
-back, pass a row's `id` to `CREATE DATABASE ... RELINK TO` or
-`CREATE TABLE ... RELINK TO`. See
-[Recover Dropped Objects](/docs/recover-dropped-objects) for the workflow and
-the retention settings.
+These statements list dropped objects that you can recover. To recover one,
+pass its `id` to `CREATE DATABASE ... RELINK TO` or `CREATE TABLE ... RELINK TO`.
+For more information, see
+[Recover dropped objects](/docs/recover-dropped-objects).
 
 ## Grants
 
@@ -141,9 +112,9 @@ SHOW GRANTS;
 SHOW GRANTS FOR myapp;
 ```
 
-`SHOW GRANTS` lists the authenticated user's grants. The `FOR` form targets
-another user and requires superuser privileges. See
-[Authentication And Authorization](/docs/sql-authentication).
+`SHOW GRANTS` lists your grants. The `FOR` form shows the grants of another
+user, and it needs a superuser. For more information, see
+[Authentication and authorization](/docs/sql-authentication).
 
 ## Query plans
 
@@ -154,25 +125,7 @@ EXPLAIN (PHYSICAL) SELECT * FROM robots WHERE year = 2024;
 EXPLAIN (ANALYZE) SELECT * FROM robots WHERE year = 2024 LIMIT 5;
 ```
 
-See [EXPLAIN](/docs/explain) for the output reference.
-
-## Range placement
-
-```camussql
-SHOW RANGES FROM TABLE robots;
-SHOW RANGES FROM INDEX robots@robots_year_idx;
-SHOW RANGE FROM TABLE robots FOR ROW ('507f1f77bcf86cd799439011');
-```
-
-`SHOW RANGES` reports how this node currently routes the
-[key space](/docs/concepts#key-space) of a table or index (the storage keys that
-hold its rows or entries). It shows whether the space is
-[hash-routed or key-range-routed](/docs/concepts#hash-and-key-range-routing),
-which [partition](/docs/concepts#partition) serves each
-[span](/docs/concepts#ranges-and-spans) (a contiguous range of keys), and whether
-this node believes the partition's [leader](/docs/concepts#leader) is local.
-
-See [SHOW RANGES](/docs/show-ranges).
+For the output, see [EXPLAIN](/docs/explain).
 
 ## Statistics
 
@@ -184,42 +137,119 @@ ANALYZE robots;
 ANALYZE TABLE robots;
 ```
 
-`SHOW STATISTICS` prints what the cost model currently believes about one
-table:
+`SHOW STATISTICS` shows the estimates that the planner uses for one table:
 
 1. The row count.
-2. Each column's bounds.
-3. Each histogram's size.
-4. Distinct-value estimates.
-5. Each index's entry count.
-6. How stale all of it is.
+2. The minimum and maximum value of each column.
+3. The size of each histogram.
+4. The estimated number of distinct values.
+5. The entry count of each index.
+6. How old the statistics are.
 
-The statement needs only `SELECT` on the table. See
+The statement needs `SELECT` on the table. For more information, see
 [SHOW STATISTICS](/docs/show-statistics).
 
-`ANALYZE` rebuilds the parts of that picture that need a scan: the histograms
-and the distinct-value counts.
+`ANALYZE` scans the table, and rebuilds the histograms and the distinct-value
+counts. You should run it after a bulk load or a large delete, or when the
+estimates don't match the data. Statistics are also refreshed in the
+background. For more information, see
+[Automatic analyze](/docs/automatic-analyze) and
+[Query planning](/docs/query-planning).
 
-Run `ANALYZE` after a bulk load or a large delete, or when the planner's
-estimates no longer match the data. CamusDB also schedules this work itself.
-See [Automatic Analyze](/docs/automatic-analyze) and
-[Query Planning](/docs/query-planning).
+## Workload statistics
+
+```camussql
+SHOW STATEMENT STATS;
+SHOW STATEMENT STATS LIKE '%orders%';
+SHOW INDEX USAGE;
+SHOW INDEX USAGE FROM orders;
+```
+
+[Statement statistics](/docs/statement-stats) groups repeated SQL by shape and
+shows the total cost of each shape. Its collection is off by default.
+[Index usage](/docs/index-usage) counts the reads and writes of each index. Its
+collection is on by default.
+
+Both statements need a superuser. The counters are kept in memory, for one node.
+
+## Extensions
+
+```camussql
+SHOW EXTENSIONS;
+```
+
+This statement needs a superuser. It lists the extension builds that the node
+has loaded, and the extensions installed in the current database. The `status`
+column shows one of the following values:
+
+| `status` | Meaning |
+| --- | --- |
+| `available` | The node has loaded the build, but this database doesn't use it. |
+| `installed` | The database uses the build, and it's ready. |
+| `missing` | The database uses a build that this node doesn't have. |
+
+To check a deployment, compare `version` and `sha256` on each node. For all
+columns, see [C# extensions](/docs/csharp-extensions#inspect-loaded-extensions).
+
+## Range placement
+
+```camussql
+SHOW RANGES FROM TABLE robots;
+SHOW RANGES FROM INDEX robots@robots_year_idx;
+SHOW RANGE FROM TABLE robots FOR ROW ('507f1f77bcf86cd799439011');
+```
+
+`SHOW RANGES` shows how this node routes the
+[key space](/docs/concepts#key-space) of a table or an index. The key space is
+the set of storage keys that hold the rows or the index entries. For each
+[span](/docs/concepts#ranges-and-spans) of keys, the result shows the
+[partition](/docs/concepts#partition) that serves it, and whether the
+partition's [leader](/docs/concepts#leader) is on this node.
+
+For more information, see [SHOW RANGES](/docs/show-ranges).
+
+## Raft partitions
+
+Use `SHOW PARTITIONS` to check which nodes lead or host partitions and to spot
+replicas that are falling behind.
+
+```camussql
+SHOW PARTITIONS;
+```
+
+The result has one row per partition, starting with system partition `0`.
+Each row describes what the answering node knows. Run the statement on each
+node to compare their views during an election or a placement change.
+
+| Columns | What to check |
+| --- | --- |
+| `partition_id`, `kind`, `state`, `routing`, `hash_start`, `hash_end`, `generation` | The partition's role, routing range, and map generation. |
+| `node`, `leader`, `leader_source`, `leader_is_local`, `hosted_locally` | The answering node, its leader hint, and its local role. `leader_source` is `local` for hosted partitions or `gossip` for hints from peer load reports about unhosted partitions. A NULL leader is unknown. |
+| `term`, `commit_index` | The local Raft term and commit frontier. Both are NULL for partitions the node doesn't host. Partition `0` also returns a NULL term. |
+| `replication_factor`, `voters`, `learners`, `removing`, `awaiting_placement` | Replica roles and placement status. A factor of `0` with an empty `voters` list means full replication. |
+| `log_ops_per_sec`, `wal_queue_depth`, `commit_wait_ms` | The leader's write load, from the local leader or the latest peer report. A zero can indicate a missing report. |
+| `max_follower_lag`, `stalled_followers` | The leader's view of follower lag and stalled followers. These metrics are NULL on nodes that don't lead the partition. |
+
+Run the statement directly against a node. It operates independently of
+database selection and transaction state. When authentication is enabled, it
+requires a superuser. To locate the partition that serves a table or index
+span, use [SHOW RANGES](/docs/show-ranges).
 
 ## Node state
 
-These `SHOW` statements report on the server itself. While
-authentication is enabled they require a superuser, except for query activity
-rows owned by the current user.
+These `SHOW` statements show the state of the server. With authentication
+enabled, they need a superuser. However, any user can see their own rows in
+`SHOW QUERIES` and `SHOW CONNECTIONS`.
 
-| Statement | It reports | Page |
+| Statement | Result | Page |
 | --- | --- | --- |
-| `SHOW VARIABLES` | The effective configuration, with each value's default, source layer, mutability, and scope. | [SHOW VARIABLES](/docs/show-variables) |
-| `SHOW ENGINE STATS` | Storage and replication layer metrics ([Kahuna](/docs/concepts#kahuna) and [Kommander](/docs/concepts#kommander)): workload, [Raft](/docs/concepts#raft) replication, the [write-ahead log](/docs/concepts#wal), and storage. | [Engine Stats](/docs/engine-stats) |
-| `SHOW SLOW QUERIES` | Recent statements on this node that crossed the slow-query threshold. | [Slow Query Log](/docs/slow-query-log) |
-| `SHOW QUERIES`, `SHOW CONNECTIONS` | Currently active statements and client connections, with `CANCEL QUERY` for running reads. | [Query Activity](/docs/query-activity) |
-| `SHOW CLUSTER SETTINGS` | Settings overridden cluster-wide across the fleet. | [Runtime Cluster Settings](/docs/runtime-cluster-settings) |
+| `SHOW VARIABLES` | The effective configuration, with the default, source, mutability, and scope of each value. | [SHOW VARIABLES](/docs/show-variables) |
+| `SHOW ENGINE STATS` | Metrics of the storage and replication layers ([Kahuna](/docs/concepts#kahuna) and [Kommander](/docs/concepts#kommander)), for [Raft](/docs/concepts#raft), the [write-ahead log](/docs/concepts#wal), and storage. | [Engine stats](/docs/engine-stats) |
+| `SHOW SLOW QUERIES` | Recent statements on this node that went over the slow-query threshold. | [Slow query log](/docs/slow-query-log) |
+| `SHOW QUERIES`, `SHOW CONNECTIONS` | The running statements and the client connections. `CANCEL QUERY` stops a running read. | [Query activity](/docs/query-activity) |
+| `SHOW CLUSTER SETTINGS` | The settings that are changed for the full cluster. | [Runtime cluster settings](/docs/runtime-cluster-settings) |
 
-Most of these statements accept a `LIKE` filter:
+Most of these statements take a `LIKE` filter:
 
 ```camussql
 SHOW VARIABLES LIKE 'query_result_cache_%';
@@ -229,9 +259,8 @@ SHOW QUERIES LIKE '%FROM orders%';
 SHOW CLUSTER SETTINGS LIKE 'ttl_%';
 ```
 
-None of these statements needs a selected database.
+These statements don't need a selected database.
 
-`SHOW VARIABLES` and `SHOW ENGINE STATS` are local to one node, so run them
-against each node when you compare a cluster. `SHOW CLUSTER SETTINGS` reports
-the cluster-wide overrides that every node shares, so it reads the same on every
-node.
+`SHOW VARIABLES` and `SHOW ENGINE STATS` show the values of one node. To compare
+the nodes of a cluster, run them on each node. `SHOW CLUSTER SETTINGS` shows the
+same result on all nodes.

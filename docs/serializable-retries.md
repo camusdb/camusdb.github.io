@@ -4,32 +4,33 @@ sidebar_position: 5
 
 # Retries and conflicts
 
-The .NET, TypeScript, and Python libraries provide retry helpers, so you do
-not need to write a retry loop or implement backoff yourself. Put your database
-work in a callback; the helper recognizes retryable conflicts and runs that
-work again when needed.
-
-Retries are part of serializable isolation: when concurrent transactions
-conflict, CamusDB aborts one to preserve a correct result. The libraries handle
-the replay mechanics. Your callback defines the work that belongs together.
+Under serializable isolation, two transactions that conflict can't both commit.
+CamusDB aborts one of them, and the application must execute it again from the
+start. Each driver has a retry helper for this. You put the database work in a
+callback, and the helper executes the callback again after a retryable
+conflict. You don't need to write the retry loop or the backoff.
 
 ## Use the client libraries
 
-| Library | Recommended API | What it handles |
+| Library | API | What it does |
 | --- | --- | --- |
-| [.NET](/docs/dotnet-driver#serializable-retries) | `SerializableRetryHelper.ExecuteAutocommitAsync(...)` | Repeats your callback on retryable conflicts, with bounded backoff and jitter. For explicit transactions, begin and commit inside the callback. |
-| [TypeScript](/docs/typescript-connector#transactions-and-retries) | `client.transaction(...)` | Begins, commits, rolls back on callback failure, and replays the entire callback in a fresh transaction after a retryable conflict. `withRetry(...)` also wraps your own repeatable unit of work. |
-| [Python](/docs/python-driver#transactions-and-retries) | `camusdb.run_transaction(...)` | Manages the transaction and replays the callback with bounded backoff and jitter. `camusdb.aio.run_transaction(...)` does the same asynchronously. |
+| [.NET](/docs/dotnet-driver#serializable-retries) | `SerializableRetryHelper.ExecuteAutocommitAsync(...)` | Executes the callback again after a retryable conflict. For an explicit transaction, begin and commit the transaction in the callback. |
+| [TypeScript](/docs/typescript-connector#transactions-and-retries) | `client.transaction(...)` | Begins a transaction and commits it when the callback returns. After a retryable conflict, it executes the callback again in a new transaction. `withRetry(...)` retries a unit of work that you manage. |
+| [Python](/docs/python-driver#transactions-and-retries) | `camusdb.run_transaction(...)` | Begins and commits the transaction, and executes the callback again after a retryable conflict. `camusdb.aio.run_transaction(...)` is the asyncio form. |
 
-These helpers default to five total attempts. They report the error if attempts
-are exhausted or the failure is not retryable. Plain commands and manually
-managed transaction blocks do not automatically replay an entire business
-operation; use the helper for that boundary.
+By default, the helpers make at most five attempts, including the first. The
+delay between attempts starts at 20 ms and doubles up to 400 ms, with 25%
+random jitter. When the attempts are used up, or the error isn't retryable, the helper
+raises the error.
+
+A statement or a transaction that you manage directly isn't replayed. Use a
+helper around the full business operation.
 
 ### .NET
 
-With an open `CamusConnection`, keep the transaction inside the callback so
-each attempt starts fresh. Disposal rolls back unfinished work:
+With an open `CamusConnection`, begin the transaction in the callback. Then
+each attempt uses a new transaction. If the callback throws, disposal rolls
+back the transaction:
 
 ```csharp
 using CamusDB.Client;
@@ -47,13 +48,12 @@ await SerializableRetryHelper.ExecuteAutocommitAsync(async ct =>
 }, maxAttempts: 5);
 ```
 
-For a single autocommit statement, the callback can simply execute the command
-without an explicit transaction.
+For one autocommit statement, the callback can execute the command directly.
 
 ### TypeScript
 
-With a configured client, `transaction()` manages the transaction lifecycle
-as well as retries:
+`transaction()` manages the transaction and the retries. If the callback
+throws, the transaction is rolled back:
 
 ```ts
 await client.transaction(async (txn) => {
@@ -67,8 +67,9 @@ await client.transaction(async (txn) => {
 
 ### Python
 
-Start with no transaction already open. The helper begins and commits each
-attempt, and rolls back on failure:
+Call the helper when the connection doesn't have an open transaction.
+Otherwise, it raises `ProgrammingError`. The helper begins and commits each
+attempt. If the callback raises an error, the attempt is rolled back:
 
 ```python
 import camusdb
@@ -92,88 +93,100 @@ For asyncio, pass an async callback to
 
 ### Write a repeatable callback
 
-Include every read and write needed for the operation in the callback. Let
-statement errors reach the helper; do not catch a conflict and continue an
-aborted transaction. Keep emails, payments, and other external side effects
-outside the callback, since it can run more than once.
+Put all the reads and writes of the operation in the callback. A conflict
+aborts the transaction. This means that the next attempt must read the data
+again. It can't use values from an earlier attempt.
+
+Let errors reach the helper. Don't catch a conflict and continue with the
+aborted transaction.
+
+The callback can execute more than once. Put external side effects, such as
+emails or payments, after the helper returns.
 
 ## What causes a retry
 
-The helpers handle conflicts caused by concurrent reads and writes, transient
-routing or lock conditions, and transaction lifetime expiry. In a cluster,
-leader changes, temporarily unavailable partitions, or a concurrent schema
-change can also require replaying work. See
-[distributed transactions](/docs/distributed-transactions) and
-[distributed schema changes](/docs/distributed-schema).
+A retryable error means that the transaction didn't commit, and that the same
+work can succeed on a new attempt. Common causes are:
+
+- A concurrent transaction that read or wrote the same rows.
+- A schema change to a table that the transaction uses. The next statement or
+  the commit returns `CADB0502`. See
+  [Distributed schema changes](/docs/distributed-schema).
+- In a cluster, a leader change or a partition that is briefly unavailable. See
+  [Distributed transactions](/docs/distributed-transactions).
+- A serializable read-write transaction that was open longer than its lifetime
+  limit.
 
 ## Which errors to retry, and how
 
-The table below explains the recovery contract implemented by the clients.
-You normally use the helpers above rather than dispatching on these codes:
+The following table shows the recovery that the drivers use for each code. You
+normally use the helpers, and you don't need to check these codes:
 
 | Code | Error | Recovery |
 | --- | --- | --- |
-| `CADB0502` | `TransactionConflict` | The retry helper replays the callback. |
-| `CADB0504` | `TransactionMustRetry` | The retry helper replays the callback. |
-| `CADB0505` | `TransactionLifetimeExceeded` | The retry helper replays the callback. |
-| `CADB0503` | `SchemaCatchingUp` | Outside the helpers' automatic conflict retry set. Retry after the node catches up, or use another node. |
-| `CADB0509` | `TransactionFinalizeUnresolved` | The transaction's commit/rollback method retries the same finalize, without replaying the callback. See below. |
-| `CADB0506` | `TransactionMutationLimitExceeded` | Split the workload; retrying unchanged work cannot fix it. |
-| `CADB0555` | `LockNotAvailable` | Not automatically retried: `FOR UPDATE NOWAIT` explicitly requested no wait. |
+| `CADB0502` | `TransactionConflict` | The helper executes the callback again. |
+| `CADB0504` | `TransactionMustRetry` | The helper executes the callback again. |
+| `CADB0505` | `TransactionLifetimeExceeded` | The helper executes the callback again. |
+| `CADB0503` | `SchemaCatchingUp` | The helpers don't retry it. Retry after the node catches up, or use another node. |
+| `CADB0509` | `TransactionFinalizeUnresolved` | The commit or rollback method sends the same request again. The callback isn't executed again. See [Retry an unresolved finalize](#retry-an-unresolved-finalize). |
+| `CADB0506` | `TransactionMutationLimitExceeded` | Split the work into smaller transactions. A retry of the same work fails again. |
+| `CADB0555` | `LockNotAvailable` | Not retried. `FOR UPDATE NOWAIT` asked to fail at once on a locked row. |
 
-See [Error codes](/docs/error-codes) for the full list.
+The helpers also retry a few transient errors that don't have a code of their
+own. Their message contains a marker, such as `MustRetry`. For the full list of
+codes, see [Error codes](/docs/error-codes).
 
 ## Replay from BEGIN
 
-Replaying means starting a fresh transaction and repeating every read and
-write, not retrying only the failed statement. TypeScript and Python's
-transaction runners do this for you; the .NET helper repeats the callback
-that contains your transaction.
+A replay starts a new transaction and repeats all the reads and writes. It
+doesn't retry the failed statement alone. The TypeScript and Python helpers
+manage the transaction for you. The .NET helper repeats the callback that
+contains your transaction.
 
 ```mermaid
 flowchart TD
-    A["Call the client helper"] --> B["Run callback in a fresh transaction"]
+    A["Call the client helper"] --> B["Execute the callback in a new transaction"]
     B --> C["Commit"]
     C -->|Success| D["Return result"]
     B -->|Retryable conflict| E["Client retry helper"]
     C -->|Retryable conflict| E
     E -->|"Backoff; attempts remain"| B
-    E -->|Limit reached| F["Report error to application"]
+    E -->|Limit reached| F["Raise the error to the application"]
 ```
 
-Custom retry loops are mainly for applications that manage transaction
-lifecycles directly or use the HTTP/gRPC protocol without a client helper.
+If your application manages transactions directly, or uses the HTTP or gRPC
+protocol, write a retry loop with the rules in the table above.
 
 ## Retry an unresolved finalize
 
-The .NET, TypeScript, and Python transaction methods also handle
-`CADB0509 TransactionFinalizeUnresolved`: they resend the same COMMIT or
-ROLLBACK on the same transaction, with bounded retries. The server first
-retries finalization within `transaction_finalize_retry_budget_ms` (15 seconds
-by default), before an unresolved result reaches the client.
+`CADB0509 TransactionFinalizeUnresolved` means that the outcome of a `COMMIT`
+or `ROLLBACK` isn't known yet. The server first retries the finalize for up to
+`transaction_finalize_retry_budget_ms` (default 15 seconds).
 
-This differs from a conflict: the transaction may already have committed.
-The libraries therefore do not replay its callback. If the unresolved error
-still reaches your application after those retries, preserve that distinction:
-retry the same finalize on the same transaction handle rather than starting
-the business operation again. Direct protocol clients follow the same rule.
+The transaction can already be committed. For this reason, the drivers don't
+replay the callback. They send the same `COMMIT` or `ROLLBACK` again on the
+same transaction, a limited number of times. If your application gets the
+error, retry the finalize on the same transaction handle. Don't start the
+operation again. Protocol clients must follow the same rule.
 
-Once finalization starts, no more data statements are accepted on that
-transaction. The server-side session timeout bounds an abandoned finalize.
+After a finalize starts, a new statement on the transaction returns an error.
 
 ## Keep transactions short
 
-Short transactions reduce contention and the number of retries. Avoid network
-calls and long pauses inside a database transaction. Live range locks are
-renewed while it runs, but a hard lifetime cap remains, about one hour by
-default; exceeding it raises `TransactionLifetimeExceeded`.
+Short transactions cause fewer conflicts and fewer retries. You should keep
+network calls and long pauses out of a database transaction.
 
-An explicit transaction idle for `transaction_idle_timeout_ms` (default five
-minutes) is rolled back. Its next statement fails with CADB0400, "Unknown
-transaction". See [transaction limits](/docs/transaction-limits#idle-timeout).
+A serializable read-write transaction has a lifetime limit,
+`max_serializable_transaction_lifetime_ms` (default one hour). Its range locks
+are renewed while it is open. However, after the limit it returns
+`CADB0505 TransactionLifetimeExceeded`.
 
-For reports and multi-step reads that need a stable view, use a read-only
-snapshot transaction to avoid the read-write conflict path.
+An explicit transaction that is idle for `transaction_idle_timeout_ms` (default
+five minutes) is rolled back. Its next statement returns `CADB0400` "Unknown
+transaction". See [Transaction limits](/docs/transaction-limits#idle-timeout).
+
+For reports and other multi-step reads that need a stable view, use a read-only
+snapshot transaction. It doesn't conflict with writers.
 
 ## Related pages
 

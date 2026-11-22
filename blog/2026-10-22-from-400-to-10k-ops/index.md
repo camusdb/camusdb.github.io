@@ -12,18 +12,17 @@ description: What helped a three-node CamusDB cluster reach 10K ops/sec on one l
 ![Pyramid benchmark](/img/benchmark.png)
 
 If you're investigating database throughput, our experience offers a practical
-place to look: the work repeated around every query and commit. Here's what
-we removed, how we measured the gains, and what the resulting benchmark can
-tell you about CamusDB.
+place to look: the work repeated around queries and commits. This post
+lists what we removed, how we measured the gains, and what the resulting
+benchmark can tell you about CamusDB.
 
 Many months ago, when we first started measuring database throughput in
 cluster mode, we discovered it could only handle around 400 ops/sec. After a
-long journey of benchmarking, investigating bottlenecks, and optimizing the
-system, we've reached 10K ops/sec.
+long journey of benchmarks and optimization, we've reached 10K ops/sec.
 
 On October 12, a three-node cluster sustained **10,284 durable operations 
 per second for 45 minutes**, completing 27.8 million operations after a two-minute
-warm-up. Every measured minute stayed above 9,700 ops/sec.
+warm-up. All the measured minutes stayed above 9,700 ops/sec.
 
 All three nodes ran on **one laptop**, alongside the load generator and
 metrics collector, on memory-backed storage. Both conditions limit what the
@@ -35,8 +34,9 @@ number predicts; see [Latency and scope of the result](/blog/from-400-to-10k-ops
 
 We used [Caraxes](/blog/a-dragon-to-attack-our-own-database), our database
 testing tool, to run a bank ledger with 2,000 accounts. Half the operations
-read one account by its primary key. The other half transferred money:
-subtract from one account, add to another, and commit both changes together.
+read one account by its primary key. The other half transferred money: a
+transfer subtracts from one account and adds to another, and both changes
+commit together.
 
 The read operation executes this parameterized query. `@id` is the account's
 primary key; the client consumes all four returned columns and checks that
@@ -49,8 +49,8 @@ FROM workload_accounts WHERE id = @id;
 
 A transfer moves one unit between two distinct accounts. The sequential
 client visits them in ascending row-index order, reading and updating each
-in turn. Here is the sequence, with parameter names expanded to distinguish
-the two accounts:
+in turn. In this sequence, the parameter names are expanded to distinguish
+the two accounts.
 
 ```camussql
 BEGIN;
@@ -79,8 +79,8 @@ boundaries here.
 both updates, and the commit. The result was approximately 5,140 standalone
 reads and 5,145 committed transfers per second.
 
-Transfers selected accounts across the whole table, so concurrent transactions
-could modify the same rows. Conflicting work was retried. The run used
+Transfers selected accounts across the table. This means that concurrent
+transactions could modify the same rows. Conflicting work was retried. The run used
 read-committed isolation and 256 concurrent workers over 64 connections; each
 worker waited for its operation to finish before starting another.
 
@@ -105,7 +105,7 @@ flowchart TD
     end
 ```
 
-Every write goes through consensus: nodes agree on the ordered changes before
+Writes go through consensus: nodes agree on the ordered changes before
 those changes reach database storage. Some reads also require consensus
 coordination. Each write is stored three times, once per node. All that work
 competes for the same machine's resources.
@@ -142,7 +142,8 @@ time for the operations themselves.
 row's internal identifier. Caching that identifier let later requests skip
 the index read. This reduced underlying storage reads per operation by
 **47%** and CPU time per operation by **8%**. The cache recorded 76.85 million
-hits, no misses after warm-up, and no stale identifiers during the run.
+hits and no misses after warm-up. It returned no stale identifiers during the
+run.
 
 Increasing concurrency from 128 to 256 workers then added another 8% in
 throughput. Latency roughly doubled, while CPU cost per operation stayed
@@ -151,8 +152,9 @@ clear cost to individual requests.
 
 ## Changes that did not help
 
-Several plausible changes failed to improve the result. Setting the .NET
-thread-pool minimum to 64, 128, or 1,024 made no measurable difference.
+Several plausible changes failed to improve the result. A .NET thread-pool
+minimum of 64 made no measurable difference. The values 128 and 1,024 gave
+the same result.
 Client TLS showed no measurable CPU cost at the leader. Sending transaction
 requests through a pipelined client at 128 workers did not help either.
 
@@ -178,18 +180,19 @@ between Raft peers retained certificate protection.
 
 Correctness was checked beyond the throughput run. The same stack passed two
 two-hour fault tests involving killed leaders, paused processes, and severely
-throttled disks. Balances remained correct, replicas did not diverge, and
-no transactions remained unresolved across the tested restarts. The separate
+throttled disks. Balances remained correct and replicas did not diverge. No
+transactions remained unresolved across the tested restarts. The separate
 NVMe fault tests measured **3,230–5,485 ops/sec** under their conditions.
 
 The frozen campaign baseline was 407.86 ops/sec with the same workload shape
 and 32 workers. The final result is 25.2× higher, combining software changes
 with increased concurrency. It is a milestone for this workload and setup.
 
-If you're profiling your own system, count the forwarding hops, log entries,
-queued tasks, and lookups behind each operation, and run correctness checks
-to confirm that the faster system still does the right work.
+If you're profiling your own system, count the forwarding hops and the log
+entries behind each operation, and also the queued tasks and the lookups.
+Then run correctness checks to confirm that the faster system does the right
+work.
 
 ## Result on shared commodity hardware
 
-Running three nodes on a single machine with commodity hardware is far from ideal and certainly not a recommended practice, since the shared hardware becomes a single point of failure for all three nodes. However, it demonstrates that even under these challenging conditions, the database can deliver performance that is more than adequate for the vast majority of transactional applications.
+Three nodes on a single machine with commodity hardware is not a recommended deployment, because the shared hardware is a single point of failure for all three nodes. The run shows that on this hardware, the database can deliver performance that is more than adequate for the vast majority of transactional applications.

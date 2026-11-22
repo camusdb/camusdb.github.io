@@ -5,138 +5,128 @@ sidebar_position: 3.25
 # Spill to disk
 
 Spill to disk lets a query operator move a large intermediate buffer into a
-temporary file, so large sorts, joins, and groupings need less memory.
-CamusDB streams query results to the client, but some query operators must
-still hold intermediate rows before they can produce output. Some operators
-still retain other state in memory, as described below.
+temporary file. Large sorts, joins, and groupings then need less memory.
+CamusDB streams query results to the client, but some operators must collect
+intermediate rows before they can produce output. Some operators also keep
+other state in memory, as described below.
 
-Spill is off by default. While it is off, operators use their normal in-memory
-path. While it is on, each operator stays in memory until its own buffer passes
-the spill threshold.
+Spill is on by default on the server. An operator works in memory until its
+buffer passes a row or byte threshold. Then it writes temporary files under
+`data_dir`. Spill is off in the browser playground, because its file system is
+also in memory.
 
-## Keep large queries from exhausting memory
+## Keep large queries from using all memory
 
-Without spill, an operator keeps all of its intermediate rows in memory. A sort,
+With spill off, an operator stores all its intermediate rows in memory. A sort,
 a join, or a `GROUP BY` over millions of rows can use a large share of the
 node's memory, and several such queries at once can use all of it. The node
-can then slow down for every client, or the process can stop.
+can then slow down for all clients, or the process can stop.
 
-Turn spill on when:
+Keep spill on when:
 
-- Your workload runs large reports, exports, or batch jobs with a large
+- Your workload has large reports, exports, or batch jobs with a large
   `ORDER BY`, `GROUP BY`, `DISTINCT`, or hash join.
 - You run bulk `UPDATE` or `DELETE` statements that match many rows.
-- The node has limited memory, for example a small container or a
-  memory-limited virtual machine.
+- The node has limited memory, for example a small container or a virtual
+  machine with a memory limit.
 
-The cost is speed. A query that spills reads and writes temporary files, so it
-runs longer than the same query in memory. Queries that stay below the
-threshold are unaffected.
-
-You can leave spill off when your queries read and return small row sets, such
-as key lookups and short result pages.
+The cost is speed. A query that spills reads and writes temporary files, and it
+takes longer than the same query in memory. Queries below the thresholds don't
+create spill files and aren't affected. To measure the in-memory path, set
+`spill_enabled: false`.
 
 ## What can spill
 
-Spill applies to blocking work and to work that materializes rows:
+Spill applies to operators that must collect rows before they produce output:
 
 | Operator | Why it buffers | Spill behavior |
 | --- | --- | --- |
-| `ORDER BY` sort | It needs all the rows before it can emit sorted output. | An external merge sort. |
-| Hash join | It builds a hash table from one side of the join (the build side), then streams the other side (the probe side) past it. | A grace or hybrid hash join, which divides the rows into spill files when the build side is too large. |
-| `GROUP BY` | It keeps one accumulator per group. | It hashes rows by group key into spill partitions (groups of rows on disk, not cluster partitions), then aggregates one partition at a time. |
-| `SELECT DISTINCT` | It records which result tuples it has already seen. | It hash-partitions the rows into spill files, then deduplicates one partition at a time. |
+| `ORDER BY` sort | It needs all the rows before it can return sorted output. | An external merge sort. |
+| Hash join | It builds a hash table from one side of the join (the build side), then reads the other side (the probe side). | A grace or hybrid hash join, which divides the rows into spill files when the build side is too large. |
+| `GROUP BY` | It has one accumulator per group. | It hashes rows by group key into spill partitions (groups of rows on disk, unrelated to cluster partitions), then aggregates one partition at a time. |
+| `SELECT DISTINCT` | It records the result rows that it has seen. | It hash-partitions the rows into spill files, then removes duplicates one partition at a time. |
 | `UNION` | It removes duplicates from both inputs. | The same partitioned deduplication as `DISTINCT`. |
-| `INTERSECT`, `EXCEPT`, including `ALL` | It counts distinct right-side rows; distinct `EXCEPT` also tracks emitted left rows. | Hash-partitions both inputs and combines each partition pair in memory. |
-| Window functions | Sorts input and holds the current window partition. | External sorts and spill-capable full-row partition buffers. Arguments, ordering values, and results remain in memory for the current partition. |
-| Derived tables and subqueries | It materializes the rows so the outer query can scan them. | A spill buffer that CamusDB can enumerate again. |
-| `DELETE` and `UPDATE` match sets | It must collect the matching rows before the mutation. | A spill buffer that CamusDB can enumerate again. |
+| `INTERSECT`, `EXCEPT`, including `ALL` | It counts distinct rows of the right side. A distinct `EXCEPT` also tracks the left rows that it returned. | It hash-partitions both inputs and combines each pair of partitions in memory. |
+| Window functions | It sorts the input and collects the current window partition. | External sorts and partition buffers that can spill. Arguments, sort values, and results of the current partition stay in memory. |
+| Derived tables and subqueries | It stores the rows for the outer query to scan. | A spill buffer that CamusDB can read again. |
+| `DELETE` and `UPDATE` match sets | It must collect the matching rows before the change. | A spill buffer that CamusDB can read again. |
 
-Streaming operators do not spill, because they need no large intermediate
-buffer. For example:
+Streaming operators don't spill, because they don't need a large buffer. For
+example:
 
 - A simple scan.
-- `UNION ALL`, which concatenates inputs without deduplication.
-- A global aggregate, such as `COUNT(*)` without a `GROUP BY`.
+- `UNION ALL`, which concatenates its inputs.
+- A global aggregate, such as `COUNT(*)` with no `GROUP BY`.
 - A streaming `DISTINCT` over an ordered index.
-- A merge join, which walks two inputs already sorted on the join key and
-  buffers only the current run of equal keys.
+- A merge join, which reads two inputs sorted on the join key and buffers only
+  the current group of equal keys.
 
-A [window function](/docs/sql-queries#window-functions) processes one SQL
-partition at a time. Spilling its rows does not bound all memory use: the
-window's input values and computed results still grow with that partition's
-row count. `EXPLAIN (ANALYZE)` reports spilled partition buffers in the
-[`window` node](/docs/explain#window-functions).
+Other notes on what spills:
 
-JSONB aggregate states (`jsonb_agg` and `jsonb_object_agg`) count their retained
-bytes as they grow inside a group, so byte-based spilling can trigger even
-with few groups. The per-document size limit still applies; spilling does not
-allow an oversized aggregate result.
+- A [window function](/docs/sql-queries#window-functions) processes one SQL
+  partition at a time. Spill doesn't bound all of its memory: the input values
+  and results of the window grow with the row count of the partition.
+  `EXPLAIN (ANALYZE)` shows spilled partition buffers in the
+  [`window` node](/docs/explain#window-functions).
+- JSONB aggregate states (`jsonb_agg` and `jsonb_object_agg`) count their bytes
+  as they grow in a group. A spill by bytes can occur with few groups. The
+  size limit for one document applies as usual.
+- GIN scans use the row and byte thresholds to limit how many candidates they
+  collect, also with spill off. Above the limit, they change to a table scan.
+  See [JSONB indexes](/docs/json#how-a-gin-scan-works).
+- For an eligible `GROUP BY ... ORDER BY COUNT(...) DESC LIMIT n` query,
+  CamusDB tracks the highest possible group count in each spill partition. It
+  can skip a partition that can't beat the current n-th result. Look for
+  `top_k` in the [aggregate plan](/docs/explain#top-k-grouped-results). The
+  scan of the input isn't skipped.
 
-GIN scans also use the row and byte thresholds to bound candidate collection,
-even with spill disabled. They switch to a table scan rather than spilling
-candidate IDs. See [JSONB indexes](/docs/json#how-a-gin-scan-works).
+### Bounded sorts
 
-For eligible `GROUP BY ... ORDER BY COUNT(...) DESC LIMIT n` queries,
-CamusDB tracks an upper bound on group counts in each spill partition. It can
-skip reading a partition whose bound cannot beat the current n-th result.
-Look for `top_k` in the [aggregate plan](/docs/explain#top-k-grouped-results).
-This does not skip scanning the original input.
+An `ORDER BY` with `LIMIT` collects only `LIMIT + OFFSET` candidates when that
+number is within the spill row threshold. If the collected bytes pass the byte
+threshold, it changes to an external sort. A larger bound uses the regular sort,
+which can spill, from the start.
 
 ## DELETE and UPDATE
 
-`DELETE` and `UPDATE` collect every matching row before they apply any
-mutation, because they cannot safely change rows during the scan. Changing a
-row can also change the index under the scan, so rows would be skipped or
-visited twice.
+`DELETE` and `UPDATE` collect all matching rows before they change any row. A
+change during the scan could change the index under the scan, and the scan
+could then skip rows or read them twice.
 
-With spill enabled, the collected match set can overflow into a temporary file.
-The mutation phase then reads the sealed match set back and applies the same
-row changes it would apply from memory.
+With spill on, the collected rows can overflow into a temporary file. The
+change phase then reads the rows back from the file and applies the same
+changes as from memory.
 
 ## Temporary files
 
-Spill files live under `data_dir`:
+Spill files are under `data_dir`:
 
 ```text
 {data_dir}/tmp/spill/{instanceId}/{scopeId}/
 ```
 
-Each process owns one `{instanceId}` directory for its whole life, and each
-operator that spills gets its own `{scopeId}` directory.
+Each process has one `{instanceId}` directory, and each operator that spills
+gets a separate `{scopeId}` directory.
 
-CamusDB deletes the spill files when the operation completes, is cancelled, or
-fails with an exception.
-
-Files can remain if the process is killed during a query. At startup, CamusDB
-makes a best-effort sweep of the spill root. Each instance holds its own lock
-file, so the sweep can tell a stale directory from spill files that another
-live process owns.
-
-## Row format
-
-Spill files use a schema-free binary row codec, because intermediate rows can
-be synthetic: a join row, a derived-table row, or a
-projected row may not match any single table schema.
-
-Each spilled row stores its row id, the column count, the column names, each
-value's type tag, and the values. The row id matters for `DELETE` and `UPDATE`,
-because the mutation phase must still target the original row.
+CamusDB deletes the spill files when the operation ends, when it is cancelled,
+and when it fails. Files can remain if the process is killed during a query.
+At startup, CamusDB removes the spill directories of processes that are no
+longer running.
 
 ## Configuration
 
-You configure spill in `config.yml`. Every setting below is `runtime` class
-and `node` scope, so you can also change it without a restart using
+Set spill in `config.yml`. All the settings below are `runtime` settings with
+`node` scope. You can also change them with no restart, with
 [`SET CLUSTER SETTING`](/docs/runtime-cluster-settings).
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `spill_enabled` | `false` | The main switch. While it is `false`, no query operator spills. |
-| `spill_threshold_rows` | `500000` | The maximum number of rows one operator holds in memory before it starts to spill. |
-| `spill_threshold_bytes` | `268435456` | The maximum estimated bytes one operator holds in memory before it starts to spill (256 MiB). An operator spills when it reaches either cap. A value of `0` or below removes the byte cap, leaving only the row cap. |
-| `spill_merge_fan_in` | `16` | The maximum number of spill runs (sorted spill files) that CamusDB reads at once during a merge pass. |
-| `spill_max_total_bytes` | `8589934592` | The maximum live spill bytes on one node. A value of `0` or below removes this limit. |
-| `spill_max_frame_bytes` | `268435456` | The largest record CamusDB accepts when it reads a spill file back (256 MiB). A larger length means the file is corrupt, and the query fails with `CADB0507`. |
+| `spill_enabled` | `true` | The main switch. When it is `false`, no operator spills. |
+| `spill_threshold_rows` | `500000` | The maximum number of rows that one operator stores in memory before it spills. |
+| `spill_threshold_bytes` | `268435456` | The maximum estimated bytes that one operator stores in memory before it spills (256 MiB). An operator spills when it reaches either limit. `0` or less removes the byte limit, and only the row limit applies. |
+| `spill_merge_fan_in` | `16` | The maximum number of spill runs (sorted spill files) that CamusDB reads at once in a merge pass. |
+| `spill_max_total_bytes` | `8589934592` | The maximum size of the spill files on one node. `0` or less removes this limit. |
+| `spill_max_frame_bytes` | `268435456` | The largest record that CamusDB reads from a spill file (256 MiB). A larger length means that the file is corrupt, and the query returns `CADB0507`. |
 
 For example:
 
@@ -148,31 +138,46 @@ spill_merge_fan_in: 16
 spill_max_total_bytes: 8589934592
 ```
 
-See [Configuration](/docs/configuration) for the full startup configuration
-reference.
+See [Configuration](/docs/configuration) for all startup settings.
+
+### Hash-join limits with spill disabled
+
+With `spill_enabled: false`, `hash_join_max_build_rows` (default `1000000`)
+and `hash_join_max_build_bytes` (default `1073741824`, 1 GiB estimated bytes)
+limit the build buffer of a hash join. Above either limit, the join changes to
+a nested-loop join. A byte limit of `0` or less removes that limit. Nested
+loops use these limits for the right side too, and they read larger inputs
+again for each left row. Such a join can become much slower as both inputs
+grow.
+
+Each fallback increments `join.nested_loop_fallbacks` in
+[SHOW ENGINE STATS](/docs/engine-stats#join-fallbacks), and it can log a server
+warning, at most once per minute. `EXPLAIN (ANALYZE)` shows
+`ran=nested-loop-fallback`. With spill on, a large build uses a partitioned
+hash join.
 
 ## Disk limits
 
-Spill files share a volume with the storage engine, so CamusDB limits spill
-before it can consume disk space that ordinary writes need.
+Spill files share a volume with the storage engine. CamusDB limits spill before
+it can use disk space that regular writes need.
 
-Every spill write must pass both of these checks:
+Each spill write must pass both of these checks:
 
-- `spill_max_total_bytes` limits the total size of all live spill files on the
-  node, shared by all concurrent spilling queries. A write that would exceed it
-  fails the statement with `CADB0549` `SpillLimitExceeded`.
-- `min_free_disk_bytes` is the free-space floor for the data directory. A spill
-  write that would take the volume below that floor fails with `CADB0536`
+- `spill_max_total_bytes` limits the total size of the spill files on the node,
+  for all spilling queries together. A write above this limit fails the
+  statement with `CADB0549` `SpillLimitExceeded`.
+- `min_free_disk_bytes` is the minimum free space for the data directory. A
+  spill write that would go below it returns `CADB0536`
   `InsufficientDiskSpace`.
 
-In both cases, the statement fails, CamusDB deletes that operation's spill
-files, and a spilling `DELETE` or `UPDATE` changes no rows.
+In both cases, the statement fails, CamusDB deletes the spill files of that
+operation, and a spilling `DELETE` or `UPDATE` changes no rows.
 
 ## Behavior after a failure
 
-If an operator needs to spill but CamusDB cannot create or open a spill file,
-the query fails with `CADB0507` (`SpillStorageUnavailable`). CamusDB never
-silently falls back to unbounded memory when spill storage is unavailable.
+If an operator must spill but CamusDB can't create or open a spill file, the
+query returns `CADB0507` (`SpillStorageUnavailable`). CamusDB doesn't change
+to unbounded memory use when spill storage isn't available.
 
 ```mermaid
 flowchart TD
@@ -190,23 +195,18 @@ flowchart TD
 
 Typical causes:
 
-- The CamusDB process cannot write to `data_dir`.
-- The disk that holds `data_dir` is full.
-- Somebody removed the temporary spill directories or gave them the wrong
+- The CamusDB process can't write to `data_dir`.
+- The disk of `data_dir` is full.
+- Someone removed the temporary spill directories or changed their
   permissions.
 
 Fix the storage problem, then run the query again.
 
 ## Operational notes
 
-- Spill applies to one operator instance. It is not a memory budget for a
-  whole query.
-- An operator that stays below both thresholds creates no spill file.
-- `spill_max_total_bytes` is a node-wide budget for live spill files, not a
-  per-query reservation.
-- Spill trades memory pressure for disk I/O. Large sorts, grouped queries,
-  distinct queries, hash joins, and bulk updates can run longer, but none of
-  them makes the heap grow without bound.
-- While spill is off, a hash join whose build side passes
-  `hash_join_max_build_rows` (default `1000000`) falls back to a nested-loop
-  join. The result stays correct, but the join runs slower.
+- Spill applies to one operator. It isn't a memory budget for a full query.
+- An operator below both thresholds creates no spill file.
+- `spill_max_total_bytes` is a budget for all spill files on the node. It isn't
+  reserved for each query.
+- Spill reduces memory pressure and adds disk I/O. Large queries and bulk
+  writes can take longer. Operator state in memory needs capacity too.

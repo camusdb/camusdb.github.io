@@ -4,27 +4,31 @@ sidebar_position: 4.2
 
 # Math functions
 
-Math functions let you calculate prices, statistics, and angles directly in SQL.
-They accept `INT64`, `FLOAT32`, `FLOAT64`, or `NUMERIC` arguments. They return
-`NULL` when any argument is `NULL`, unless the table below says otherwise.
+Math functions let you calculate values such as prices and angles in SQL. They
+accept `INT64`, `FLOAT64`, and `NUMERIC` arguments. If an argument is `NULL`,
+they return `NULL`.
+
+Note that the math functions don't accept `FLOAT32` values. A `FLOAT32` argument
+returns `CADB0400`. Cast the value first, for example
+`abs(CAST(reading AS FLOAT64))`.
 
 | Function | Returns | Description |
 | --- | --- | --- |
 | `abs(value)` | Same numeric type | The absolute value. |
 | `ceil(value)` | Same numeric type | The smallest integer at or above `value`. Alias: `ceiling`. |
 | `floor(value)` | Same numeric type | The largest integer at or below `value`. |
-| `round(value)` | Same numeric type | Rounds to the nearest integer, with halves rounded away from zero. |
+| `round(value)` | Same numeric type | Rounds to the nearest integer. Halves are rounded away from zero. |
 | `round(value, scale)` | `FLOAT64` or `NUMERIC` | Rounds to `scale` decimal places. A negative scale rounds to the left of the decimal point. |
 | `trunc(value)` | Same numeric type | Truncates toward zero. |
-| `trunc(value, scale)` | `INT64`, `FLOAT64`, or `NUMERIC` | Truncates to `scale` decimal places. A negative scale truncates to the left of the decimal point. |
-| `sqrt(value)` | `FLOAT64` | The square root. A negative input is invalid. |
+| `trunc(value, scale)` | Same numeric type | Truncates to `scale` decimal places. A negative scale truncates to the left of the decimal point. |
+| `sqrt(value)` | `FLOAT64` | The square root. |
 | `pow(base, exponent)` | `FLOAT64` | `base` raised to `exponent`. Alias: `power`. |
-| `ln(value)` | `FLOAT64` | Natural logarithm. |
-| `log10(value)`, `log(value)` | `FLOAT64` | Base-10 logarithm. |
-| `log(base, value)` | `FLOAT64` | Logarithm with the base first, following PostgreSQL. |
+| `ln(value)` | `FLOAT64` | The natural logarithm. |
+| `log10(value)`, `log(value)` | `FLOAT64` | The base-10 logarithm. |
+| `log(base, value)` | `FLOAT64` | The logarithm in `base`. The base is first, as in PostgreSQL. |
 | `exp(value)` | `FLOAT64` | e raised to `value`. |
-| `mod(dividend, divisor)` | `INT64`, `FLOAT64`, or `NUMERIC` | The remainder after division. Two `INT64` inputs return `INT64`; `NUMERIC` with `INT64` or `NUMERIC` returns `NUMERIC`; a float input returns `FLOAT64`. |
-| `sign(value)` | `INT64` | `-1`, `0`, or `1`, depending on the sign of `value`. |
+| `mod(dividend, divisor)` | `INT64`, `FLOAT64`, or `NUMERIC` | The remainder after division. See the type rules below. |
+| `sign(value)` | `INT64` | The sign of `value`: `-1`, `0`, or `1`. |
 | `random()` | `FLOAT64` | A volatile value at or above `0.0` and below `1.0`. |
 
 ## Examples
@@ -43,35 +47,40 @@ WHERE abs(year - 2002) <= 1
 ORDER BY year;
 
 SELECT pow(2, 3), mod(10, 3), sign(-2.5), random();
--- 8.0, 1, -1, a value in [0.0, 1.0)
+-- 8, 1, -1, a value in [0.0, 1.0)
 
 SELECT round(NUMERIC '1.2345', 2), trunc(NUMERIC '1299.99', -2);
 -- 1.23, 1200
 ```
 
-`log(2, 8)` is 3 and `log(1000)` is 3. The argument order differs from
-GoogleSQL's two-argument LOG. Logarithms and EXP return FLOAT64 even for
-NUMERIC arguments. The [`^` operator](/docs/sql-expression-syntax#power) is
-another spelling of POW.
+`log(2, 8)` is 3, and `log(1000)` is 3. If you port SQL from GoogleSQL, note that
+its two-argument `LOG` has the opposite argument order. The
+[`^` operator](/docs/sql-expression-syntax#power) is another spelling of `pow`.
 
-With an INT64 input, `round(value, scale)` returns exact NUMERIC even when
-scale is zero: `round(15, -1)` is NUMERIC 20. `round(value)` stays INT64, as
-does `trunc(value, scale)` for integer input. Float inputs return FLOAT64;
-NUMERIC inputs stay NUMERIC.
+The return type depends on the input type:
+
+- A `FLOAT64` input returns `FLOAT64`, and a `NUMERIC` input returns `NUMERIC`.
+- With an `INT64` input, `round(value, scale)` returns an exact `NUMERIC`, also
+  when the scale is zero. For example, `round(15, -1)` is `NUMERIC` 20.
+  `round(value)` and `trunc(value, scale)` return `INT64`.
+- `mod` returns `INT64` for two `INT64` inputs. A `NUMERIC` input with an `INT64`
+  or `NUMERIC` input returns `NUMERIC`. A `FLOAT64` input returns `FLOAT64`.
+- Logarithms and `exp` return `FLOAT64`, also for `NUMERIC` arguments.
 
 ## Trigonometry and angles
 
-Use these functions for geometry, bearings, or periodic measurements. All return
-`FLOAT64`, including for integer and `NUMERIC` inputs; `FLOAT32` inputs also work.
-A `NULL` argument returns `NULL`.
+Use these functions for geometry and periodic measurements. They return
+`FLOAT64`, also for `INT64` and `NUMERIC` inputs. A `NULL` argument returns
+`NULL`.
 
 | Function | Meaning |
 | --- | --- |
-| `sin(x)`, `cos(x)`, `tan(x)`, `cot(x)` | Sine, cosine, tangent, and cotangent of an angle in radians. |
-| `asin(x)`, `acos(x)`, `atan(x)` | Inverse functions, returning radians. |
-| `atan2(y, x)` | Angle of the vector `(x, y)`, in radians, preserving its quadrant. |
-| `sind(x)`, `cosd(x)`, `tand(x)`, `cotd(x)` | Trigonometric functions with degree inputs. |
-| `asind(x)`, `acosd(x)`, `atand(x)`, `atan2d(y, x)` | Inverse functions returning degrees. |
+| `sin(x)`, `cos(x)` | The sine and cosine of an angle in radians. |
+| `tan(x)`, `cot(x)` | The tangent and cotangent of an angle in radians. |
+| `asin(x)`, `acos(x)`, `atan(x)` | Inverse functions. They return radians. |
+| `atan2(y, x)` | The angle of the vector `(x, y)` in radians, in the correct quadrant. |
+| `sind(x)`, `cosd(x)`, `tand(x)`, `cotd(x)` | Trigonometric functions with angles in degrees. |
+| `asind(x)`, `acosd(x)`, `atand(x)`, `atan2d(y, x)` | Inverse functions. They return degrees. |
 | `radians(degrees)`, `degrees(radians)` | Convert between angle units. |
 | `pi()` | The value of π as `FLOAT64`. |
 
@@ -80,30 +89,42 @@ SELECT sind(30), cosd(90), tand(45), atan2d(1, 1);
 -- 0.5, 0, 1, 45
 
 SELECT radians(180), degrees(pi());
--- approximately 3.141592653589793, 180
+-- 3.141592653589793, 180
 ```
 
-Prefer the degree forms when your data uses degrees: common angles such as
-`sind(30)`, `cosd(90)`, and `tand(45)` produce exact results. Radian functions
-use the platform math library, so their last digits can vary across platforms.
+If your data is in degrees, you should use the degree functions. Common angles,
+such as `sind(30)`, give exact results. The radian functions use the math
+library of the platform. This means that their last digits can be different on
+different platforms.
 
-NaN propagates. Infinite angles passed to sine, cosine, tangent, or cotangent
-raise `CADB0400`, as do inverse sine/cosine arguments outside `[-1, 1]`.
-Poles such as `cot(0)`, `tand(90)`, and `cotd(0)` return infinity, following
-PostgreSQL. Conversions that overflow or underflow a finite value raise
-`CADB0421`.
+The following rules apply to special values:
+
+- A `NaN` argument returns `NaN`.
+- An infinite angle in a trigonometric function, such as `sin`, returns
+  `CADB0400`.
+- An argument of `asin` or `acos` outside `[-1, 1]` returns `CADB0400`.
+- A pole, such as `cot(0)` or `tand(90)`, returns infinity, as in PostgreSQL.
+- A conversion that overflows, or that underflows a finite value to zero,
+  returns `CADB0421`.
 
 ## Errors
 
-`abs` fails on the minimum `INT64` value, because an `INT64` cannot represent
-its positive form. It reports `CADB0420`.
+The following inputs return an error:
 
-`sqrt` fails for negative values. `mod` fails when the divisor is zero.
-Logarithms reject zero and negative arguments; a logarithm base of 1 is also
-invalid. EXP overflow and underflow to zero fail with CADB0421.
+| Input | Error |
+| --- | --- |
+| `abs` of the minimum `INT64` value. Its positive form doesn't fit in `INT64`. | `CADB0420` |
+| `sqrt` of a negative value | `CADB0400` |
+| `mod` with a zero divisor | `CADB0400` |
+| A logarithm of zero or of a negative value, or a logarithm base of 1 | `CADB0400` |
+| `pow(0, negative)` | `CADB0400` |
+| `sign(NaN)` | `CADB0400` |
+| `exp`, or another float function, with a result that overflows or underflows to zero | `CADB0421` |
 
-`round(value, scale)` and `trunc(value, scale)` accept an `INT64` scale,
-including very large magnitudes. They do not turn a finite value into NaN or
-infinity. Finite float overflow and underflow to zero report `CADB0421`;
-`pow(0, negative)`, `sqrt(negative)`, and `sign(NaN)` report `CADB0400`.
-See [Floating-point values](/docs/data-types#floating-point-values).
+`round(value, scale)` and `trunc(value, scale)` don't turn a finite value into
+`NaN` or infinity. For a `NUMERIC` value, the scale can be any `INT64`. For a
+`FLOAT64` value, the scale must be between -2147483648 and 2147483647. A scale
+outside that range returns `CADB0400`.
+
+For more information, see
+[Floating-point values](/docs/data-types#floating-point-values).

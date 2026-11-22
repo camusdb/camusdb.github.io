@@ -4,26 +4,19 @@ sidebar_position: 2.16
 
 # Foreign keys
 
-A foreign key keeps a value in a child table tied to an existing key in a
-parent table. CamusDB enforces foreign keys on `INSERT`, `INSERT ... SELECT`,
-`UPDATE`, and `DELETE`, both in single statements and inside explicit
-transactions.
+A foreign key ties a value in a child table to an existing key in a parent
+table. It prevents orphan rows, such as an order with no customer or a comment
+on a deleted post. With a foreign key, the database rejects these writes from
+all clients. An application bug or a manual `DELETE` can't create the orphan, and
+you don't find it later in a report or a page that fails to load.
 
-## Prevent orphan rows
+CamusDB checks foreign keys on `INSERT`, `INSERT ... SELECT`, `UPDATE`, and
+`DELETE`, in single statements and in explicit transactions. A child row
+must have a parent, and a parent that has children can't be deleted.
 
-A foreign key prevents orphan rows: rows that point at a parent that does not
-exist. Without one, an application bug, a failed script, or a manual `DELETE`
-can leave an order with no customer, or a comment on a post that is gone. The
-database accepts these rows, and the error shows up later, in a report or a
-page that fails to load.
-
-With a foreign key, CamusDB checks every write. It refuses a child row whose
-parent does not exist, and it refuses to delete a parent that still has
-children. The rule holds for every client that writes to the database.
-
-The check has a cost: a write to the child table reads the parent table, and a
-delete from the parent table reads the child table. CamusDB keeps that cost
-small with an index on the child table. See
+The check has a cost. A write to the child table reads the parent table, and a
+delete from the parent table reads the child table. An index on the child table
+makes the check fast. See
 [Indexes on the child table](#indexes-on-the-child-table).
 
 CamusDB supports these forms:
@@ -54,7 +47,7 @@ CREATE TABLE weather (
 );
 ```
 
-`weather.city` can hold a `cities.name`, or it can be `NULL`:
+`weather.city` must contain a `cities.name`, or be `NULL`:
 
 ```camussql
 INSERT INTO cities (name, population)
@@ -70,8 +63,11 @@ INSERT INTO weather (city, temp_lo, day)
 VALUES ('Berkeley', 45, '1994-11-28'); -- CADB0304
 ```
 
-Use a table constraint when the key is composite, or when you want an explicit
-name:
+```text
+CamusException (CADB0304): Insert or update on table 'weather' violates foreign key constraint 'weather_city_fkey': key (city)=(Berkeley) is not present in table 'cities'
+```
+
+Use a table constraint for a composite key, or to give the constraint a name:
 
 ```camussql
 CREATE TABLE regions (
@@ -92,7 +88,8 @@ CREATE TABLE stores (
 );
 ```
 
-For a self-reference, omit the parent column list to reference the primary key:
+For a self-reference, omit the parent column list to reference the primary
+key:
 
 ```camussql
 CREATE TABLE employees (
@@ -104,8 +101,12 @@ INSERT INTO employees (id, manager_id)
 VALUES (2, 1), (1, NULL);
 ```
 
-The order of rows inside one statement does not matter, because CamusDB checks
-the statement after its last write.
+```text
+Query OK, 2 rows affected (00:00:00.0321826)
+```
+
+The order of rows in one statement doesn't matter. CamusDB checks the
+statement after its last write.
 
 ## Add or drop a foreign key
 
@@ -117,11 +118,11 @@ ADD CONSTRAINT weather_city_fk
 FOREIGN KEY (city) REFERENCES cities (name);
 ```
 
-`ADD CONSTRAINT` validates the existing child rows before the constraint becomes
-public. If a row has no parent, the statement fails with `CADB0304`, reports
-the first missing key, and leaves no partial constraint behind.
+`ADD CONSTRAINT` checks the existing child rows before the constraint becomes
+public. If a row has no parent, the statement returns `CADB0304` with the first
+missing key, and the constraint is removed.
 
-In a cluster, the new constraint moves through these states:
+In a cluster, the new constraint goes through these states:
 
 ```mermaid
 stateDiagram-v2
@@ -133,16 +134,14 @@ stateDiagram-v2
     Validating --> [*] : orphan found,<br/>constraint removed
 ```
 
-In the write-only state, new `INSERT`, `UPDATE`, and `DELETE` statements enforce
-the constraint, but it is not yet part of the visible schema. Only after every
-live node acknowledges that state does CamusDB scan the existing child rows and
-check them against the parent. A public constraint appears in
+In the write-only state, new writes check the constraint, but the constraint
+isn't in the visible schema yet. When all live nodes have acknowledged that
+state, CamusDB checks the existing child rows. A public constraint appears in
 `SHOW CREATE TABLE`.
 
-If the [leader](/docs/concepts#leader) (the node that coordinates schema
-changes) changes after the write-only state is published, the constraint
-can remain enforced but not yet public while the new leader finishes the
-validation. Creating a branch is refused during that window.
+If the [leader](/docs/concepts#leader), the node that coordinates schema
+changes, changes during this process, the new leader finishes the check. Until
+then, the constraint is enforced but not public, and you can't create a branch.
 
 Drop a foreign key by name:
 
@@ -150,30 +149,43 @@ Drop a foreign key by name:
 ALTER TABLE weather DROP CONSTRAINT weather_city_fk;
 ```
 
-A constraint without an explicit name gets a PostgreSQL-style generated name
-such as `weather_city_fkey`. `CHECK`, named `NOT NULL`, and `FOREIGN KEY`
-constraints share one namespace per table because `DROP CONSTRAINT` resolves a
-name across all three kinds.
+An unnamed constraint gets a generated name in the PostgreSQL style, such
+as `weather_city_fkey`. In a table, `CHECK`, named `NOT NULL`, and
+`FOREIGN KEY` constraints share one namespace.
 
 ## What is enforced
 
-Child-side writes must find the parent key:
+A write to the child table must find the parent key:
 
 ```camussql
 INSERT INTO weather (city) VALUES ('missing-city'); -- CADB0304
 ```
 
-Parent-side writes cannot remove a key that a child still references:
+A write to the parent table can't remove a key that a child row references:
 
 ```camussql
 DELETE FROM cities WHERE name = 'San Francisco'; -- CADB0305
-
-UPDATE cities
-SET name = 'SF'
-WHERE name = 'San Francisco'; -- CADB0306
 ```
 
-An update that does not change the referenced key does no foreign-key work:
+```text
+CamusException (CADB0305): Delete on table 'cities' violates foreign key constraint 'weather_city_fkey' on table 'weather': key (name)=(San Francisco) is still referenced from table 'weather'
+```
+
+```camussql
+UPDATE cities
+SET name = 'SF'
+WHERE name = 'San Francisco';
+```
+
+```text
+CamusException (CADB0400): Cannot update primary key column 'name': delete the row and insert it with the new key
+```
+
+Here the parent key is the primary key, and CamusDB doesn't allow updates of a
+primary key column. When the foreign key references a unique index, an update
+of a key that a child row references returns `CADB0306`.
+
+An update that doesn't change the referenced key does no foreign-key work:
 
 ```camussql
 UPDATE cities
@@ -181,17 +193,16 @@ SET population = 815000
 WHERE name = 'San Francisco';
 ```
 
-CamusDB uses `MATCH SIMPLE`: if any referencing column of a composite key is
-`NULL`, the row satisfies the constraint and no parent is read.
+CamusDB uses `MATCH SIMPLE`. If a referencing column of a composite key is
+`NULL`, the row satisfies the constraint, and CamusDB doesn't read the parent.
 
 `NO ACTION` and `RESTRICT` differ for an update that removes and recreates the
-same parent key within one statement. `NO ACTION` checks the statement's final
-state, so the update can pass if the key exists again when the statement ends.
-`RESTRICT` refuses the change as soon as the referenced key is removed. For a
-`DELETE`, both behave the same, because the key cannot come back within that
-delete.
+same parent key in one statement. `NO ACTION` checks the final state of the
+statement, and the update succeeds if the key exists again at the end.
+`RESTRICT` rejects the change when the referenced key is removed. For a
+`DELETE`, the two behave the same.
 
-## Supported and refused forms
+## Supported and unsupported forms
 
 | Form | Result |
 | --- | --- |
@@ -201,42 +212,50 @@ delete.
 | Self-reference | Accepted. |
 | `ON DELETE NO ACTION`, `ON UPDATE NO ACTION` | Accepted. This is the default. |
 | `ON DELETE RESTRICT`, `ON UPDATE RESTRICT` | Accepted. |
-| `CASCADE`, `SET NULL`, `SET DEFAULT` | Refused with `CADB0533`. |
+| `CASCADE`, `SET NULL`, `SET DEFAULT` | Returns `CADB0533`. |
 | `MATCH SIMPLE` | Accepted. It is the default. |
-| `MATCH FULL`, `MATCH PARTIAL` | Refused with `CADB0533`. |
-| `DEFERRABLE`, `INITIALLY DEFERRED` | Refused with `CADB0533`. |
-| Cycles across two or more tables | Refused with `CADB0416`. A self-reference is accepted. |
-| A parent in another database or in a source branch | Refused with `CADB0415`. |
-| A view or materialized view as parent or child | Refused with `CADB0415`. |
-| A parent table with row-level TTL | Refused with `CADB0533`. |
+| `MATCH FULL`, `MATCH PARTIAL` | Returns `CADB0533`. |
+| `DEFERRABLE`, `INITIALLY DEFERRED` | Returns `CADB0533`. |
+| Cycles across two or more tables | Returns `CADB0416`. A self-reference is accepted. |
+| A parent in another database or in a source branch | Returns `CADB0415`. |
+| A view or materialized view as parent or child | Returns `CADB0415`. |
+| A parent table with row-level TTL | Returns `CADB0533`. |
 
 The referenced columns must be exactly the columns of the parent's primary key
 or of a public unique index, in any order. Paired columns must have the same
-type, although `STRING(N)` lengths can differ.
+type. `STRING(N)` lengths can differ.
 
 ## Indexes on the child table
 
-Parent-side checks must find child rows without scanning the child table, so
-CamusDB needs an index on the referencing columns.
-
-If a suitable public index already exists on the child table, CamusDB reuses it.
-Otherwise it creates an owned non-unique index whose name starts with `~fk_`.
+A check on the parent side must find child rows quickly, and CamusDB needs an
+index on the referencing columns for this. If a suitable public index exists on
+the child table, CamusDB uses it. If not, it creates a non-unique index that
+belongs to the foreign key. Its name starts with `~fk_`.
 
 ```camussql
 SHOW INDEXES FROM weather;
 ```
 
-Owned foreign-key indexes appear in `SHOW INDEXES`. They do not appear in
-`SHOW CREATE TABLE`, because the foreign key recreates them. You cannot drop an
-owned index directly. Drop the foreign key instead.
+```text
+┌─────────┬────────────┬───────────────────────┬─────────┬─────────┬────────────┬────────────┬─────────┐
+│ Table   │ Non_unique │ Key_name              │ Columns │ Include │ Index_type │ Directions │ Comment │
+├─────────┼────────────┼───────────────────────┼─────────┼─────────┼────────────┼────────────┼─────────┤
+│ weather │ 0          │ ~pk                   │ id      │         │ ORDERED    │ ASC        │ null    │
+│ weather │ 1          │ ~fk_weather_city_fkey │ city    │         │ ORDERED    │ ASC        │ null    │
+└─────────┴────────────┴───────────────────────┴─────────┴─────────┴────────────┴────────────┴─────────┘
+2 rows in set (00:00:00.0245986)
+```
 
-If a foreign key reuses an index you created, `DROP CONSTRAINT` keeps that
-index. CamusDB refuses `DROP INDEX` on a reused backing index while the foreign
-key exists.
+A `~fk_` index appears in `SHOW INDEXES` but not in `SHOW CREATE TABLE`,
+because the foreign key creates it again. You can't drop it directly. Drop the
+foreign key.
 
-The backing index also sets the cost of parent-side checks. A parent `DELETE`
-or parent-key `UPDATE` probes the child index for the removed key instead of
-scanning the child table.
+If a foreign key uses an index that you created, `DROP CONSTRAINT` leaves that
+index in place. While the foreign key exists, `DROP INDEX` on that index returns
+an error.
+
+A `DELETE` of a parent row, or an `UPDATE` of a parent key, looks up the removed
+key in this index. CamusDB doesn't scan the child table.
 
 ## Introspection
 
@@ -246,24 +265,30 @@ scanning the child table.
 SHOW CREATE TABLE weather;
 ```
 
-The output includes `ON DELETE` and `ON UPDATE` only when the action is not
+```text
+┌─────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Table   │ Create Table                                                                                                                                                                               │
+├─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ weather │ CREATE TABLE `weather` ( `id` OID NOT NULL DEFAULT(gen_id()), `city` STRING(80) NULL, `temp_lo` INT64 NULL, `day` DATE NULL, PRIMARY KEY (`id`), CONSTRAINT `weather_city_fkey` FOREIGN    │
+│         │ KEY (`city`) REFERENCES `cities` (`name`));                                                                                                                                                │
+└─────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+1 rows in set (00:00:00.0257172)
+```
+
+The output includes `ON DELETE` and `ON UPDATE` only for an action other than
 `NO ACTION`:
 
 ```camussql
 CONSTRAINT `weather_city_fkey` FOREIGN KEY (`city`) REFERENCES `cities` (`name`)
 ```
 
-`SHOW CREATE TABLE ... WITHOUT INDEXES` keeps foreign keys, and its output can
-be run again as SQL.
-
-An owned backing index (name starting with `~fk_`) appears in `SHOW INDEXES`
-but not in `SHOW CREATE TABLE`. See
-[Indexes on the child table](#indexes-on-the-child-table).
+`SHOW CREATE TABLE ... WITHOUT INDEXES` includes the foreign keys, and you can
+run its output as SQL.
 
 ## Transactions and concurrency
 
-Foreign-key checks run inside the statement's transaction, so a statement in an
-explicit transaction sees that transaction's earlier writes:
+A foreign-key check is part of the transaction of the statement. In an explicit
+transaction, the check sees the earlier writes of that transaction:
 
 ```camussql
 BEGIN;
@@ -272,27 +297,24 @@ INSERT INTO weather (city) VALUES ('Bogota');
 COMMIT;
 ```
 
-When a child writer and a parent writer meet on the same key, CamusDB uses the
-parent's unique-index entry as the rendezvous point. A child writer takes a
-shared lock on the parent key until the transaction ends. A parent delete or key
-update waits for that lock or asks the transaction to retry.
-
-If you see `CADB0504` or `CADB0502` from this path, retry the whole transaction
-from `BEGIN`. See [Retries And Conflicts](/docs/serializable-retries).
+A child write takes a shared lock on the parent key until its transaction
+ends. A parent delete or key update on the same key waits for that lock, or it
+is asked to retry. If you get `CADB0504` or `CADB0502` in this case, retry the
+full transaction from `BEGIN`. See [Retries and conflicts](/docs/serializable-retries).
 
 After a foreign-key violation in an explicit transaction, roll back the
 transaction. The server rolls back an explicit transaction when one of its
-statements fails, and autocommit statements always roll back.
+statements fails. A failed autocommit statement is also rolled back.
 
 ### Adding a constraint while writers are active
 
-Avoid `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY` while long-running
-transactions are already writing the child table. A transaction that wrote an
-orphan before the constraint existed and commits after validation finishes can
-still commit that orphan, because the new constraint never checked its write.
+Don't run `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY` while long-running
+transactions write to the child table. A transaction can write an orphan row
+before the constraint exists and commit after the check is complete. The new
+constraint didn't check that write, and the orphan is committed.
 
-For a migration, quiesce child-table writers while adding the constraint, or run
-an orphan check after the migration:
+For a migration, stop the writers on the child table while you add the
+constraint, or check for orphans after the migration:
 
 ```camussql
 SELECT id
@@ -301,73 +323,77 @@ WHERE city IS NOT NULL
   AND city NOT IN (SELECT name FROM cities);
 ```
 
+```text
+0 rows in set (00:00:00.0167777)
+```
+
 ## Branches
 
-A database branch inherits foreign keys from its source, and the checks stay
-inside the branch:
+A database branch inherits the foreign keys of its source. The checks apply in
+the branch only:
 
-- a branch reads its own rows merged with its ancestors as of the fork point;
-- writes in the source after the fork do not affect checks in the branch;
-- writes in the branch do not affect checks in the source;
-- a branch cannot reference a table in its source database.
+- A branch checks its rows merged with the rows of its ancestors as of the
+  fork.
+- Writes in the source after the fork don't affect checks in the branch.
+- Writes in the branch don't affect checks in the source.
+- A branch can't reference a table in its source database.
 
-Creating a branch while a foreign key is still being added is refused. Wait for
-`ALTER TABLE ... ADD CONSTRAINT` to finish first.
+While a foreign key is being added, you can't create a branch. Wait for
+`ALTER TABLE ... ADD CONSTRAINT` to finish.
 
 See [Database Branching](/docs/database-branching).
 
 ## Schema changes blocked by foreign keys
 
-Some schema changes would leave a constraint pointing at an object that no
-longer exists. CamusDB refuses them with `CADB0530`
-`DependentObjectsExist`.
+A schema change that would remove an object that a constraint uses returns
+`CADB0530` `DependentObjectsExist`.
 
 | Operation | Result |
 | --- | --- |
-| `DROP TABLE` of a referenced parent | Refused. Drop the child table or the constraint first. |
+| `DROP TABLE` of a referenced parent | Not allowed. Drop the child table or the constraint first. |
 | `DROP TABLE` of a child | Accepted. Its foreign keys go with it. |
 | `DROP TABLE` of a table that references only itself | Accepted. |
-| `TRUNCATE` of a referenced parent | Refused. |
+| `TRUNCATE` of a referenced parent | Not allowed. |
 | `TRUNCATE` of a child | Accepted. |
-| `DROP COLUMN` of a referencing or referenced column | Refused. |
-| `DROP INDEX` of the referenced index or a reused backing index | Refused. |
+| `DROP COLUMN` of a referencing or referenced column | Not allowed. |
+| `DROP INDEX` of the referenced index or a reused backing index | Not allowed. |
 | `RENAME` of a table, column, or index | Accepted. The constraint tracks ids. |
 | `CREATE TABLE ... AS SELECT` | The new table gets no foreign key constraints. |
-| `CREATE TABLE ... RELINK TO` for a dropped child table | The recovered table comes back without its foreign keys. Add them again with `ALTER TABLE ... ADD CONSTRAINT`. |
+| `CREATE TABLE ... RELINK TO` for a dropped child table | The recovered table doesn't get its foreign keys back. Add them again with `ALTER TABLE ... ADD CONSTRAINT`. |
 
 ## Privileges
 
-Creating a foreign key requires `SELECT` on the parent table, with both
-`CREATE TABLE` and `ALTER TABLE ... ADD CONSTRAINT`. Because a child write can
-reveal whether a parent key exists, CamusDB requires the parent read privilege
-when the constraint is created. A self-reference needs no extra grant.
+To create a foreign key with `CREATE TABLE` or `ALTER TABLE ... ADD CONSTRAINT`,
+you need `SELECT` on the parent table. A self-reference doesn't need an extra
+grant.
 
 There is no separate `REFERENCES` privilege.
 
 ## Cost and diagnostics
 
-Foreign-key enforcement is designed around point operations:
+Foreign-key checks use point lookups:
 
-- when no table in the database has a foreign key, DML takes the normal path;
-- a child write does one lock per distinct parent key in the transaction, then
-  reads the parent keys in a batch;
-- a parent delete or parent-key update probes the child index for each removed
-  key;
-- `ADD CONSTRAINT` validates distinct child keys in batches.
+- If no table in the database has a foreign key, writes don't do any
+  foreign-key work.
+- A child write takes one lock for each distinct parent key in the
+  transaction. Then it reads the parent keys in a batch.
+- A parent delete or parent key update looks up each removed key in the child
+  index.
+- `ADD CONSTRAINT` checks the distinct child keys in batches.
 
 With server diagnostics enabled, `SHOW ENGINE STATS` includes
-`camus.foreign_key.operations`, tagged by the kind of work. The tags include
-lock acquisition, parent and child probes, validation keys, and violations.
+`camus.foreign_key.operations`, with a tag for each kind of work, such as lock
+acquisition, parent and child lookups, and violations.
 
 ## Error codes
 
 | Code | Name | When it is generated |
 | --- | --- | --- |
-| `CADB0304` | `ForeignKeyViolation` | A child `INSERT` or `UPDATE` has no parent, or `ADD CONSTRAINT` finds an existing row without a parent. |
-| `CADB0305` | `ForeignKeyRestrictDelete` | A `DELETE` removes a parent key that a child still holds. |
-| `CADB0306` | `ForeignKeyRestrictUpdate` | An `UPDATE` changes a parent key that a child still holds. |
+| `CADB0304` | `ForeignKeyViolation` | A child `INSERT` or `UPDATE` has no parent, or `ADD CONSTRAINT` finds an existing row that has no parent. |
+| `CADB0305` | `ForeignKeyRestrictDelete` | A `DELETE` removes a parent key that a child row references. |
+| `CADB0306` | `ForeignKeyRestrictUpdate` | An `UPDATE` changes a parent key that a child row references. |
 | `CADB0415` | `InvalidForeignKeyDefinition` | The foreign key references an invalid target: wrong count or type, no matching primary key or unique index, a view, a materialized view, or another database. |
 | `CADB0416` | `ForeignKeyCycle` | The new constraint would create a cycle across two or more tables. |
 | `CADB0517` | `InsufficientPrivilege` | The caller lacks `SELECT` on the parent table. |
 | `CADB0530` | `DependentObjectsExist` | A schema change would remove something a foreign key depends on. |
-| `CADB0533` | `FeatureNotSupported` | The statement uses a foreign-key form CamusDB does not implement yet. |
+| `CADB0533` | `FeatureNotSupported` | The statement uses a foreign-key form that CamusDB doesn't support yet. |

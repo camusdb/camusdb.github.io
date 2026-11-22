@@ -4,46 +4,38 @@ sidebar_position: 7.3
 
 # camus-dump
 
-`camus-dump` is a logical backup utility for CamusDB. It connects to a
-database, reads the schema metadata, sequences, indexes, rows, and (when
-requested) users, and writes them out as SQL. You can replay that SQL later
-through `camus-cli` or another CamusDB SQL client.
+`camus-dump` is a logical backup utility for CamusDB. It reads a database and
+writes its schema and rows as SQL. It can also write the users and their
+grants. You can load that SQL later with
+`camus-cli` or another CamusDB SQL client.
 
-The output writes exact literals for CamusDB values, including `NUMERIC`, `BYTES`,
-full-precision floats, and sub-millisecond `DATETIME` values.
+The dump writes exact literals for CamusDB values, for example for `NUMERIC`
+values and full-precision floats.
 
-By default, the dump is consistent across tables: it fixes one instant when it
-starts and reads every table as of that instant. Read
-[Point in time](#point-in-time) before you turn that behavior off.
+By default, the dump is consistent across tables. It fixes one instant when it
+starts, and it reads all the tables as of that instant. Read
+[Point in time](#point-in-time) before you turn off that behavior.
 
 ## Choose a dump or a physical backup
 
-Use `camus-dump` when you want readable SQL: a logical backup you can inspect, a
-table export, a dump for review or source control, or a copy you replay through
-ordinary CamusSQL on another system. The data set must be small enough to replay
-in a reasonable time.
+Use `camus-dump` when you want readable SQL, for example to review a database
+or to copy data to another system through ordinary CamusSQL. The data must be small enough to load again in a reasonable time.
 
 For disaster recovery, or for a database of tens of gigabytes or more, use
-[Backup and restore](/docs/backup-and-restore) instead. Its physical backup
-covers a whole node, restores to a chosen point in time, and avoids replaying
-every row. [Physical backups versus logical dumps](/docs/backup-and-restore#physical-backups-versus-logical-dumps)
-explains why a dump does not scale for recovery.
+[Backup and restore](/docs/backup-and-restore). A physical backup covers a full
+node, and it can restore to a chosen point in time without loading each row
+again. For more information, see
+[Physical backups versus logical dumps](/docs/backup-and-restore#physical-backups-versus-logical-dumps).
 
 ## Install
 
-Install the global tool:
+Install the global tool. It needs the .NET 10 SDK:
 
 ```bash
 dotnet tool install --global CamusDB.Dump
 ```
 
-The tool requires the .NET 10 SDK.
-
-The executable name is:
-
-```bash
-camus-dump
-```
+The command is `camus-dump`.
 
 ## Basic usage
 
@@ -53,7 +45,7 @@ Dump a database to standard output:
 camus-dump --endpoint http://localhost:5096 --database factory
 ```
 
-Dump one table, group 100 rows per `INSERT`, and write to a file:
+Dump one table with 100 rows in each `INSERT`, and write it to a file:
 
 ```bash
 camus-dump \
@@ -64,8 +56,8 @@ camus-dump \
   --output orders.sql
 ```
 
-Dump the database as it was five minutes ago, replayable onto an existing
-schema:
+Dump the database as it was five minutes ago, in a form that you can load into
+an existing schema:
 
 ```bash
 camus-dump \
@@ -76,7 +68,7 @@ camus-dump \
   --output factory.sql
 ```
 
-Dump every database on the server, one file each:
+Dump each database on the server to a separate file:
 
 ```bash
 camus-dump \
@@ -85,7 +77,7 @@ camus-dump \
   --output-directory backup/
 ```
 
-Dump a compressed SQL file:
+Dump to a compressed file:
 
 ```bash
 camus-dump \
@@ -94,27 +86,25 @@ camus-dump \
   --output factory.sql.gz
 ```
 
-The `.gz` extension selects gzip automatically. You can also pass
-`--compress gzip` and pipe the compressed stream to another command.
+The `.gz` extension selects gzip. You can also pass `--compress gzip`, and pipe
+the compressed stream to another command.
 
 By default, `camus-dump` uses gRPC at `http://localhost:5096`, the default
-CamusDB client gRPC port.
-
-To use REST with JSON instead, pass `--protocol rest` with the REST endpoint.
+CamusDB gRPC port. To use REST, pass `--protocol rest` with the REST endpoint.
 
 ## Connection options
 
 | Option | Description |
 | --- | --- |
-| `-c`, `--connection-source` | Full connection string. Other connection options fill in keys that the connection string does not already set. |
-| `-e`, `--endpoint` | Server endpoint or comma-separated endpoint pool. Defaults to `http://localhost:5096`. |
-| `-d`, `--database` | Database to dump. Defaults to `test`. |
-| `-A`, `--all-databases` | Dump every database on the server. |
-| `-X`, `--exclude-database` | With `--all-databases`, skip these databases. Accepts comma-separated names or repeated options. |
-| `--protocol` | `grpc` by default, or `rest`. The endpoint port must match the selected protocol. Pointing REST at the gRPC port fails with *an HTTP/1.x request was sent to an HTTP/2 only endpoint*. |
-| `--timeout` | Per-statement timeout in seconds. Defaults to `10`. |
+| `-c`, `--connection-source` | A full connection string. The other connection options fill in the keys that the connection string doesn't set. |
+| `-e`, `--endpoint` | The server endpoint, or a comma-separated endpoint pool. Default `http://localhost:5096`. |
+| `-d`, `--database` | The database to dump. Default `test`. |
+| `-A`, `--all-databases` | Dump all the databases on the server. |
+| `-X`, `--exclude-database` | With `--all-databases`, skip these databases. Use comma-separated names, or repeat the option. |
+| `--protocol` | `grpc` (default) or `rest`. The endpoint port must match the protocol. REST on the gRPC port returns *An HTTP/1.x request was sent to an HTTP/2 only endpoint*. |
+| `--timeout` | The timeout for each statement, in seconds. Default `10`. |
 
-Example with a connection string:
+For example, with a connection string:
 
 ```bash
 camus-dump \
@@ -123,21 +113,21 @@ camus-dump \
 
 ## Authentication
 
-CamusDB authentication is off by default. Against a server with
-authentication, pass credentials or a bearer token:
+CamusDB authentication is off by default. If authentication is on, pass
+credentials or a bearer token:
 
 ```bash
 CAMUSDB_PASSWORD=app-secret \
 camus-dump -e https://camus.internal:5096 -d factory -u app
 ```
 
-Prompt for the password:
+To type the password at a prompt:
 
 ```bash
 camus-dump -e https://camus.internal:5096 -d factory -u app --ask-password
 ```
 
-Use a token obtained elsewhere:
+To use a token from another source:
 
 ```bash
 CAMUSDB_ACCESS_TOKEN="camus_..." \
@@ -146,43 +136,38 @@ camus-dump -e https://camus.internal:5096 -d factory
 
 | Option | Description |
 | --- | --- |
-| `-u`, `--user` | User to authenticate as. |
-| `-p`, `--password` | User password. Prefer `CAMUSDB_PASSWORD` or `--ask-password` so the password does not appear in the process list. |
-| `-W`, `--ask-password` | Prompt for the password on the terminal. |
-| `--access-token` | Bearer token obtained elsewhere, used instead of logging in. Prefer the `CAMUSDB_ACCESS_TOKEN` environment variable so the token does not appear in the process list. |
-| `--token-lifetime` | Seconds to reuse a minted token when the server reports no expiry. Defaults to `600`. |
+| `-u`, `--user` | The user to sign in as. |
+| `-p`, `--password` | The password. Other processes can see a password on the command line. Use `CAMUSDB_PASSWORD` or `--ask-password`. |
+| `-W`, `--ask-password` | Type the password at a prompt. |
+| `--access-token` | A bearer token from another source. Other processes can see it on the command line. Use `CAMUSDB_ACCESS_TOKEN`. |
+| `--token-lifetime` | How long to reuse a token, in seconds, when the server doesn't give an expiry. Default `600`. |
 
-The utility exchanges the password once for a short-lived bearer token.
-Statements then use the token, not the password.
+The utility exchanges the password once for a short-lived bearer token. Later
+statements send the token. Over gRPC, the sign-in uses the `CamusAuth` service
+on the same channel. The user needs the privileges for the `SHOW` and `SELECT`
+statements that the dump executes.
 
-Over gRPC, authentication uses the `CamusAuth` service, on the same channel as
-the dump's queries.
+Beyond loopback, use an `https://` address. While TLS is required, a request
+with credentials over HTTP without TLS returns an error, except from loopback.
+If a VPN or an SSH tunnel protects the link, pass
+`-c "AllowInsecureCredentials=true"` to send credentials over that link.
 
-The dump reads the schema and table data. While authentication is enabled, the
-user needs privileges for the relevant `SHOW` and `SELECT` operations.
-
-For an authenticated deployment beyond loopback, use an `https://` address.
-While TLS is required, CamusDB rejects plaintext requests with credentials from
-outside loopback. If a VPN or SSH tunnel already protects the
-link, pass `-c "AllowInsecureCredentials=true"` to allow credentials over that
-plaintext hop.
-
-## Choosing what to dump
+## Choose what to dump
 
 | Option | Description |
 | --- | --- |
-| `-t`, `--table` | Dump only these tables. Accepts comma-separated names or repeated options. |
-| `-x`, `--exclude-table` | Skip these tables. Accepts comma-separated names or repeated options. |
-| `-w`, `--where` | Dump only rows matching this condition. It applies to every dumped table. The text is raw SQL that the dump appends after `WHERE` unchanged, so never build it from untrusted input. |
-| `--as-of` | Read every table as of this point in time. |
-| `--no-as-of` | Read the latest committed data instead. |
-| `--all-users` | Also export every account and grant, including server-level `MONITOR` grants. Requires a superuser and a server with `SHOW USERS` and `SHOW GRANTS FOR *`. |
-| `--users` | Also export these accounts and their grants. Use this for older servers or for a subset of accounts. |
-| `--no-create-table` | Do not emit `CREATE TABLE`. |
-| `--no-data` | Do not emit `INSERT`. |
-| `--no-indexes` | Do not emit secondary index DDL. |
+| `-t`, `--table` | Dump these tables only. Use comma-separated names, or repeat the option. |
+| `-x`, `--exclude-table` | Skip these tables. Use comma-separated names, or repeat the option. |
+| `-w`, `--where` | Dump only the rows that match this condition, in each dumped table. The text is added after `WHERE` as raw SQL. Don't build it from untrusted input. |
+| `--as-of` | Read all the tables as of this point in time. |
+| `--no-as-of` | Read the latest committed data. |
+| `--all-users` | Also export all the accounts and grants, including `MONITOR` grants. Needs a superuser, and a server with `SHOW USERS` and `SHOW GRANTS FOR *`. |
+| `--users` | Also export these accounts and their grants. Use it for older servers, or for some of the accounts. |
+| `--no-create-table` | Don't write `CREATE TABLE`. |
+| `--no-data` | Don't write `INSERT`. |
+| `--no-indexes` | Don't write the secondary index DDL. |
 
-Example:
+For example:
 
 ```bash
 camus-dump -e http://localhost:5096 -d factory \
@@ -191,146 +176,132 @@ camus-dump -e http://localhost:5096 -d factory \
   --output open-orders.sql
 ```
 
-## Dumping every database
+## Dump all databases
 
-`--all-databases` lists the server's databases with `SHOW DATABASES` and dumps
-each one in turn, skipping any that `--exclude-database` names:
+`--all-databases` lists the databases with `SHOW DATABASES`, and dumps them one
+at a time. It skips the databases that `--exclude-database` names:
 
 ```bash
-# Every database, as one stream of sections
+# All databases, in one stream of sections
 camus-dump -A -o server.sql
 
-# Every database except two, one file per database
+# All databases except two, in one file for each database
 camus-dump -A -X scratch,tempdb --output-directory backup/
 ```
 
-The utility reads every database as of the same instant, which it fixes once
-before the first statement is sent.
+The utility reads all the databases as of the same instant. It fixes that
+instant once, before the first statement. However, `--single-transaction`
+reads each database in a separate transaction. This means that each database
+is consistent, but the databases don't share one snapshot.
 
-`--single-transaction` is the exception. A transaction belongs to a connection,
-and each database gets its own connection, so this option makes each database
-internally consistent but does not bind them to one common snapshot.
+Each section starts with `CREATE DATABASE IF NOT EXISTS` and `USE`. This means
+that one file can restore all the databases. `USE` isn't server SQL, and the
+server returns an error for it. The client reads it and sends the next
+statements to that database. `camus-cli` understands `USE`.
 
-Each section opens with `CREATE DATABASE IF NOT EXISTS` and `USE`, with or
-without `--create-database`, so one file restores every database in turn.
-
-`USE` is not server SQL; the CamusDB parser rejects it. The client reads it and
-points the following statements at that database, which is why `camus-cli`
-accepts the whole file.
-
-If your client does not understand `USE`, dump with `--output-directory`. The
-utility then writes one `<database>.sql` per database. Each file replays on its
-own, with `-d` naming its target.
+With `--output-directory`, the utility writes one `<database>.sql` file for
+each database. Each file also starts with `CREATE DATABASE IF NOT EXISTS` and
+`USE`. If your client doesn't understand `USE`, dump each database with `-d`
+and without `--create-database`. That file doesn't have `USE`, and you load it
+over a connection to the target database.
 
 The other options apply to each database. `-t` and `-x` match table names in
-every database, and `-w` filters the rows of every table it applies to.
-
-If a condition references a column that only some tables have, it fails on the
-other tables.
+all the databases, and `-w` filters the rows of each table. A condition on a
+column that only some tables have fails on the other tables.
 
 ## Point in time
 
-By default, the dump does not read the latest data. When it starts, it fixes an
-instant one second behind the wall clock, to stay clear of the server clock,
-and reads every table with CamusDB's
-[`AS OF SYSTEM TIME`](/docs/time-travel-reads) clause.
+By default, the dump doesn't read the latest data. When it starts, it fixes an
+instant one second behind the clock, and it reads each table with
+[`AS OF SYSTEM TIME`](/docs/time-travel-reads). This means that a write in the
+last second before the dump isn't in it.
 
-Without that default, a user could write a row between the scans of the first
-and last tables. That row would land in the dump, but the rows it references,
-in a table the dump already wrote, would not. The dump would then restore a
-state the database never held.
+Without a fixed instant, a user could write a row between the scans of the
+first and the last table. That row would be in the dump, but a row that it
+references, in a table that was already dumped, might not be. The dump would
+then restore a state that the database didn't have.
 
-The utility records the instant in the dump header, so you can repeat a dump
-exactly:
+The dump header records the instant. You can use it to repeat the dump:
 
 ```text
 -- Point in time: 2026-07-29 19:15:35.277+00:00
 -- Rows read with AS OF SYSTEM TIME '2026-07-29 19:15:35.277+00:00'; table definitions and indexes are current.
 ```
 
-`--as-of` selects a different instant, in any form the server accepts:
+To select a different instant, use `--as-of`:
 
 ```bash
 # Five minutes ago
 camus-dump -d factory --as-of -5m
 
-# An absolute UTC instant, for example the one a previous dump recorded
+# An absolute UTC instant, for example the one that a previous dump recorded
 camus-dump -d factory --as-of "2026-07-29 19:15:35.277+00:00"
 
 # Unix epoch milliseconds
 camus-dump -d factory --as-of 1721420000000
 ```
 
-Offsets take `ms`, `s`, `m`, `h`, and `d`, and must be negative.
+An offset must be negative. Its unit can be milliseconds (`ms`) up to days
+(`d`), for example `-30s` or `-2h`.
+The utility converts it to an absolute instant once, before the first
+statement. This means that all the tables share one snapshot.
 
-The utility resolves a relative offset to an absolute instant once, before the
-first statement is sent, instead of passing the offset through. Otherwise the
-server would evaluate the offset again for each table, and the tables would not
-share a snapshot.
+Note the following:
 
-Keep in mind:
-
-- Rows only. `SHOW CREATE TABLE` and `SHOW INDEXES` have no time-travel
-  form, so the schema in the dump is the current one. A table created after the
-  chosen instant appears with its definition and no rows.
-- Foreign keys are part of `SHOW CREATE TABLE`. A child row from the chosen
-  instant can fail to load if its parent row is no longer present in the dumped
-  snapshot. The dump orders tables and rows by the foreign keys it can see, but
-  it cannot restore a parent row that was not included in the snapshot.
-- Retention bounds how far back you can look. An instant older than the
-  history the storage layer still keeps reads as empty rather than as an error.
-- `--single-transaction` replaces it. CamusDB rejects `AS OF SYSTEM TIME`
-  inside an explicit transaction, which is already pinned to one snapshot.
-  Passing `--single-transaction` turns the default off; passing it together with
-  `--as-of` is an error.
-- `--no-as-of` reads the latest committed data, with no consistency
-  guarantee across tables.
+- Only the rows are historical. `SHOW CREATE TABLE` and `SHOW INDEXES` don't
+  have a time-travel form. This means that the schema in the dump is the
+  current one. A
+  table created after the instant is in the dump without rows.
+- A child row from the instant can fail to load if its parent row isn't in the
+  snapshot. The dump orders tables and rows by their foreign keys. However, it
+  can't add a parent row that isn't in the snapshot.
+- The retention of old row versions limits how far back you can read. By
+  default, it is one hour. An instant older than the retained history returns
+  `CADB0847`, and the dump prints a hint. For more information, see
+  [Time-travel reads](/docs/time-travel-reads).
+- `--single-transaction` replaces the fixed instant. CamusDB doesn't accept
+  `AS OF SYSTEM TIME` in an explicit transaction, which already reads from one
+  snapshot. `--single-transaction` with `--as-of` is an error.
+- `--no-as-of` reads the latest committed data, and the tables don't share a
+  snapshot.
 
 ## Shaping the output
 
 | Option | Description |
 | --- | --- |
-| `-b`, `--batch` | Rows per `INSERT` statement. Defaults to `100`. |
-| `-o`, `--output` | Write to a file instead of standard output. |
-| `--output-directory` | Write one `<database>.sql` file per database into this directory, creating it if missing. Cannot be combined with `-o`. |
-| `-z`, `--compress` | `gzip` or `none`. Defaults to `gzip` when the `--output` file name ends in `.gz`. With `--output-directory`, gzip names files `<database>.sql.gz`. |
-| `--defer-indexes` | Emit each table's `CREATE INDEX` statements after its data. |
-| `--add-drop-table` | Emit `DROP TABLE IF EXISTS` before each `CREATE TABLE`. |
-| `--if-not-exists` | Emit `CREATE TABLE IF NOT EXISTS`, useful when replaying onto an existing schema. |
-| `--create-database` | Emit `CREATE DATABASE IF NOT EXISTS` for the dumped database, followed by `USE`. Implied by `--all-databases`. |
-| `--single-transaction` | Read every table from one lock-free Serializable snapshot instead of a fixed past instant. |
-| `--strict` | Fail instead of emitting `NULL` for values that have no exact SQL literal. |
-| `--no-header` | Omit the leading comment header. |
-| `--no-progress` | Hide progress bars on standard error when writing to `--output` or `--output-directory`. |
+| `-b`, `--batch` | The rows in each `INSERT` statement. Default `100`. |
+| `-o`, `--output` | Write to a file, in place of standard output. |
+| `--output-directory` | Write one `<database>.sql` file for each database into this directory. The directory is created if it doesn't exist. Can't be used with `-o`. |
+| `-z`, `--compress` | `gzip` or `none`. The default is `gzip` when the `--output` file name ends in `.gz`. With `--output-directory`, gzip files are named `<database>.sql.gz`. |
+| `--defer-indexes` | Write the `CREATE INDEX` statements of each table after its rows. |
+| `--add-drop-table` | Write `DROP TABLE IF EXISTS` and `DROP SEQUENCE IF EXISTS` before the first `CREATE`. |
+| `--if-not-exists` | Write `CREATE TABLE IF NOT EXISTS`, to load into an existing schema. |
+| `--create-database` | Write `CREATE DATABASE IF NOT EXISTS` and `USE` for the dumped database. `--all-databases` does this by default. |
+| `--single-transaction` | Read all the tables from one Serializable snapshot of the present, in place of a fixed past instant. The read takes no locks. |
+| `--strict` | Fail, in place of writing `NULL`, for a value that doesn't have an exact SQL literal. |
+| `--no-header` | Don't write the comment header. |
+| `--no-progress` | Don't show progress bars on standard error when you write to `--output` or `--output-directory`. |
 
-`--single-transaction` replaces the default point-in-time read rather than
-adding to it. Both give a snapshot that is consistent across tables.
+You should start with `--batch 100` for a restore. One row in each `INSERT` is
+usually much slower. A very large batch can reach the transaction mutation
+limit, or the message-size limit of the transport on wide tables.
 
-Use it when you want the dump pinned to the present moment. The default pins the
-dump to a fixed instant in the past.
+`--defer-indexes` loads the rows of a table before it builds the secondary
+indexes. It can help a table with one secondary index. For a table with several
+indexes, it can be slower. Each deferred index build scans the table.
+Keep the target out of service until the deferred indexes are built. If the
+source server doesn't support `SHOW CREATE TABLE ... WITHOUT INDEXES`,
+`--defer-indexes` prints a warning and can't defer the inline indexes.
 
-Use `--batch 100` as a starting point for a restore. One row per `INSERT` is
-usually much slower, while very large batches can hit the transaction mutation
-limit or the transport message-size limit on wide tables.
+When you write to a file or a directory, progress bars are shown on standard
+error. Standard output is for the SQL only.
 
-`--defer-indexes` loads the table data before building secondary indexes. It can
-help for a table with one secondary index, but it is not automatically faster
-for a table with several indexes because each deferred index build scans the
-table. Keep the target out of service until deferred indexes are built. If the
-source server is too old to support `SHOW CREATE TABLE ... WITHOUT INDEXES`,
-`--defer-indexes` warns and cannot defer inline indexes.
-
-When writing to a file or an output directory, the utility shows progress bars
-on standard error. Standard output stays reserved for the SQL dump. Use
-`--no-progress` for scripts that need quiet stderr.
-
-Output files are created readable and writable by their owner only. A path that
-is already a symbolic link is refused instead of followed.
+Output files are readable and writable by their owner only. If the output path
+is a symbolic link, the dump returns an error, and it doesn't follow the link.
 
 ## Users and grants
 
-`camus-dump` can export accounts and grants in addition to databases, tables,
-sequences, indexes, and rows:
+`camus-dump` can also export accounts and grants:
 
 ```bash
 camus-dump -e https://db1.internal:5096 -u admin -A --all-users \
@@ -341,16 +312,14 @@ camus-dump -e https://db1.internal:5096 -u admin -d shop \
 ```
 
 `--all-users` uses `SHOW USERS` and `SHOW GRANTS FOR *`. It needs a superuser
-and a server that supports those statements. `--users` reads the named accounts
-with `SHOW GRANTS FOR name`, which also works against older servers that cannot
-list every account.
+and a server that supports those statements. `--users` reads each named account
+with `SHOW GRANTS FOR name`. This also works with older servers that can't list
+all the accounts.
 
-The export is split into two logical blocks. `CREATE USER IF NOT EXISTS` runs
-before the data, because a grant needs its account. `GRANT` statements run after
-the data, because object grants resolve databases and tables.
-
-With `--output-directory`, those blocks are written as `users.sql` and
-`grants.sql`:
+The export has two parts. `CREATE USER IF NOT EXISTS` statements come before
+the data, and `GRANT` statements come after it. A grant needs its account, and
+also its database and table. With `--output-directory`,
+the two parts are `users.sql` and `grants.sql`. Load them in this order:
 
 ```bash
 camus-cli -c "Endpoint=http://db1.internal:5095;Database=test" -f backup/users.sql
@@ -358,31 +327,37 @@ camus-cli -c "Endpoint=http://db1.internal:5095;Database=test" -f backup/shop.sq
 camus-cli -c "Endpoint=http://db1.internal:5095;Database=test" -f backup/grants.sql
 ```
 
-Passwords are not exported, because the server stores password verifiers rather
-than cleartext passwords. A restored account cannot log in until you set a new
-password with `ALTER USER name IDENTIFIED BY '...'`. Superuser status is not
-exported either; it is a bootstrap property, not a grant.
+Passwords aren't exported. The server stores password verifiers only. A
+restored account can't sign in until you set a new password with
+`ALTER USER name IDENTIFIED BY '...'`. Superuser status isn't exported either.
+It is a property of the bootstrap user, not a grant.
 
 ## Dump contents
 
-Depending on your options, the dump can include:
+A dump can have the following statements, in this order:
 
-- optional header comments, including the point in time the rows were read at
-- `CREATE USER IF NOT EXISTS` statements for exported accounts
-- `CREATE DATABASE IF NOT EXISTS` followed by `USE`
-- `DROP TABLE IF EXISTS`
-- `CREATE SEQUENCE` statements
-- `CREATE TABLE` statements
-- `INSERT INTO` statements
-- `SELECT setval(...)` statements for sequence positions
-- secondary `CREATE INDEX IF NOT EXISTS` statements
-- `GRANT` statements for exported accounts
+1. Header comments, with the point in time of the rows.
+2. `CREATE USER IF NOT EXISTS` for exported accounts.
+3. `CREATE DATABASE IF NOT EXISTS` and `USE`.
+4. `CREATE EXTENSION` for installed extensions, and `CREATE FUNCTION` for
+   inline C# functions.
+5. `DROP TABLE IF EXISTS` and `DROP SEQUENCE IF EXISTS`, with
+   `--add-drop-table`.
+6. `CREATE SEQUENCE`, each followed by `SELECT setval(...)` for its position.
+7. The tables. A table has its `CREATE TABLE`, then its
+   `CREATE INDEX IF NOT EXISTS` statements, then its rows. With
+   `--defer-indexes`, the indexes come after the rows.
+8. `CREATE TRIGGER`, after all the rows. This means that the load doesn't fire
+   the triggers.
+9. `GRANT` for exported accounts.
+10. A `-- Dump completed` comment.
 
-The dump does not include views or materialized views. Record them with
-`SHOW CREATE VIEW` and `SHOW CREATE MATERIALIZED VIEW`, and recreate them after
-the load. See [Logical dump and reimport](/docs/logical-dump-and-reimport).
+The dump doesn't include views or materialized views. Record them with
+`SHOW CREATE VIEW` and `SHOW CREATE MATERIALIZED VIEW`, and create them again
+after the load. For more information, see
+[Logical dump and reimport](/docs/logical-dump-and-reimport).
 
-Typical shape:
+A dump has the following shape:
 
 ```camussql
 CREATE DATABASE IF NOT EXISTS factory;
@@ -402,111 +377,110 @@ VALUES
 
 ## Literal encoding
 
-`camus-dump` writes each value as a CamusSQL literal that parses back to the
-same stored value:
+`camus-dump` writes each value as a CamusSQL literal that gives the same stored
+value when it is loaded:
 
 | Type | Dump form |
 | --- | --- |
 | `OID` | `STR_ID('...')` |
-| `STRING` | Plain `'...'` when possible, or `E'...'` for control characters |
-| `INT64` | Integer literal |
-| `FLOAT64`, `FLOAT32` | Numeric literal |
-| `NUMERIC` | `NUMERIC '...'` exact typed literal |
+| `STRING` | `'...'`, or `E'...'` if the string has a backslash or a control character |
+| `INT64` | An integer literal |
+| `FLOAT64`, `FLOAT32` | A numeric literal with all its digits |
+| `NUMERIC` | `NUMERIC '...'`, an exact typed literal |
 | `BOOL` | `true` or `false` |
-| `BYTES` | `X'...'` hex bytes literal |
-| `DATE` | Quoted `yyyy-MM-dd` string |
-| `DATETIME` | Quoted ISO-8601 datetime string, including the seventh fractional digit when needed |
-| `UUID` | Quoted canonical UUID string |
+| `BYTES` | `X'...'`, a hex literal |
+| `DATE` | A quoted `yyyy-MM-dd` string |
+| `DATETIME` | A quoted ISO 8601 string, with seven fractional digits when needed |
+| `UUID` | A quoted canonical UUID string |
+| `JSONB` | `JSONB '...'` |
 | `ARRAY` | `ARRAY[...]` |
 | `NULL` | `NULL` |
 
-Strings round-trip unchanged, even when they contain backslashes, a trailing
-backslash, either kind of quotation mark, newlines, or NUL characters. See
-[Data Types](/docs/data-types#string-literals) for the literal rules.
+A string with special characters, such as backslashes or NUL characters, is
+loaded back unchanged. For the literal rules, see
+[Data types](/docs/data-types#string-literals).
 
-The dump writes each index twice: inline in the `CREATE TABLE`, and as a
-separate `CREATE INDEX IF NOT EXISTS` statement. Index definitions include their
-per-column sort direction and comment when the source server reports them.
+The dump writes each index twice: in the `CREATE TABLE`, and as a separate
+`CREATE INDEX IF NOT EXISTS` statement. An index definition has the sort
+direction and the comment of each column, if the source server returns them.
+This means that the indexes are in the dump also with `--no-create-table`, and
+that `--defer-indexes` can build them after the rows.
 
-That repetition keeps index definitions available with `--no-create-table`, and
-lets `--defer-indexes` build the indexes after the rows load.
+For [expression indexes](/docs/sql-indexes#expression-indexes), use a version
+of camus-dump that reads the `Key` column from `SHOW INDEXES`. Older versions
+stop with an error when they encounter an expression key.
 
 ## Sequences and identity values
 
-The dump restores sequences and the positions they reached.
+The dump restores the sequences and their positions.
 
-Free-standing sequences are created before tables, because a table default can
-draw from one. Identity and `serial` columns create their owned sequences
-through `CREATE TABLE`; after the table, the dump restores any source-specific
-sequence options, comments, and names that differ from the identity default.
+Free-standing sequences come before the tables. A column default can use
+one. Each `CREATE SEQUENCE` is followed by `SELECT setval('name', n)`,
+which restores its position. Identity and `serial` columns create their
+sequences through `CREATE TABLE`. Their `setval` comes after the rows of the
+table.
 
-After rows are loaded, `SELECT setval('name', n)` restores each sequence
-position. Rows are inserted with explicit values, and explicit values do not
-advance a sequence. Without `setval`, a restored sequence could hand out values
-that restored rows already hold.
+The rows are inserted with explicit values, which don't move a sequence.
+Without `setval`, a restored sequence could return values that restored rows
+already have. Note that each `setval` takes about five seconds. It waits for
+the storage lease. A dump with many sequences takes longer to load.
+For more information, see [Sequences](/docs/sequences).
 
-`GENERATED ALWAYS AS IDENTITY` normally refuses a supplied value. Dumped
-`INSERT` statements for such tables use `OVERRIDING SYSTEM VALUE`, so restored
-rows keep their identity values.
+`GENERATED ALWAYS AS IDENTITY` normally doesn't accept a supplied value. The
+`INSERT` statements for such tables use `OVERRIDING SYSTEM VALUE`. This means
+that the restored rows keep their identity values.
 
-Sequence definitions and positions are current when the dump starts, not
-time-traveled with `--as-of`, because the server does not expose historical
-sequence metadata. `--no-create-table` leaves out `CREATE SEQUENCE`, and
-`--no-data` leaves out sequence positions.
+The sequence definitions and positions are current when the dump starts. They
+aren't historical with `--as-of`. The server doesn't keep the history of
+sequences. `--no-create-table` leaves out `CREATE SEQUENCE`, and `--no-data`
+leaves out the positions.
 
 ## Foreign keys
 
-`camus-dump` orders tables and rows so a restore can satisfy foreign keys in one
-pass.
+`camus-dump` orders tables and rows so that a restore can check all the foreign
+keys in one pass.
 
-Tables are written after the tables they reference. With `--add-drop-table`,
-drops are written in the opposite direction: child tables before parents.
+A table is written after the tables that it references. With
+`--add-drop-table`, the drops are in the opposite order: child tables before
+their parents.
 
-For a self-referencing table, parent rows are written before child rows when
-that order exists. Rows that reference each other in a cycle cannot be restored
-as separate statements in any order, so the utility writes them together in one
-`INSERT` at the end of the table and prints a warning.
+In a self-referencing table, parent rows are written before their child rows.
+Rows that reference each other in a cycle can't be loaded with separate
+statements. The utility writes them together in one `INSERT` at the end of the
+table, and prints a warning. That `INSERT` doesn't follow `--batch`.
 
-When `--table`, `--exclude-table`, or `--where` leaves out a referenced parent
-table or parent row, the restore may still need that parent to exist already.
-The utility warns when a dumped table references a table excluded by the table
-filters.
+If a filter, such as `--table` or `--where`, leaves out a parent table or a
+parent row, the parent must already exist on the target. The utility prints a
+warning when a dumped table references a table that the table filters exclude.
 
 ## Lossy values
 
-Most stored values have an exact SQL literal form. `camus-dump` reports any
-value it cannot restore exactly.
+Most stored values have an exact SQL literal. `camus-dump` prints a warning for
+each value that it can't restore exactly.
 
-Non-finite floats are preserved as casts, for example
-`CAST('NaN' AS FLOAT64)` or `CAST('-Infinity' AS FLOAT32)`. The dump prints a
-compatibility note: restoring requires a server that supports these
-[floating-point values](/docs/data-types#floating-point-values). Older dump
-versions replaced them with NULL; use a current build to preserve them.
+A non-finite float is written as a cast, for example `CAST('NaN' AS float64)`
+or `CAST('-Infinity' AS float32)`. The dump then prints a note. An older
+server doesn't accept these casts. For more information, see
+[Floating-point values](/docs/data-types#floating-point-values). `camus-dump`
+0.18.0 and later keep these values over both protocols. An older version can
+write `NULL` in their place.
 
-REST dumps containing these values require CamusDB.Client 0.17.2 or later.
-Version 0.17.1 reads them as text, which can prevent mixed float arrays from
-loading. Current dump builds use the updated client; gRPC also carries their
-native float representation.
-
-`DATETIME` values keep their full precision. Sub-millisecond values are written
-with seven fractional digits.
+`DATETIME` values keep their full precision. A value with a fraction smaller
+than a millisecond is written with seven fractional digits.
 
 ## Restore a dump
 
-To restore, send the generated SQL to `camus-cli`:
+To restore a dump, load it with `camus-cli`. Put the target database in the
+connection string:
 
 ```bash
-camus-cli -c "Endpoint=http://localhost:5096;Protocol=grpc"
+camus-cli -c "Endpoint=http://localhost:5096;Protocol=grpc;Database=factory" \
+  -f factory.sql
 ```
 
-Then run:
-
-```camussql
-source ./factory.sql
-```
-
-If the dump was made without `--create-database`, create the target database
-first, then select it:
+`-f` stops at the first error. If the dump doesn't have `CREATE DATABASE`,
+create the target database first. In an interactive `camus-cli` session, you
+can also load a file with `source`:
 
 ```camussql
 CREATE DATABASE IF NOT EXISTS factory;
@@ -521,8 +495,7 @@ gunzip -c factory.sql.gz | camus-cli factory -f -
 ```
 
 A complete dump ends each database section with a `-- Dump completed` comment,
-unless `--no-header` was used. Check for that footer when a dump was streamed to
-object storage or through another pipeline that can keep a partial upload.
+unless you used `--no-header`. Check for that comment when a dump went to
+object storage, or through a pipeline that can keep a partial upload.
 
-For interactive replays and manual restores, use
-[camus-cli](/docs/camus-cli).
+For interactive loads, see [camus-cli](/docs/camus-cli).

@@ -15,15 +15,15 @@ search works, how table statistics improve it, and how to enable it and
 inspect its result with `EXPLAIN`.
 
 The query optimizer is the part of a database that decides how to run a SQL
-query. A query can use a table scan, an index lookup, an index range scan, a
-hash join, a merge join, a nested loop join, a sort, an aggregate, a derived
-table, or a subquery. Every option gives a correct result, but only some are
-fast. The optimizer chooses a plan before the query runs.
+query. A query can use different operations, for example a table scan or an
+index lookup, and a hash join or a merge join. All the options give a correct
+result, and some are much faster than others. The optimizer chooses a plan
+before the engine executes the query.
 
 <!-- truncate -->
 
-SQL is declarative. This query says which result the user wants, and gives no
-order in which to read the tables:
+SQL is declarative. A query says which result the user wants, and gives no
+order in which to read the tables.
 
 ```camussql
 SELECT u.email, p.title, c.body
@@ -36,27 +36,24 @@ The database decides the order.
 
 ## Join order decides how much data a query reads
 
-Assume these three tables:
-
-- `users` has many rows, but only a few are active.
-- `posts` has many rows for each user.
-- `comments` has many rows for each post.
+Assume that `users` has many rows, but only a few are active. `posts` has many
+rows for each user, and `comments` has many rows for each post.
 
 If CamusDB starts with all comments, then joins posts, then joins users, it
 reads a lot of data before it finds that most rows do not match
 `u.active = true`.
 
-If it starts with the active users, it reduces the data much earlier. The
-result is the same, but the amount of work is very different. So the
+If it starts with the active users, it reduces the data much earlier. Both
+orders give the same result, and the second order does much less work. So the
 optimizer has to estimate the cost of each order.
 
 ## The number of join orders grows fast
 
-With two tables, there are only a few orders. With five, six, or seven
-tables, the number of possible orders grows very quickly.
+With two tables, there are only a few orders. With six or seven tables, the
+number of possible orders grows very quickly.
 
-An optimizer could try every order, estimate the cost of each one, and pick
-the cheapest. That works for tiny cases, but then the optimizer itself
+An optimizer could estimate the cost of all the orders and pick the
+cheapest. That works for tiny cases, but then the optimizer itself
 becomes too slow.
 
 CamusDB uses dynamic programming for eligible inner joins when cost-based
@@ -64,13 +61,13 @@ join ordering is enabled. Dynamic programming solves a large problem from the
 saved answers to smaller ones. This approach comes from System R, an early
 relational database.
 
-The optimizer asks smaller questions first:
+The optimizer solves smaller problems first.
 
-- What is the best plan for `users`?
-- What is the best plan for `posts`?
-- What is the best plan for `comments`?
-- What is the best plan for `users JOIN posts`?
-- What is the best plan for `posts JOIN comments`?
+- The best plan for `users`.
+- The best plan for `posts`.
+- The best plan for `comments`.
+- The best plan for `users JOIN posts`.
+- The best plan for `posts JOIN comments`.
 
 It remembers the best answer for each small set of tables and reuses it to
 build the answer for a larger set.
@@ -80,29 +77,32 @@ build the answer for a larger set.
 First, the optimizer estimates the best way to read each table. One table can
 use an index, and another a full scan.
 
-Then it looks at pairs of tables that can be joined. For each pair, it asks:
+Then it looks at pairs of tables that can be joined. For each pair, it compares
+the join algorithms and estimates the size of the result.
 
-- Can this pair be joined with an indexed nested loop?
-- Is a hash join cheaper?
-- Can both sides arrive ordered, so that a merge join is possible?
-- How many rows will probably come out?
-- How expensive is the intermediate result?
+- Whether an indexed nested loop can join the pair.
+- Whether a hash join is cheaper.
+- Whether both sides can arrive ordered, which makes a merge join possible.
+- How many rows will probably come out.
+- How expensive the intermediate result is.
 
-Then it does the same for groups of three tables, then four, and so on. Each
+Then it does the same for groups of three tables, and then for larger groups. Each
 step builds on the best smaller plans it already found. At the end, it has a
 plan for the full query.
 
-These are estimates. The optimizer does not know the exact row counts.
+These are estimates, because the optimizer does not know the exact row
+counts.
 
 ## The memo table and the recurrence
 
-The optimizer keeps a memo table:
+The optimizer stores its results in a memo table. Each entry maps a set of tables to the
+cheapest plan that the optimizer knows for that set.
 
 ```text
 dp[set of tables] = cheapest known left-deep plan for exactly that set
 ```
 "Left-deep" is explained in the next section. For a query with three tables,
-the optimizer first creates entries for single tables:
+the optimizer first creates one entry for each single table.
 
 ```text
 dp[{users}]
@@ -112,7 +112,7 @@ dp[{comments}]
 Each entry stores a partial plan, its estimated cost, and the estimated
 number of rows that it produces.
 
-Then CamusDB builds larger entries from smaller ones:
+Then CamusDB builds larger entries from smaller ones.
 
 ```text
 dp[{users, posts}]
@@ -120,7 +120,8 @@ dp[{posts, comments}]
 dp[{users, comments}]
 dp[{users, posts, comments}]
 ```
-The recurrence is roughly:
+In the recurrence, the best plan for a set is the cheapest way to join one of
+its tables to the best plan for the others.
 
 ```text
 best(S) =
@@ -129,10 +130,9 @@ best(S) =
 ```
 CamusDB only considers a join when a predicate connects the existing left
 side and the new right table. That prevents a cross product, which is a join
-of every row against every row.
+of all the rows of one side with all the rows of the other side.
 
-For each possible extension, the optimizer asks which join algorithm is
-cheaper:
+For each possible extension, the optimizer compares the join algorithms.
 
 - If the right table has an index on the join key, an indexed nested-loop
   join can be cheap.
@@ -140,7 +140,8 @@ cheaper:
 - If both sides can arrive ordered by the join key, a merge join can be a
   good option.
 
-In simplified form:
+In simplified form, the cost of a candidate is the cost of the best left plan
+plus the cost of the join with the next table.
 
 ```text
 candidate_cost =
@@ -162,19 +163,18 @@ flowchart TD
     I --> J[Build physical join operators]
     J --> K[EXPLAIN shows estimated rows and cost]
 ```
-The real implementation has more details, but this is the core.
+The real implementation has more details than this diagram shows.
 
 ## The search covers left-deep plans only
 
-A left-deep plan looks like this:
+In a left-deep plan, the left side grows one table at a time, and each step
+adds one new table on the right.
 
 ```text
 (((users JOIN posts) JOIN comments) JOIN reactions)
 ```
-The left side grows one table at a time, and each step adds one new table on
-the right.
 
-In a bushy plan, both sides of a join can be joined subtrees:
+In a bushy plan, both sides of a join can be joined subtrees.
 
 ```text
 (users JOIN posts) JOIN (comments JOIN reactions)
@@ -182,30 +182,30 @@ In a bushy plan, both sides of a join can be joined subtrees:
 Bushy plans can be useful, but they make the search space larger. For now,
 CamusDB searches left-deep plans only.
 
-The search has more boundaries:
+The search also covers a limited set of join shapes.
 
 - It is used for eligible inner joins.
 - It works with `JOIN ... ON` predicates that can be safely reordered.
-- It is capped for very wide joins, so planning time stays bounded.
+- It is capped for very wide joins, which bounds the planning time.
 - Unsupported shapes fall back to the heuristic join order.
 
 ## Statistics from ANALYZE improve the estimates
 
 CamusDB can use table statistics, index counts, histograms, min/max values,
-and distinct-value counts that `ANALYZE` collects. These values answer
-questions like:
+and distinct-value counts that `ANALYZE` collects. The optimizer estimates row
+counts from these values.
 
-- How many rows are in this table?
-- What fraction of the rows does this filter keep?
-- Is this index likely to return a small number of rows?
-- How many rows can this join produce?
+- The number of rows in a table.
+- The fraction of the rows that pass a filter.
+- Whether an index is likely to return a small number of rows.
+- The number of rows that a join can produce.
 
 ```camussql
 ANALYZE TABLE users;
 ANALYZE TABLE posts;
 ANALYZE TABLE comments;
 ```
-You can inspect the result with `EXPLAIN`:
+You can inspect the result with `EXPLAIN`.
 
 ```camussql
 EXPLAIN
@@ -221,7 +221,7 @@ nested loop join, or a fallback nested loop join.
 
 ## Constraints on the optimizer
 
-In the real engine, the optimizer has these constraints:
+The real engine adds constraints to this simple model.
 
 - It must preserve SQL semantics.
 - It must respect join predicates.
@@ -229,14 +229,14 @@ In the real engine, the optimizer has these constraints:
 - It must know which indexes are available.
 - It must estimate row counts from imperfect statistics.
 - It must choose between different join algorithms.
-- It must still produce a plan quickly.
+- It must produce a plan quickly.
 
-Your part is small: write SQL, create useful indexes, and run `ANALYZE` when
-the data changes.
+You write SQL and create useful indexes. Run `ANALYZE` when the data
+changes.
 
 ## The cost-based optimizer is opt-in
 
-CamusDB keeps the cost-based optimizer behind configuration flags:
+The cost-based optimizer is behind two configuration flags.
 
 ```yaml
 cost_based_access_path_enabled: true

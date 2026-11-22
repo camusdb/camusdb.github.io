@@ -5,53 +5,57 @@ description: "Keep applications, environments, or customers apart on one CamusDB
 
 # Databases
 
-A database keeps one set of tables apart from another. You can run several
-applications, environments, or customers on one CamusDB node or cluster, and
-each database keeps its own tables, schema objects, and grants. As in
-PostgreSQL or MySQL, a client selects a database before it works with tables.
+A database separates one set of tables from another. You can run several
+applications or customers on one CamusDB node or cluster. Each database has
+separate tables and grants. As in PostgreSQL or
+MySQL, a client selects a database before it works with tables.
 
-## Separate applications, environments, or customers
+## When to use a separate database
 
-Use a separate database to keep one set of data apart from another set:
+Use a separate database to keep one set of data apart from another:
 
-- One database for each application or service that shares the same server.
-- One database for each environment, such as development, staging, and tests.
+- One database for each application or service on the same server.
+- One database for each environment, such as development and staging.
 - One database for each customer, when each customer must have a separate set
   of tables.
 
-The database is also the unit of several operations. You can
+Several operations work on a full database. You can
 [branch](/docs/database-branching) a database to get an isolated copy for a
-feature or a test. You can drop a whole database, and
-[recover](/docs/recover-dropped-objects) it during the retention window. You can
-grant a user access to one database only. A [backup](/docs/backup-and-restore)
-is different: it always covers every database on the node.
-
-## Create a database before you use it
-
-You must create a database explicitly before you use it. Opening, querying, or
-running table DDL against an unknown database returns `DatabaseDoesntExist`.
-With authentication enabled, CamusDB returns the same error for a database the
-caller has no grant on, so callers cannot probe whether a hidden database exists.
-CamusDB never creates storage implicitly.
+test. You can [recover](/docs/recover-dropped-objects) a dropped database during
+the retention window. You can also grant a user access to one database only.
+However, a [backup](/docs/backup-and-restore) always covers all databases on the
+node.
 
 ## Create a database
+
+You must create a database before you use it:
 
 ```camussql
 CREATE DATABASE app;
 ```
 
-Use `IF NOT EXISTS` when a setup script must be safe to repeat:
+To make a setup script safe to run again, use `IF NOT EXISTS`:
 
 ```camussql
 CREATE DATABASE IF NOT EXISTS app;
 ```
 
-Then connect to it in any of these ways:
+A query or a table statement for a database that doesn't exist returns
+`CADB0010 DatabaseDoesntExist`. A database isn't created when you first use its
+name.
 
-- `camus-cli app`.
-- A `use app;` statement.
-- A driver connection string.
-- A request to the [HTTP API](/docs/http-api) or [gRPC API](/docs/grpc-api) that names `app`.
+With authentication enabled, a database on which you have no grant returns the
+same error. This means that a user can't find out whether a hidden database
+exists.
+
+## Connect to a database
+
+You can select the database in the following ways:
+
+- `camus-cli app`, or a `use app;` statement in camus-cli.
+- The database in a driver connection string.
+- The database name in a request to the [HTTP API](/docs/http-api) or the
+  [gRPC API](/docs/grpc-api).
 
 ## Branch a database
 
@@ -59,9 +63,10 @@ Then connect to it in any of these ways:
 CREATE DATABASE feature_checkout BRANCH FROM app;
 ```
 
-A branch is an isolated copy of a database at a point in time, so you can test a
-feature or rehearse a migration on realistic data without touching the source.
-See [Database Branching](/docs/database-branching).
+A branch is an isolated copy of a database at a point in time. You can use it
+to test a feature or a migration on realistic data. The source database doesn't
+change. For more information, see
+[Database branching](/docs/database-branching).
 
 ## List databases
 
@@ -69,16 +74,18 @@ See [Database Branching](/docs/database-branching).
 SHOW DATABASES;
 ```
 
-`SHOW DATABASES` is a server-level statement, so it needs no open database.
+`SHOW DATABASES` works when no database is selected.
 
-When authentication is enabled, `SHOW DATABASES` lists only databases the caller
-can reach. A global grant, a grant on `db.*`, or any grant on one table inside a
-database makes that database visible. A database with no such grant is hidden,
-just like a name that does not exist.
+With authentication enabled, `SHOW DATABASES` lists only the databases that you
+can reach. One of the following grants makes a database visible:
 
-To list a database's branches, or a branch's parents, use
-`SHOW BRANCHES FROM` and `SHOW ANCESTORS FROM`. See
-[Inspect branches](/docs/database-branching#inspect-the-branches).
+- A global grant.
+- A grant on `db.*`.
+- A grant on one table in the database.
+
+To list the branches of a database, or the parents of a branch, use
+`SHOW BRANCHES FROM` and `SHOW ANCESTORS FROM`. For more information, see
+[Inspect the branches](/docs/database-branching#inspect-the-branches).
 
 ## Drop a database
 
@@ -86,74 +93,72 @@ To list a database's branches, or a branch's parents, use
 DROP DATABASE IF EXISTS app;
 ```
 
-`DROP DATABASE IF EXISTS` does nothing when the name is absent. A plain drop
-frees the name immediately but keeps the data as a recoverable orphan for the
-retention window; `DROP DATABASE ... FORCE` deletes it permanently. See
-[Recover Dropped Objects](/docs/recover-dropped-objects) to restore a dropped
-database with `CREATE DATABASE ... RELINK TO`.
+With `IF EXISTS`, a database that doesn't exist isn't an error.
+
+After a drop, you can use the name again at once. The data is kept as a
+recoverable orphan for the retention window, which is seven days by default.
+To recover it, use `CREATE DATABASE ... RELINK TO`. For more information, see
+[Recover dropped objects](/docs/recover-dropped-objects).
+
+`DROP DATABASE ... FORCE` deletes the data, and you can't recover it.
+
+A database with a branch can't be dropped. Drop the branches first.
 
 ## Rename a database
+
+The following two statements are the same:
 
 ```camussql
 RENAME DATABASE app TO app_prod;
 ALTER DATABASE app RENAME TO app_prod;
 ```
 
-The two forms are equivalent. `ALTER DATABASE ... RENAME TO` matches the word
-order of a table rename, and `RENAME DATABASE ... TO ...` remains supported.
-
-A rename changes only the registry entry that maps the name to the database's
-internal storage id, so no data moves: the storage id, table ids, and row,
-index, and statistics keys all stay the same.
+Storage keys use an internal database ID. The name isn't part of any key. This
+means that a rename doesn't move or copy data. For the key layout, see
+[Storage](/docs/storage#key-layout).
 
 After a rename:
 
-- Opening the old name fails once the rename completes.
-- Opening the new name resolves to the same storage id.
-- In-flight work can continue, because the readable name is not part of any row
-  or index storage key.
-- Renaming to a name that already exists fails.
-- You cannot rename a database to a reserved name.
-- A `COMMENT ON DATABASE` comment survives the rename.
+- The old name returns `CADB0010`.
+- The new name opens the same tables and data.
+- The comment from `COMMENT ON DATABASE` doesn't change.
 
-## Stable storage identity
+You should rename a database when no application uses it. An open transaction
+that sends its next statement with the old name gets `CADB0010`, and the
+transaction is rolled back.
 
-Each database and table gets a short internal id that is never reused, and its
-stored keys use that id instead of the name. The id is not a SQL value or an
-ObjectId: applications always address a database by its name. See
-[Storage](/docs/storage#key-layout) for how ids are allocated and how keys are
-laid out.
+A rename to a name that exists returns `CADB0012`. A rename to a reserved name
+returns `CADB0018`.
 
 ## Reserved names
 
-CamusDB reserves two names:
+The following names are reserved:
 
 | Name | Purpose |
 | --- | --- |
-| `_system` | The namespace for the internal database registry and cluster metadata. |
-| `information_schema` | Reserved for future SQL compatibility. |
+| `_system` | The internal database registry and the cluster metadata. |
+| `information_schema` | Reserved for SQL compatibility in a later release. |
 
-Creating a database with either name, or renaming one to either name, returns
-`DatabaseNameReserved`.
+A `CREATE DATABASE` or a rename to one of these names returns
+`CADB0018 DatabaseNameReserved`. The check ignores case.
 
 ## Error codes
 
 | Code | Name | Typical cause |
 | --- | --- | --- |
-| `CADB0010` | `DatabaseDoesntExist` | An open, query, drop, rename, or table DDL statement targets an unknown database. With authentication enabled, CamusDB returns the same error for a database the caller has no grant on. |
-| `CADB0012` | `DatabaseAlreadyExists` | A `CREATE DATABASE` or a database rename targets a name that already exists. |
-| `CADB0018` | `DatabaseNameReserved` | A `CREATE DATABASE` or a database rename uses `_system` or `information_schema`. |
-| `CADB0019` | `DatabaseCreationIncomplete` | Reserved for recovering an incomplete database creation from an older standalone storage layout. CamusDB does not expect this code on the current shared-storage creation path. |
-| `CADB0508` | `DatabaseHasLiveDescendants` | A `DROP DATABASE` targets a database with a live descendant branch. Drop the descendant branches first. |
-| `CADB0510` | `OrphanNotFound` | A `CREATE DATABASE ... RELINK TO` references an orphan id that is unknown, already recovered, or reclaimed. |
+| `CADB0010` | `DatabaseDoesntExist` | The database doesn't exist. With authentication enabled, you have no grant on it. |
+| `CADB0012` | `DatabaseAlreadyExists` | A `CREATE DATABASE` or a rename uses a name that exists. |
+| `CADB0018` | `DatabaseNameReserved` | A `CREATE DATABASE` or a rename uses `_system` or `information_schema`. |
+| `CADB0508` | `DatabaseHasLiveDescendants` | A `DROP DATABASE` on a database that has branches. Drop the branches first. |
+| `CADB0510` | `OrphanNotFound` | A `CREATE DATABASE ... RELINK TO` uses an orphan ID that doesn't exist, was recovered, or was deleted. |
 
 ## Related pages
 
 - [Tutorial](/docs/intro)
-- [Database Branching](/docs/database-branching)
-- [Recover Dropped Objects](/docs/recover-dropped-objects)
-- [SQL](/docs/sql)
-- [Schema Comments](/docs/comment-on)
+- [Database branching](/docs/database-branching)
+- [Recover dropped objects](/docs/recover-dropped-objects)
+- [SQL overview](/docs/sql)
+- [Schema comments](/docs/comment-on)
 - [HTTP API](/docs/http-api)
 - [gRPC API](/docs/grpc-api)
-- [Error Codes](/docs/error-codes)
+- [Error codes](/docs/error-codes)

@@ -280,7 +280,7 @@ const sqlFunctions = new Set([
   'DATE_TRUNC', 'DAY', 'DAYNAME', 'DAYOFMONTH', 'DAYOFWEEK', 'DAYOFYEAR', 'DECODE', 'DENSE_RANK',
   'DIGEST', 'ENCODE', 'ENDS_WITH', 'EXP', 'EXTRACT', 'FIRST_VALUE', 'FLOOR', 'FROM_BASE64',
   'FROM_UNIXTIME', 'GENERATE_SERIES', 'GEN_ID', 'GEN_RANDOM_BYTES', 'GEN_UUID_V4', 'GEN_UUID_V7',
-  'GET_BIT', 'GET_BYTE', 'HEX', 'HMAC', 'HOUR', 'IF', 'IFNULL', 'INNER_PRODUCT', 'IS_SUPERUSER',
+  'GET_BIT', 'GET_BYTE', 'GREATEST', 'HEX', 'HMAC', 'HOUR', 'IF', 'IFNULL', 'INNER_PRODUCT', 'IS_SUPERUSER',
   'JSONB_AGG', 'JSONB_ARRAY_ELEMENTS', 'JSONB_ARRAY_ELEMENTS_TEXT', 'JSONB_ARRAY_LENGTH',
   'JSONB_BUILD_ARRAY', 'JSONB_BUILD_OBJECT', 'JSONB_EACH', 'JSONB_EACH_TEXT', 'JSONB_EXISTS',
   'JSONB_EXISTS_ALL', 'JSONB_EXISTS_ANY', 'JSONB_EXTRACT_PATH', 'JSONB_EXTRACT_PATH_TEXT',
@@ -290,7 +290,7 @@ const sqlFunctions = new Set([
   'JSON_BUILD_OBJECT', 'JSON_CONTAINS', 'JSON_EACH', 'JSON_EACH_TEXT', 'JSON_EXTRACT',
   'JSON_EXTRACT_PATH', 'JSON_EXTRACT_PATH_TEXT', 'JSON_OBJECT', 'JSON_OBJECT_AGG',
   'JSON_OBJECT_KEYS', 'JSON_STRIP_NULLS', 'JSON_TYPE', 'JSON_TYPEOF', 'JSON_VALID', 'JSON_VALUE',
-  'JUSTIFY_DAYS', 'JUSTIFY_HOURS', 'JUSTIFY_INTERVAL', 'L2_DISTANCE', 'LAG', 'LASTVAL', 'LAST_DAY', 'LAST_VALUE', 'LEAD', 'LENGTH', 'LIKE_ESCAPE', 'LN', 'LOG', 'LOG10', 'LOWER',
+  'JUSTIFY_DAYS', 'JUSTIFY_HOURS', 'JUSTIFY_INTERVAL', 'L2_DISTANCE', 'LAG', 'LASTVAL', 'LAST_DAY', 'LAST_VALUE', 'LEAD', 'LEAST', 'LENGTH', 'LIKE_ESCAPE', 'LN', 'LOG', 'LOG10', 'LOWER',
   'LTRIM', 'MAKEDATE', 'MAKE_DATE', 'MAKE_INTERVAL', 'MAKE_TIMESTAMP', 'MAX', 'MD5', 'MIN', 'MINUTE', 'MOD', 'MONTH',
   'MONTHNAME', 'NEXTVAL', 'NOW', 'NTH_VALUE', 'NTILE', 'NULLIF', 'NVL', 'OCTET_LENGTH',
   'PERCENT_RANK', 'PI', 'POSITION', 'POW', 'POWER', 'QUARTER', 'RAND', 'RANDOM', 'RANK',
@@ -386,6 +386,7 @@ function tokenizeSql(sql) {
       else if (upper === 'INTERVAL' && /^['0-9@]/.test(after)) kind = 'keyword';
       else if (sqlTypes.has(upper)) kind = 'type';
       else if (upper === 'RECURSIVE' && /\bWITH\s+$/i.test(sql.slice(0, index))) kind = 'keyword';
+      else if (upper === 'PARTITIONS' && /\bSHOW\s+$/i.test(sql.slice(0, index))) kind = 'keyword';
       else if (upper === 'IF' && after.startsWith('(')) kind = 'function';
       else if (sqlKeywords.has(upper)) kind = 'keyword';
       else if (sqlFunctions.has(upper) || after.startsWith('(')) kind = 'function';

@@ -7,50 +7,49 @@ sidebar_position: 3.65
 Performance diagnostics show where a CamusDB node spends its time. They connect
 a slow result in your application to the server stage that caused it.
 
-CamusDB can expose opt-in diagnostics for a standalone node. While diagnostics
-are enabled, the server exports Prometheus metrics, and it can also export
-sampled OpenTelemetry traces.
+Diagnostics are opt-in. When you turn them on, the server exports Prometheus
+metrics, and it can also export sampled OpenTelemetry traces.
 
-- [Prometheus](https://prometheus.io/) is a monitoring system. It reads
-  numeric metrics from an HTTP endpoint at a fixed interval, stores them, and
-  uses them for charts and alerts. Grafana is a common dashboard tool on top of
-  it.
+- [Prometheus](https://prometheus.io/) is a monitoring system. It reads numeric
+  metrics from an HTTP endpoint at a fixed interval, and it stores them for
+  charts and alerts. Grafana is a common dashboard tool for Prometheus.
 - [OpenTelemetry](https://opentelemetry.io/) is a standard for traces. A trace
-  records the steps of one request and how long each step took. A collector
+  records the steps of one request and the time of each step. A collector
   receives the traces, and a tracing tool shows them as a timeline.
 
 ## Find which server stage is slow
 
-Use diagnostics when a workload is slower than you expect and you do not know
-which part is slow. They let you connect a workload result to a server stage:
-request handling, SQL execution, scans, transaction commits, or
-[write-ahead log](/docs/concepts#wal) (WAL) activity.
+Use diagnostics when a workload is slower than you expect, and you don't know
+which part is slow. They connect a workload result to a server stage, such as
+scans or transaction commits.
 
-Diagnostics also give you history. Prometheus keeps the metrics over time, so
-you can compare a slow hour with a normal one, or one build with the next.
+Diagnostics also give you history, because Prometheus stores the metrics. This
+means that you can compare a slow hour with a normal one, or one build with the
+next.
 
-You do not need them for a first look at one slow query. Use
-[`EXPLAIN (ANALYZE)`](/docs/explain), the
-[slow query log](/docs/slow-query-log), or
-[query activity](/docs/query-activity) for that.
+For a first look at one slow query, you don't need diagnostics. Use
+[`EXPLAIN (ANALYZE)`](/docs/explain) or the [slow query log](/docs/slow-query-log).
+To see the statements that execute now, use
+[query activity](/docs/query-activity).
 
-For repeated statements, [statement statistics](/docs/statement-stats) reveal
-cumulative cost even below the slow-query threshold. [Index usage](/docs/index-usage)
-shows whether reads and constraint checks justify each index's write cost.
+For repeated statements, [statement statistics](/docs/statement-stats) show
+the total cost, also below the slow-query threshold.
+[Index usage](/docs/index-usage) shows whether the reads of an index justify
+its write cost.
 
 For a quick inspection from SQL, use
-[`SHOW ENGINE STATS`](/docs/engine-stats). It reports metrics from the embedded
-storage engine, [Kahuna](/docs/concepts#kahuna), and the embedded consensus
-library, [Kommander](/docs/concepts#kommander). It has its own switch,
-`engine_metrics_enabled`, and works without the exporter on this page.
+[`SHOW ENGINE STATS`](/docs/engine-stats). It shows the metrics of the embedded
+storage engine ([Kahuna](/docs/concepts#kahuna)) and the consensus library
+([Kommander](/docs/concepts#kommander)). Its switch is
+`engine_metrics_enabled`. It doesn't need the exporter on this page.
 
 Diagnostics are off by default. With `diagnostics.enabled: false`, CamusDB
-registers no exporter, no endpoint, and no background collector. The current
-diagnostics path serves a standalone node.
+doesn't register an exporter or an endpoint. Diagnostics work in standalone and
+cluster mode. Each node exports the metrics of that node.
 
 ## Enable diagnostics
 
-Add a `diagnostics` section to the selected `config.yml` file:
+Add a `diagnostics` section to the `config.yml` file of the node:
 
 ```yaml
 diagnostics:
@@ -64,19 +63,26 @@ diagnostics:
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `diagnostics.enabled` | `false` | The main switch. While it is false, CamusDB exports nothing. |
-| `diagnostics.prometheus_enabled` | `false` | Bind the Prometheus scrape endpoint on the HTTP listener. |
+| `diagnostics.enabled` | `false` | The main switch. While it is `false`, the other settings have no effect. |
+| `diagnostics.prometheus_enabled` | `false` | Serve the Prometheus scrape endpoint on the HTTP listener. |
 | `diagnostics.prometheus_path` | `/metrics` | The scrape path. It must start with `/`. |
-| `diagnostics.otlp_endpoint` | empty | An optional absolute URL of an OTLP collector for traces. |
-| `diagnostics.trace_sample_ratio` | `0.01` | The head sample ratio for traces, from 0 to 1. |
-| `diagnostics.include_runtime_metrics` | `true` | Include .NET runtime metrics, such as garbage collector and thread pool metrics. |
+| `diagnostics.otlp_endpoint` | empty | The absolute URL of an OTLP collector for traces. Optional. |
+| `diagnostics.trace_sample_ratio` | `0.01` | The sample ratio for traces, from 0 to 1. |
+| `diagnostics.include_runtime_metrics` | `true` | Include .NET runtime metrics, such as garbage collector metrics. |
 
-Protect the Prometheus endpoint, or bind it only on a trusted interface. It
-exposes operational metadata and adds no authentication of its own.
+Then scrape the endpoint on the HTTP port:
+
+```bash
+curl -s http://localhost:5095/metrics | grep '^camus_'
+```
+
+The endpoint doesn't have authentication. It shows operational metadata.
+Protect it, or make it reachable from a trusted network only.
 
 `CAMUS_CONFIG_PATH=/path/to/config.yml` points the server at another
-configuration file. `CAMUS_DIAGNOSTICS_RUN_ID` attaches a stable run id as the
-OpenTelemetry resource attribute `camus.run_id`.
+configuration file. `CAMUS_DIAGNOSTICS_RUN_ID` adds a run id to the exported
+data, as the OpenTelemetry resource attribute `camus.run_id`. In Prometheus, it
+is the `camus_run_id` label of the `target_info` metric.
 
 ## Server metrics
 
@@ -98,30 +104,47 @@ CamusDB exports these metrics from the `CamusDB.Server` meter:
 | `camus.transaction.commit.duration` | `camus_transaction_commit_duration_milliseconds` | histogram | `outcome` |
 | `camus.transaction.staged_mutations` | `camus_transaction_staged_mutations` | histogram | none |
 
-Tag values come from a bounded set. CamusDB never uses SQL text, row keys, ids,
-messages, or user values as metric tags.
+The `camus.request.*` metrics count gRPC requests, with the `transport` tag
+`grpc_unary` or `grpc_batch`. For HTTP requests, use the ASP.NET Core metrics
+in the same scrape, such as `http_server_request_duration_seconds`.
 
-When `kahuna.wal_storage: solarium`, the metrics exporter also subscribes to
-[Solarium](https://solariumdb.github.io/)'s WAL meter. It exposes the same
-`raft.wal.*` instruments used to observe RocksDB WAL behavior, so WAL gauges
-remain available after changing storage engines.
+A metric appears in the scrape after its first use. For example,
+`camus_query_cache_requests_total` appears after the first query with a cache
+hint.
+
+The meter has more instruments for specific features:
+
+| Instrument | Counts |
+| --- | --- |
+| `camus.kv.scan_entries` | Entries that key/value range scans read. |
+| `camus.kv.retryable_aborts`, `camus.kv.retry_waits` | Retryable aborts in key/value reads and writes, and the backoff waits of the retries. |
+| `camus.point_read.row_id_cache.requests` | Primary-key point lookups, by the result of the row-id cache. |
+| `camus.index_read.stale_entries` | Index entries that an index read skipped. Their row no longer matched the key. |
+| `camus.foreign_key.operations` | The foreign-key check work. |
+| `camus.matview.refreshes`, `camus.matview.refresh.*` | Materialized-view refreshes, with their duration and size. |
+| `camus.batch.request_frames` | The request frames that gRPC `BatchExecute` streams read. |
+
+Tag values come from a bounded set. Values from your data, such as SQL text or
+row keys, aren't used as tags.
+
+If `kahuna.wal_storage` is `solarium`, the exporter also reads the WAL meter of
+[Solarium](https://solariumdb.github.io/). It has the same `raft.wal.*`
+instruments as the RocksDB WAL. This means that the WAL metrics are available
+with both engines.
 
 ## Dependency metrics
 
-The diagnostics exporter also subscribes to the meters of the embedded
-dependencies and the runtime:
+The exporter also reads the meters of the embedded dependencies and the .NET
+runtime:
 
-- Kahuna metrics, including key/value write batches, write entries, durable
-  transaction counters, and transaction admission gauges.
-- Kommander metrics, including batches written to the
-  [Raft](/docs/concepts#raft) log, WAL operations, batch size, executor
-  duration, and client queue depth.
-- Row-level TTL counters, including expired rows, skips after a re-check,
-  completed key [spans](/docs/concepts#ranges-and-spans), and planned runs.
-- .NET runtime metrics, including the garbage collector, heap, allocations,
-  thread pool, and process.
+| Source | Examples |
+| --- | --- |
+| Kahuna | Key/value write batches, and transaction admission gauges. |
+| Kommander | Batches written to the [Raft](/docs/concepts#raft) log, and WAL operations. |
+| Row-level TTL | Expired rows, and completed key [spans](/docs/concepts#ranges-and-spans). |
+| .NET runtime | The garbage collector and the thread pool. |
 
-These signals help when a run is limited by:
+These signals help when a workload is limited by one of the following:
 
 - WAL fsync latency.
 - Storage batch density.
@@ -129,35 +152,38 @@ These signals help when a run is limited by:
 - Scan cost.
 - Request concurrency.
 
-Range splitting also publishes counters through the Kahuna meter. When
-[key-range sharding](/docs/key-range-sharding) is enabled, inspect them with:
+Range splits also publish counters through the Kahuna meter. When
+[key-range sharding](/docs/key-range-sharding) is on, you can inspect them:
 
 ```camussql
 SHOW ENGINE STATS LIKE 'kahuna.range%';
 ```
 
-The most useful rows are `kahuna.range.splits`,
-`kahuna.range.split.indivisible_refusals`,
-`kahuna.range.split.no_relief_skips`, `kahuna.range.split.settle_skips`, and
-`kahuna.range.merge.warm_skips`. Use them together with
-[`SHOW RANGES`](/docs/show-ranges): `SHOW RANGES` shows the current placement,
-while these counters explain what the splitter attempted.
+The following rows are the most useful:
+
+- `kahuna.range.splits`
+- `kahuna.range.split.indivisible_refusals`
+- `kahuna.range.split.no_relief_skips`
+- `kahuna.range.split.settle_skips`
+- `kahuna.range.merge.warm_skips`
+
+Use them with [`SHOW RANGES`](/docs/show-ranges). `SHOW RANGES` shows the
+current placement, and these counters show what the splitter tried to do.
 
 ## Traces
 
 While `diagnostics.otlp_endpoint` is set, CamusDB can emit sampled traces from
-the `CamusDB.Server` activity source. A typical request trace contains trace
-spans (one timed step each) for parsing, execution, storage reads, and the
-transaction commit.
+the `CamusDB.Server` activity source. A request trace has one span for each
+timed step, for example for parsing or for the transaction commit.
 
-`diagnostics.trace_sample_ratio` controls trace sampling. Error metadata uses
-stable attributes for the outcome and the error code. CamusDB adds no SQL text
-and no row values to a span.
+`diagnostics.trace_sample_ratio` sets the share of requests that are traced.
+Errors use stable attributes for the outcome and the error code. CamusDB doesn't
+add SQL text or row values to a span.
 
 ## The snapshot script
 
-The CamusDB source tree includes a helper script that gives you local
-diagnostics from one command:
+The CamusDB source tree has a script that collects local diagnostics with one
+command:
 
 ```bash
 scripts/bottleneck-snapshot.sh /tmp/camus-bottleneck \
@@ -167,9 +193,10 @@ scripts/bottleneck-snapshot.sh /tmp/camus-bottleneck \
   --mode closed
 ```
 
-The script starts a standalone server in the Release configuration with
-diagnostics enabled, seeds a deterministic data set for the workload, runs
-`CamusDB.Workload`, scrapes `/metrics`, and then writes a bundle:
+The script starts a standalone Release server with diagnostics on. Then it
+executes `CamusDB.Workload` on a deterministic data set, and it scrapes
+`/metrics`. The output directory must not exist. The script writes the
+following bundle:
 
 ```text
 server-command.txt
@@ -185,13 +212,13 @@ workload/reconciliation.json
 workload/bottleneck-report.md
 ```
 
-The generated `bottleneck-report.md` lines up client-side throughput and
-latency with the server stage and dependency metrics. Use it to pick the next
-thing to investigate before you change any configuration.
+`bottleneck-report.md` compares the client throughput and latency with the
+server and dependency metrics. Use it to find the next thing to investigate,
+before you change the configuration.
 
 ## The overhead check
 
-The source tree also includes a second script:
+The source tree also has a script that measures the cost of diagnostics:
 
 ```bash
 scripts/diagnostics-overhead.sh /tmp/camus-diagnostics-overhead \
@@ -199,6 +226,7 @@ scripts/diagnostics-overhead.sh /tmp/camus-diagnostics-overhead \
   --duration 60s
 ```
 
-It alternates runs with diagnostics disabled and enabled, then reports the
-median throughput difference. Measure the overhead on the same machine, data
-shape, and server build that you plan to compare.
+It alternates workload executions with diagnostics off and on, each against a
+new standalone server. Then it prints the median throughput of each, and the
+difference. The overhead depends on the environment. Measure it on the same
+setup that you plan to compare.

@@ -4,11 +4,12 @@ sidebar_position: 3.15
 
 # Query activity
 
-CamusDB can show the statements and client connections that are active right
-now. It can also cancel a running read query.
+When a query is slow, you need to see what is executing, and you can need to
+stop it. CamusDB shows the statements and the client connections that are
+active now. It can also cancel a running read query.
 
-These statements are server-level. They do not need a selected database and they
-do not open a transaction:
+These statements are server-level. They don't need a selected database, and
+they don't open a transaction:
 
 ```camussql
 SHOW QUERIES;
@@ -21,156 +22,203 @@ SHOW CLUSTER CONNECTIONS;
 CANCEL QUERY 'b71a90e314-45';
 ```
 
-`SHOW QUERIES` is useful when a query is slow, a client is reading rows slowly,
-or you need the id of a statement to cancel. `SHOW CONNECTIONS` shows the
-client-facing connections held by the node. The cluster forms ask every
-member and merge the rows.
+Use `SHOW QUERIES` to find a slow statement and its id. `SHOW CONNECTIONS`
+shows the client connections of the node. The cluster forms ask each member
+and merge the rows.
 
 ## Running queries
 
-`SHOW QUERIES` returns one row for each statement that is running on the node,
-oldest first. The `SHOW QUERIES` statement itself appears in the output.
+`SHOW QUERIES` returns one row for each statement that is executing on the
+node, oldest first. The output includes the `SHOW QUERIES` statement.
 
-Important columns:
+The result is wide. In camus-cli, end the statement with
+[`\G`](/docs/camus-cli#vertical-output) to print one column on each line:
+
+```camussql
+SHOW QUERIES LIKE '%FROM orders%'\G
+```
+
+```text
+*************************** 1. row ***************************
+        query_id: b71a900b3a-672
+            node: localhost:0
+   connection_id: b71a900b3a-c305
+  client_address: ::1
+       transport: grpc-stream
+       user_name: null
+   database_name: 
+  transaction_id: null
+       isolation: null
+            kind: show_queries
+           phase: planning
+      started_at: 2026-11-18T22:00:14.810Z
+      elapsed_ms: 0.1583
+   rows_returned: 0
+     cancellable: True
+cancel_requested: False
+             sql: SHOW QUERIES LIKE '%FROM orders%'
+           error: null
+1 rows in set (00:00:00.0243941)
+```
+
+The pattern also matches the text of the `SHOW QUERIES` statement. This means
+that its row appears in the result.
+
+The following columns are the most useful:
 
 | Column | Meaning |
 | --- | --- |
-| `query_id` | The id accepted by `CANCEL QUERY`. It is unique across the cluster. |
-| `node` | The internal cluster address of the node running the statement. |
-| `connection_id` | The connection that carried the statement, when there is one. |
-| `client_address` | The client's IP address. |
+| `query_id` | The id for `CANCEL QUERY`. It is unique in the cluster. |
+| `node` | The internal cluster address of the node that executes the statement. |
+| `connection_id` | The connection that carried the statement, if there is one. |
+| `client_address` | The IP address of the client. |
 | `transport` | `http`, `grpc`, `grpc-stream`, or `embedded`. |
 | `user_name` | The authenticated user, or `NULL` when authentication is off. |
 | `database_name` | The context database of the statement. |
-| `transaction_id` | The explicit transaction handle, when the statement runs inside one. |
-| `kind` | The parsed statement kind, such as `select`, `update`, or `create_table`. |
+| `transaction_id` | The handle of the explicit transaction, if the statement is part of one. |
+| `isolation` | The isolation level of that transaction, or `NULL` for an autocommit statement. |
+| `kind` | The statement kind, such as `select` or `create_table`. |
 | `phase` | `planning` before the first row is read, then `executing`. |
 | `started_at` | The UTC start time. |
-| `elapsed_ms` | How long the statement has run. |
-| `rows_returned` | Rows the client has read so far. |
-| `cancellable` | Whether `CANCEL QUERY` can stop it now. |
-| `cancel_requested` | Whether a cancel has already been requested. |
-| `sql` | The statement text, with credential literals masked and length-limited. |
-| `error` | `NULL` for normal rows. Cluster forms use it when a node could not answer. |
+| `elapsed_ms` | How long the statement has executed. |
+| `rows_returned` | The rows that the client has read so far. |
+| `cancellable` | Whether `CANCEL QUERY` can stop the statement now. |
+| `cancel_requested` | Whether a cancel was requested. |
+| `sql` | The statement text. Credential literals are masked, and the length is limited. |
+| `error` | `NULL` for normal rows. The cluster forms use it when a node didn't answer. |
 
-A row-returning statement stays listed until its cursor ends. If a client reads
-slowly, the query remains visible and `rows_returned` continues to grow as the
-client consumes rows.
+A statement that returns rows is listed until its cursor ends. If a client reads
+slowly, the query is visible, and `rows_returned` grows as the client reads
+rows.
 
 ## Client connections
 
-`SHOW CONNECTIONS` returns one row for each client-facing TCP or QUIC connection
-accepted by the node. It tracks HTTP, HTTPS, and the gRPC client port. QUIC
-connections exist only when `http3_enabled` is on. It does not track the
-internal port that nodes use to talk to each other.
+`SHOW CONNECTIONS` returns one row for each client TCP or QUIC connection of
+the node. It tracks the client ports of the node, including the gRPC port. QUIC
+connections exist when `http3_enabled` is on. The internal port that nodes use
+to talk to each other isn't tracked.
 
-Important columns:
+```camussql
+SHOW CONNECTIONS;
+```
+
+```text
+┌─────────────────┬─────────────┬────────────────┬──────────┬────────┬───────────┬──────────────────────────┬──────────┬─────────┬──────────┬────────────────┬──────────────┬───────┐
+│ connection_id   │ node        │ client_address │ protocol │ kind   │ user_name │ opened_at                │ age_ms   │ idle_ms │ requests │ active_queries │ open_streams │ error │
+├─────────────────┼─────────────┼────────────────┼──────────┼────────┼───────────┼──────────────────────────┼──────────┼─────────┼──────────┼────────────────┼──────────────┼───────┤
+│ b71a900b3a-c209 │ localhost:0 │ ::1            │ HTTP/2   │ client │ null      │ 2026-11-18T21:52:48.230Z │ 100.3253 │ 0       │ 11       │ 1              │ 8            │ null  │
+└─────────────────┴─────────────┴────────────────┴──────────┴────────┴───────────┴──────────────────────────┴──────────┴─────────┴──────────┴────────────────┴──────────────┴───────┘
+1 rows in set (00:00:00.0036435)
+```
+
+The following columns are the most useful:
 
 | Column | Meaning |
 | --- | --- |
-| `connection_id` | The id referenced by `SHOW QUERIES.connection_id`. |
-| `node` | The node that holds the connection. |
-| `client_address` | The client's IP address. |
-| `protocol` | `HTTP/1.1`, `HTTP/2`, or `HTTP/3`. gRPC uses `HTTP/2`. `HTTP/3` appears only on the HTTPS port when `http3_enabled` is on. |
-| `kind` | `client`, or `peer` for another node calling an internal endpoint. |
+| `connection_id` | The id in the `connection_id` column of `SHOW QUERIES`. |
+| `node` | The node of the connection. |
+| `client_address` | The IP address of the client. |
+| `protocol` | `HTTP/1.1`, `HTTP/2`, or `HTTP/3`. gRPC uses `HTTP/2`. `HTTP/3` appears on the HTTPS port when `http3_enabled` is on. |
+| `kind` | `client`, or `peer` for another node that calls an internal endpoint. |
 | `user_name` | The user of the last statement on the connection. |
 | `opened_at` | The UTC time when the connection was accepted. |
 | `age_ms` | How long the connection has been open. |
-| `idle_ms` | Time since the last request; `0` while a statement runs. |
-| `requests` | Requests started on the connection. |
-| `active_queries` | Statements currently running on the connection. |
+| `idle_ms` | The time since the last request. `0` while a statement executes. |
+| `requests` | The requests started on the connection. |
+| `active_queries` | The statements that are executing on the connection now. |
 | `open_streams` | Open `BatchExecute` streams. |
-| `error` | `NULL` for normal rows. Cluster forms use it when a node could not answer. |
+| `error` | `NULL` for normal rows. The cluster forms use it when a node didn't answer. |
 
-HTTP/2 can carry many concurrent calls on one connection, so one gRPC channel
-usually appears as one connection row.
+HTTP/2 can carry many concurrent calls on one connection. This means that one
+gRPC channel usually appears as one connection row.
 
 ## Cancel a query
 
 `CANCEL QUERY '<query_id>'` asks CamusDB to stop one running query. You can send
-the cancel to any node; the id contains enough information for CamusDB to forward
-the request to the node that owns it.
+the cancel to any node. The id identifies the node that owns the query, and the
+cancel is forwarded to that node. Over the HTTP API, send `CANCEL QUERY` to
+`/execute-sql-non-query`.
 
-Only read statements are cancellable. A `SELECT`, `SHOW`, or `EXPLAIN ANALYZE`
-stops at its next row boundary. A write or schema change runs to commit or
-rollback once it has started mutating state, so it shows `cancellable = false`.
+Read statements can be cancelled. A `SELECT`, a `SHOW`, or an `EXPLAIN ANALYZE`
+stops at its next row boundary. After a write or a schema change starts to
+change data, it continues to its commit or rollback. It shows
+`cancellable = false`.
 
-The client of the cancelled statement receives `CADB0554`. Rows it already read
-before the cancel are real rows.
+The client of the cancelled statement receives `CADB0554` (HTTP 409). The rows
+that it read before the cancel are real rows.
 
-Cancel-related errors:
+A cancel takes effect when the statement next checks for cancellation. If the
+server already wrote rows into the network buffer, a slow client can receive
+those rows before the error.
+
+The following errors are related to cancels:
 
 | Code | Meaning |
 | --- | --- |
-| `CADB0551` | No visible running query has that id. It may have ended, the id may be wrong, or it may belong to another user. |
-| `CADB0552` | The statement cannot be cancelled now, usually because it is a write, a schema change, or still parsing. |
-| `CADB0553` | The node that may own the query did not answer before the timeout. The query may still be running. |
-| `CADB0554` | The cancelled statement reports this code to its own client. |
-
-A cancel takes effect when the statement next checks for cancellation. If the
-server has already written rows into the network buffer, a slow client can still
-receive those buffered rows before it receives the cancellation error.
+| `CADB0551` | No visible running query has that id. The query ended, or the id is wrong. A query of another user also gives this error. |
+| `CADB0552` | The statement can't be cancelled now. For example, it is a write, or it is in parsing. |
+| `CADB0553` | The node that can own the query didn't answer before the timeout. The query can continue to execute. |
+| `CADB0554` | The cancelled statement returns this code to its client. |
 
 ## Visibility and permissions
 
-When authentication is off, every caller sees every row and can cancel any
-cancellable query.
+When authentication is off, all callers see all the rows, and they can cancel
+any cancellable query.
 
 When authentication is on:
 
-- A superuser sees every row and can cancel any cancellable query.
-- A regular user sees only their own statements and connections.
-- A regular user can cancel only their own queries.
+- A superuser sees all the rows, and can cancel any cancellable query.
+- A regular user sees their statements and connections only.
+- A regular user can cancel their queries only.
 
-A cancel attempt against another user's query returns the same error as an
-unknown query id, so query ids do not reveal other users' activity.
+A cancel of the query of another user returns `CADB0551`, the same error as an
+unknown id. This means that query ids don't disclose the activity of other
+users.
 
 ## Cluster forms
 
-`SHOW CLUSTER QUERIES` and `SHOW CLUSTER CONNECTIONS` ask every cluster member
-for its local rows. A node that does not answer before
-`cluster_activity_peer_timeout_ms` contributes one row with `node` and `error`
-set, while the other columns are `NULL`.
+`SHOW CLUSTER QUERIES` and `SHOW CLUSTER CONNECTIONS` ask each cluster member
+for its local rows. If a node doesn't answer before
+`cluster_activity_peer_timeout_ms`, it gives one row with `node` and `error`
+set, and the other columns are `NULL`. This means that one unreachable node
+doesn't make the activity query fail.
 
-This keeps the result useful during an outage: one unreachable node does not
-make the whole activity query fail.
-
-One cluster request contacts all members. At most
-`cluster_activity_max_concurrent_fan_outs` requests run simultaneously on a node
-(default 8); excess requests fail with `CADB0558` and HTTP 503. This protects
-peer connections and thread-pool work from excessive dashboard polling.
+A cluster request contacts all the members. A node admits at most
+`cluster_activity_max_concurrent_fan_outs` cluster requests at the same time
+(default 8). Other requests return `CADB0558` and HTTP 503. This limit protects
+the connections between nodes from frequent dashboard polling.
 
 On a standalone node, the cluster forms return the same rows as the local forms.
 
 ## Runtime settings
 
-These runtime cluster settings control the feature:
+The following runtime settings control the feature. Their scope is the node,
+and you can change them with
+[`SET CLUSTER SETTING`](/docs/runtime-cluster-settings):
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `query_activity_enabled` | `true` | Lists running statements and allows `CANCEL QUERY`. |
-| `query_activity_max_sql_length` | `1024` | Maximum statement-text characters shown in `SHOW QUERIES`. |
-| `cluster_activity_peer_timeout_ms` | `2000` | Peer wait for cluster forms and forwarded cancels. |
-| `cluster_activity_max_concurrent_fan_outs` | `8` | Concurrent cluster activity requests admitted per node. `0` or below disables the cap. |
-
-Change them with [Runtime Cluster Settings](/docs/runtime-cluster-settings):
+| `query_activity_max_sql_length` | `1024` | The maximum characters of statement text in `SHOW QUERIES`. |
+| `cluster_activity_peer_timeout_ms` | `2000` | The wait for other nodes, for cluster forms and forwarded cancels. |
+| `cluster_activity_max_concurrent_fan_outs` | `8` | The concurrent cluster activity requests that a node admits. `0` or less turns off the limit. |
 
 ```camussql
 SET CLUSTER SETTING query_activity_max_sql_length = 4096;
 SET CLUSTER SETTING cluster_activity_peer_timeout_ms = 5000;
 ```
 
-Turning `query_activity_enabled` off stops new statements from being listed and
-prevents `CANCEL QUERY` from finding them. Existing listed statements leave the
-activity list when they finish. `SHOW CONNECTIONS` still works.
+When `query_activity_enabled` is off, new statements aren't listed, and
+`CANCEL QUERY` can't find them. Statements that are already listed leave the
+list when they finish. `SHOW CONNECTIONS` continues to work.
 
 ## Limits
 
-- Typed row APIs, such as `/query`, `/insert`, `/update`, `/delete`, and the
-  gRPC `CamusRows` service, are not listed because they do not send SQL text.
-- The scans that a [distributed query](/docs/distributed-queries) runs on other
-  nodes are not listed on those nodes. The statement on the coordinating node
-  is listed.
-- An explicit transaction that is idle between statements does not appear in
-  `SHOW QUERIES`; its connection appears in `SHOW CONNECTIONS`.
-- There is no `KILL CONNECTION` statement yet.
+- Typed row APIs, such as `/query` and the gRPC `CamusRows` service, aren't
+  listed. They don't send SQL text.
+- The scans that a [distributed query](/docs/distributed-queries) executes on
+  other nodes aren't listed on those nodes. The statement on the coordinating
+  node is listed.
+- An explicit transaction that is idle between statements isn't in
+  `SHOW QUERIES`. Its connection is in `SHOW CONNECTIONS`.
+- There isn't a `KILL CONNECTION` statement.

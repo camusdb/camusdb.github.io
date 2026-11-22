@@ -4,15 +4,12 @@ sidebar_position: 2.32
 
 # Sequences
 
-A sequence is a named counter that returns one integer at a time.
+A sequence is a named counter that returns one integer at a time. Use a
+sequence when people or external systems read the number, for example an
+invoice number or a ticket number.
 
-Use a sequence when the number itself has meaning to people or external
-systems: an invoice number, an order number, a ticket number, or a short
-reference printed on a receipt.
-
-Do not use a sequence just because a table needs a primary key. For primary
-keys, prefer an `OID` from `gen_id()`, or a `UUID` from `gen_uuid_v4()` or
-`gen_uuid_v7()`:
+Don't use a sequence only to give a table a primary key. For primary keys, use
+an `OID` from `gen_id()`, or a `UUID` from `gen_uuid_v4()` or `gen_uuid_v7()`:
 
 ```camussql
 CREATE TABLE orders (
@@ -22,19 +19,19 @@ CREATE TABLE orders (
 );
 ```
 
-The `id` is the database key, which each writer generates without coordinating
-with other writers. The `order_no` is the human-facing number.
+Each writer generates the `id` independently. The `order_no` is the number for
+people.
 
-`gen_id()` and `gen_uuid_v7()` produce time-ordered values, so with
-[key-range sharding](/docs/key-range-sharding) every insert goes to the last
+`gen_id()` and `gen_uuid_v7()` produce time-ordered values. With
+[key-range sharding](/docs/key-range-sharding), all inserts then go to the last
 [range](/docs/concepts#ranges-and-spans) (a contiguous slice of keys) of the
 primary index. In that case, use `gen_uuid_v4()` for tables with a high insert
-rate. See
-[Best practices](/docs/best-practices#primary-keys).
+rate. See [Best practices](/docs/best-practices#primary-keys).
 
 In a distributed database, a sequence is one logical counter. Inserts that need
-a value from it coordinate through that counter, so a sequence can become the table's point of contention. `CACHE` can reduce how
-often the counter commits, but it does not make a sequence as independent as an
+a value from it go through that counter. This means that a sequence can become
+the point of contention of a table. `CACHE` reduces how often the counter
+commits. However, a sequence with a cache is a shared counter too, unlike an
 `OID` or UUID generator.
 
 ## Quick start
@@ -54,8 +51,16 @@ INSERT INTO orders (total) VALUES (19.90);
 SELECT no, total FROM orders;
 ```
 
-If only one table column uses the sequence, an identity column is usually the
-cleaner way to write it:
+```text
+┌──────┬───────┐
+│ no   │ total │
+├──────┼───────┤
+│ 1000 │ 19.9  │
+└──────┴───────┘
+1 rows in set (00:00:00.0035445)
+```
+
+If one column uses the sequence, an identity column is usually simpler:
 
 ```camussql
 CREATE TABLE invoices (
@@ -65,7 +70,7 @@ CREATE TABLE invoices (
 );
 ```
 
-CamusDB creates and owns the backing sequence for the identity column.
+CamusDB creates the sequence of the identity column, and the column owns it.
 
 ## Create a sequence
 
@@ -73,16 +78,16 @@ CamusDB creates and owns the backing sequence for the identity column.
 CREATE SEQUENCE [IF NOT EXISTS] name [ option ... ];
 ```
 
-Common options:
+The following options are the most common:
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `START [WITH] n` | `MINVALUE` | First value the sequence returns. |
-| `INCREMENT [BY] n` | `1` | Step between values. Must be positive. |
-| `MINVALUE n` / `NO MINVALUE` | `1` | Lowest value the sequence may hold. |
-| `MAXVALUE n` / `NO MAXVALUE` | none | Highest value the sequence may return. |
-| `CACHE n` | `1` | Values reserved per durable counter update. |
-| `NO CYCLE` | accepted | The only supported cycle behavior. |
+| `START [WITH] n` | `MINVALUE` | The first value. |
+| `INCREMENT [BY] n` | `1` | The step between values. Must be positive. |
+| `MINVALUE n` / `NO MINVALUE` | `1` | The lowest value. |
+| `MAXVALUE n` / `NO MAXVALUE` | none | The highest value. |
+| `CACHE n` | `1` | The values reserved for each durable update of the counter. |
+| `NO CYCLE` | accepted | The only cycle behavior. `CYCLE` returns `CADB0533`. |
 
 Example:
 
@@ -95,24 +100,21 @@ CREATE SEQUENCE invoice_no
   CACHE 1;
 ```
 
-Sequences share a namespace with tables and views, so a table and a sequence
-cannot have the same name in one database.
+Sequences share one namespace with tables and views. A sequence can't have the
+name of a table in the same database.
 
-`CYCLE` is not supported, because wrapping back to the minimum would reissue
-values. A sequence issues each value once, unless `setval`,
-`ALTER SEQUENCE ... RESTART`, or `TRUNCATE ... RESTART IDENTITY` moves the
-counter back.
+`CYCLE` isn't supported. A wrap to the minimum would issue values again. A
+sequence issues each value once, unless you move the counter back with `setval`
+or a restart.
 
 ## Use values
 
-Sequence functions:
-
 | Function | Meaning |
 | --- | --- |
-| `nextval('s')` | Advance `s` and return the new value. |
-| `currval('s')` | Return the last value this transaction drew from `s`. |
-| `lastval()` | Return the last value this transaction drew from any sequence. |
-| `setval('s', n [, is_called])` | Move the counter. |
+| `nextval('s')` | Advances `s` and returns the new value. |
+| `currval('s')` | Returns the last value that this transaction drew from `s`. |
+| `lastval()` | Returns the last value that this transaction drew from any sequence. |
+| `setval('s', n [, is_called])` | Moves the counter. |
 
 ### `nextval`
 
@@ -123,17 +125,27 @@ INSERT INTO orders (id, no, total)
 VALUES (gen_id(), nextval('order_no'), 25.00);
 ```
 
-CamusDB reserves the values a statement needs before the statement runs, so
-sequence calls are accepted only where the engine can know the count in
-advance:
+CamusDB reserves the values of a statement before the statement executes. This
+means that `nextval` is allowed where the number of values is known in advance:
 
 - `INSERT ... VALUES` expressions.
 - Column defaults used by `INSERT ... VALUES`.
 - Column defaults used by `INSERT ... SELECT`.
 - A `SELECT` with no `FROM` clause.
 
-Other positions are rejected with `CADB0547`, including filters, joins,
-aggregates, stored view bodies, check constraints, and `UPDATE ... SET`.
+Other positions return `CADB0547`, for example a `WHERE` clause, `UPDATE ... SET`,
+a view body, or a FROM-less subquery. In a `CHECK` constraint, `nextval` returns
+`CADB0400`.
+
+`COALESCE` and its two-argument forms stop at the first value that isn't `NULL`.
+A `nextval` after a literal or parameter that isn't `NULL` doesn't draw a value:
+`COALESCE(1, nextval('s'))` doesn't advance `s`. If CamusDB can't prove that a
+call is unreachable, it can reserve a value that isn't used, and leave a gap.
+See [Evaluation order](/docs/functions-null#evaluation-order).
+
+In `INSERT ... VALUES`, a column with a sequence default draws a value when
+you omit the column or write `DEFAULT`. See
+[Defaults in writes](/docs/sql-writes#defaults) for the rules on updates.
 
 ### `currval` and `lastval`
 
@@ -142,13 +154,27 @@ aggregates, stored view bodies, check constraints, and `UPDATE ... SET`.
 ```camussql
 BEGIN;
 INSERT INTO orders (total) VALUES (19.90);
-SELECT currval('order_no');
+SELECT currval('order_no') AS current_no;
+```
+
+```text
+┌────────────┐
+│ current_no │
+├────────────┤
+│ 1002       │
+└────────────┘
+1 rows in set (00:00:00.0002747)
+```
+
+The earlier examples on this page drew 1000 and 1001.
+
+```camussql
 COMMIT;
 ```
 
-Outside an explicit transaction, each statement is its own transaction, so a
-later statement cannot ask what a previous autocommit statement drew; it gets
-`CADB0546`.
+An autocommit statement is a separate transaction. This means that a later
+statement can't read the value that an earlier autocommit statement drew. It
+returns `CADB0546`.
 
 ### `setval`
 
@@ -159,17 +185,17 @@ SELECT setval('order_no', 5000);          -- next nextval returns 5001
 SELECT setval('order_no', 5000, false);   -- next nextval returns 5000
 ```
 
-`setval` is accepted only as the whole projection of a `SELECT` without `FROM`,
-with at most one `setval` call in the statement.
+`setval` must be the full projection of a FROM-less `SELECT`, and a statement
+can have one `setval` call. Other forms return `CADB0547`.
 
-Moving a counter down can make the sequence reissue values that committed rows
-already hold. If the sequence feeds a unique column, later inserts can then
-fail with a duplicate-key error. Check the table first, or move the sequence
-above the highest stored value.
+If you move a counter down, the sequence can issue values that committed rows
+already have. If the sequence feeds a unique column, later inserts can then fail
+with a duplicate-key error. Check the table first, or move the sequence above
+the highest stored value.
 
 ## Identity columns
 
-Identity columns are table columns backed by owned sequences:
+An identity column is a table column with an owned sequence:
 
 ```camussql
 CREATE TABLE tickets (
@@ -185,21 +211,22 @@ CREATE TABLE notes (
 );
 ```
 
-With `GENERATED ALWAYS AS IDENTITY`, callers cannot supply their own value for
-the column. Name the insert columns and leave out the identity column:
+With `GENERATED ALWAYS AS IDENTITY`, omit the identity column or use
+`DEFAULT` for it in each row. A supplied value returns `CADB0400` unless you
+use an override clause.
 
 ```camussql
-INSERT INTO tickets (subject) VALUES ('Boarding pass printer');
+INSERT INTO tickets (ticket_no, subject)
+VALUES (DEFAULT, 'Boarding pass printer');
 ```
 
-With `GENERATED BY DEFAULT AS IDENTITY`, the sequence supplies a value only when
-the insert omits the column. If an insert supplies a value, CamusDB writes it
-and does not advance the sequence.
+With `GENERATED BY DEFAULT AS IDENTITY`, you can also supply a value. The
+sequence advances when it generates a value for the column.
 
-CamusDB also accepts `SERIAL` and `BIGSERIAL` as shorthand for an `INT64`
-column backed by an owned sequence. Both are 64-bit, unlike PostgreSQL SERIAL.
-A sequence on a SMALLINT or INT column keeps its own bounds; a generated value
-outside the column range fails the write with CADB0420.
+`SERIAL` and `BIGSERIAL` are shorthand for an `INT64` identity column. Both are
+64-bit. In PostgreSQL, `SERIAL` is 32-bit. An identity column of type `SMALLINT`
+or `INT` uses the bounds of its sequence. A generated value outside the range of
+the column returns `CADB0420`, and that value is used up.
 
 ```camussql
 CREATE TABLE invoices (
@@ -211,14 +238,21 @@ CREATE TABLE invoices (
 
 ### Owned sequences
 
-An identity sequence belongs to its column.
+An identity sequence belongs to its column:
 
-- `DROP SEQUENCE` on the owned sequence is rejected with `CADB0548`.
-- Dropping the column or dropping the table with `FORCE` removes the sequence.
+- `DROP SEQUENCE` on an owned sequence returns `CADB0548`.
+- A drop of the column, or `DROP TABLE ... FORCE`, removes the sequence.
+- A regular `DROP TABLE` keeps the sequence with the
+  [dropped table](/docs/recover-dropped-objects). Its `owned_by` column then
+  shows the id of the dropped table. A new table with the same name gets a
+  sequence with a suffix, such as `tickets_ticket_no_seq1`.
 - `TRUNCATE ... RESTART IDENTITY` restarts the owned sequence.
-- `TRUNCATE ... CONTINUE IDENTITY` leaves it alone.
+  `CONTINUE IDENTITY` leaves it.
 
-A free-standing sequence used in a default is not owned by the table:
+Note that in the current release, after you relink a dropped table, an insert
+that leaves out its identity column returns `CADB0301`.
+
+A free-standing sequence in a default isn't owned by the table:
 
 ```camussql
 CREATE SEQUENCE shared_no;
@@ -234,7 +268,9 @@ CREATE TABLE b (
 );
 ```
 
-Use this shape only when sharing one counter across tables is intentional.
+Use this form if the tables must share one counter. A `DROP SEQUENCE` of a
+sequence that a column default uses returns `CADB0548`. Remove the defaults
+first.
 
 ## Truncate and identity
 
@@ -243,9 +279,9 @@ TRUNCATE TABLE orders CONTINUE IDENTITY;  -- default
 TRUNCATE TABLE orders RESTART IDENTITY;
 ```
 
-`RESTART IDENTITY` restarts only sequences owned by columns of the truncated
-table. It does not reset a free-standing sequence that a default calls with
-`nextval`, because another table may be using that same counter.
+`RESTART IDENTITY` restarts the sequences that the columns of the truncated
+table own. A free-standing sequence that a default calls isn't reset. Another
+table can use the same counter.
 
 ## Change or drop a sequence
 
@@ -259,15 +295,17 @@ ALTER SEQUENCE order_no RENAME TO order_number;
 DROP SEQUENCE order_number;
 ```
 
-CamusDB checks an `ALTER` against the definition it produces. For example, if
-you raise `MINVALUE` above the recorded `START`, change both together:
+An `ALTER` is checked against the resulting definition, and an invalid one
+returns `CADB0545`. For example, if you raise `MINVALUE` above the recorded
+`START`, change both together:
 
 ```camussql
 ALTER SEQUENCE order_no MINVALUE 100 START WITH 100;
 ```
 
-`ALTER SEQUENCE ... RESTART` cannot run inside an explicit transaction, because
-moving a counter is immediate and a later `ROLLBACK` cannot undo it.
+`ALTER SEQUENCE ... RESTART` isn't allowed in an explicit transaction, and it
+returns `CADB0538`. A move of the counter takes effect at once, and a `ROLLBACK`
+can't undo it.
 
 ## Inspect sequences
 
@@ -278,10 +316,8 @@ SHOW CREATE SEQUENCE order_no;
 COMMENT ON SEQUENCE order_no IS 'one per customer order';
 ```
 
-`SHOW SEQUENCES` reports the name, reserved position, start value, increment,
-minimum, maximum, cache, owning column, and comment.
-
-The `reserved_upto` column is a ceiling, not necessarily the last value issued:
+`reserved_upto` in `SHOW SEQUENCES` is a ceiling. It isn't always the last
+value issued:
 
 ```camussql
 CREATE SEQUENCE s CACHE 1000;
@@ -292,55 +328,57 @@ SELECT nextval('s');            -- 2
 SHOW SEQUENCES LIKE 's';        -- reserved_upto is 1000
 ```
 
-With `CACHE 1`, the default, `reserved_upto` advances one value at a time. With
-a larger cache, it shows the top of the reserved block.
+```text
+┌──────────┬───────────────┬─────────────┬───────────┬───────────┬───────────┬───────┬──────────┬─────────┐
+│ sequence │ reserved_upto │ start_value │ increment │ min_value │ max_value │ cache │ owned_by │ comment │
+├──────────┼───────────────┼─────────────┼───────────┼───────────┼───────────┼───────┼──────────┼─────────┤
+│ s        │ 1000          │ 1           │ 1         │ 1         │ null      │ 1000  │ null     │ null    │
+└──────────┴───────────────┴─────────────┴───────────┴───────────┴───────────┴───────┴──────────┴─────────┘
+1 rows in set (00:00:00.0005400)
+```
+
+With the default `CACHE 1`, `reserved_upto` advances one value at a time. With a
+larger cache, it shows the top of the reserved block.
 
 ## Distributed behavior
 
 Sequences are durable and
 [replicated](/docs/concepts#replica-and-replication-factor) (copied to other
-nodes), but they are still counters. Keep these properties in mind:
+nodes). However, they are counters, and the following properties apply:
 
-- A sequence issues unique values, unless `setval` or a `RESTART` moves the
-  counter back.
-- Sequence values are not a perfect insert order. During leadership changes
-  (when another node becomes the [leader](/docs/concepts#leader) that issues
-  values), a later insert can receive a lower value than an earlier insert.
-- Values are not rolled back. A failed or rolled-back transaction can leave a
+- Values are unique, unless `setval` or a restart moves the counter back.
+- Values aren't a perfect insert order. When another node becomes the
+  [leader](/docs/concepts#leader) that issues values, a later insert can get a
+  lower value than an earlier insert.
+- Values aren't rolled back. A failed or rolled-back transaction can leave a
   gap.
-- `CACHE` improves throughput by reserving a block of values at a time. Unused
-  values from a block can be skipped after restart, eviction, or leadership
-  movement.
-- `setval`, `ALTER SEQUENCE ... RESTART`, and `TRUNCATE ... RESTART IDENTITY`
-  can wait for the storage [lease](/docs/concepts#lease), a time-limited claim
-  of about five seconds, so stale cached blocks cannot keep issuing values.
+- `CACHE` reserves a block of values at a time, which improves throughput. The
+  unused values of a block can be skipped after a restart or a leader change.
+- A move of the counter, such as `setval`, can wait for the storage
+  [lease](/docs/concepts#lease), a claim of about five seconds. This prevents
+  stale cached blocks from issuing values.
+- In a cluster, send sequence DDL to the schema leader of the database. Note
+  that in the current release, sequence DDL on another node returns
+  `CADB0504`, and a retry on that node fails again. See
+  [DDL that isn't forwarded](/docs/distributed-schema#ddl-that-isnt-forwarded).
 
-These semantics are similar to PostgreSQL's.
-
-COALESCE, IFNULL, and NVL stop evaluating at their first non-NULL value.
-A NEXTVAL after a non-NULL literal or parameter proven to be returned draws
-nothing: `COALESCE(1, nextval('s'))` does not advance `s`. If the statement
-cannot prove a call unreachable, it can reserve a value that is never used,
-leaving a gap. A sequence call in a nested FROM-less SELECT is refused with
-CADB0547. See [conditional evaluation](/docs/functions-null#evaluation-order).
+These rules are similar to those of PostgreSQL.
 
 ## Branches, backups, and drops
 
-Dropping a database removes its sequence counters.
+A drop of a database removes its sequence counters.
 
-Branching a database gives the branch its own counters, seeded above the
-source's reserved ceiling. This avoids collisions with rows inherited from the
-source, at the cost of a possible gap. See
-[Database Branching](/docs/database-branching).
+A branch of a database gets separate counters, which start above the reserved
+ceiling of the source. This prevents collisions with rows from the source, at
+the cost of a gap. See [Database branching](/docs/database-branching).
 
-Backups carry sequence records. Restoring a backup restores the counters along
-with the rows, at the reserved ceiling, so you do not need to reseed them by
-hand. See
-[Backup And Restore](/docs/backup-and-restore).
+Backups contain the sequence records. A restore puts the counters back at the
+reserved ceiling, with the rows. This means that you don't need to set them
+again. See [Backup and restore](/docs/backup-and-restore).
 
 ## Privileges
 
-Sequence statements reuse existing database privileges:
+Sequence statements use database privileges:
 
 | Statement | Privilege on the database |
 | --- | --- |
@@ -355,19 +393,19 @@ Sequence statements reuse existing database privileges:
 
 | Code | Meaning |
 | --- | --- |
-| `CADB0542` | The name is already taken by a sequence, table, or view. |
-| `CADB0543` | The named sequence does not exist. |
+| `CADB0542` | A sequence already has the name. A name that a table has returns `CADB0013`. |
+| `CADB0543` | The sequence doesn't exist. |
 | `CADB0544` | The sequence has no value left to issue. |
 | `CADB0545` | The sequence definition is invalid. |
 | `CADB0546` | `currval` or `lastval` was called before this transaction drew a value. |
-| `CADB0547` | A sequence call was written where CamusDB cannot know how many values it would draw. |
-| `CADB0548` | The sequence is owned by an identity column, or another object depends on it. |
-| `CADB0535` | The [partition](/docs/concepts#partition) that stores the sequence had no confirmed leader for the retry window. Retry the statement. |
+| `CADB0547` | A sequence call is in a position where CamusDB can't know how many values it draws. |
+| `CADB0548` | An identity column owns the sequence, or a column default uses it. |
+| `CADB0535` | The [partition](/docs/concepts#partition) of the sequence didn't have a confirmed leader for the retry window. Retry the statement. |
 
-## See also
+## Related pages
 
-- [Tables And Columns](/docs/sql-schema)
-- [Data Types](/docs/data-types)
+- [Tables and columns](/docs/sql-schema)
+- [Data types](/docs/data-types)
 - [TRUNCATE TABLE](/docs/truncate-table)
-- [Database Branching](/docs/database-branching)
+- [Database branching](/docs/database-branching)
 - [Configuration](/docs/configuration), for `sequence_retry_budget_ms`.

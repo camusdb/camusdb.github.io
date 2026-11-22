@@ -4,107 +4,128 @@ sidebar_position: 4.3
 
 # Date/time functions
 
-Date and time functions let you answer time questions in SQL: orders placed
-this month, sessions grouped by hour, days until a subscription expires, or a
-timestamp formatted for a report. Clock functions such as `now()` follow
-PostgreSQL rules, and CamusDB also accepts the PostgreSQL and MySQL formatting
-functions (`to_char`, `date_format`) and the MySQL shortcuts (`year`,
-`dayname`), so queries you port need fewer changes.
+Date and time functions answer time questions in SQL, for example the orders of
+this month or the days until a subscription expires. The clock functions, such
+as `now()`, follow PostgreSQL. CamusDB also has the PostgreSQL and MySQL formatting
+functions. It also has MySQL shortcuts, such as `year`. This means that
+queries that you port need fewer changes.
 
-Functions return typed values including `DATE`, `DATETIME`, `INTERVAL`, and `INT64`.
-`to_char`, `date_format`, `dayname`, and `monthname` return `STRING`.
+The functions take `DATE` and `DATETIME` values, and two string forms:
 
-These functions accept `DATE` and `DATETIME` columns directly, as well as two
-string forms:
+- A date, such as `2024-06-15`.
+- A timestamp with a UTC marker or an offset, such as `2024-06-15T10:30:00Z` or
+  `2024-06-15T10:30:00+05:00`.
 
-- A date in the form `YYYY-MM-DD`.
-- A timestamp with an explicit UTC marker or offset, such as
-  `2024-06-15T10:30:00Z` or `2024-06-15T10:30:00+05:00`.
+A timestamp string that doesn't have an offset, such as `2024-06-15 10:30:00`,
+returns `CADB0400`. Its time zone is ambiguous. You can also write
+[typed literals](/docs/data-types#typed-datetime-literals), such as
+`DATE '2024-06-15'`.
 
-CamusDB rejects local timestamp strings without an offset, such as
-`2024-06-15T10:30:00` and `2024-06-15 10:30:00`, because their time zone is
-ambiguous.
+## Units
 
-The supported units are `year`, `month`, `day`, `hour`, `minute`, `second`,
-`millisecond`, `microsecond` (or `us`), `week`, `quarter`, `decade`, `century`,
-and `millennium`. CamusDB also accepts plural names, such as `days`, `months`,
-and `millennia`.
+| Units | Where |
+| --- | --- |
+| `year`, `quarter`, `month`, `week`, `day`, `hour`, `minute`, `second` | All functions that take a unit. |
+| `millisecond`, `microsecond` (or `us`), `decade`, `century`, `millennium` | All functions that take a unit. |
+| `dow` (0 = Sunday), `isodow` (1 = Monday to 7 = Sunday), `doy` (day of the year), `isoyear`, `epoch` (Unix seconds) | `date_part` and `EXTRACT` only. |
 
-The following units name a position, so they work only in `date_part` and
-`EXTRACT`: `dow` (0 = Sunday), `isodow` (1 = Monday to 7 = Sunday), `doy` (day
-of the year), `isoyear`, and `epoch` (whole Unix seconds).
+Plural names, such as `days` and `millennia`, also work. As a part, `week` is the
+ISO 8601 week. `millisecond` and `microsecond` are the fraction of the second
+(0 to 999, and 0 to 999999).
 
-When extracted as a part, `week` is the ISO-8601 week, and `millisecond` and
-`microsecond` are only the fraction of the current second (0-999 and
-0-999999).
+## The functions
 
 | Function | Returns | Description |
 | --- | --- | --- |
 | `current_timestamp()` | `DATETIME` | The start of the current transaction, in UTC. |
-| `now()` | `DATETIME` | Alias for `current_timestamp()`. |
-| `transaction_timestamp()` | `DATETIME` | Alias for `current_timestamp()`. |
+| `now()`, `transaction_timestamp()` | `DATETIME` | Aliases for `current_timestamp()`. |
 | `current_date()` | `DATE` | The UTC date at the start of the current transaction. |
 | `statement_timestamp()` | `DATETIME` | The start of the current statement, in UTC. |
-| `clock_timestamp()` | `DATETIME` | The current instant in UTC, read fresh on each call. |
-| `sysdate()` | `DATETIME` | Alias for `clock_timestamp()`. |
-| `date_add(value, amount, unit)` | `DATETIME` | Adds an `INT64` amount of the given unit. A `DATE` input is promoted to `DATETIME`. |
-| `date_add(value, interval)`, `date_sub(value, interval)` | `DATETIME` | Adds or subtracts an interval, with calendar month handling. |
-| `date_diff(start, end, unit)` | `INT64` | The difference from `start` to `end`, in whole units. |
-| `date_part(unit, value)` | `INT64` | Extracts a UTC component of a temporal value, or a field of an interval. |
-| `EXTRACT(unit FROM value)` | `INT64` | The SQL-standard form of `date_part(unit, value)`. The unit is a bare word or a string. |
-| `date_trunc(unit, value)` | `DATETIME` | Truncates `value` to the start of the requested unit, in UTC. |
-| `unix_timestamp()` | `INT64` | The start of the current transaction, in whole Unix seconds. |
-| `unix_timestamp(value)` | `INT64` | Converts a `DATE`, `DATETIME`, or date/time string to Unix timestamp seconds. |
-| `unix_timestamp_ms()` | `INT64` | Milliseconds since the Unix epoch at the start of the transaction. |
-| `unix_timestamp_ms(value)` | `INT64` | Converts a temporal value to Unix epoch milliseconds, rounded down. |
-| `from_unixtime(seconds)` | `DATETIME` | Converts Unix timestamp seconds, including an exact `NUMERIC` fraction, to UTC, rounded to the nearest microsecond. |
-| `make_date(year, month, day)` | `DATE` | Builds a date from integer parts. |
-| `make_timestamp(year, month, day, hour, minute, second)` | `DATETIME` | Builds a UTC timestamp. `second` may have a fraction. |
-| `makedate(year, day_of_year)` | `DATE` | Builds a date from a MySQL-style day of year. |
-| `last_day(value)` | `DATE` | Returns the final day of the UTC month containing the value. |
-| `to_char(temporal, pattern)` | `STRING` | Formats a temporal value with a PostgreSQL template pattern. |
-| `to_timestamp(text, pattern)` | `DATETIME` | Parses text with a PostgreSQL template pattern. |
-| `to_date(text, pattern)` | `DATE` | Parses text with a PostgreSQL template pattern. |
-| `date_format(temporal, pattern)` | `STRING` | Formats a temporal value with MySQL `%` specifiers. |
-| `str_to_date(text, pattern)` | `DATETIME` | Parses text with MySQL `%` specifiers. |
+| `clock_timestamp()` | `DATETIME` | The current instant in UTC, read at each call. |
+| `sysdate()` | `DATETIME` | An alias for `clock_timestamp()`. |
+| `date_add(value, amount, unit)` | `DATETIME` | Adds an `INT64` amount of the unit. A `DATE` becomes a `DATETIME`. |
+| `date_add(value, interval)`, `date_sub(value, interval)` | `DATETIME` | Adds or subtracts an interval, with calendar months. |
+| `date_diff(start, end, unit)` | `INT64` | The difference from `start` to `end`, as a count of units. |
+| `date_part(unit, value [, zone])` | `INT64` | A part of a temporal value in UTC or the supplied zone, or a field of an interval. |
+| `EXTRACT(unit FROM value)` | `INT64` | The SQL-standard form of `date_part`. The unit is a word or a string. |
+| `date_trunc(unit, value [, zone])` | `DATETIME` | The UTC instant at the start of the unit in UTC or the supplied zone. |
+| `unix_timestamp([value])` | `INT64` | Unix seconds of `value`, or of the start of the transaction. |
+| `unix_timestamp_ms([value])` | `INT64` | As `unix_timestamp`, in milliseconds. A fraction is rounded down. |
+| `from_unixtime(seconds)` | `DATETIME` | Unix seconds to UTC, rounded to the microsecond. A `NUMERIC` fraction is exact. |
+| `make_date(year, month, day)` | `DATE` | A date from integer parts. |
+| `make_timestamp(year, month, day, hour, minute, second)` | `DATETIME` | A UTC timestamp. `second` can have a fraction. |
+| `makedate(year, day_of_year)` | `DATE` | A date from a MySQL-style day of the year. |
+| `last_day(value)` | `DATE` | The last day of the UTC month of `value`. |
+| `to_char`, `to_timestamp`, `to_date`, `date_format`, `str_to_date` | | See [Pattern formatting and parsing](#pattern-formatting-and-parsing). |
 
-Pattern formatting and parsing are covered in
-[Pattern formatting and parsing](#pattern-formatting-and-parsing).
+## Time zones
+
+Use a time zone to group orders by local business day or show an event in a
+user's local time. `date_trunc`, `date_part`, and `to_char` accept an optional
+last argument and use UTC by default.
+
+```camussql
+SELECT date_trunc('day', created, 'America/Bogota') AS local_day, count(*)
+FROM orders
+GROUP BY date_trunc('day', created, 'America/Bogota');
+
+SELECT to_char('2026-11-01T06:30:00Z', 'YYYY-MM-DD HH24:MI TZ OF', 'America/New_York');
+-- 2026-11-01 01:30 EST -05
+```
+
+Use a case-insensitive IANA name or alias such as `America/New_York` or
+`US/Eastern`. Unknown names and numeric offsets such as `'+05:30'` return
+`CADB0400`. A NULL zone returns NULL.
+
+`date_trunc` returns the UTC instant that begins the local unit. During a
+spring-forward gap, a unit whose start was skipped begins at the transition.
+During a fall-back overlap, a day or larger unit starts at the first
+occurrence of its boundary. A shorter unit truncates within the occurrence
+that contains the input, using the transition if the clock skipped its start.
+
+`date_part` returns the requested part of the local time. The `epoch` part
+is independent of the zone. An interval argument uses the two-argument form.
+A `DATE` input represents midnight UTC before conversion to the local time.
+
+Zone rules ship with the server and can change between releases. During a
+rolling upgrade, the coordinator evaluates fragments that use a zone when
+their target node has a different version of the zone data. An
+[expression index](/docs/sql-indexes#expression-indexes) cannot use these
+three-argument forms.
 
 ## Transaction, statement, and clock time
 
 The clock functions follow PostgreSQL:
 
-- `now()`, `current_timestamp()`, `transaction_timestamp()`, `current_date()`,
-  `unix_timestamp()`, and `unix_timestamp_ms()` return the start of the
-  transaction. Every row and statement in a transaction sees the same value.
-- `statement_timestamp()` returns the start of the statement, so each statement
+- `now()` and the other transaction-time functions return the start of the
+  transaction. All rows and statements of a transaction get the same value. The
+  `unix_timestamp` functions use this time when you don't pass a value.
+- `statement_timestamp()` returns the start of the statement. Each statement
   gets a new value.
-- `clock_timestamp()` and `sysdate()` read the clock on each call, so two rows in
+- `clock_timestamp()` and `sysdate()` read the clock at each call. Two rows of
   one statement can get different values.
 
-Use `now()` for a consistent time across a transaction. Use `clock_timestamp()`
-to measure elapsed time inside one.
+Use `now()` for one time across a transaction. To measure elapsed time in a
+transaction, use `clock_timestamp()`.
 
 ## MySQL shortcuts
 
-Each shortcut takes a temporal value and returns one of its UTC parts.
+Each shortcut takes a temporal value and returns one of its UTC parts:
 
 | Function | Returns | Description |
 | --- | --- | --- |
-| `year(x)`, `month(x)`, `day(x)`, `hour(x)`, `minute(x)`, `second(x)` | `INT64` | The same part as `date_part`. |
-| `dayofmonth(x)` | `INT64` | Alias for `day(x)`. |
+| `year(x)`, `month(x)`, `day(x)` | `INT64` | The same part as `date_part`. `dayofmonth(x)` is an alias for `day(x)`. |
+| `hour(x)`, `minute(x)`, `second(x)` | `INT64` | The same part as `date_part`. |
 | `quarter(x)` | `INT64` | 1 to 4. |
 | `dayofyear(x)` | `INT64` | 1 to 366. |
 | `dayofweek(x)` | `INT64` | 1 = Sunday to 7 = Saturday. |
 | `weekday(x)` | `INT64` | 0 = Monday to 6 = Sunday. |
 | `dayname(x)` | `STRING` | The English day name, such as `Sunday`. |
 | `monthname(x)` | `STRING` | The English month name, such as `June`. |
-| `week(x[, mode])` | `INT64` | Mode 0, the default: weeks start on Sunday, and the days before the first Sunday are week 0 (0 to 53). Mode 3: the ISO-8601 week (1 to 53). Any other mode is an error. |
+| `week(x[, mode])` | `INT64` | Mode 0 (default): weeks start on Sunday, and the days before the first Sunday are week 0. Mode 3: the ISO 8601 week. Other modes return `CADB0400`. |
 
-`dayofweek(x)` counts from 1, but `date_part('dow', x)` counts from 0. CamusDB
-has no `DATE(x)` function, because `DATE` is a type keyword. Use
-`CAST(x AS DATE)`.
+`dayofweek(x)` counts from 1, and `date_part('dow', x)` counts from 0. `DATE` is
+a type keyword, and there is no `DATE(x)` function. Use `CAST(x AS DATE)`.
 
 ```camussql
 SELECT EXTRACT(year FROM '2024-06-16'), dayofweek('2024-06-16'), week('2024-01-07');
@@ -113,8 +134,8 @@ SELECT EXTRACT(year FROM '2024-06-16'), dayofweek('2024-06-16'), week('2024-01-0
 
 ## Typed results
 
-You can insert a temporal function's result into a temporal column, or compare
-it with one, without a cast:
+You can insert the result of a temporal function into a temporal column, or
+compare it with one, and you don't need a cast:
 
 ```camussql
 INSERT INTO events (id, happened_at)
@@ -128,8 +149,8 @@ SELECT date_add(happened_at, 7, 'days')
 FROM events;
 ```
 
-`date_add` always returns a `DATETIME`, so adding a day to a `DATE` value returns
-a datetime at UTC midnight, not another `DATE`.
+`date_add` returns a `DATETIME`. This means that a day added to a `DATE` gives a
+datetime at UTC midnight. A `DATE` and a `DATETIME` can be compared.
 
 ## Examples
 
@@ -160,9 +181,6 @@ SELECT unix_timestamp('2024-06-15');
 SELECT from_unixtime(1718447400);
 -- 2024-06-15T10:30:00.0000000Z
 
-SELECT from_unixtime(unix_timestamp('2024-06-15T10:30:00+00:00'));
--- 2024-06-15T10:30:00.0000000Z
-
 SELECT make_date(2024, 2, 29);
 -- 2024-02-29
 
@@ -176,32 +194,31 @@ SELECT unix_timestamp_ms('2024-06-15T10:30:00Z');
 -- 1718447400000
 ```
 
-The date constructors return `NULL` when an argument is `NULL`. Invalid parts
-raise `CADB0400 InvalidInput` with the invalid year, month, day, hour, minute, or
-second named in the message. Years must be from 1 through 9999.
+The date constructors return `NULL` if an argument is `NULL`. An invalid part
+returns `CADB0400`, and the message names the part. Years must be from 1 to
+9999.
 
-`make_timestamp` rounds fractional seconds to the nearest microsecond. A value
-that rounds up to 60 seconds carries into the next minute. `makedate` permits a
-day beyond the end of the named year and continues into the next year, while a
-day below 1 is an error.
+`make_timestamp` rounds a fractional second to the microsecond. A value that
+rounds up to 60 seconds goes to the next minute. A `makedate` day after the end
+of the year continues into the next year. A day below 1 returns `CADB0400`.
 
 ## Interval functions
 
-Use [intervals](/docs/data-types#intervals) to calculate calendar ages, build
-reusable time spans, or group timestamps into fixed time buckets.
+Use [intervals](/docs/data-types#intervals) to compute calendar ages or to
+group timestamps into buckets:
 
 | Function | Returns | Behavior |
 | --- | --- | --- |
-| `age(a, b)` | `INTERVAL` | Calendar difference `a - b`, keeping years, months, days, and time. |
-| `age(a)` | `INTERVAL` | Equivalent to `age(current_date(), a)`, using the transaction's UTC date at midnight. |
-| `make_interval(years, months, weeks, days, hours, mins, secs)` | `INTERVAL` | Builds an interval from positional parts; omitted trailing parts default to zero. |
-| `justify_days(i)` | `INTERVAL` | Converts each 30 days to a month and adjusts opposing month/day signs. |
-| `justify_hours(i)` | `INTERVAL` | Converts each 24 hours to a day and adjusts opposing day/time signs. |
-| `justify_interval(i)` | `INTERVAL` | Applies both conversions and adjusts opposing signs across parts. |
-| `date_bin(stride, source, origin)` | `DATETIME` | Returns the start of the bucket containing `source`, aligned to `origin`. |
+| `age(a, b)` | `INTERVAL` | The calendar difference `a - b`, with calendar parts and time. |
+| `age(a)` | `INTERVAL` | The same as `age(current_date(), a)`, with the UTC date of the transaction at midnight. |
+| `make_interval(years, months, weeks, days, hours, mins, secs)` | `INTERVAL` | An interval from positional parts. Trailing parts that you omit are zero. |
+| `justify_days(i)` | `INTERVAL` | Converts each 30 days to a month, and aligns the signs of months and days. |
+| `justify_hours(i)` | `INTERVAL` | Converts each 24 hours to a day, and aligns the signs of days and time. |
+| `justify_interval(i)` | `INTERVAL` | Applies both conversions. |
+| `date_bin(stride, source, origin)` | `DATETIME` | The start of the bucket that has `source`, aligned to `origin`. |
 
 ```camussql
-SELECT age(CAST('2001-04-10' AS DATE), CAST('1957-06-13' AS DATE));
+SELECT age(DATE '2001-04-10', DATE '1957-06-13');
 -- P43Y9M27D
 
 SELECT make_interval(0, 0, 0, 1, 2);
@@ -211,31 +228,33 @@ SELECT justify_interval(INTERVAL '1 month -1 hour');
 -- P29DT23H
 
 SELECT date_bin(INTERVAL '15 minutes',
-  CAST('2024-06-15T15:44:17Z' AS DATETIME),
-  CAST('2024-06-15T00:00:00Z' AS DATETIME));
+  TIMESTAMP '2024-06-15T15:44:17Z',
+  TIMESTAMP '2024-06-15T00:00:00Z');
 -- 2024-06-15T15:30:00Z
 
-SELECT DATE_ADD(CAST('2024-01-31' AS DATE), INTERVAL 1 MONTH);
+SELECT DATE_ADD(DATE '2024-01-31', INTERVAL 1 MONTH);
 -- 2024-02-29T00:00:00Z
 ```
 
-`age` borrows days using the earlier date's month length, as PostgreSQL does.
-Both forms are marked volatile in CamusDB: they cannot appear in `CHECK`
-constraints, and queries calling them bypass the result cache. PostgreSQL's
-two-argument form is immutable.
+`age` borrows days with the month length of the earlier date, as in PostgreSQL.
+Both forms of `age` are volatile in CamusDB. A `CHECK` constraint can't use
+them, and a query that calls them doesn't use the result cache. In PostgreSQL,
+the two-argument form is immutable.
 
-`make_interval` accepts zero to seven positional arguments; named arguments
-are unsupported. All parts except seconds must be `INT64`. Seconds may be
-fractional and round to the nearest microsecond. Out-of-range parts fail with
+`make_interval` takes up to seven positional arguments. Named arguments aren't
+supported. All the parts except seconds must be `INT64`. Seconds can have a
+fraction, which is rounded to the microsecond. A part out of range returns
 `CADB0400`.
 
-`date_bin` requires a positive stride without a month component and an explicit
-origin. Values before the origin round down to the preceding bucket. A `NULL`
-argument to these interval functions returns `NULL`.
+`date_bin` needs a positive stride that doesn't use months, and an explicit
+origin. A
+value before the origin goes to the bucket before it. A `NULL` argument of an
+interval function returns `NULL`.
 
 ### Extracting interval fields
 
-`EXTRACT` and `date_part` read the existing parts without normalizing them:
+`EXTRACT` and `date_part` read the parts of an interval, and they don't
+normalize them:
 
 ```camussql
 SELECT EXTRACT(hour FROM INTERVAL '36 hours'),
@@ -243,62 +262,52 @@ SELECT EXTRACT(hour FROM INTERVAL '36 hours'),
 -- 36, 0
 ```
 
-Years are total months divided by 12; the month field is the remainder.
-Each field retains its own part's sign. Results are `INT64`, unlike
-PostgreSQL's fractional `NUMERIC`: seconds are whole seconds, while
-milliseconds and microseconds describe only the fraction of the current second.
-For intervals, `epoch` returns whole seconds rounded down, using 365.25 days
-per year and 30 days per remaining month.
+The year is the total months divided by 12, and the month is the remainder. Each
+field has the sign of its part. The results are `INT64`, and PostgreSQL returns
+a fractional `NUMERIC`. Seconds are integers, and milliseconds and microseconds are the fraction of
+the second. For an interval, `epoch` returns seconds, rounded down, with 365.25 days for each year and 30 days for each
+remaining month.
 
-`week`, `dow`, `isodow`, `doy`, and `isoyear` are calendar positions and cannot
-be extracted from intervals. The calendar-unit descriptions above apply to
-dates and timestamps.
+The calendar positions, such as `dow`, can't be extracted from an interval. They return `CADB0400`.
 
-## NULLs and overflow
+## NULLs and errors
 
-These functions return `NULL` when any argument is `NULL`: `date_add`,
-`date_diff`, `date_part` (and `EXTRACT`), `date_trunc`, `unix_timestamp(value)`,
-`from_unixtime(seconds)`, and the MySQL shortcuts.
+The functions return `NULL` if an argument is `NULL`. This also applies to
+`EXTRACT` and the MySQL shortcuts.
 
-`unix_timestamp()` takes no argument and returns the start of the current
-transaction as a Unix timestamp in seconds.
-
-These conditions make the query fail:
+The following conditions return `CADB0400`:
 
 - An invalid unit.
-- An invalid date string.
-- An ambiguous local timestamp.
-- A Unix timestamp outside the supported date/time range.
-- Date or time overflow.
+- An invalid date string, or a timestamp that doesn't have an offset.
+- A Unix timestamp outside the supported range.
+- A date or time overflow.
 
 ## Pattern formatting and parsing
 
-These functions use a pattern to format a `DATE` or `DATETIME` value as text,
-or to parse text back into a value. CamusDB accepts two pattern languages:
+These functions format a `DATE` or `DATETIME` as text with a pattern, or parse
+text into a value. There are two pattern languages:
 
 - **PostgreSQL template patterns**, for example `'YYYY-MM-DD HH24:MI:SS'`.
 - **MySQL `%` specifiers**, for example `'%Y-%m-%d %H:%i:%s'`.
 
-Both languages compile to the same fields, so a field formats and parses the
-same way in both.
+Both languages compile to the same fields. This means that a field formats and
+parses in the same way in both.
 
 | Function | Result | Pattern language |
 |----------|--------|------------------|
-| `to_char(temporal, pattern)` | `STRING` | PostgreSQL |
+| `to_char(temporal, pattern [, zone])` | `STRING` | PostgreSQL |
 | `to_timestamp(text, pattern)` | `DATETIME` | PostgreSQL |
 | `to_date(text, pattern)` | `DATE` | PostgreSQL |
 | `date_format(temporal, pattern)` | `STRING` | MySQL |
 | `str_to_date(text, pattern)` | `DATETIME` | MySQL |
 
-Two one-argument forms keep their meaning:
+Two one-argument forms have a different meaning:
 
 - `to_date(x)` is the cast to `DATE`, the same as `CAST(x AS DATE)`.
-- `to_timestamp(seconds)` is the PostgreSQL spelling of
-  `from_unixtime(seconds)`.
+- `to_timestamp(seconds)` is the PostgreSQL name of `from_unixtime(seconds)`.
 
-A `temporal` argument is a `DATE`, a `DATETIME`, or an ISO-8601 string with an
-explicit offset, the same rule as the other date functions. A `NULL` argument
-gives `NULL`.
+A `temporal` argument follows the input rules at the start of this page. A
+`NULL` argument returns `NULL`.
 
 ```camussql
 SELECT to_char(created, 'FMDay, DD Mon YYYY HH12:MI AM') FROM events;
@@ -314,150 +323,143 @@ SELECT * FROM events WHERE created >= str_to_date('June 17, 2024', '%M %e, %Y');
 
 ### Rules for all patterns
 
-- **All values are UTC.** The time zone fields print `UTC` and `+00`.
-- **Names are English only.** Month and day names do not change with the server
+- **UTC is the default.** Pass a [time zone](#time-zones) to `to_char` to format the local time.
+- **Names are English.** Month and day names don't change with the server
   culture, and there is no locale setting.
-- **The functions are deterministic.** They are not volatile, so a `CHECK`
-  constraint, a column `DEFAULT`, and a view body can use them.
-- **The year range is 1-9999.** A value outside this range is an error; it does
-  not wrap.
-- **The fraction has six digits.** No field prints or reads the seventh fraction
-  digit (100 ns) of a `DATETIME`. `to_char` drops that digit.
-- **Each pattern compiles once.** The engine keeps the compiled form of each
-  distinct pattern text in a small cache, so a literal pattern is not recompiled
-  for every row.
+- **The functions are deterministic.** Stored definitions can
+  use them, such as a `CHECK` constraint or a view body.
+- **The year range is 1 to 9999.** A value outside this range returns an error.
+- **The fraction has six digits.** No field prints or reads the seventh digit
+  (100 ns) of a `DATETIME`.
+- **Each pattern compiles once.** The compiled form of each pattern
+  text is cached. This means that a literal pattern isn't compiled again for each
+  row.
 
 ### PostgreSQL template patterns
 
-Keywords are case-sensitive, as in PostgreSQL. Each numeric field has an
-upper-case and a lower-case spelling (`YYYY` and `yyyy`). Each name field has
-three spellings, and the spelling you choose sets the case of the printed
-name.
+Keywords are case-sensitive, as in PostgreSQL. A numeric field has an upper-case
+and a lower-case spelling, such as `YYYY` and `yyyy`. A name field has three
+spellings, and the spelling sets the case of the printed name.
 
 | Pattern | Format output | Notes |
 |---------|---------------|-------|
-| `YYYY` | year, 4 digits (`0099`, `2026`) | |
-| `YYY`, `YY`, `Y` | last 3, 2 or 1 digits of the year | Parse: the nearest year to 2020 (see below) |
-| `IYYY` | ISO-8601 year, 4 digits | |
-| `MM` | month, `01`-`12` | |
-| `Mon`, `MON`, `mon` | `Mar`, `MAR`, `mar` | |
-| `Month`, `MONTH`, `month` | `March`, `MARCH`, `march`, padded with blanks to 9 characters | |
-| `DD` | day of the month, `01`-`31` | |
-| `DDD` | day of the year, `001`-`366` | |
-| `D` | day of the week, `1` = Sunday ... `7` = Saturday | |
-| `ID` | ISO day of the week, `1` = Monday ... `7` = Sunday | |
-| `Dy`, `DY`, `dy` | `Sun`, `SUN`, `sun` | |
-| `Day`, `DAY`, `day` | `Sunday`, `SUNDAY`, `sunday`, padded with blanks to 9 characters | |
-| `WW` | week of the year, `01`-`53`; week 1 is January 1-7 | |
-| `IW` | ISO-8601 week, `01`-`53` | |
-| `Q` | quarter, `1`-`4` | |
-| `HH`, `HH12` | hour, `01`-`12` | |
-| `HH24` | hour, `00`-`23` | |
-| `MI` | minute, `00`-`59` | |
-| `SS` | second, `00`-`59` | |
-| `MS` | fraction of the second in milliseconds, `000`-`999` | |
-| `US` | fraction of the second in microseconds, `000000`-`999999` | |
-| `AM`, `PM`, `am`, `pm` | `AM` or `PM` from the hour; the case follows the pattern | `AM` and `PM` are the same field |
-| `TZ`, `tz` | `UTC`, `utc` | |
-| `OF` | `+00` | |
-| `FM` prefix | turns off the zero and blank padding of the next field only | `FMMM` prints `3`; `FMMonth` prints `March` |
-| `"text"` | the text as written | Use `\"` for a double quote |
+| `YYYY` | The year, 4 digits (`0099`, `2026`). | |
+| `YYY`, `YY`, `Y` | The last 3, 2, or 1 digits of the year. | Parse: the nearest year to 2020 (see below). |
+| `IYYY` | The ISO 8601 year, 4 digits. | |
+| `MM` | The month, `01`-`12`. | |
+| `Mon`, `MON`, `mon` | `Mar`, `MAR`, `mar`. | |
+| `Month`, `MONTH`, `month` | `March`, `MARCH`, `march`, padded with blanks to 9 characters. | |
+| `DD` | The day of the month, `01`-`31`. | |
+| `DDD` | The day of the year, `001`-`366`. | |
+| `D` | The day of the week, `1` = Sunday to `7` = Saturday. | |
+| `ID` | The ISO day of the week, `1` = Monday to `7` = Sunday. | |
+| `Dy`, `DY`, `dy` | `Sun`, `SUN`, `sun`. | |
+| `Day`, `DAY`, `day` | `Sunday`, `SUNDAY`, `sunday`, padded with blanks to 9 characters. | |
+| `WW` | The week of the year, `01`-`53`. Week 1 is January 1-7. | |
+| `IW` | The ISO 8601 week, `01`-`53`. | |
+| `Q` | The quarter, `1`-`4`. | |
+| `HH`, `HH12` | The hour, `01`-`12`. | |
+| `HH24` | The hour, `00`-`23`. | |
+| `MI` | The minute, `00`-`59`. | |
+| `SS` | The second, `00`-`59`. | |
+| `MS` | The fraction of the second in milliseconds, `000`-`999`. | |
+| `US` | The fraction of the second in microseconds, `000000`-`999999`. | |
+| `AM`, `PM`, `am`, `pm` | `AM` or `PM` from the hour. The case follows the pattern. | `AM` and `PM` are the same field. |
+| `TZ`, `tz` | The abbreviation at the input instant, such as `EST` or `est`. | The default is `UTC` or `utc`. |
+| `OF` | The offset at the input instant, such as `-05` or `+05:30`. | The default is `+00`. `FMOF` removes hour padding, as in `+5:30`. |
+| `FM` prefix | Turns off the padding of the next field. | `FMMM` prints `3`, and `FMMonth` prints `March`. |
+| `"text"` | The text as written. | Use `\"` for a double quote. |
 
-Any other character prints as written. Put letters in double quotes, because a
-letter can start a keyword. For example, write
-`'YYYY-MM-DD"T"HH24:MI:SS'` for the ISO-8601 form.
+Other characters print as written. Put letters in double quotes. A letter can start a keyword. For example, write `'YYYY-MM-DD"T"HH24:MI:SS'` for
+the ISO 8601 form.
 
 ### MySQL specifiers
 
 | Specifier | Format output | Notes |
 |-----------|---------------|-------|
-| `%Y` | year, 4 digits | |
-| `%y` | year, 2 digits | Parse: 00-69 is 2000-2069, 70-99 is 1970-1999 |
-| `%m` | month, `01`-`12` | |
-| `%c` | month, `1`-`12` | |
-| `%d` | day of the month, `01`-`31` | |
-| `%e` | day of the month, `1`-`31` | |
-| `%H` | hour, `00`-`23` | |
-| `%h`, `%I` | hour, `01`-`12` | |
-| `%i` | minute, `00`-`59` | |
-| `%s`, `%S` | second, `00`-`59` | |
-| `%f` | fraction of the second in microseconds, `000000`-`999999` | |
-| `%p` | `AM` or `PM` | |
-| `%M` | month name, `January`-`December` | |
-| `%b` | month name, 3 letters, `Jan`-`Dec` | |
-| `%W` | day name, `Sunday`-`Saturday` | |
-| `%a` | day name, 3 letters, `Sun`-`Sat` | |
-| `%j` | day of the year, `001`-`366` | |
-| `%u` | week, `00`-`53`; weeks start on Monday, the MySQL `WEEK(x, 1)` rule | Days before week 1 are week 0 |
-| `%v` | ISO-8601 week, `01`-`53`, the same as `WEEK(x, 3)` | |
-| `%%` | `%` | |
+| `%Y` | The year, 4 digits. | |
+| `%y` | The year, 2 digits. | Parse: 00-69 is 2000-2069, and 70-99 is 1970-1999. |
+| `%m` | The month, `01`-`12`. | |
+| `%c` | The month, `1`-`12`. | |
+| `%d` | The day of the month, `01`-`31`. | |
+| `%e` | The day of the month, `1`-`31`. | |
+| `%H` | The hour, `00`-`23`. | |
+| `%h`, `%I` | The hour, `01`-`12`. | |
+| `%i` | The minute, `00`-`59`. | |
+| `%s`, `%S` | The second, `00`-`59`. | |
+| `%f` | The fraction of the second in microseconds, `000000`-`999999`. | |
+| `%p` | `AM` or `PM`. | |
+| `%M` | The month name, `January`-`December`. | |
+| `%b` | The month name, 3 letters, `Jan`-`Dec`. | |
+| `%W` | The day name, `Sunday`-`Saturday`. | |
+| `%a` | The day name, 3 letters, `Sun`-`Sat`. | |
+| `%j` | The day of the year, `001`-`366`. | |
+| `%u` | The week, `00`-`53`. Weeks start on Monday, as in MySQL `WEEK(x, 1)`. | The days before week 1 are week 0. |
+| `%v` | The ISO 8601 week, `01`-`53`, as in `WEEK(x, 3)`. | |
+| `%%` | `%`. | |
 
-Any other specifier is an error. MySQL prints the letter instead, which hides
+Another specifier returns `CADB0400`. MySQL prints the letter, which hides
 mistakes in the pattern.
 
 ### How parsing works
 
-`to_timestamp`, `to_date`, and `str_to_date` parse strictly. Text that does not
-match the pattern gives an `InvalidInput` error whose message quotes the text
-and the pattern and gives the reason. For example:
+The parse functions are strict. Text that doesn't
+match the pattern returns `CADB0400`. The message quotes the text and the
+pattern, and it gives the reason:
 
 ```text
 Function 'to_date' could not parse '02/30/2026' with pattern 'MM/DD/YYYY': day 30 is out of range for February 2026, which has 28 days
 ```
 
-The rules:
+The parser follows these rules:
 
-1. A numeric field reads from 1 digit up to its full width. Thus `3/5/2026`
-   matches `MM/DD/YYYY`, and `20260315` matches `YYYYMMDD`.
+1. A numeric field reads from 1 digit up to its full width. For example, `3/5/2026` matches `MM/DD/YYYY`.
+   `20260315` matches `YYYYMMDD`.
 2. A fraction field reads the digits after the decimal point. `MS` reads `5` as
-   500 ms, and `US` or `%f` reads `5` as 500000 microseconds.
-3. A name field matches English names case-insensitively. `Mar`, `MAR`, and
-   `mar` all match `Mon`.
-4. A run of spaces in the pattern matches a run of one or more spaces in the
-   text, so the blank padding that `Month` and `Day` print reads back.
-5. Any other pattern character, and quoted text, must match the text exactly.
-6. The whole text must match. Extra characters after the end of the pattern are
-   an error.
-7. Each field must be in range. For example, `MM` is 1-12, `HH24` is 0-23, and
-   `SS` is 0-59.
-8. The pattern must have a year field. CamusDB cannot hold a date without a year.
-9. A missing month or day is 1. A missing hour, minute, second, or fraction is 0.
+   500 ms. `US` and `%f` read `5` as 500000 microseconds.
+3. A name field matches English names in any case. For example, `MAR` matches
+   `Mon`.
+4. A run of spaces in the pattern matches one or more spaces in the text. This
+   means that the padding that `Month` and `Day` print reads back.
+5. Other pattern characters, and quoted text, must match exactly.
+6. The full text must match. Extra characters after the pattern return an error.
+7. Each field must be in range. For example, `MM` must be 1-12.
+8. The pattern must have a year field. Each date needs a year.
+9. A missing month or day is 1. A missing time field is 0.
 10. Two fields that give the same value must agree. For example, `MM` and `Mon`
     must name the same month.
 
 The date comes from one of these sources:
 
-- the year, the month, and the day;
-- the year and `DDD` or `%j` (day of the year), when the pattern has no month and
-  no day;
-- `IYYY`, `IW`, and `ID` (ISO year, ISO week, and ISO day). A missing `IW` is
-  week 1, and a missing `ID` is Monday.
+- The year, the month, and the day.
+- The year and `DDD` or `%j` (the day of the year), if the pattern doesn't have
+  a month or a day.
+- `IYYY`, `IW`, and `ID` (the ISO year, week, and day). A missing `IW` is week
+  1, and a missing `ID` is Monday.
 
-A pattern with `IYYY` must not also have a Gregorian date field (`YYYY`, `MM`,
-`DD`, `DDD`).
+A pattern with `IYYY` can't also have a Gregorian date field, such as `YYYY`.
 
-Some fields only repeat what the date already says. Parsing checks these fields
-against the result: `D`, `ID`, `Dy`, `Day`, `%W`, `%a`, `Q`, `WW`, `IW`,
-`%u`, `%v`, and `DDD` / `%j` when the pattern also has a month or a day. A
-mismatch is an error, because the text would then name two different dates.
+Some fields repeat what the date says, for example `Day` or `%W`. The parser checks these fields against the date. A day of the year (`DDD`
+or `%j`) is also checked, if the pattern has a month or a day. A mismatch returns an error. The text names two different
+dates.
 
 The clock fields follow these rules:
 
-- With a 12-hour field (`HH`, `HH12`, `%h`, `%I`), `AM` / `PM` sets the half of
-  the day. Without `AM` / `PM`, the hour is AM, so `12` means midnight.
-- `AM` / `PM` without a 12-hour field is an error.
-- When a pattern has both a 12-hour and a 24-hour field, they must give the same
-  hour.
-- When a pattern has both `MS` and `US`, they must agree. `to_char` prints `020`
-  and `020000` for 20 ms, and that text reads back as 20 ms.
-- `TZ` reads `UTC` and `OF` reads `+00`. Any other time zone is an error.
+- With a 12-hour field (`HH`, `HH12`, `%h`, `%I`), `AM` or `PM` sets the half of
+  the day. If there is no `AM` or `PM` field, the hour is AM. Then `12` means
+  midnight.
+- An `AM` or `PM` field needs a 12-hour field. Otherwise, it returns an error.
+- A 12-hour and a 24-hour field in one pattern must give the same hour.
+- `MS` and `US` in one pattern must agree. `to_char` prints `020` and `020000`
+  for 20 ms, and that text reads back as 20 ms.
+- `TZ` reads `UTC`, and `OF` reads `+00`. Another time zone returns an error.
 
-`to_date` reads and checks the time fields, then keeps only the date.
+`to_date` reads and checks the time fields, and then it returns the date only.
 
 #### Two-digit and three-digit years
 
-`YYY`, `YY`, and `Y` (and `%y`) give the nearest year to 2020, with the
-PostgreSQL rule:
+The short year fields, such as `YY` and `%y`, give the nearest year to 2020, as
+in PostgreSQL:
 
 | Value read | Year |
 |------------|------|
@@ -466,60 +468,48 @@ PostgreSQL rule:
 | 100-519 | 2100-2519 |
 | 520-999 | 1520-1999 |
 
-`YYYY` and `%Y` read the year as written, so `26` with `YYYY` is the year 26.
+`YYYY` and `%Y` read the year as written. For example, `26` with `YYYY` is the
+year 26.
 
 ### Pattern result types
 
-`str_to_date` always returns `DATETIME`. MySQL returns either `DATE` or
-`DATETIME` depending on the pattern, but in CamusDB the result type comes only
-from the argument types, not from the pattern text.
-
-CamusDB does not compare a `DATE` with a `DATETIME`. To compare the result of
-`str_to_date` with a `DATE` column, cast the result:
-
-```camussql
-SELECT *
-FROM events
-WHERE day = CAST(str_to_date('June 17, 2024', '%M %e, %Y') AS DATE);
-```
-
-You can also use `to_date(text, pattern)`, which returns `DATE`.
+`str_to_date` returns `DATETIME`. In MySQL, the pattern decides whether it
+returns `DATE` or `DATETIME`. In CamusDB, the result type comes from the
+argument types. For a `DATE`, use `to_date(text, pattern)`.
 
 ### Differences from PostgreSQL
 
 - **Separators.** PostgreSQL lets any separator in the pattern match any
-  separator in the text, and skips extra spaces. CamusDB requires the same
-  character. Only a run of spaces can match a run of spaces of a different
-  length.
-- **Quoted text.** PostgreSQL skips the same number of characters without
-  checking them. CamusDB requires the same text.
+  separator in the text, and it skips extra spaces. CamusDB requires the same
+  character. A run of spaces can match a run of a different length.
+- **Quoted text.** PostgreSQL skips the same number of characters, and it
+  doesn't check them. CamusDB requires the same text.
 - **Extra text.** PostgreSQL ignores some characters after the end of the
-  pattern. CamusDB gives an error.
-- **Checked fields.** PostgreSQL ignores `D`, `Dy`, `Day`, and `Q` when parsing,
-  and uses `WW` to find a date. CamusDB checks each of these fields against the
-  date, and `WW` does not set the date.
-- **No year.** PostgreSQL gives a date in the year 1 BC when the pattern has no
-  year field. CamusDB gives an error, because it cannot hold that year.
+  pattern. CamusDB returns an error.
+- **Checked fields.** PostgreSQL ignores the day-of-week fields and `Q` when it
+  parses, and it uses `WW` to find a date. CamusDB checks these fields against
+  the date, and `WW` doesn't set the date.
+- **No year.** PostgreSQL gives a date in the year 1 BC if the pattern doesn't
+  have a year field. CamusDB returns an error. It can't store that year.
 - **`MS` and `US` together.** PostgreSQL adds the two values. CamusDB requires
-  them to agree, so the text that `to_char` prints reads back.
-- **`AM` / `PM` with `HH24`.** PostgreSQL ignores the meridian. CamusDB gives an
-  error.
-- **`TZ` and `OF` in a parse.** CamusDB reads only `UTC` and `+00`.
-- **Empty pattern.** PostgreSQL `to_char(x, '')` gives `NULL`. CamusDB gives an
-  empty string.
-- **Not supported.** Number formatting (`to_char(123, '999')`), the `TH` suffix,
-  `FX`, `TM`, `CC`, `J`, `RM`, `A.M.` / `P.M.`, `BC` / `AD`, `TZH` / `TZM`, and
-  `SSSS`.
+  them to agree. This means that the text that `to_char` prints reads back.
+- **`AM` or `PM` with `HH24`.** PostgreSQL ignores the meridian. CamusDB returns
+  an error.
+- **`TZ` and `OF` in a parse.** CamusDB reads UTC markers. Use `UTC` for `TZ`, `+00` for `OF`, or `+0` for `FMOF`.
+- **Empty pattern.** PostgreSQL `to_char(x, '')` returns `NULL`. CamusDB returns
+  an empty string.
+- **Not supported.** Number formatting, such as `to_char(123, '999')`. These template keywords aren't supported either:
+  `TH FX TM CC J RM A.M. P.M. BC AD TZH TZM SSSS`.
 
 ### Differences from MySQL
 
-- **Unknown specifiers.** MySQL prints the letter. CamusDB gives an error.
-- **Strict parse.** MySQL accepts some text that does not match the pattern, and
-  can give a zero date (`0000-00-00`). CamusDB gives an error for every
-  mismatch and requires a year.
-- **Checked fields.** MySQL does not check `%W`, `%a`, `%u`, and `%v` against a
-  year-month-day date. CamusDB checks each of them against the date.
-- **Result type.** `str_to_date` always returns `DATETIME`.
-- **Names do not pad.** `%M` and `%W` print the name without blanks, as in MySQL.
-- **Not supported.** `%D`, `%k`, `%l`, `%r`, `%T`, `%U`, `%V`, `%w`, `%X`, and
-  `%x`.
+- **Unknown specifiers.** MySQL prints the letter. CamusDB returns an error.
+- **Strict parse.** MySQL allows some text that doesn't match the pattern, and
+  it can give a zero date (`0000-00-00`). CamusDB returns an error for each
+  mismatch, and it requires a year.
+- **Checked fields.** MySQL doesn't check the day-name and week fields, such as
+  `%W`, against a year-month-day date. CamusDB checks them.
+- **Result type.** `str_to_date` returns `DATETIME`.
+- **Names aren't padded.** `%M` and `%W` don't pad the name, as in MySQL.
+- **Not supported.** These specifiers aren't supported:
+  `%D %k %l %r %T %U %V %w %X %x`.

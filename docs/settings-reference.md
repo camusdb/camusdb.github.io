@@ -67,7 +67,7 @@ otherwise (`_seconds`, `_mb`).
 
 ## Inline C# functions and triggers
 
-All keys below require a restart. See [inline C# definitions](/docs/csharp-extensions#inline-functions).
+All keys below require a restart, except `max_inline_definitions_per_user_per_minute`. See [inline C# definitions](/docs/csharp-extensions#inline-functions).
 
 | Key | Default | Type | Change | Scope | Description |
 | --- | --- | --- | --- | --- | --- |
@@ -80,6 +80,7 @@ All keys below require a restart. See [inline C# definitions](/docs/csharp-exten
 | `inline_function_compile_timeout_ms` | `10000` | ms | restart | node | Compile deadline, including wait for a compile slot; must be positive. |
 | `inline_function_compile_concurrency` | `2` | int | restart | node | Concurrent inline compiles on this node; must be positive. |
 | `max_inline_functions_per_database` | `256` | int | restart | cluster | Maximum inline functions in one database. Zero or less disables it. |
+| `max_inline_definitions_per_user_per_minute` | `60` | statements | runtime | cluster | Inline `CREATE [OR REPLACE] FUNCTION` and `CREATE TRIGGER ... LANGUAGE csharp` statements that one user who isn't a superuser can execute per minute on a node. The next one fails with `CADB0848`. Zero or less disables it. See [compile rate limit](/docs/csharp-extensions#compile-rate-limit). |
 
 ## Network, TLS, and client protocols
 
@@ -144,10 +145,12 @@ source `env` when the variable is set, and masks the three secrets.
 | `transaction_admission_wait_ms` | `0` | ms | runtime | cluster | How long a transaction queues at the admission gate before it is refused. `0` uses `kahuna.default_admission_wait_ms`. |
 | `range_lock_expires_ms` | `150000` | ms | runtime | cluster | Initial lease of a range lock. The coordinator renews it while the transaction lives. Must be at least twice `kahuna.collection_interval_ms`. `0` or less turns expiry off. |
 | `max_serializable_transaction_lifetime_ms` | `3600000` | ms | runtime | cluster | Longest time a serializable transaction may run. |
+| `transactional_ddl_enabled` | `false` | bool | runtime | cluster | Makes supported schema changes commit and roll back with an explicit transaction. See [Transactional schema changes](/docs/sql-transactions#transactional-schema-changes). |
+| `transactional_ddl_resolve_after_ms` | `30000` | ms | runtime | node | Age at which the schema leader can resolve a pending schema change after an interrupted commit. `0` makes the change eligible at the next recovery pass. |
 | `transaction_finalize_retry_budget_ms` | `15000` | ms | runtime | cluster | How long `COMMIT` or `ROLLBACK` retries while the outcome is not known yet. At least `2000`, or `0` or less to turn retries off. |
 | `sequence_retry_budget_ms` | `10000` | ms | runtime | cluster | How long a call to an internal id counter (database id, table id) retries while storage asks for a retry. |
-| `transaction_idle_timeout_ms` | `300000` | ms | restart | cluster | An explicit transaction idle this long is rolled back and its locks are released. `0` or less turns the idle check off. See [Transaction limits](/docs/transaction-limits). `SET CLUSTER SETTING` accepts a new value, but the node reads it only at startup. |
-| `transaction_reaper_interval_ms` | `30000` | ms | restart | node | How often the reaper looks for idle transactions. `SET CLUSTER SETTING` accepts a new value, but the node reads it only at startup. |
+| `transaction_idle_timeout_ms` | `300000` | ms | runtime | cluster | An explicit transaction idle this long is rolled back and its locks are released. `0` or less turns the idle check off. See [Transaction limits](/docs/transaction-limits). |
+| `transaction_reaper_interval_ms` | `30000` | ms | runtime | node | How often the reaper looks for idle transactions. |
 | `abandoned_transaction_release_after_ms` | `0` | ms | runtime | cluster | Age after which a rollback of a transaction that the coordinator no longer knows releases its leftover locks and staged writes. `0` derives it: the larger of `kahuna.max_transaction_timeout_ms` and `max_serializable_transaction_lifetime_ms`, plus 30 seconds. A negative value turns the release off. A positive value must be at least `max_serializable_transaction_lifetime_ms`. |
 | `lock_escalation_threshold` | `1000` | int | runtime | cluster | Number of shared point locks in one table or index bucket after which a serializable read-write transaction takes one shared lock on the whole bucket. |
 | `optimistic_intent_wait_ms` | `100` | ms | runtime | cluster | How long an optimistic row read waits for another transaction's uncommitted write before reading the committed value below it. `0` disables the wait; Kahuna caps it at `1000`. |
@@ -164,6 +167,7 @@ These runtime settings bound the work and state a node accepts. A value of
 
 | Key | Default | Unit | Change | Scope | Meaning |
 | --- | --- | --- | --- | --- | --- |
+| `statement_timeout_ms` | `0` | ms | runtime | cluster | Longest time one SQL statement can execute. A statement over the limit fails with `CADB0562`. A commit isn't stopped. `0` means no limit. |
 | `max_statement_bytes` | `8388608` (8 MiB) | UTF-8 bytes | runtime | node | Maximum inline SQL before parsing; excess fails with `CADB0557`, HTTP 413. Bound parameter values are excluded. |
 | `max_buffered_result_rows` | `1000000` | rows | runtime | node | Rows held for one buffered response; excess fails with `CADB0556`. |
 | `max_buffered_result_bytes` | `268435456` (256 MiB) | estimated bytes | runtime | node | Memory estimate for one buffered response; excess fails with `CADB0556`. |
@@ -183,11 +187,28 @@ slots are released on commit, rollback, reaping, or a failed begin. Database
 capacity is checked against each node's registry view: concurrent creates on
 different nodes can briefly overshoot it, so it is not a strict global quota.
 
-These settings do not impose per-client request rates or a statement execution
-timeout. A small response can still require a large scan. Prepared statements
-also have the separate `max_prepared_statement_bytes` cap. See
-[transaction limits](/docs/transaction-limits) and
+Prepared statements also have the separate `max_prepared_statement_bytes` cap.
+See [transaction limits](/docs/transaction-limits) and
 [query activity](/docs/query-activity) for operational guidance.
+
+### Statement timeout
+
+Use `statement_timeout_ms` to bound the execution time of a SQL statement,
+including a query that scans many rows to return a small result.
+
+```camussql
+SET CLUSTER SETTING statement_timeout_ms = 30000;
+```
+
+The setting applies across the cluster, starting with the next statement. The
+default is `0`, which leaves the timeout off. Each automatic retry of a
+Serializable autocommit statement has its own deadline.
+
+A timed-out statement returns `CADB0562`. An autocommit statement rolls back.
+If the statement was part of an explicit transaction, roll back that
+transaction before retrying. The timeout covers reads and writes, including
+the query load in `CREATE TABLE ... AS SELECT`. Commits and schema DDL such
+as an index backfill can run past the deadline.
 
 ## Prepared statements
 
@@ -251,8 +272,10 @@ See [Automatic ANALYZE](/docs/automatic-analyze).
 | `distributed_query_execution` | `false` | bool | restart | cluster | Splits eligible scans of key-range-sharded tables into per-range fragments. See [Distributed queries](/docs/distributed-queries). |
 | `broadcast_join_max_build_rows` | `10000` | rows | runtime | node | Largest hash-join build side that may be sent to remote fragments. `0` turns broadcast joins off. |
 | `hash_join_max_build_rows` | `1000000` | rows | runtime | node | When spill is off, a hash-join build larger than this falls back to a nested-loop join. |
+| `hash_join_max_build_bytes` | `1073741824` | estimated bytes | runtime | node | With spill disabled, a hash-join build past this limit falls back to nested loops. `0` or less disables it. |
 | `max_recursive_cte_iterations` | `10000` | steps | runtime | cluster | Recursive steps that produce rows per CTE run. `0` disables the limit. Exceeding it raises CADB0560. |
 | `max_recursive_cte_rows` | `10000000` | rows | runtime | cluster | Total rows per recursive CTE run, including seed rows. `0` disables the limit. See [recursive CTEs](/docs/sql-queries#recursive-ctes). |
+| `max_table_function_rows` | `5000000` | rows | runtime | cluster | Maximum rows produced by one read of a function in FROM, before filtering. `0` or less disables it. See [table-function limits](/docs/functions-set-returning#row-limit). |
 | `regex_match_timeout_ms` | `250` | ms | runtime | node | Time limit for one [regex](/docs/functions-regex) match. |
 | `slot_backed_decode` | `true` | bool | runtime | node | Internal row-decode mode. Keep the default. |
 | `borrowed_decode` | `adaptive` | `adaptive`, `force_eager`, `force_borrowed` | runtime | node | Internal zero-copy decode policy. Keep the default. |
@@ -263,7 +286,7 @@ See [Spill to disk](/docs/spill-to-disk).
 
 | Key | Default | Type | Change | Scope | Description |
 |-----|---------|------|--------|-------|-------------|
-| `spill_enabled` | `false` | bool | runtime | node | Lets sorts, joins, and aggregations write to temporary files when they grow too large. |
+| `spill_enabled` | `true` | bool | runtime | node | Lets sorts, joins, and aggregations write to temporary files when they grow too large. |
 | `spill_threshold_rows` | `500000` | rows | runtime | node | Rows one operator keeps in memory before it spills. Must be above `0`. |
 | `spill_threshold_bytes` | `268435456` | bytes | runtime | node | Bytes one operator keeps in memory before it spills. The operator spills at whichever limit it reaches first. |
 | `spill_merge_fan_in` | `16` | int | runtime | node | Spill files merged in one pass. Must be above `0`. |
@@ -283,7 +306,7 @@ No configuration layer sets it, and it has no production use.
 | `sql_parser_cache_sweep_seconds` | `60` | seconds | runtime | node | How often expired parser-cache entries are removed. Must be above `0`. |
 | `sql_parser_cache_max_bytes` | `67108864` | bytes | runtime | node | Approximate parser cache memory limit. `0` means no limit. |
 | `regex_cache_max_entries` | `1024` | int | runtime | node | Compiled regex patterns kept in memory. `0` turns caching off. |
-| `point_read_row_id_cache_enabled` | `true` | bool | restart | node | Remembers which row a primary key points to, so a repeated point lookup needs one storage read instead of two. |
+| `point_read_row_id_cache_enabled` | `true` | bool | restart | node | Caches row IDs for primary keys. A hit can save a storage read on point lookups and the initial lookup in eligible primary-key updates and deletes. |
 | `point_read_row_id_cache_max_entries` | `1000000` | int | restart | node | Number of keys remembered per table. The cache is cleared when it fills up. |
 
 ## Query result cache
@@ -301,9 +324,9 @@ started with. Restart the node to apply them.
 | Key | Default | Type | Change | Scope | Description |
 |-----|---------|------|--------|-------|-------------|
 | `query_result_cache_enabled` | `true` | bool | restart | node | Turns the result cache on or off. |
-| `query_result_cache_default_ttl_ms` | `5000` | ms | restart | node | Lifetime of an entry whose hint sets no TTL. |
-| `query_result_cache_max_entries` | `1024` | int | restart | node | Entries the cache holds. |
-| `query_result_cache_max_bytes` | `67108864` | bytes | restart | node | Total size of all entries. |
+| `query_result_cache_default_ttl_ms` | `5000` | ms | runtime | node | Lifetime of an entry whose hint sets no TTL. A change applies to new entries. |
+| `query_result_cache_max_entries` | `1024` | int | runtime | node | Entries the cache holds. A lower value evicts entries at once. |
+| `query_result_cache_max_bytes` | `67108864` | bytes | runtime | node | Total size of all entries. A lower value evicts entries at once. |
 | `query_result_cache_max_entry_bytes` | `1048576` | bytes | runtime | node | A larger result is not cached. |
 | `query_result_cache_max_entry_rows` | `10000` | rows | runtime | node | A result with more rows is not cached. |
 | `query_result_cache_max_deps` | `4096` | int | runtime | node | Dependencies of one entry. |
@@ -311,7 +334,7 @@ started with. Restart the node to apply them.
 | `query_result_cache_max_ranges` | `256` | int | runtime | node | Range dependencies of one entry. |
 | `query_result_cache_singleflight_wait_ms` | `250` | ms | runtime | node | How long a query waits for an identical query in flight before it runs on its own. |
 | `query_result_cache_strict_validation_max_keys` | `10000` | int | runtime | node | Keys that strict validation checks before it recomputes the entry. |
-| `query_result_cache_sweep_interval_ms` | `10000` | ms | restart | node | How often expired entries are removed. |
+| `query_result_cache_sweep_interval_ms` | `10000` | ms | runtime | node | How often expired entries are removed. |
 
 ## Schema limits
 
@@ -324,8 +347,20 @@ started with. Restart the node to apply them.
 | `max_index_columns` | `32` | int | runtime | cluster | Key and `INCLUDE` columns of one index. See [Indexes](/docs/sql-indexes). |
 | `max_index_include_tuple_bytes` | `4096` | bytes | runtime | cluster | Encoded size of the `INCLUDE` values in one index entry. A larger row is rejected. |
 | `max_view_expansion_depth` | `32` | int | runtime | cluster | Nesting depth of [views](/docs/views) over views. |
+| `max_view_expanded_relations` | `10000` | int | runtime | cluster | View references that the expansion of one statement can add. Excess fails with `CADB0563`. |
+| `max_view_expanded_nodes` | `2000000` | int | runtime | cluster | Syntax-tree nodes that the expansion of one statement can produce. Excess fails with `CADB0563`. |
+| `max_view_definition_bytes` | `1048576` | bytes | runtime | cluster | Size of one view or materialized-view body, checked at `CREATE`. |
+| `max_view_definition_nodes` | `200000` | int | runtime | cluster | Syntax-tree nodes of one view body, checked at `CREATE`. |
+| `max_view_output_columns` | `1600` | int | runtime | cluster | Output columns of one view or materialized view, checked at `CREATE`. |
+| `max_view_direct_dependencies` | `1000` | int | runtime | cluster | Relations that one view body reads directly, checked at `CREATE`. |
+| `max_tables_per_statement` | `64` | int | runtime | cluster | Tables that one statement reads, counting the tables of each join, subquery, CTE, and view body. Excess fails with `CADB0564`. |
 
-For the first six keys, `0` or less turns the limit off.
+The statement table limit counts repeated references separately. It includes
+functions in `FROM` and the target table of an `UPDATE` or `DELETE`. A derived
+table counts as at least one relation, even if it reads no tables.
+
+For all the keys except `max_view_expansion_depth`, `0` or less turns the limit
+off.
 
 ## Large values and disk space
 
@@ -368,6 +403,7 @@ table that does not set its own value.
 | `materialized_view_refresh_enabled` | `true` | bool | runtime | node | Lets this node run [materialized view](/docs/materialized-views) refreshes. Reads and DDL work either way. |
 | `materialized_view_refresh_chunk_rows` | `10000` | rows | runtime | cluster | Rows a refresh writes per transaction. At most half of `max_mutations_per_transaction`. |
 | `materialized_view_refresh_takeover_attempts` | `3` | int | runtime | cluster | Restarts of an interrupted refresh before it gives up. The view then keeps its previous contents. |
+| `materialized_view_refresh_hold_lease_ms` | `300000` | ms | runtime | cluster | Lease on the history that a running refresh reads. It is renewed while the refresh runs. At least `5000`. |
 | `branch_snapshot_hold_lease_ms` | `300000` | ms | runtime | cluster | Lease on the history a [branch](/docs/database-branching) pins on its parent. It is renewed while the branch exists. At least `5000`. |
 | `snapshot_hold_retry_budget_ms` | `10000` | ms | runtime | cluster | How long a statement that needs a snapshot hold, such as creating a branch, retries during a leader election. `0` or less tries once. |
 | `orphan_retention_ms` | `604800000` | ms | runtime | cluster | How long a dropped database or table stays [recoverable](/docs/recover-dropped-objects). `0` or less turns automatic reclaim off. |
@@ -500,8 +536,8 @@ See [Write aggregation](/docs/configuration#write-aggregation).
 | `kahuna.key_value_write_max_in_flight_batches_per_partition` | `1` (Kahuna default) | int | Write batches a partition may have waiting on Raft. `1` to `64`. |
 | `kahuna.key_value_write_linger_ms` | `1` (Kahuna default) | ms | How long the oldest queued write may wait while nothing is in flight. `0` to `1000`. |
 | `kahuna.key_value_write_post_completion_hold_ms` | `1` | ms | Wait after a batch completes before the next one is sent. `0` to `1000`. |
-| `kahuna.key_value_write_precise_wake` | `false` (Kahuna default) | bool | Runs the aggregator's timers on a dedicated thread. |
-| `kahuna.key_value_write_fill_target_trigger` | `false` (Kahuna default) | bool | Sends a held batch as soon as it reaches the learned fill target. |
+| `kahuna.key_value_write_precise_wake` | `true` | bool | Runs the aggregator's timers on a dedicated thread. |
+| `kahuna.key_value_write_fill_target_trigger` | `true` | bool | Sends a held batch as soon as it reaches the learned fill target. |
 | `kahuna.key_value_write_max_batch_items` | `512` (Kahuna default) | int | Items per write batch. `1` to `65536`. |
 
 ### Backup and point-in-time recovery

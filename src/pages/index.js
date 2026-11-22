@@ -290,13 +290,13 @@ const screenshots = [
   {
     id: 'query-plan',
     label: 'Query plans',
-    title: 'Read a plan as a flow',
+    title: 'Read a plan as a graph',
     detail:
-      'Run EXPLAIN in the Web Console and see each operator as a diagram, from the source tables to the result.',
+      'Run EXPLAIN in the Web Console to see the rows flow from the tables to the result. Findings point to the costly operators.',
     light: '/img/screenshots/webconsole-plan-light.webp',
     dark: '/img/screenshots/webconsole-plan-dark.webp',
-    link: '/docs/web-console#query-plan-flow',
-    linkLabel: 'Read about plan flows',
+    link: '/docs/web-console#query-plans',
+    linkLabel: 'Read about query plans',
   },
   {
     id: 'dashboard',

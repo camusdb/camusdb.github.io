@@ -4,15 +4,14 @@ sidebar_position: 2.15
 
 # Check constraints
 
-A `CHECK` constraint keeps invalid values, such as a negative price or an
-unknown status, out of a table whoever writes them. The rule lives in the
-database, so it holds for every client: your application, other services,
-scripts, and ad hoc SQL. Validation in application code protects only the
-writes that go through that application.
+A `CHECK` constraint stops invalid values, such as a negative price or an
+unknown status, from getting into a table. The rule is stored in the database.
+This means that it applies to all clients, including other services and ad hoc
+SQL. Validation in application code protects only the writes that go
+through that application.
 
-A check constraint is a boolean expression written with the same standard
-`CHECK` syntax you use in PostgreSQL. CamusDB evaluates it whenever a row is
-inserted or updated.
+A check constraint is a boolean expression, with the same `CHECK` syntax as in
+PostgreSQL. It's evaluated each time a row is inserted or updated:
 
 ```camussql
 CREATE TABLE products (
@@ -22,13 +21,17 @@ CREATE TABLE products (
 );
 ```
 
-If an `INSERT` or `UPDATE` makes the expression evaluate to `false`, CamusDB
-rejects the statement with `CADB0303 CheckConstraintViolation`.
+If an `INSERT` or an `UPDATE` makes the expression `false`, the statement
+returns `CADB0303 CheckConstraintViolation`:
+
+```text
+new row violates check constraint "products_price_check"
+```
 
 ## Table-level checks
 
-Use a table-level constraint when the rule compares several columns or when you
-want to choose the constraint name.
+Use a table-level constraint when the rule compares several columns, or when you
+want to choose the constraint name:
 
 ```camussql
 CREATE TABLE products (
@@ -52,7 +55,7 @@ CREATE TABLE customers (
 );
 ```
 
-A column-level check can also reference another column in the same row:
+A column-level check can also refer to another column of the same row:
 
 ```camussql
 CREATE TABLE products (
@@ -64,64 +67,70 @@ CREATE TABLE products (
 
 ## Add or drop a check
 
-Add a check constraint to an existing table with `ALTER TABLE ... ADD
-CONSTRAINT`:
+To add a check constraint to a table, use `ALTER TABLE ... ADD CONSTRAINT`:
 
 ```camussql
 ALTER TABLE products
 ADD CONSTRAINT positive_price CHECK (price > 0);
 ```
 
-CamusDB scans the existing rows before it commits the schema change. If an
-existing row violates the new check, the `ALTER TABLE` fails and CamusDB adds no
-constraint.
+The existing rows are scanned before the schema change commits. If a row
+violates the new check, the `ALTER TABLE` returns `CADB0303`. The
+constraint isn't added.
 
-The new check is enforced before the scan begins. A concurrent `INSERT` or
-`UPDATE` that commits while the scan is running must satisfy the new rule too,
-so a violating row cannot appear behind the scan.
+The new check applies to writes before the scan starts. This means that an
+`INSERT` or an `UPDATE` that commits during the scan must also satisfy the new
+rule. A violating row can't get in behind the scan.
 
-Drop a check by its name:
+To drop a check, use its name:
 
 ```camussql
 ALTER TABLE products DROP CONSTRAINT positive_price;
 ```
 
-After you drop the constraint, CamusDB no longer validates writes against that
-rule.
-
 ## Constraint names
 
-Constraint names are unique within a table.
+Constraint names are unique in a table. A second constraint with the same name
+returns `CADB0400`.
 
 | Definition | Constraint name |
 | --- | --- |
 | `price FLOAT64 CHECK (price > 0)` | `products_price_check` |
 | `CONSTRAINT valid_discount CHECK (...)` | `valid_discount` |
-| `CHECK (price > 0)` | `products_checkN` |
+| `CHECK (price > 0)` | `products_checkN`, for example `products_check1` |
 
-An unnamed table-level check gets a generated name. Use `SHOW CREATE TABLE` to
-see the names CamusDB stored:
+To see the stored names, use `SHOW CREATE TABLE`:
 
 ```camussql
 SHOW CREATE TABLE products;
 ```
 
-CamusDB does not support named column-level check syntax. Use a named
-table-level check when you need a stable name.
+```text
+┌──────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Table    │ Create Table                                                                                                                                                                           │
+├──────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ products │ CREATE TABLE `products` ( `id` OID NOT NULL DEFAULT(gen_id()), `name` STRING NOT NULL, `price` FLOAT64 NULL, PRIMARY KEY (`id`), CONSTRAINT `products_price_check` CHECK (price > 0)); │
+└──────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+1 rows in set (00:00:00.0197653)
+```
 
-## NULL semantics
+A column-level check can't have a name of your choice. The syntax
+`price FLOAT64 CONSTRAINT positive_price CHECK (...)` returns a syntax error. If
+you need a stable name, use a named table-level check.
 
-A check uses SQL's three-valued logic. A row violates a check only when the
-expression evaluates to `false`.
+## NULL values
+
+A check uses the three-valued logic of SQL. A row violates a check only if the
+expression is `false`:
 
 | Check result | Write result |
 | --- | --- |
-| `true` | CamusDB accepts the row. |
-| `false` | CamusDB rejects the row. |
-| unknown, or `NULL` | CamusDB accepts the row. |
+| `true` | The row is accepted. |
+| `false` | The row is rejected. |
+| unknown (`NULL`) | The row is accepted. |
 
-So this table accepts a row where `price` is `NULL`, because `price > 0` is
-then unknown, not false:
+For example, a row where `price` is `NULL` is allowed in the following table.
+The check `price > 0` is then unknown:
 
 ```camussql
 CREATE TABLE products (
@@ -130,7 +139,8 @@ CREATE TABLE products (
 );
 ```
 
-Combine `NOT NULL` and `CHECK` to require a value and to validate its range:
+To require a value and also check its range, use `NOT NULL` and `CHECK`
+together:
 
 ```camussql
 CREATE TABLE products (
@@ -141,36 +151,45 @@ CREATE TABLE products (
 
 ## Supported expressions
 
-A check expression must be a deterministic predicate over a single row. It can
-use:
+A check expression must be a deterministic condition on one row. It can use the
+following:
 
-- Comparisons, such as `=`, `<>`, `<`, `<=`, `>`, and `>=`.
-- Boolean logic with `AND`, `OR`, and `NOT`.
-- Arithmetic expressions.
+- Comparisons, such as `=` and `<=`.
+- `AND`, `OR`, and `NOT`.
+- Arithmetic.
 - `BETWEEN`.
 - `LIKE` and `ILIKE`.
-- Regular expression operators: `~`, `~*`, `!~`, and `!~*`.
+- Regular expression operators, such as `~` and `!~*`.
 - `IS NULL` and `IS NOT NULL`.
 - `IN` with a list of literals.
 - `CASE ... END`.
-- Deterministic scalar functions.
-- `CAST`.
-- Array subscripts such as `tags[1]`.
+- Deterministic scalar functions, and `CAST`.
+- Array subscripts, such as `tags[1]`.
 
-CamusDB rejects a check definition that uses a subquery, an aggregate function,
-a volatile function (such as `now()`, `gen_id()`, `gen_uuid_v4()`, or
-`gen_uuid_v7()`), or a reference to an unknown column.
+`CREATE TABLE` and `ADD CONSTRAINT` check the definition before they scan any
+rows. An invalid definition returns `CADB0400`. For example, these definitions
+are invalid:
 
-CREATE TABLE and ADD CONSTRAINT reject a non-boolean condition, an unknown
-function, a wrong argument count, or a known operand-type mismatch before
-scanning rows. Existing stored checks are not revalidated merely by loading
-them. See [statement checks](/docs/data-types#errors-before-reading-rows).
+- A subquery or an aggregate function.
+- A volatile function, such as `now()` or `gen_id()`.
+- An unknown column.
+- A condition that isn't boolean, such as `CHECK (v + 1)`.
+- A function call with the wrong number of arguments.
+- Operands of types that can't be compared, such as a `STRING` column and a
+  number.
 
-While evaluating a check, CamusDB can coerce a string literal to a compatible
-typed value, such as `UUID`, `OID`, `DATE`, or `DATETIME`. An incompatible
-value fails with `CADB0303 CheckConstraintViolation`.
+An unknown function returns `CADB0407`. For more information, see
+[Errors before reading rows](/docs/data-types#errors-before-reading-rows).
 
-Regular expression operators are useful for format checks:
+A string literal is converted to the type of the column for types such as
+`UUID` and `DATE`. For example, `CHECK (d > '2020-01-01')`
+on a `DATE` column compares dates. Note that a literal that isn't a valid value
+of that type is unequal to all values. This means that `CHECK (u <> 'zzz')` on
+a `UUID` column doesn't reject any row.
+
+### Regular expressions
+
+Regular expressions are useful for format checks:
 
 ```camussql
 CREATE TABLE users (
@@ -187,16 +206,17 @@ CREATE TABLE products (
 );
 ```
 
-A regular expression check follows the same `NULL` rule as any other check. If
-the subject or the pattern is `NULL`, the result is unknown and the row passes.
-Another constraint, such as `NOT NULL`, can still reject it.
+A regular expression check follows the same `NULL` rule as other checks. If the
+value or the pattern is `NULL`, the result is unknown. The row is then accepted.
+A `NOT NULL` constraint can reject it.
 
-CamusDB rejects a malformed literal pattern at `CREATE TABLE` or
-`ALTER TABLE ... ADD CONSTRAINT`. A regular expression failure while evaluating
-a check appears as `CADB0303 CheckConstraintViolation`.
+A malformed pattern returns `CADB0400` at `CREATE TABLE` or `ADD CONSTRAINT`.
+A regular expression error during a write, such as a match timeout, returns
+`CADB0303`.
 
-Checks also support `CASE ... END`. Use it when the rule depends on another
-column:
+### CASE expressions
+
+Use `CASE ... END` when the rule depends on another column:
 
 ```camussql
 CREATE TABLE entries (
@@ -214,8 +234,8 @@ CREATE TABLE entries (
 
 ### Array columns
 
-A check can test an `ARRAY(T)` column as a whole with `cardinality` and
-`array_contains`, or test one position with a subscript:
+A check can test a full `ARRAY(T)` column with `cardinality` and
+`array_contains`, or one position with a subscript:
 
 ```camussql
 CREATE TABLE posts (
@@ -225,64 +245,61 @@ CREATE TABLE posts (
 );
 ```
 
-Both functions return `NULL` for a `NULL` array, so the check accepts a `NULL`
-array. For a length rule that must treat an empty array as length 0, use
-`cardinality`, not `array_length`: `array_length(tags, 1)` returns `NULL` for an
-empty array, and a check whose result is unknown passes.
+Both functions return `NULL` for a `NULL` array. This means that a `NULL`
+array passes the check.
 
-`array_contains` follows `IN` semantics. If the array holds a `NULL` element and
-no match, the result is unknown, so a check on `NOT array_contains(...)` passes
-in that case. See [Array Functions](/docs/functions-array).
+For a length rule, use `cardinality`. It returns `0` for an empty array.
+`array_length(tags, 1)` returns `NULL` for an empty array, and an unknown result
+doesn't reject the row.
+
+`array_contains` follows the rules of `IN`. If the array has a `NULL` element
+and no match, the result is unknown. In that case, a check on
+`NOT array_contains(...)` doesn't reject the row. For more information, see
+[Array functions](/docs/functions-array).
 
 ## Named NOT NULL constraints
 
-A `NOT NULL` constraint can also have a name, which lets you drop it:
+A `NOT NULL` constraint can also have a name. You can then drop it by name:
 
 ```camussql
 CREATE TABLE employees (
   id OID PRIMARY KEY NOT NULL DEFAULT (gen_id()),
   name STRING CONSTRAINT employees_name_not_null NOT NULL
 );
-```
 
-Drop it with `ALTER TABLE ... DROP CONSTRAINT`:
-
-```camussql
 ALTER TABLE employees DROP CONSTRAINT employees_name_not_null;
 ```
 
-You can also add or remove `NOT NULL` on an existing column:
+You can also add or remove `NOT NULL` on a column:
 
 ```camussql
 ALTER TABLE employees ALTER COLUMN name SET NOT NULL;
 ALTER TABLE employees ALTER COLUMN name DROP NOT NULL;
 ```
 
-You cannot drop `NOT NULL` from a column while that column belongs to the primary
-key. Drop or change the primary key first.
+`SET NOT NULL` scans the table before the schema change commits. If a row has a
+`NULL` value, the statement returns `CADB0301`. The column doesn't change.
+As with a check, the new rule applies to writes before the scan starts.
 
-`SET NOT NULL` scans the table before it commits the schema change. If existing
-rows contain `NULL`, the statement fails and the column stays nullable.
-
-The new `NOT NULL` rule is enforced before that scan begins, so concurrent
-writes cannot insert a new `NULL` while CamusDB validates the existing rows.
-
-When `SET NOT NULL` creates an unnamed constraint, CamusDB names it
+If `SET NOT NULL` creates an unnamed constraint, the name is
 `{table}_{column}_not_null`, for example `employees_name_not_null`.
+
+A column of the primary key is always `NOT NULL`. `DROP NOT NULL` on such a
+column returns `CADB0400`.
 
 ## Error codes
 
-| Code | Name | When CamusDB generates it |
+| Code | Name | Cause |
 | --- | --- | --- |
-| `CADB0301` | `NotNullViolation` | A write puts `NULL` into a `NOT NULL` column, or `ALTER TABLE ... SET NOT NULL` finds an existing `NULL` value. |
-| `CADB0303` | `CheckConstraintViolation` | A row violates a `CHECK` constraint, `ALTER TABLE ... ADD CONSTRAINT ... CHECK` finds an existing violating row, or check evaluation hits an incompatible value. |
-| `CADB0400` | `InvalidInput` | The check definition is invalid, for example because it uses a subquery, an aggregate, a volatile function, an unknown column, or a malformed literal pattern. |
+| `CADB0301` | `NotNullViolation` | A write puts `NULL` in a `NOT NULL` column, or `SET NOT NULL` finds a `NULL` value. |
+| `CADB0303` | `CheckConstraintViolation` | A row violates a `CHECK` constraint, or `ADD CONSTRAINT ... CHECK` finds a violating row. |
+| `CADB0400` | `InvalidInput` | The check definition is invalid, or the constraint name exists. |
 
 ## Related pages
 
-- [Tables And Columns](/docs/sql-schema)
-- [Data Types](/docs/data-types)
-- [Insert, Update, Delete](/docs/sql-writes)
-- [Vector Search](/docs/vector-search), which uses a check to fix the dimension
+- [Tables and columns](/docs/sql-schema)
+- [Data types](/docs/data-types)
+- [Insert, update, delete](/docs/sql-writes)
+- [Vector search](/docs/vector-search), which uses a check to set the dimension
   of an embedding
-- [Error Codes](/docs/error-codes)
+- [Error codes](/docs/error-codes)

@@ -1,11 +1,12 @@
 ---
 sidebar_position: 2.4
+description: "Read and shape rows with SELECT in CamusDB: filter, sort, paginate, group, combine query results, compute window functions, and lock rows before an update."
 ---
 
 # SELECT
 
-`SELECT` reads rows from a table and shapes them: you choose the columns, then
-filter, group, rank, sort, and paginate the rows.
+`SELECT` reads rows and shapes the result, from a simple filter to grouped
+reports and window functions.
 
 ```camussql
 SELECT id, name, year
@@ -15,13 +16,104 @@ ORDER BY year DESC
 LIMIT 25;
 ```
 
-This page covers reading from a single table and combining query results.
-For joins, subqueries, and
-derived tables, see [Joins And Subqueries](/docs/joins-and-subqueries). For a
-`SELECT` with no table at all, such as `SELECT 1 + 1`, see
-[SELECT Without FROM](/docs/sql-fromless-select). To combine query results with
-`UNION`, `INTERSECT`, or `EXCEPT`, see
-[Combine query results](/docs/sql-queries#set-operations).
+This page covers queries on one table and the clauses that shape them. For
+other forms, see the following pages:
+
+- [Joins and subqueries](/docs/joins-and-subqueries), including derived tables.
+- [SELECT without FROM](/docs/sql-fromless-select), such as `SELECT 1 + 1`.
+- [Time-travel reads](/docs/time-travel-reads), for a past snapshot.
+
+The examples on this page use the following data:
+
+<details>
+<summary>Sample data for the examples on this page</summary>
+
+```camussql
+CREATE TABLE robots (
+  id OID PRIMARY KEY NOT NULL,
+  name STRING NOT NULL,
+  kind STRING NOT NULL,
+  year INT64 DEFAULT (2024),
+  enabled BOOL NOT NULL,
+  status STRING NOT NULL
+);
+CREATE INDEX robots_year_idx ON robots (year);
+INSERT INTO robots (id, name, kind, year, enabled, status) VALUES
+  (GEN_ID(), 'R2-D2', 'utility', 1977, true, 'active'),
+  (GEN_ID(), 'C-3PO', 'protocol', 1977, true, 'active'),
+  (GEN_ID(), 'T-800', 'android', 1984, false, 'archived'),
+  (GEN_ID(), 'K-2SO', 'security', 2024, true, 'active'),
+  (GEN_ID(), 'T-1000', 'android', 1991, false, 'archived'),
+  (GEN_ID(), 'BB-8', 'utility', 2015, true, 'active');
+
+CREATE TABLE app_users (
+  id INT64 PRIMARY KEY NOT NULL,
+  username STRING NOT NULL,
+  role STRING NOT NULL,
+  department STRING NOT NULL
+);
+INSERT INTO app_users (id, username, role, department) VALUES
+  (1, 'alice', 'admin', 'engineering'),
+  (2, 'bob', 'editor', 'marketing'),
+  (3, 'carol', 'editor', 'engineering'),
+  (4, 'dave', 'viewer', 'sales'),
+  (5, 'erin', 'editor', 'marketing'),
+  (6, 'frank', 'viewer', 'engineering');
+
+CREATE TABLE orders (
+  id INT64 PRIMARY KEY NOT NULL,
+  customer_id INT64 NOT NULL,
+  total NUMERIC NOT NULL,
+  status STRING NOT NULL
+);
+INSERT INTO orders (id, customer_id, total, status) VALUES
+  (1, 1, 250, 'paid'),
+  (2, 2, 1200, 'paid'),
+  (3, 3, 80, 'pending'),
+  (4, 1, 900, 'paid'),
+  (5, 2, 300, 'pending'),
+  (6, 3, 150, 'paid'),
+  (7, 1, 400, 'paid'),
+  (8, 1, 120, 'pending');
+
+CREATE TABLE categories (
+  id INT64 PRIMARY KEY NOT NULL,
+  parent_id INT64,
+  name STRING NOT NULL
+);
+INSERT INTO categories (id, parent_id, name) VALUES
+  (1, NULL, 'Electronics'),
+  (2, 1, 'Computers'),
+  (3, 2, 'Laptops'),
+  (4, 1, 'Phones'),
+  (5, NULL, 'Home'),
+  (6, 5, 'Kitchen');
+
+CREATE TABLE current_orders (id INT64 PRIMARY KEY NOT NULL, customer_id INT64 NOT NULL);
+CREATE TABLE archived_orders (id INT64 PRIMARY KEY NOT NULL, customer_id INT64 NOT NULL);
+INSERT INTO current_orders (id, customer_id) VALUES (101, 1), (102, 2), (103, 1);
+INSERT INTO archived_orders (id, customer_id) VALUES (51, 2), (52, 4), (53, 4);
+
+CREATE TABLE campaign_members (customer_id INT64 PRIMARY KEY NOT NULL);
+CREATE TABLE email_opt_outs (customer_id INT64 PRIMARY KEY NOT NULL);
+INSERT INTO campaign_members (customer_id) VALUES (1), (2), (3), (5);
+INSERT INTO email_opt_outs (customer_id) VALUES (2), (5);
+
+CREATE TABLE users (id INT64 PRIMARY KEY, username STRING NOT NULL, status STRING NOT NULL);
+INSERT INTO users (id, username, status) VALUES
+  (1, 'alice_1', 'A'), (2, 'b', 'B'), (3, '9lives', 'X');
+
+CREATE TABLE products (sku STRING PRIMARY KEY);
+INSERT INTO products (sku) VALUES ('AB-1'), ('A B');
+
+CREATE TABLE inventory (sku STRING PRIMARY KEY, quantity INT64 NOT NULL);
+INSERT INTO inventory (sku, quantity) VALUES ('AB-1', 10);
+
+CREATE TABLE jobs (id INT64 PRIMARY KEY, state STRING NOT NULL);
+INSERT INTO jobs (id, state) VALUES (1, 'ready'), (2, 'ready'), (3, 'ready'), (4, 'done');
+```
+
+</details>
 
 ## Clause order
 
@@ -37,12 +129,12 @@ ORDER BY sort_keys
 LIMIT    n OFFSET m
 ```
 
-In practice, `WHERE` filters input rows before grouping, and `HAVING` filters
-the grouped rows after it. [Window functions](#window-functions) run next,
-before projection, `DISTINCT`, the final `ORDER BY`, and pagination.
+`WHERE` filters the input rows before grouping, and `HAVING` filters the groups
+after it. [Window functions](#window-functions) are computed next. Then come
+the projection, `DISTINCT`, the final `ORDER BY`, and pagination.
 
-`ORDER BY`, `LIMIT`, and `OFFSET` apply last, to the projected result, so they
-can reference output aliases.
+`ORDER BY`, `LIMIT`, and `OFFSET` apply last, to the projected result. This
+means that they can use output aliases.
 
 ## Select the columns
 
@@ -54,42 +146,78 @@ SELECT year + 100 AS display_year FROM robots;
 SELECT upper(trim(name)) AS display_name FROM robots;
 ```
 
-You can project any scalar expression, including function calls and
-arithmetic.
+You can select any scalar expression, including function calls and arithmetic.
+For the functions, see [Functions](/docs/functions).
 
-`AS` names the output column. A bare column keeps its name, and a scalar
-subquery inherits its inner output name. Other unaliased expressions,
-including functions and aggregates, use their zero-based select-list position
-as the name. This differs from PostgreSQL, which can use the function name or
-`?column?`. Give computed results an alias when another query, a view, or a
-client will refer to them. See [Functions](/docs/functions) for scalar functions.
+`AS` names an output column. An unnamed column gets one of the following names:
+
+| Select item | Output name |
+| --- | --- |
+| A column | The column name. |
+| A scalar subquery | The name of its inner column. |
+| Another expression, such as a function call or an aggregate | Its zero-based position in the select list, such as `0`. |
+
+Note that this differs from PostgreSQL, which uses the function name or
+`?column?`. Give a computed column an alias if something reads it by name, such
+as a view or a client.
 
 ### DISTINCT
 
-`DISTINCT` removes duplicate output rows after projection. Two `NULL` values
+`DISTINCT` removes duplicate output rows after the projection. Two `NULL` values
 count as equal.
 
 ```camussql
 SELECT DISTINCT kind FROM robots ORDER BY kind;
+```
+
+```text
+┌──────────┐
+│ kind     │
+├──────────┤
+│ android  │
+│ protocol │
+│ security │
+│ utility  │
+└──────────┘
+4 rows in set (00:00:00.0283460)
+```
+
+```camussql
 SELECT DISTINCT kind, year FROM robots ORDER BY kind, year;
 ```
 
-CamusDB does not support these shapes today:
+```text
+┌──────────┬──────┐
+│ kind     │ year │
+├──────────┼──────┤
+│ android  │ 1984 │
+│ android  │ 1991 │
+│ protocol │ 1977 │
+│ security │ 2024 │
+│ utility  │ 1977 │
+│ utility  │ 2015 │
+└──────────┴──────┘
+6 rows in set (00:00:00.0012607)
+```
 
-| Not supported | Reason |
+`android` and `utility` appear twice. `DISTINCT` compares the full row.
+
+The following forms aren't supported:
+
+| Form | Result |
 | --- | --- |
-| `COUNT(DISTINCT column)` | CamusDB does not implement distinct aggregates. |
-| `SELECT DISTINCT ... GROUP BY ...` | Grouping already produces distinct keys. |
-| `SELECT DISTINCT COUNT(*)` | `DISTINCT` cannot wrap an aggregate projection. |
+| `COUNT(DISTINCT column)` | A syntax error, `CADB0406`. |
+| `SELECT DISTINCT ... GROUP BY ...` | `CADB0400`. Grouping already returns distinct keys. |
+| `SELECT DISTINCT COUNT(*)` | `CADB0400`. |
 
-When a compatible `NOT NULL` index covers the distinct columns, the planner
-streams the distinct values from that index without building a hash table.
-[`EXPLAIN`](/docs/explain) shows which path CamusDB used.
+When a `NOT NULL` index covers the distinct columns, the planner reads the
+distinct values from that index, and it doesn't build a hash table.
+[`EXPLAIN`](/docs/explain) shows which path is used.
 
 ### CASE expressions
 
-`CASE` picks a value based on conditions. The searched form evaluates its
-predicates in order:
+`CASE` picks a value based on conditions. The searched form checks its
+conditions in order:
 
 ```camussql
 SELECT
@@ -102,7 +230,21 @@ SELECT
 FROM robots;
 ```
 
-The simple form compares one expression against each `WHEN` value:
+```text
+┌────────┬─────────┐
+│ name   │ era     │
+├────────┼─────────┤
+│ R2-D2  │ classic │
+│ C-3PO  │ classic │
+│ T-800  │ modern  │
+│ K-2SO  │ modern  │
+│ T-1000 │ modern  │
+│ BB-8   │ modern  │
+└────────┴─────────┘
+6 rows in set (00:00:00.0023885)
+```
+
+The simple form compares one expression with each `WHEN` value:
 
 ```camussql
 SELECT
@@ -115,21 +257,22 @@ SELECT
 FROM users;
 ```
 
-The first match wins. A `WHEN` condition that evaluates to `NULL` does not
-match. If nothing matches and there is no `ELSE`, the result is `NULL`.
+The first match wins. A `WHEN` condition that is `NULL` doesn't match. If no
+condition matches and there's no `ELSE`, the result is `NULL`.
 
-`CASE` is a scalar expression, so it works anywhere a scalar expression does,
-including inside an aggregate. That is the usual way to write a conditional
-total:
+`CASE` is a scalar expression. You can use it where a scalar expression is
+allowed, including in an aggregate. This is the usual way to write a
+conditional total:
 
 ```camussql
-SELECT SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) AS paid_total
+SELECT SUM(CASE WHEN status = 'paid' THEN total ELSE 0 END) AS paid_total
 FROM orders;
 ```
 
-All result branches must have a [common type](/docs/data-types#conditional-result-types),
-including branches that do not run. For a short boolean condition, use
-[`IF(condition, a, b)`](/docs/functions-null#if).
+All result branches must have a
+[common type](/docs/data-types#conditional-result-types), including branches
+that aren't used. Otherwise, the statement returns `CADB0400`. For a short
+boolean condition, use [`IF(condition, a, b)`](/docs/functions-null#if).
 
 `CASE` and `END` are reserved keywords. To use one as a column name, see
 [Backticks](/docs/sql#backticks).
@@ -153,27 +296,29 @@ WHERE year BETWEEN 2001 AND 2004;
 | Category | Operators |
 | --- | --- |
 | Comparison | `=`, `!=`, `<`, `>`, `<=`, `>=`, `BETWEEN ... AND ...` |
-| Boolean | `AND`, `OR`, and a bare boolean column, such as `WHERE enabled` |
+| Boolean | `AND`, `OR`, and a boolean column, such as `WHERE enabled` |
 | Pattern matching | `LIKE`, `ILIKE`, `~`, `~*`, `!~`, `!~*` |
 | Null checks | `IS NULL`, `IS NOT NULL` |
 | Membership | `IN (...)`, `NOT IN (...)`, `IN (SELECT ...)`, `NOT IN (SELECT ...)` |
 | Existence | `EXISTS (SELECT ...)` |
 
-WHERE, HAVING, and JOIN ON require boolean or NULL conditions; numbers and
-text are not implicitly truthy. See [statement checks](/docs/data-types#errors-before-reading-rows).
+`WHERE`, `HAVING`, and `JOIN ... ON` need a boolean or `NULL` condition. A
+number or a string isn't read as true or false, and it returns `CADB0400`. For
+more information, see
+[statement checks](/docs/data-types#errors-before-reading-rows).
 
-`BETWEEN` is inclusive, so `year BETWEEN 2001 AND 2004` matches 2001, 2004, and
-every year in between.
+`BETWEEN` includes both bounds. For example, `year BETWEEN 2001 AND 2004`
+includes 2001 and 2004.
 
 ### Pattern matching
 
-`LIKE` and `ILIKE` match the whole value: `%` matches any number of characters
-and `_` matches one Unicode code point. ILIKE ignores case, including cased
-non-ASCII letters. Backslash escapes a wildcard, and ESCAPE can select another
-escape character. See [LIKE patterns](/docs/sql-expression-syntax#like-and-ilike-patterns)
-for examples and the behavior of existing stored patterns.
+`LIKE` and `ILIKE` match the full value. `%` matches any number of characters,
+and `_` matches one Unicode code point. `ILIKE` ignores case, also for
+non-ASCII letters. A backslash escapes a wildcard, and `ESCAPE` selects another
+escape character. For more information, see
+[LIKE patterns](/docs/sql-expression-syntax#like-and-ilike-patterns).
 
-Use a regular expression operator when wildcards are not enough:
+Use a regular expression operator when wildcards aren't enough:
 
 | Operator | Matches | Case |
 | --- | --- | --- |
@@ -192,22 +337,23 @@ FROM products
 WHERE sku !~ '\s';
 ```
 
-Patterns are unanchored: they match anywhere in the value unless you write `^`
-and `$`.
+A pattern can match at any position in the value. Use `^` and `$` to match the
+full value.
 
-Both operands must be strings. When either operand is `NULL`, the result is
-unknown, so the row does not pass a `WHERE` clause.
+Both operands must be strings. A number returns `CADB0407`. When an operand is
+`NULL`, the result is unknown. The row doesn't pass a `WHERE` clause.
 
-The engine is the .NET regular expression engine. Case-insensitive matching uses
-the invariant culture. Character classes, quantifiers, anchors, alternation, and
-groups all work. Use `\p{L}` or `[a-zA-Z]`, not POSIX classes such as
-`[[:alpha:]]`.
+Patterns use the .NET regular expression syntax. Case-insensitive matching uses
+the invariant culture. Note that POSIX classes such as `[[:alpha:]]` aren't
+supported. They return no error, but they don't match letters. Use `\p{L}` or
+`[a-zA-Z]`.
 
-A malformed pattern raises `CADB0400 InvalidInput`. Every match runs under an
-internal timeout, so a pathological pattern fails instead of hanging.
+A malformed pattern returns `CADB0400 InvalidInput`. Each match has an internal
+timeout. This means that a pathological pattern returns an error, and it
+doesn't hang.
 
-To extract or replace with a regular expression rather than filter, see
-[Regex Functions](/docs/functions-regex).
+To extract or replace text with a regular expression, see
+[Regex functions](/docs/functions-regex).
 
 ### IN lists
 
@@ -217,16 +363,17 @@ SELECT id, name FROM robots WHERE status NOT IN ('deleted', 'archived');
 SELECT id, name FROM robots WHERE id IN (@id1, @id2, @id3);
 ```
 
-On an indexed column, the planner turns a value list into repeated index probes
-instead of a scan. That pays off for small and moderate-sized lists.
+On an indexed column, the planner turns a value list into index lookups. This
+is faster than a scan for small and medium lists.
 
-`NOT IN` follows SQL null semantics. A `NULL` in the list makes every
-non-matching comparison evaluate to unknown, and CamusDB filters those rows out.
-So `NOT IN` against a set containing `NULL` often returns fewer rows than you
-expect.
+`NOT IN` follows the SQL rules for `NULL`. If the list or the subquery has a
+`NULL`, the comparison is unknown for each value that matches no other item.
+These rows are filtered out. For example,
+`SELECT name FROM categories WHERE id NOT IN (SELECT parent_id FROM categories)`
+returns no rows. The `parent_id` column has `NULL` values.
 
-`IN` also accepts a subquery. See
-[Joins And Subqueries](/docs/joins-and-subqueries).
+`IN` also takes a subquery. For more information, see
+[Joins and subqueries](/docs/joins-and-subqueries).
 
 ## Sort and paginate {#sort-the-rows-and-divide-them-into-pages}
 
@@ -238,22 +385,21 @@ ORDER BY year DESC, name ASC
 LIMIT 25 OFFSET 50;
 ```
 
-`ASC` is the default. NULL sorts before non-NULL values in ascending order,
-and after them in descending order, including inside windows. This is the
-opposite of PostgreSQL's default. `NULLS FIRST` and `NULLS LAST` are unsupported.
+`ASC` is the default. In ascending order, `NULL` values come first. In
+descending order, they come last. This is the opposite of the PostgreSQL
+default, and it also applies to window ordering. `NULLS FIRST` and `NULLS LAST`
+aren't supported.
 
-An `ORDER BY` output position counts expanded columns: in
-`SELECT *, year + 1 AS next_year FROM robots ORDER BY 2`, `2` names the
-second column produced by `*`, rather than the second written select item.
+An output position in `ORDER BY` counts the columns that `*` expands to. For
+example, in `SELECT *, year + 1 AS next_year FROM robots ORDER BY 2`, `2` is the
+second column of `*`, which is `name`.
 
-`LIMIT` and `OFFSET` accept a literal integer or a
-placeholder, such as `LIMIT @limit`. Counts must be nonnegative integers.
-Negative literals fail during binding; negative parameters fail when the
-clause is read, with CADB0400. The rule also applies to nested queries,
-FROM-less SELECTs, and UPDATE/DELETE pagination.
+`LIMIT` and `OFFSET` take an integer literal or a placeholder, such as
+`LIMIT @limit`. A negative value returns `CADB0400`. This also applies to
+nested queries, `SELECT` without `FROM`, and `UPDATE` and `DELETE` with `LIMIT`.
 
-In a grouped query, `ORDER BY` can reference a selected aggregate's alias, an
-aggregate expression, or a grouped expression.
+In a grouped query, `ORDER BY` can use an aggregate alias, an aggregate
+expression, or a grouped expression:
 
 ```camussql
 SELECT role, COUNT(*) AS cnt
@@ -262,29 +408,27 @@ GROUP BY role
 ORDER BY cnt DESC, role;
 ```
 
-An alias in `ORDER BY` takes precedence over a base column with the same name.
-If two output columns have that name but different expressions, a bare
-ORDER BY name is ambiguous and fails with CADB0400, even with LIMIT 0. Use
-unique aliases or a 1-based output position such as ORDER BY 2. Repeating
-the same input column in the output does not make its name ambiguous.
-In a query without `GROUP BY`, an `ORDER BY` expression can also read a column
-that the `SELECT` list does not project.
+An alias in `ORDER BY` takes precedence over a table column with the same name.
+If two output columns have the same name and different expressions,
+`ORDER BY name` is ambiguous. It returns `CADB0400`, even with `LIMIT 0`. Use
+unique aliases, or a 1-based position such as `ORDER BY 2`. The same column
+selected twice isn't ambiguous.
 
-CamusDB refuses two `ORDER BY` shapes with `CADB0400 InvalidInput`:
+In a query without `GROUP BY`, `ORDER BY` can also use a column that the select
+list doesn't include.
 
-- A bare input column in ORDER BY for a global aggregate (an aggregate without
-  GROUP BY). Use an output alias, aggregate expression, or 1-based output
-  position; these are accepted without sorting the single result row.
-  Invalid references are rejected even with LIMIT 0.
-- In a grouped query, a computed expression that is in neither the `SELECT` list
-  nor the `GROUP BY` clause. A grouped query sorts after projection, so the base
-  columns the expression names no longer exist at that point. Project the value
-  first, then sort by its alias.
+The following `ORDER BY` forms return `CADB0400`:
 
-When an index already provides the requested order, the planner skips the sort
-entirely. So `ORDER BY` with `LIMIT` on an indexed column is much cheaper than
-sorting the whole table. See
-[Query Planning](/docs/query-planning).
+- A table column in a query that has an aggregate and no `GROUP BY`, such as
+  `SELECT COUNT(*) AS c FROM robots ORDER BY year`. Sort by the alias or by a
+  position.
+- In a grouped query, an expression that is in neither the select list nor
+  `GROUP BY`. The rows are sorted after the projection. Select the value, and
+  sort by its alias.
+
+If an index gives the requested order, the sort is skipped. This means that
+`ORDER BY` with `LIMIT` on an indexed column is much cheaper than a sort of the
+table. For more information, see [Query planning](/docs/query-planning).
 
 ## Parameters
 
@@ -297,39 +441,53 @@ WHERE id = @id
 LIMIT @limit;
 ```
 
-The client that submits the statement binds the values. See
-[Parameters And Prepared Statements](/docs/prepared-statements).
+The client that sends the statement binds the values. For more information, see
+[Parameters and prepared statements](/docs/prepared-statements).
 
 ## Aggregate the rows
 
-| Function | Behavior |
+| Function | Result |
 | --- | --- |
-| `COUNT(*)` | Counts every row. |
-| `COUNT(column)` | Counts non-null values. |
-| `SUM(column)` | Adds numeric values, ignoring nulls. `NUMERIC` input returns `NUMERIC`; `INT64` input returns `INT64`; `FLOAT64` input returns `FLOAT64`. |
-| `AVG(column)` | Returns a `NUMERIC` average for `NUMERIC` input, otherwise `FLOAT64`. Ignores nulls. |
-| `MIN(column)` | Returns the smallest non-null value. |
-| `MAX(column)` | Returns the largest non-null value. |
+| `COUNT(*)` | The number of rows. |
+| `COUNT(column)` | The number of non-null values. |
+| `SUM(column)` | The sum of the non-null values. `NUMERIC` input returns `NUMERIC`, `INT64` returns `INT64`, and `FLOAT64` returns `FLOAT64`. |
+| `AVG(column)` | The average of the non-null values. `NUMERIC` input returns `NUMERIC`. Other input returns `FLOAT64`. |
+| `MIN(column)` | The smallest non-null value. |
+| `MAX(column)` | The largest non-null value. |
 
-Without `GROUP BY`, an aggregate reduces the whole table to one row:
+Without `GROUP BY`, an aggregate reduces the table to one row:
 
 ```camussql
 SELECT COUNT(*), SUM(year), AVG(year), MIN(year), MAX(year)
 FROM robots;
 ```
 
+A column that isn't in `GROUP BY` can't be selected with an aggregate. For
+example, `SELECT name, COUNT(*) FROM robots` returns `CADB0400`. Add
+`GROUP BY name` to fix it.
+
 ### GROUP BY
 
-HAVING can also use qualified group keys, aggregate aliases, and IN/NOT IN
-checks such as `HAVING COUNT(*) IN (1, 2)`.
-
-`GROUP BY` accepts columns and expressions:
+`GROUP BY` takes columns and expressions:
 
 ```camussql
 SELECT role, COUNT(*) AS cnt
 FROM app_users
 GROUP BY role;
+```
 
+```text
+┌────────┬─────┐
+│ role   │ cnt │
+├────────┼─────┤
+│ admin  │ 1   │
+│ editor │ 3   │
+│ viewer │ 2   │
+└────────┴─────┘
+3 rows in set (00:00:00.0003195)
+```
+
+```camussql
 SELECT role, department, COUNT(*) AS cnt
 FROM app_users
 GROUP BY role, department;
@@ -339,14 +497,13 @@ FROM robots
 GROUP BY year + 100;
 ```
 
-Standard projection rules apply: every non-aggregate projection must appear in
-the `GROUP BY`. So `SELECT name, COUNT(*) FROM robots` is an error; add
-`GROUP BY name` to fix it.
-
 ### HAVING
 
-`HAVING` filters after aggregation. It can reference an aggregate alias, an
-aggregate expression, or a group key:
+`HAVING` filters the groups after aggregation. It can use the following items:
+
+- An aggregate alias, such as `cnt`, or an aggregate expression.
+- A group key, also with a table alias, such as `u.role`.
+- An `IN` or `NOT IN` check, such as `HAVING COUNT(*) IN (1, 2)`.
 
 ```camussql
 SELECT role, COUNT(*) AS cnt
@@ -354,20 +511,32 @@ FROM app_users
 GROUP BY role
 HAVING cnt > 1
 ORDER BY role;
+```
 
+```text
+┌────────┬─────┐
+│ role   │ cnt │
+├────────┼─────┤
+│ editor │ 3   │
+│ viewer │ 2   │
+└────────┴─────┘
+2 rows in set (00:00:00.0019345)
+```
+
+```camussql
 SELECT COUNT(*) AS total
 FROM robots
 HAVING total > 0;
 ```
 
-`HAVING` needs a `GROUP BY` or an aggregate projection. To filter input rows
-rather than groups, use `WHERE`. It runs first, so it gives the aggregate less
-work.
+`HAVING` needs a `GROUP BY` or an aggregate in the select list. Otherwise, it
+returns `CADB0400`. To filter the input rows, use `WHERE`. It's applied first,
+and it gives the aggregate less work.
 
 ## WITH queries {#with-queries}
 
-A common table expression (CTE) gives a query a name for one statement. Use
-`WITH` to split a report into readable steps or reuse an intermediate result:
+A common table expression (CTE) names a query for one statement. Use `WITH` to
+split a report into steps, or to use an intermediate result more than once:
 
 ```camussql
 WITH totals AS (
@@ -379,56 +548,87 @@ WITH totals AS (
 SELECT customer_id, spent FROM big_customers ORDER BY spent DESC;
 ```
 
-A definition has the form `name [(column_names)] AS [MATERIALIZED | NOT MATERIALIZED] (query)`.
-Its query can contain joins, aggregates, windows, set operations, or another
-`WITH`. An optional column list renames columns in order: a shorter list
-leaves remaining names unchanged; a longer list fails. Duplicate output names
-make references to those names ambiguous.
+```text
+┌─────────────┬───────┐
+│ customer_id │ spent │
+├─────────────┼───────┤
+│ 1           │ 1670  │
+│ 2           │ 1500  │
+└─────────────┴───────┘
+2 rows in set (00:00:00.0282098)
+```
 
-A CTE is visible to later definitions and the following statement, including
-subqueries. It hides a table or view of the same name. Inside its own body,
-or an earlier definition, that name still resolves to the underlying table.
-An inner `WITH` can hide an outer CTE name. Duplicate CTE names in one clause
-are rejected. Index hints on a CTE reference are unsupported.
+A definition has the form
+`name [(column_names)] AS [MATERIALIZED | NOT MATERIALIZED] (query)`. The query
+can be any `SELECT`, including one with a set operation or another `WITH`.
+
+A column list renames the columns in order. A shorter list doesn't change the
+remaining names. A longer list returns `CADB0400`. If two output columns have
+the same name, a reference to that name is ambiguous.
+
+A CTE is visible to the later definitions and to the statement, including its
+subqueries. It hides a table or view with the same name. In the body of the CTE
+and in earlier definitions, the name refers to the table. An inner `WITH` can
+hide an outer CTE name.
+
+The following forms return `CADB0400`:
+
+- The same CTE name twice in one `WITH`.
+- An index hint on a CTE reference, such as `x@{FORCE_INDEX=...}`.
 
 ### Reuse and materialization
 
-At the start of a statement or its source query, a CTE referenced once is
-inlined: its reader runs it as a derived table. A CTE referenced more than
-once is computed once and its rows are shared for that statement. Use
-`MATERIALIZED` to request computation once, or `NOT MATERIALIZED` to run a
-separate copy for each reference. This affects volatile functions too:
-readers of a computed-once CTE see the same `random()` values.
+A CTE that the statement reads once is inlined, as a derived table. A CTE that
+is read more than once is computed once, and the readers share its rows. To
+choose, write `MATERIALIZED` to compute it once, or `NOT MATERIALIZED` to
+compute it for each reader.
 
-A computed-once CTE finishes in full before a reader receives rows, even when
-that reader has a `LIMIT`. Each reader filters its own copy of the retained
-rows. They can [spill to disk](/docs/spill-to-disk), and are released when the
-statement ends. `EXPLAIN` marks readers with `computed_once=<name>`.
-For a large intermediate result that a reader only partly consumes,
-`NOT MATERIALIZED` can avoid unnecessary materialization.
+This matters for volatile functions. Two readers of a computed-once CTE see the
+same `random()` values:
 
-A `WITH` inside parentheses is always inlined, including with `MATERIALIZED`,
-because its query can depend on outer rows. Stored view bodies expand CTEs
-into derived tables; see [Views](/docs/views#cte-bodies).
+```camussql
+WITH x AS MATERIALIZED (SELECT random() AS r)
+SELECT a.r = b.r AS same FROM x a, x b;   -- true; NOT MATERIALIZED gives false
+```
+
+A computed-once CTE is computed in full before a reader gets rows, even if the
+reader has a `LIMIT`. Its rows can [spill to disk](/docs/spill-to-disk), and
+they're released when the statement ends. `EXPLAIN` marks a reader with
+`computed_once=<name>`. For a large result that a reader reads in part,
+`NOT MATERIALIZED` avoids the full computation.
+
+A `WITH` in parentheses, for example in a subquery, is always inlined, also with
+`MATERIALIZED`. Its query can depend on outer rows. In a view body, CTEs are
+stored as derived tables. For more information, see
+[Views](/docs/views#cte-bodies).
 
 ### Supported statements and limits
 
-`WITH` can precede `SELECT`, `INSERT`, `UPSERT`, `UPDATE`, and `DELETE`.
-It also works in `INSERT INTO ... WITH ... SELECT`, `CREATE TABLE ... AS`,
-view and materialized-view bodies, subqueries, derived tables, and
-set-operation operands. A write target always names a stored table; its
-sources can read CTEs, including in [joined writes](/docs/sql-writes#joined-writes).
+`WITH` can start a `SELECT`, `INSERT`, `UPSERT`, `UPDATE`, or `DELETE`
+statement. It also works in the following places:
 
-Writes inside CTE definitions, such as `AS (DELETE ... RETURNING ...)`, are
-unsupported. Recursive queries use the form described below. `SELECT ... FOR UPDATE`
-cannot read a CTE. Unused CTE definitions are not checked, so an unknown table
-in an unused definition raises no error. Expansion is bounded by the
-[statement nesting and size limits](/docs/statement-nesting-limit#cte-expansion).
+- `INSERT INTO ... WITH ... SELECT` and `CREATE TABLE ... AS`.
+- View and materialized view bodies.
+- Subqueries, derived tables, and the operands of set operations.
+
+The target of a write is a stored table. Its sources can read CTEs, also in
+[joined writes](/docs/sql-writes#joined-writes).
+
+Note the following limits:
+
+- A write in a CTE body, such as `AS (DELETE ... RETURNING ...)`, is a syntax
+  error.
+- `SELECT ... FOR UPDATE` can't read a CTE.
+- A CTE that the statement doesn't use isn't checked. For example, an unknown
+  table in an unused definition returns no error.
+- Expansion is limited by the
+  [statement nesting and size limits](/docs/statement-nesting-limit#cte-expansion).
 
 ### Recursive CTEs {#recursive-ctes}
 
-`WITH RECURSIVE` walks hierarchies such as product categories or reporting
-lines. Start with root rows, then join each step's rows to their children:
+`WITH RECURSIVE` walks a hierarchy, such as product categories or a reporting
+line. Start with the root rows, and join the rows of each step to their
+children:
 
 ```camussql
 WITH RECURSIVE tree (id, depth) AS (
@@ -440,51 +640,76 @@ WITH RECURSIVE tree (id, depth) AS (
 SELECT id, depth FROM tree ORDER BY depth, id;
 ```
 
-The definition must be `seed_query UNION [ALL] recursive_query`. The seed
-runs once; each recursive step reads only the preceding step's rows. Execution
-ends when a step produces no rows. `UNION ALL` retains duplicates; `UNION`
-drops rows already produced, which can terminate a cyclic graph walk when
-its complete output rows repeat. Adding a changing depth or path column can
-keep those rows distinct, so it still needs an explicit stopping condition.
+```text
+┌────┬───────┐
+│ id │ depth │
+├────┼───────┤
+│ 1  │ 0     │
+│ 5  │ 0     │
+│ 2  │ 1     │
+│ 4  │ 1     │
+│ 6  │ 1     │
+│ 3  │ 2     │
+└────┴───────┘
+6 rows in set (00:00:00.0069275)
+```
 
-The recursive term must reference the CTE once in its FROM sources, directly
-or through a derived table. It cannot reference itself inside an expression
-subquery, on the nullable side of an outer join, or in the restricted operands
-of `INTERSECT ALL` and `EXCEPT`. An aggregate is refused in the SELECT that
-directly reads the work table; an outer SELECT over a derived table may
-aggregate. Windows, DISTINCT, GROUP BY, and HAVING are supported.
-The connecting UNION cannot have its own ORDER BY, LIMIT, or OFFSET; a
-parenthesized recursive term may have them.
+Laptops (id 3) is under Computers (id 2), which is under Electronics (id 1).
+This means that its depth is 2.
 
-Under `WITH RECURSIVE`, definitions can reference later CTEs, and their own
-name hides any table with that name. Mutual recursion between CTEs is
-unsupported. Seed-column types determine the result types; an untyped NULL
-or bare parameter in the seed becomes STRING. Cast seed expressions to the
-required type when a recursive expression would otherwise widen it.
+The definition must have the form `seed_query UNION [ALL] recursive_query`. The
+seed query is computed once. Each recursive step reads the rows of the previous
+step. The recursion ends when a step returns no rows.
 
-A single reader can stream rows as steps produce them, so its LIMIT can stop
-recursion early. Multiple readers compute the entire result once before
-reading it; an outer LIMIT then does not stop recursion. Work tables can
-spill, while UNION's duplicate-tracking set stays in memory.
+`UNION ALL` returns duplicates. `UNION` drops the rows that were already
+returned. This can end a walk over a graph with cycles, if the full rows repeat.
+A depth or path column makes each row different, and then you need a condition
+that ends the recursion.
+
+The recursive term has the following rules:
+
+- It must read the CTE once in its `FROM` sources, directly or through a
+  derived table.
+- It can't read the CTE in an expression subquery, on the nullable side of an
+  outer join, or in the restricted operands of `INTERSECT ALL` and `EXCEPT`.
+- The `SELECT` that reads the CTE can't use an aggregate, which returns
+  `CADB0400`. An outer `SELECT` over a derived table can aggregate. Windows,
+  `DISTINCT`, `GROUP BY`, and `HAVING` are supported.
+- The `UNION` between the terms can't take `ORDER BY`, `LIMIT`, or `OFFSET`. A
+  recursive term in parentheses can have them.
+
+In `WITH RECURSIVE`, a definition can read a later CTE, and its name hides a
+table with the same name. Mutual recursion between CTEs isn't supported.
+
+The seed columns set the result types. An untyped `NULL` or a bare parameter in
+the seed becomes `STRING`. Cast a seed expression to the type that the
+recursive term needs.
+
+With one reader, the rows are returned as the steps produce them, and a `LIMIT`
+can stop the recursion early. With more than one reader, the full result is
+computed first, and an outer `LIMIT` doesn't stop the recursion. The work
+tables can spill to disk. The duplicate set of `UNION` is kept in memory.
 
 | Setting | Default | Limit |
 | --- | --- | --- |
-| `max_recursive_cte_iterations` | `10000` | Recursive steps that produce rows. |
-| `max_recursive_cte_rows` | `10000000` | Total output rows per run, including seed rows. |
+| `max_recursive_cte_iterations` | `10000` | The recursive steps that return rows. |
+| `max_recursive_cte_rows` | `10000000` | The output rows of one query, including the seed rows. |
 
-Exceeding either limit raises `CADB0560 RecursiveQueryLimitExceeded`.
-Both are runtime cluster settings; `0` disables a limit. Use a terminating
-predicate and bounded limits for graph walks. `EXPLAIN` shows
-`recursive-union` and `work-table-scan`; ANALYZE does not count each term's
-rows separately. PostgreSQL's SEARCH/CYCLE clauses and CREATE RECURSIVE VIEW
-are unsupported; a view body can use WITH RECURSIVE.
+A query over either limit returns `CADB0560 RecursiveQueryLimitExceeded`. Both
+are runtime cluster settings, and `0` turns a limit off. For a graph walk, use
+a condition that ends the recursion.
+
+`EXPLAIN` shows `recursive-union` and `work-table-scan`. `EXPLAIN (ANALYZE)`
+doesn't count the rows of each term separately.
+
+The PostgreSQL `SEARCH` and `CYCLE` clauses and `CREATE RECURSIVE VIEW` aren't
+supported. A view body can use `WITH RECURSIVE`.
 
 ## Combine query results {#set-operations}
 
-Use `UNION`, `INTERSECT`, and `EXCEPT` to combine rows from separate queries
-without merging them in application code. For example, combine current and
-archived orders, find customers in both campaigns, or exclude customers who
-already received an offer.
+Use a set operation to combine the rows of separate queries in SQL. For
+example, you can combine current and archived orders, or exclude customers who
+opted out.
 
 ```camussql
 SELECT customer_id FROM current_orders
@@ -492,28 +717,39 @@ UNION
 SELECT customer_id FROM archived_orders;
 ```
 
-`UNION` returns each customer once. Use `UNION ALL` when repeated rows matter
-or when you know the inputs do not overlap and want to avoid deduplication.
+```text
+┌─────────────┐
+│ customer_id │
+├─────────────┤
+│ 1           │
+│ 2           │
+│ 4           │
+└─────────────┘
+3 rows in set (00:00:00.0005748)
+```
+
+`UNION` returns each customer once. Use `UNION ALL` when repeated rows matter,
+or when the inputs don't overlap and you want to skip the duplicate check.
 
 ### Choose an operation
 
-Rows match by their values at each column position. For set operations,
-NULL matches NULL, unlike the comparison `NULL = NULL`.
+Rows match by the values at each column position. In a set operation, `NULL`
+matches `NULL`. This differs from the comparison `NULL = NULL`.
 
 | Operation | Result | Copies when the left has m matching rows and the right has n |
 | --- | --- | --- |
-| `UNION` | Rows found in either query, without duplicates. | 1 if m + n is greater than 0 |
-| `UNION ALL` | Every row from both queries. | m + n |
-| `INTERSECT` | Rows found in both queries, without duplicates. | 1 if both m and n are greater than 0 |
-| `INTERSECT ALL` | Rows shared by both inputs, preserving matching copies. | min(m, n) |
-| `EXCEPT` | Left rows absent from the right, without duplicates. | 1 if m is greater than 0 and n is 0 |
-| `EXCEPT ALL` | Left rows after subtracting matching right copies. | max(m − n, 0) |
+| `UNION` | Rows from either query, each row once. | 1 if m + n is greater than 0 |
+| `UNION ALL` | All rows from both queries. | m + n |
+| `INTERSECT` | Rows from both queries, each row once. | 1 if both m and n are greater than 0 |
+| `INTERSECT ALL` | Rows from both inputs, with the matching copies. | min(m, n) |
+| `EXCEPT` | Left rows that the right doesn't have, each row once. | 1 if m is greater than 0 and n is 0 |
+| `EXCEPT ALL` | Left rows minus the matching right copies. | max(m − n, 0) |
 
-Plain operators default to `DISTINCT`. An explicit `UNION DISTINCT`,
-`INTERSECT DISTINCT`, or `EXCEPT DISTINCT` has the same meaning as the plain
-form. Without `ORDER BY`, result order is undefined.
+An operator that doesn't have `ALL` means `DISTINCT`. You can also write
+`DISTINCT` after the operator, which doesn't change the result. If there's no
+`ORDER BY`, the order of the result isn't defined.
 
-For example, find customers eligible for a campaign who have not opted out:
+For example, find the campaign members who didn't opt out:
 
 ```camussql
 SELECT customer_id FROM campaign_members
@@ -521,33 +757,45 @@ EXCEPT
 SELECT customer_id FROM email_opt_outs;
 ```
 
+```text
+┌─────────────┐
+│ customer_id │
+├─────────────┤
+│ 1           │
+│ 3           │
+└─────────────┘
+2 rows in set (00:00:00.0025822)
+```
+
 ### Match columns and types
 
 Both queries must return the same number of columns. Columns match by
-**position**, and output names come from the leftmost query. Incompatible
-column counts or types fail with `CADB0400` (`InvalidInput`) before reading rows.
+position, and the output names come from the leftmost query. A different
+column count or incompatible types return `CADB0400 InvalidInput` before any
+rows are read.
 
 | Input types at the same position | Output type |
 | --- | --- |
-| Same type | That type. |
-| NULL literal or placeholder on one side | The other side's type. |
-| Two numeric types | Their common arithmetic type; for example, `INT64` plus `FLOAT64` becomes `FLOAT64`. |
+| The same type | That type. |
+| A `NULL` literal or a placeholder on one side | The type of the other side. |
+| Two numeric types | Their common arithmetic type. For example, `INT64` and `FLOAT64` give `FLOAT64`. |
 | `DATE` and `DATETIME` | `DATETIME`. |
-| Quoted string literal with `DATE` or `DATETIME` | That temporal type; invalid literal text fails before reading rows. A string column does not implicitly convert. |
-| Arrays | Element types must match, or one side must be empty/untyped. Known incompatible element types are refused. |
-| Other incompatible pairs | Error naming the column position and types. |
+| A string literal with `DATE` or `DATETIME` | The temporal type. An invalid literal returns an error before any rows are read. A string column isn't converted. |
+| Arrays | The element types must match, or one side must be empty or untyped. |
+| Other pairs | An error that names the column position and the types. |
 
-Values are converted before comparison. `SELECT 1 UNION SELECT 1.0` therefore
-returns one row. A column containing only untyped NULLs is exposed as `STRING`,
-but can still take the other operand's type in an enclosing set operation.
+Values are converted before they're compared. For example,
+`SELECT 1 UNION SELECT 1.0` returns one row. A column with only untyped `NULL`
+values has the type `STRING`, but it can take the type of the other operand in
+an enclosing set operation.
 
 ### Precedence and pagination
 
 `INTERSECT` binds more tightly than `UNION` and `EXCEPT`. `UNION` and `EXCEPT`
-group from left to right. Use parentheses to make another grouping explicit:
+group from left to right. Use parentheses to choose another grouping:
 
 ```camussql
--- Intersection first: returns 1 and 2.
+-- The intersection comes first: returns 1 and 2.
 SELECT 1 AS id UNION SELECT 2 INTERSECT SELECT 2;
 
 -- Parentheses change the grouping: returns only 2.
@@ -555,7 +803,7 @@ SELECT 1 AS id UNION SELECT 2 INTERSECT SELECT 2;
 ```
 
 An `ORDER BY`, `LIMIT`, or `OFFSET` after the last query applies to the combined
-result. Parenthesize a query to give it its own clauses:
+result. To give one query separate clauses, put it in parentheses:
 
 ```camussql
 (SELECT customer_id FROM current_orders ORDER BY customer_id LIMIT 5)
@@ -564,16 +812,16 @@ SELECT customer_id FROM archived_orders
 ORDER BY 1 LIMIT 10 OFFSET 2;
 ```
 
-The combined `ORDER BY` accepts an output column name or a 1-based position.
-Expressions such as `ORDER BY id + 1` are refused; wrap the operation in a
-derived table to sort by an expression. A parenthesized query cannot take a
-second set of trailing clauses: keep them inside the parentheses or use a
-derived table.
+The combined `ORDER BY` takes an output column name or a 1-based position. An
+expression such as `ORDER BY id + 1` returns `CADB0400`. To sort by an
+expression, put the operation in a derived table. A query in parentheses can't
+have a second set of trailing clauses. Keep the clauses in the parentheses, or
+use a derived table.
 
 ### Use combined results elsewhere
 
-Set operations work as statements, derived tables, subqueries, `INSERT ...
-SELECT` sources, and `CREATE TABLE ... AS SELECT` sources:
+You can use a set operation as a statement, a derived table, a subquery, or the
+source of `INSERT ... SELECT` and `CREATE TABLE ... AS SELECT`:
 
 ```camussql
 SELECT COUNT(*)
@@ -589,15 +837,17 @@ EXCEPT
 SELECT customer_id FROM email_opt_outs;
 ```
 
-Each query needs `SELECT` on its own tables, including tables read by a
-subquery in an operand's `WHERE`. These nested subqueries use the caller's
-privileges in a statement and the owner's in a view body. All operands share
-the statement's snapshot; an operand with its own `AS OF SYSTEM TIME` is refused.
+Each query needs `SELECT` on its tables, including the tables of a subquery in
+the `WHERE` of an operand. These subqueries use the caller's privileges in a
+statement, and the view owner's privileges in a view body.
+
+All operands read the snapshot of the statement. An `AS OF SYSTEM TIME` clause
+on one operand returns `CADB0409`.
 
 #### Views
 
-A [view](/docs/views) or [materialized view](/docs/materialized-views) can store
-a set operation as its body:
+A [view](/docs/views) or a [materialized view](/docs/materialized-views) can
+store a set operation as its body:
 
 ```camussql
 CREATE VIEW all_order_customers AS
@@ -606,48 +856,42 @@ UNION
 SELECT customer_id FROM archived_orders;
 ```
 
-At creation, each operand's `*` expands to its current columns. Later columns
-do not change the stored output. Names are pinned on the leftmost operand;
-dependencies include the tables and columns of both operands. Renames follow
-their stored identities, while dropping a dependency is refused.
+When the view is created, the `*` of each operand is expanded to the current
+columns. Columns added later don't change the view. The output names come from
+the leftmost operand. The view depends on the tables and columns of both
+operands. A rename is followed, and the drop of a dependency returns an error.
 
-For a set operation nested inside a derived table or subquery of a view body,
-write explicit columns: `*` in those operands is refused because it cannot be
-frozen safely. `SHOW CREATE VIEW` preserves grouping with parentheses.
+For a set operation in a derived table or a subquery of a view body, list the
+columns. A `*` in those operands returns `CADB0400`. `SHOW CREATE VIEW` shows
+the grouping with parentheses.
 
 ### Execution and limits
 
-`UNION ALL` streams its operands without a deduplication buffer; an outer
-`LIMIT` can stop them early. `UNION` uses the `DISTINCT` operator. `INTERSECT`
-and `EXCEPT` build a hash table of right-side row counts, then read the left
-side using the copy rules above. Distinct `EXCEPT` also tracks emitted rows.
+`UNION ALL` returns the rows of its operands as they're read. An outer `LIMIT`
+can stop the operands early. `UNION` uses the `DISTINCT` operator. `INTERSECT`
+and `EXCEPT` build a hash table from the right side.
 
-With [spill to disk](/docs/spill-to-disk) enabled, `UNION` can spill through
-`DISTINCT`. `INTERSECT` and `EXCEPT` partition both inputs into spill files when
-the right-side hash table reaches `spill_threshold_rows` distinct rows or
-`spill_threshold_bytes`. Each partition pair is processed in memory and is
-not subdivided further. With spill off, hash tables stay in memory.
+With [spill to disk](/docs/spill-to-disk) turned on, `UNION` can spill through
+`DISTINCT`. `INTERSECT` and `EXCEPT` split both inputs into spill files when the
+hash table reaches `spill_threshold_rows` distinct rows or
+`spill_threshold_bytes`. Each pair of partitions is processed in memory, and it
+isn't split again. With spill turned off, the hash tables are in memory.
 
-`EXPLAIN` shows `union`, `intersect`, or `except`, followed by `operand` rows
-for the left and right plans. `EXPLAIN (ANALYZE)` measures both operand plans;
-the operation's row count is the combined output. The operation's estimate is
-a default derived-table estimate, rather than an estimate of overlap.
+`EXPLAIN` shows `union`, `intersect`, or `except`, followed by `operand` rows for
+the left and right plans. `EXPLAIN (ANALYZE)` measures both operands, and the
+row count of the operation is the combined output. The estimate of the
+operation is a default derived-table estimate. It isn't an estimate of the
+overlap.
 
-The plan cache includes both operands, the operator, and the `ALL` flag. The
-combined result is not stored in the query-result cache.
-
-Long chains of the same associative operator (`UNION`, `UNION ALL`,
-`INTERSECT`, or `INTERSECT ALL`) are rebalanced. `EXCEPT` and mixed-operator
-chains cannot use that optimization. Set-operation nesting is limited to 64
-levels; deeper statements fail with `CADB0413` (`StatementTooDeeplyNested`).
-[WITH queries](#with-queries) can name set-operation results and appear inside
-operands. `CORRESPONDING BY` is unsupported.
+The combined result isn't stored in the query result cache. Set operations can
+be nested up to 64 levels. A deeper statement returns
+`CADB0413 StatementTooDeeplyNested`. `CORRESPONDING BY` isn't supported.
 
 ## Compute across related rows {#window-functions}
 
-Window functions let you rank orders per customer, calculate running totals,
-or compare a value with the previous row without collapsing the rows into
-one aggregate result. Add `OVER (...)` to a supported function:
+Window functions compute a value over related rows, such as the rank of an
+order among a customer's orders, or a running total. The rows aren't collapsed
+into one aggregate result. Add `OVER (...)` to a supported function:
 
 ```camussql
 SELECT customer_id, id, total,
@@ -658,36 +902,53 @@ SELECT customer_id, id, total,
 FROM orders;
 ```
 
-`PARTITION BY` groups rows for the calculation; it does not change their storage
-placement. Without it, the whole input is one group. The window's `ORDER BY`
-sets calculation order, while the query's final `ORDER BY` controls output order.
-Add a unique tie-breaker, such as `id`, when row numbering must be repeatable.
+```text
+┌─────────────┬────┬───────┬──────────┬────────────────┐
+│ customer_id │ id │ total │ position │ customer_total │
+├─────────────┼────┼───────┼──────────┼────────────────┤
+│ 1           │ 4  │ 900   │ 1        │ 1670           │
+│ 1           │ 7  │ 400   │ 2        │ 1670           │
+│ 1           │ 1  │ 250   │ 3        │ 1670           │
+│ 1           │ 8  │ 120   │ 4        │ 1670           │
+│ 2           │ 2  │ 1200  │ 1        │ 1500           │
+│ 2           │ 5  │ 300   │ 2        │ 1500           │
+│ 3           │ 6  │ 150   │ 1        │ 230            │
+│ 3           │ 3  │ 80    │ 2        │ 230            │
+└─────────────┴────┴───────┴──────────┴────────────────┘
+8 rows in set (00:00:00.0075674)
+```
+
+`PARTITION BY` groups the rows for the calculation. It doesn't change where the
+rows are stored. If you omit it, all input rows are one partition. The window
+`ORDER BY` sets the calculation order, and the final `ORDER BY` of the query
+sets the output order. To number rows in a repeatable order, add a unique
+column, such as `id`, to the window `ORDER BY`.
 
 ### Supported functions
 
 | Function | Result |
 | --- | --- |
-| `row_number()` | Row position within its partition, starting at 1. |
-| `rank()`, `dense_rank()` | Rank with gaps after ties, or rank without gaps. |
-| `percent_rank()` | `(rank - 1) / (partition rows - 1)`; 0 for one row. |
-| `cume_dist()` | Fraction of partition rows up to and including the current row's peers. |
-| `ntile(k)` | Divides rows into `k` buckets, numbered from 1; larger buckets come first. `k` must be positive. |
-| `lag(value [, offset [, default]])` | Value from an earlier row; offset defaults to 1 and the fallback to NULL. |
-| `lead(value [, offset [, default]])` | Value from a later row, with the same defaults as `lag`. |
-| `first_value(value)`, `last_value(value)` | Value from the first or last row of the frame. |
-| `nth_value(value, n)` | Value from frame position `n` (starting at 1), or NULL when the frame is shorter. `n` must be positive. |
-| `count`, `sum`, `avg`, `min`, `max` | Aggregate over the frame, using the ordinary aggregate's result type and null rules. |
+| `row_number()` | The position of the row in its partition, starting at 1. |
+| `rank()`, `dense_rank()` | The rank. `rank()` leaves gaps after ties, and `dense_rank()` doesn't. |
+| `percent_rank()` | `(rank - 1) / (partition rows - 1)`, or 0 for one row. |
+| `cume_dist()` | The fraction of partition rows up to and including the peers of the current row. |
+| `ntile(k)` | Divides the rows into `k` buckets, numbered from 1. Larger buckets come first. `k` must be positive. |
+| `lag(value [, offset [, default]])` | A value from an earlier row. The offset defaults to 1, and the fallback to `NULL`. |
+| `lead(value [, offset [, default]])` | A value from a later row, with the same defaults as `lag`. |
+| `first_value(value)`, `last_value(value)` | The value from the first or last row of the frame. |
+| `nth_value(value, n)` | The value at frame position `n`, starting at 1, or `NULL` if the frame is shorter. `n` must be positive. |
+| `count`, `sum`, `avg`, `min`, `max` | An aggregate over the frame, with the result type and null rules of the normal aggregate. |
 
-Ranking functions, `lag`, and `lead` ignore the frame. Negative `lag` or `lead`
-offsets read in the opposite direction. Their fallback must have a compatible
-type; numeric inputs and fallbacks use their common arithmetic type. A
-placeholder fallback may be widened to that type, but not narrowed. The
-fallback applies when the requested row is outside the partition; a NULL
-value in an existing row remains NULL.
+Ranking functions, `lag`, and `lead` ignore the frame. A negative offset in
+`lag` or `lead` reads in the other direction. The fallback must have a
+compatible type. For numbers, the common arithmetic type is used. A placeholder
+fallback can be widened to that type, but it can't be narrowed. The fallback is
+used when the requested row is outside the partition. A `NULL` value in an
+existing row is returned as `NULL`.
 
 ### Running totals and frames
 
-A frame chooses which rows of the partition contribute to a calculation:
+A frame selects the rows of the partition that a calculation uses:
 
 ```camussql
 SELECT customer_id, id, total,
@@ -702,35 +963,56 @@ FROM orders
 ORDER BY customer_id, id;
 ```
 
-`ROWS` counts physical rows in calculation order. Bounds accept `UNBOUNDED
-PRECEDING`, `n PRECEDING`, `CURRENT ROW`, `n FOLLOWING`, and `UNBOUNDED
-FOLLOWING`. Offsets must be non-negative integer literals or placeholders.
-For example, `ROWS BETWEEN 2 PRECEDING AND CURRENT ROW` includes at most three
-rows. A single bound, such as `ROWS 2 PRECEDING`, ends at the current row.
-Frames stop at partition boundaries.
+```text
+┌─────────────┬────┬───────┬───────────────┬──────────────────────┐
+│ customer_id │ id │ total │ running_total │ change_from_previous │
+├─────────────┼────┼───────┼───────────────┼──────────────────────┤
+│ 1           │ 1  │ 250   │ 250           │ 250                  │
+│ 1           │ 4  │ 900   │ 1150          │ 650                  │
+│ 1           │ 7  │ 400   │ 1550          │ -500                 │
+│ 1           │ 8  │ 120   │ 1670          │ -280                 │
+│ 2           │ 2  │ 1200  │ 1200          │ 1200                 │
+│ 2           │ 5  │ 300   │ 1500          │ -900                 │
+│ 3           │ 3  │ 80    │ 80            │ 80                   │
+│ 3           │ 6  │ 150   │ 230           │ 70                   │
+└─────────────┴────┴───────┴───────────────┴──────────────────────┘
+8 rows in set (00:00:00.0017953)
+```
 
-The default frame is `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`.
-Rows with equal window ordering values are **peers**; this frame includes all
-peers of the current row. Without a window `ORDER BY`, every row is a peer and
-the frame covers the whole partition. `RANGE` supports current-row and
-unbounded bounds, but not numeric offsets; use `ROWS` for those.
+The first order of each customer has no earlier row. This means that `lag`
+returns the fallback `0`, and the change is the total.
 
-Consequently, `last_value(total) OVER (ORDER BY id)` usually gives the current
-row's value when `id` is unique. To read the last value of the entire partition,
+`ROWS` counts physical rows in the calculation order. A bound can be
+`UNBOUNDED PRECEDING`, `n PRECEDING`, `CURRENT ROW`, `n FOLLOWING`, or
+`UNBOUNDED FOLLOWING`. An offset must be a non-negative integer literal or a
+placeholder. For example, `ROWS BETWEEN 2 PRECEDING AND CURRENT ROW` covers up
+to three rows. A single bound, such as `ROWS 2 PRECEDING`, ends at the current
+row. Frames end at the partition boundaries.
+
+The default frame is `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`. Rows
+with equal window ordering values are **peers**, and this frame includes all
+peers of the current row. If the window has no `ORDER BY`, all rows are peers,
+and the frame is the full partition. `RANGE` takes `CURRENT ROW` and unbounded
+bounds. An offset such as `1 PRECEDING` returns `CADB0400`. Use `ROWS` for an
+offset.
+
+For this reason, `last_value(total) OVER (ORDER BY id)` returns the value of
+the current row when `id` is unique. To read the last value of the partition,
 use `ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING`.
 
-Nulls sort first in ascending order and last in descending order, matching
-CamusDB's ordinary sorts. PostgreSQL defaults to the opposite order.
-`NULLS FIRST` and `NULLS LAST` are unsupported. Null partition keys group together.
+`NULL` values sort first in ascending order and last in descending order, as in
+other sorts. `NULLS FIRST` and `NULLS LAST` aren't supported. Rows with a `NULL`
+partition key form one partition.
 
-Window `sum` and `avg` over `FLOAT64` accumulate exact values and round once.
-Unlike a plain floating-point aggregate, their result does not depend on row
-order, so the two forms can differ in the last binary digit.
+A window `sum` or `avg` over `FLOAT64` adds exact values and rounds once. Its
+result doesn't depend on the row order. This means that it can differ in the
+last binary digit from a normal aggregate.
 
 ### Filter a window result
 
-Windows run after `WHERE`, `GROUP BY`, and `HAVING`. To filter a computed rank,
-use an outer query. This returns each customer's three largest orders:
+Window functions are computed after `WHERE`, `GROUP BY`, and `HAVING`. To
+filter on a computed rank, use an outer query. This query returns the three
+largest orders of each customer:
 
 ```camussql
 SELECT customer_id, id, total
@@ -745,41 +1027,69 @@ WHERE position <= 3
 ORDER BY customer_id, total DESC, id;
 ```
 
-A final `LIMIT` reduces output, not window input. For example,
-`SELECT id, count(*) OVER () FROM orders LIMIT 5` still counts all orders.
-Windows can also use group keys and aggregates from a grouped query, such as
-`rank() OVER (ORDER BY sum(total) DESC)` with `GROUP BY customer_id`.
+```text
+┌─────────────┬────┬───────┐
+│ customer_id │ id │ total │
+├─────────────┼────┼───────┤
+│ 1           │ 4  │ 900   │
+│ 1           │ 7  │ 400   │
+│ 1           │ 1  │ 250   │
+│ 2           │ 2  │ 1200  │
+│ 2           │ 5  │ 300   │
+│ 3           │ 6  │ 150   │
+│ 3           │ 3  │ 80    │
+└─────────────┴────┴───────┘
+7 rows in set (00:00:00.0005590)
+```
+
+Order 8, the fourth largest order of customer 1, is filtered out.
+
+A final `LIMIT` reduces the output. The window function reads all input rows.
+For example, `SELECT id, count(*) OVER () FROM orders LIMIT 5` counts all
+orders. Window functions can also use the group keys and aggregates of a
+grouped query, such as `rank() OVER (ORDER BY sum(total) DESC)` with
+`GROUP BY customer_id`.
 
 ### Execution and restrictions
 
-Window calculations run on the node executing the statement, after gathering
-any distributed scan or aggregate results. Functions with the same partition
-and ordering expressions share a sort. Sorts and full-row partition buffers
-can [spill to disk](/docs/spill-to-disk), but window inputs and results still
-need memory proportional to the current partition's row count. A large
-partition can therefore consume substantial memory even with spill enabled.
-See [window plans](/docs/explain#window-functions) to inspect the work.
+Window functions are computed on the node that executes the statement, after
+the results of distributed scans and aggregates are collected. Functions with
+the same partition and ordering expressions share one sort. Sorts and partition
+buffers can [spill to disk](/docs/spill-to-disk). However, the window inputs and
+results need memory in proportion to the rows of the current partition. A
+large partition can use a lot of memory, also with spill turned on. For the
+plan, see [window plans](/docs/explain#window-functions).
 
-Window calls are allowed in the select list and final `ORDER BY`, including
-inside larger expressions. They cannot nest or appear in `WHERE`, `GROUP BY`,
-`HAVING`, join conditions, `UPDATE SET`, `INSERT VALUES`, column defaults, or
-`CHECK` constraints. `SELECT ... FOR UPDATE` cannot contain a window call.
+A window call is allowed in the select list and in the final `ORDER BY`, also as
+part of a larger expression. It isn't allowed in the following places:
 
-Named windows (`OVER name` or `WINDOW name AS (...)`), `GROUPS` frames,
-`EXCLUDE`, aggregate `FILTER`, and extension aggregates with `OVER` are
-unsupported. `SELECT DISTINCT *` with a window call only in `ORDER BY` is also
-refused. Uncorrelated subqueries can read a window query, including from an
-outer select list. Correlated EXISTS with a multi-source inner query remains
-unsupported. See [subquery restrictions](/docs/joins-and-subqueries#subqueries-in-where).
+- In another window call.
+- In `WHERE`, `GROUP BY`, `HAVING`, or a join condition.
+- In `UPDATE ... SET`, `INSERT ... VALUES`, a column default, or a `CHECK`
+  constraint.
+- In `SELECT ... FOR UPDATE`.
 
-`OVER` is reserved; quote it with backticks when using it as an identifier.
-Frame words such as `ROWS`, `PARTITION`, and `PRECEDING` remain valid identifiers.
+The following features aren't supported:
+
+- Named windows: `OVER name` and `WINDOW name AS (...)`.
+- `GROUPS` frames, `EXCLUDE`, and aggregate `FILTER`.
+- Extension aggregates with `OVER`.
+- `SELECT DISTINCT *` with a window call that is in `ORDER BY` only.
+
+An uncorrelated subquery can read a window query, also from an outer select
+list. A correlated `EXISTS` with an inner query over several sources isn't
+supported. For more information, see
+[subquery restrictions](/docs/joins-and-subqueries#subqueries-in-where).
+
+`OVER` is reserved. To use it as an identifier, put it in backticks. Frame words
+such as `ROWS`, `PARTITION`, and `PRECEDING` are valid identifiers.
 
 ## Lock rows before updating them {#for-update}
 
-Use `SELECT ... FOR UPDATE` when an application reads a row, decides what to
-change, and writes it in the same transaction. It takes the exclusive row lock
-used by UPDATE and DELETE, and holds it until commit or rollback:
+Use `SELECT ... FOR UPDATE` when an application reads a row and then changes it
+in the same transaction, based on what it read. The statement takes the
+exclusive row lock that `UPDATE` and `DELETE` take. The lock is held until the
+transaction commits or rolls back:
 
 ```camussql
 BEGIN;
@@ -789,88 +1099,96 @@ WHERE sku = @sku AND quantity >= @sold;
 COMMIT;
 ```
 
-Place the clause last, after `ORDER BY`, `LIMIT`, and `OFFSET`:
+Write the clause last, after `ORDER BY`, `LIMIT`, and `OFFSET`:
 
 ```camussql
 SELECT id FROM jobs WHERE state = 'ready' ORDER BY id LIMIT 10
 FOR UPDATE OF jobs NOWAIT;
 ```
 
-`OF` optionally names the table or its alias. `FOR NO KEY UPDATE` is a synonym;
-`FOR SHARE` and `FOR KEY SHARE` are unsupported.
+`OF` can name the table or its alias. `FOR NO KEY UPDATE` means the same as
+`FOR UPDATE`. `FOR SHARE` and `FOR KEY SHARE` aren't supported. `FOR SHARE`
+returns `CADB0533`.
 
 ### Choose how to handle held rows
 
-| Option | When another transaction holds the row |
+| Option | When another transaction has the row lock |
 | --- | --- |
-| `FOR UPDATE` | Fails with retryable `CADB0502` (`TransactionConflict`), as an UPDATE would. |
-| `FOR UPDATE NOWAIT` | Fails with `CADB0555` (`LockNotAvailable`), which is not automatically retried. |
-| `FOR UPDATE SKIP LOCKED` | Omits the held row and continues looking for eligible rows. |
+| `FOR UPDATE` | Returns `CADB0502 TransactionConflict`, as an `UPDATE` does. The error is retryable. |
+| `FOR UPDATE NOWAIT` | Returns `CADB0555 LockNotAvailable`. It isn't retried automatically. |
+| `FOR UPDATE SKIP LOCKED` | Skips the locked row and looks for other rows. |
 
-A commit already finishing replication or settlement is treated differently
-from an actively held lock: the statement can briefly wait for that commit,
-even with `NOWAIT`. Any statement failure ends its transaction; there are no
-savepoints.
+A commit that is finishing its replication isn't the same as a held lock. The
+statement can wait a short time for such a commit, also with `NOWAIT`.
 
-For queue workers, use Read Committed and pessimistic locking. Select free
-jobs, then update the returned ids before committing:
+A failed statement ends its transaction. The next statement in it returns
+`Unknown transaction`. CamusDB has no savepoints.
+
+For queue workers, use Read Committed with pessimistic locking, the default
+locking mode. Select free jobs, and update the returned IDs before you commit:
 
 ```camussql
 BEGIN;
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SELECT id FROM jobs WHERE state = 'ready' ORDER BY id LIMIT 1
 FOR UPDATE SKIP LOCKED;
--- Bind the returned id as @job_id; if no row was returned, skip the UPDATE.
+-- Bind the returned id as @job_id. If no row was returned, skip the UPDATE.
 UPDATE jobs SET state = 'running' WHERE id = @job_id;
 COMMIT;
 ```
 
-`SKIP LOCKED` is refused at Serializable (`CADB0533`): its scan's shared range
-locks would make workers conflict when updating their separate jobs. Plain
-`FOR UPDATE` and `NOWAIT` work at both isolation levels. At Serializable a
-range scan can hit a predicate-lock conflict before reaching the row-lock
-step, producing `CADB0502` even with `NOWAIT`.
+`SKIP LOCKED` at Serializable returns `CADB0533`. The shared range locks of its
+scan would make workers conflict when they update different jobs. `FOR UPDATE`
+and `NOWAIT` work at both isolation levels. Note that at Serializable, a range
+scan can get a predicate-lock conflict before it reaches a row lock. This
+returns `CADB0502`, also with `NOWAIT`.
 
 ### Returned values and lock scope
 
-CamusDB scans and sorts candidates, locks them in pages, then reads their
-latest committed values and checks `WHERE` again. Deleted or no-longer-matching
-rows are dropped. Skipped held rows and dropped rows do not consume `LIMIT`
-or `OFFSET`; later eligible rows fill the result.
+The statement scans and sorts the candidate rows, and it locks them in batches.
+Then it reads their latest committed values, and it checks `WHERE` again. A
+deleted row, or a row that doesn't match any more, is dropped. Skipped and
+dropped rows don't count toward `LIMIT` or `OFFSET`. Later rows that match fill
+the result.
 
-Locks already acquired remain until the transaction ends, including locks on
-rows dropped by the recheck or skipped by `OFFSET`. Paging avoids locking
-candidates beyond what `LIMIT` plus `OFFSET` requires. A concurrent change to
-an ordering column can leave a row in its earlier sort position even though
-its returned value is newer.
+The locks are released when the transaction ends. This includes the locks on
+dropped rows and on rows that `OFFSET` skipped. The statement locks the
+candidates that `LIMIT` and `OFFSET` need, and no more. If a concurrent change
+moves a row in the sort order, the row can appear at its old position with its
+new value.
 
-Ordinary SELECT reads remain available; another writer or locking read must
-respect these row locks. A later UPDATE or DELETE in the same transaction
-can use the locks it already owns.
+Normal `SELECT` reads of these rows aren't blocked. Another writer or locking
+read of these rows gets a conflict. A later `UPDATE` or `DELETE` in the same
+transaction uses the locks that it already has.
 
 ### Restrictions and autocommit
 
-The statement requires `SELECT` and `UPDATE` privileges on one ordinary table.
-Read-only or optimistic transactions are refused with `CADB0400`. Joins,
-views, materialized views, derived tables, table functions, grouping,
-aggregates, window functions, `DISTINCT`, set operations, and historical reads
-are unsupported.
-The clause is top-level only: it cannot appear inside subqueries, view bodies,
-`INSERT ... SELECT`, or `CREATE TABLE ... AS SELECT`.
+The statement needs the `SELECT` and `UPDATE` privileges on one table. It
+returns `CADB0400` in a read-only transaction and in an optimistic transaction.
 
-In autocommit, REST and gRPC run a locking read in a writable transaction,
-commit before sending rows, and release its locks when the statement ends.
-Use an explicit transaction to protect a later write. For autocommit
-`SKIP LOCKED`, set the request isolation to Read Committed; the server default
-is Serializable.
+The following aren't supported with `FOR UPDATE`:
 
-Plain `EXPLAIN` plans a locking read without taking locks. `EXPLAIN (ANALYZE)`
-executes it and takes real locks. See [locking-read plans](/docs/explain#locking-reads).
+- Joins, views, materialized views, derived tables, table functions, and CTEs.
+- Grouping, aggregates, window functions, `DISTINCT`, and set operations.
+- Historical reads.
+
+The clause is allowed at the top level only. It can't be in a subquery, a view
+body, `INSERT ... SELECT`, or `CREATE TABLE ... AS SELECT`.
+
+In autocommit mode, the REST and gRPC APIs execute a locking read in a writable
+transaction. The transaction commits before the rows are sent, and the locks
+are released when the statement ends. To protect a later write, use an explicit
+transaction. For autocommit `SKIP LOCKED`, set the request isolation to Read
+Committed. The server default is Serializable.
+
+`EXPLAIN` plans a locking read and takes no locks. `EXPLAIN (ANALYZE)`
+executes it and takes real locks. For more information, see
+[locking-read plans](/docs/explain#locking-reads).
 
 ## Read a past snapshot
 
-`AS OF SYSTEM TIME` reads a consistent historical snapshot. Write it after the
-`FROM` source and before the `WHERE` clause:
+`AS OF SYSTEM TIME` reads a consistent snapshot of the past. Write it after the
+`FROM` source and before `WHERE`:
 
 ```camussql
 SELECT id, name, year
@@ -879,14 +1197,13 @@ WHERE year >= 1970
 ORDER BY year DESC;
 ```
 
-The clause applies to read-only statements in autocommit mode. It pins the
-whole statement, including every join and subquery, to one timestamp. See
-[Time-Travel Reads](/docs/time-travel-reads) for the accepted formats and
-retention limits.
+The clause works on read-only statements in autocommit mode. It applies to the
+full statement, including joins and subqueries. For the formats and the
+retention limits, see [Time-travel reads](/docs/time-travel-reads).
 
 ## Force an index
 
-If you know an index suits a predicate better than the planner's estimate
+If you know that an index suits a predicate better than the planner's estimate
 suggests, name it:
 
 ```camussql
@@ -895,6 +1212,6 @@ FROM robots@{FORCE_INDEX=robots_year_idx}
 WHERE year >= 1980;
 ```
 
-Confirm the effect with [`EXPLAIN`](/docs/explain) before you leave a hint in
-production code. A hint can outlive the data distribution you tuned it for, and
-then it does more harm than good.
+An unknown index name returns `CADB0405`. Check the effect with
+[`EXPLAIN`](/docs/explain) before you keep a hint in production code. When the
+data changes, a hint can make a query slower than the planner's choice.

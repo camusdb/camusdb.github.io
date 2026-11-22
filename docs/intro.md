@@ -11,25 +11,25 @@ import CamusPlayground, {tutorialExamples} from '@site/src/components/CamusPlayg
 # CamusDB tutorial
 
 This tutorial takes you from install to working SQL. You start a CamusDB node,
-create a database and a table, insert and query rows, add an index, rename
-objects, and update and delete data. Use the `camus-cli` terminal shell or
-the Web Console, or try every step in the embedded browser playground first.
+create a database and a table, and then query and change rows. You can use the
+`camus-cli` terminal shell or the Web Console. You can also try the steps first
+in the browser playground.
 
 CamusDB is an open-source distributed SQL database with a full relational
-engine. The SQL in this tutorial
-runs the same on one node or on a cluster, so you can start small and add nodes
-later. To see what CamusDB adds over a single-node database, read
-[Why CamusDB?](/docs/why-camusdb).
+engine. The SQL in this tutorial works the same on one node and on a cluster.
+This means that you can start small and add nodes later. To see what CamusDB
+adds to a single-node database, read [Why CamusDB?](/docs/why-camusdb).
 
 ## Try it in your browser
 
-You can run the tutorial commands here before installing anything. The embedded
-playground starts with a pre-created `playground` database, but you can also
-create your own and switch to it with the database selector. Each step
-explains what its SQL does. Click **Run** to execute a step, then click
-**Next**. **Next** unlocks only after the current step runs without an error,
-so the steps always run in order. **Prev** goes back to an earlier step. You
-can also edit the SQL before running it.
+You can execute the tutorial commands here before you install anything. The
+playground starts with a `playground` database. You can also create a database
+and select it with the database selector.
+
+Each step explains its SQL. Click **Run** to execute a step, then click
+**Next**. **Next** becomes available after the current step succeeds. This
+means that the steps execute in order. **Prev** goes back to an earlier step.
+You can also edit the SQL before you execute it.
 
 <CamusPlayground
   compact
@@ -39,7 +39,7 @@ can also edit the SQL before running it.
   initialSql={tutorialExamples[0].sql}
   runExampleOnSelect={false}
   title="Run the tutorial here"
-  description="This is the real CamusDB engine compiled to WebAssembly. It runs as a single in-memory node inside this browser tab."
+  description="This is the real CamusDB engine compiled to WebAssembly, as a single in-memory node in this browser tab."
 />
 
 ## Video walkthrough
@@ -55,10 +55,9 @@ can also edit the SQL before running it.
 
 ## Start CamusDB
 
-Choose the NuGet tool if you already use .NET, Homebrew for a native command
-on macOS or Linux, or Docker for a container. Each tab starts a standalone
-node with HTTP on port `5095` and gRPC on `5096`. For service setup, data
-locations, and updates, see [Server installation](/docs/server-installation).
+Each of the following tabs starts a standalone node, with HTTP on port `5095`
+and gRPC on port `5096`. For service setup and updates, see
+[Server installation](/docs/server-installation).
 
 <Tabs groupId="camusdb-install" defaultValue="nuget">
 <TabItem value="nuget" label="NuGet tool">
@@ -75,7 +74,7 @@ camusdb
 <TabItem value="homebrew" label="Homebrew">
 
 On macOS or Linux, install with [Homebrew](https://brew.sh). The server package
-includes its .NET runtime; no separate .NET installation is needed to run it:
+includes its .NET runtime. You don't need to install .NET to run it:
 
 ```bash
 brew install camusdb/tap/camusdb
@@ -95,20 +94,19 @@ docker run --rm \
   --name camusdb camusdb/camusdb:latest
 ```
 
-The named `camus-data` volume preserves data after the container exits.
-Stop it with Ctrl+C.
+The data is stored in the `camus-data` volume, and it is kept after the
+container exits. To stop the container, press Ctrl+C.
 
 </TabItem>
 </Tabs>
 
-Keep the server running and open another terminal for the SQL client.
+Keep the server running, and open another terminal for the SQL client.
 
 ## Connect with a SQL client {#connect-with-the-sql-shell}
 
-Choose the terminal shell or the browser-based Web Console. Both connect to
-the node you started above and run the same SQL. The tool installation commands
-below require the .NET 10 SDK, including when the server runs through Homebrew
-or Docker.
+Choose the terminal shell or the Web Console. Both connect to the node that you
+started, and they execute the same SQL. To install them, you need the .NET 10
+SDK, also when you installed the server with Homebrew or Docker.
 
 <Tabs groupId="camusdb-client" defaultValue="cli">
 <TabItem value="cli" label="camus-cli">
@@ -120,8 +118,9 @@ dotnet tool install --global CamusDB.SqlSh
 camus-cli
 ```
 
-The shell connects to the local server, trying gRPC on port `5096` first and
-REST on `5095` as a fallback. A `camus>` prompt means you can enter SQL.
+The shell connects to the local server. It tries gRPC on port `5096`. If that
+fails, it tries REST on port `5095`. A `camus>` prompt means that you can enter
+SQL.
 
 </TabItem>
 <TabItem value="webconsole" label="Web Console">
@@ -134,11 +133,11 @@ camusdb-webconsole --endpoint http://localhost:5095
 ```
 
 The console opens your browser at `http://127.0.0.1:5164`. Enter SQL in the
-editor and click **Run statement**, or press Ctrl/Cmd+Enter. Use **Run script**
-(Alt+X) to execute several statements in order. Results appear in tabs.
+editor and click **Run statement**, or press Ctrl/Cmd+Enter. To execute several
+statements in order, use **Run script** (Alt+X). The results appear in tabs.
 
-Use **Configure** to change the endpoint, protocol, database, or credentials.
-If you prefer to run the console without installing .NET, follow the
+To change the connection, such as the endpoint or the credentials, use
+**Configure**. To run the console in a container, follow the
 [Docker instructions](/docs/web-console#run-it-with-docker).
 
 </TabItem>
@@ -146,25 +145,24 @@ If you prefer to run the console without installing .NET, follow the
 
 ## Create a database
 
-Create the tutorial database in your chosen client's SQL editor or prompt:
+Create the tutorial database at the prompt or in the editor of your client:
 
 ```camussql
 CREATE DATABASE factory;
 ```
 
-Then select it for the remaining steps:
+Then select it for the next steps:
 
-- **camus-cli:** run `USE factory;`. For later sessions, you can start the
+- **camus-cli:** run `USE factory;`. In a later session, you can start the
   shell with `camus-cli factory`.
-- **Web Console:** click `factory` in the database sidebar, or select it in
-  **Configure** as the session database.
+- **Web Console:** click `factory` in the database sidebar, or select it as the
+  session database in **Configure**.
 
-The database must exist before you select it. The statements below run in
-`factory` in either client.
+The database must exist before you select it.
 
 ## Create a table
 
-Create a table to store robots:
+Create a table for robots:
 
 ```camussql
 CREATE TABLE robots (
@@ -179,14 +177,14 @@ The table has four columns:
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `id` | `OID` | Primary key object id. |
-| `name` | `STRING` | Required robot name. |
-| `kind` | `STRING` | Required category or model family. |
-| `year` | `INT64` | Optional year with a default value. |
+| `id` | `OID` | The primary key, an object id. |
+| `name` | `STRING` | The robot name. Required. |
+| `kind` | `STRING` | The category or model family. Required. |
+| `year` | `INT64` | Optional, with a default value. |
 
-For UUID identifiers, use the native `UUID` type instead of `STRING`. A `UUID`
-column stores a compact 128-bit value and produces smaller index keys than the
-UUID's text form.
+For UUID identifiers, use the native `UUID` type. A `UUID` column stores a
+compact 128-bit value, and its index keys are smaller than those of the text
+form.
 
 ## Inspect the schema
 
@@ -212,38 +210,32 @@ SHOW COLUMNS FROM robots;
 ```
 
 ```text
-┌───────┬───────────┬──────┬─────┬─────────┬───────┐
-│ Field │ Type      │ Null │ Key │ Default │ Extra │
-├───────┼───────────┼──────┼─────┼─────────┼───────┤
-│ id    │ Id        │ NO   │ PRI │ NULL    │       │
-│ name  │ String    │ NO   │     │ NULL    │       │
-│ kind  │ String    │ NO   │     │ NULL    │       │
-│ year  │ Integer64 │ YES  │     │ 2024    │       │
-└───────┴───────────┴──────┴─────┴─────────┴───────┘
-4 rows in set (00:00:00.0189059)
+┌───────┬────────┬──────┬─────┬─────────┬───────┐
+│ Field │ Type   │ Null │ Key │ Default │ Extra │
+├───────┼────────┼──────┼─────┼─────────┼───────┤
+│ id    │ OID    │ NO   │ PRI │ NULL    │       │
+│ name  │ STRING │ NO   │     │ NULL    │       │
+│ kind  │ STRING │ NO   │     │ NULL    │       │
+│ year  │ INT64  │ YES  │     │ 2024    │       │
+└───────┴────────┴──────┴─────┴─────────┴───────┘
+4 rows in set (00:00:00.0006060)
 ```
 
-These commands are also useful for inspecting a table:
+`DESCRIBE robots` returns the same result.
 
-```camussql
-DESCRIBE robots;
-SHOW CREATE TABLE robots;
-SHOW INDEX FROM robots;
-```
-
-Show the table's SQL definition:
+Show the SQL definition of the table:
 
 ```camussql
 SHOW CREATE TABLE robots;
 ```
 
 ```text
-┌────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ Table  │ Create Table                                                                                                                       │
-├────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ robots │ CREATE TABLE `robots` ( `id` OID NOT NULL, `name` STRING NOT NULL, `kind` STRING NOT NULL, `year` INT64 NULL, PRIMARY KEY (`id`)); │
-└────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-1 rows in set (00:00:00.0037082)
+┌────────┬──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Table  │ Create Table                                                                                                                                     │
+├────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ robots │ CREATE TABLE `robots` ( `id` OID NOT NULL, `name` STRING NOT NULL, `kind` STRING NOT NULL, `year` INT64 NULL DEFAULT(2024), PRIMARY KEY (`id`)); │
+└────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+1 rows in set (00:00:00.0002822)
 ```
 
 ## Insert rows
@@ -264,7 +256,7 @@ VALUES
   (GEN_ID(), 'T-800', 'android', 1984);
 ```
 
-Use `DEFAULT` to have CamusDB apply the column's default value:
+Use `DEFAULT` for the default value of a column:
 
 ```camussql
 INSERT INTO robots (id, name, kind, year)
@@ -307,7 +299,7 @@ SELECT name, year FROM robots WHERE year >= 1980;
 2 rows in set (00:00:00.0298712)
 ```
 
-`LIKE` and `ILIKE` match a pattern:
+`LIKE` and `ILIKE` match a pattern. `ILIKE` ignores case:
 
 ```camussql
 SELECT id, name FROM robots WHERE name ILIKE 'r%';
@@ -322,16 +314,37 @@ SELECT id, name FROM robots WHERE name ILIKE 'r%';
 1 rows in set (00:00:00.0254039)
 ```
 
-Aggregate the rows:
+Aggregate the rows. An alias such as `AS robots` names the result column:
 
 ```camussql
-SELECT COUNT(*) FROM robots;
-SELECT MIN(year), MAX(year) FROM robots;
+SELECT COUNT(*) AS robots FROM robots;
+```
+
+```text
+┌────────┐
+│ robots │
+├────────┤
+│ 4      │
+└────────┘
+1 rows in set (00:00:00.0004500)
+```
+
+```camussql
+SELECT MIN(year) AS oldest, MAX(year) AS newest FROM robots;
+```
+
+```text
+┌────────┬────────┐
+│ oldest │ newest │
+├────────┼────────┤
+│ 1977   │ 2024   │
+└────────┴────────┘
+1 rows in set (00:00:00.0003960)
 ```
 
 ## Create an index
 
-An index lets CamusDB find matching rows without scanning every row in the
+An index lets CamusDB find the matching rows, and it doesn't need to scan the
 table.
 
 ```camussql
@@ -344,9 +357,21 @@ Inspect the indexes:
 SHOW INDEXES FROM robots;
 ```
 
+```text
+┌────────┬────────────┬─────────────────┬─────────┬─────────┬────────────┬────────────┬─────────┐
+│ Table  │ Non_unique │ Key_name        │ Columns │ Include │ Index_type │ Directions │ Comment │
+├────────┼────────────┼─────────────────┼─────────┼─────────┼────────────┼────────────┼─────────┤
+│ robots │ 0          │ ~pk             │ id      │         │ ORDERED    │ ASC        │ null    │
+│ robots │ 1          │ robots_kind_idx │ kind    │         │ ORDERED    │ ASC        │ null    │
+└────────┴────────────┴─────────────────┴─────────┴─────────┴────────────┴────────────┴─────────┘
+2 rows in set (00:00:00.0003500)
+```
+
+`~pk` is the unique index of the primary key.
+
 ## Rename schema objects
 
-You can rename tables and columns. CamusDB does not rewrite any row data:
+You can rename tables and columns. A rename doesn't rewrite the rows:
 
 ```camussql
 ALTER TABLE robots RENAME COLUMN kind TO category;
@@ -355,8 +380,8 @@ ALTER TABLE robots RENAME TO machines;
 
 ## Update rows
 
-Unlike PostgreSQL and MySQL, CamusDB requires a `WHERE` clause on every
-`UPDATE`. To update every row, write `WHERE true`.
+CamusDB requires a `WHERE` clause on `UPDATE`. PostgreSQL and MySQL don't. To
+update all the rows, write `WHERE true`.
 
 ```camussql
 UPDATE machines
@@ -372,34 +397,48 @@ FROM machines
 WHERE name = 'T-800';
 ```
 
+```text
+┌───────┬──────┐
+│ name  │ year │
+├───────┼──────┤
+│ T-800 │ 1982 │
+└───────┴──────┘
+1 rows in set (00:00:00.0006807)
+```
+
 ## Delete rows
 
-CamusDB also requires a `WHERE` clause on every `DELETE`. To delete every row,
-write `WHERE true`.
+`DELETE` also requires a `WHERE` clause. To delete all the rows, write
+`WHERE true`.
 
 ```camussql
 DELETE FROM machines
 WHERE name = 'K-2SO';
 ```
 
-Next, read the [SQL overview](/docs/sql), [Data Types](/docs/data-types), and
-[Tables And Columns](/docs/sql-schema).
+## Next steps
 
-Then read [SELECT](/docs/sql-queries) to learn filtering, grouping, and
-ordering, and [Joins And Subqueries](/docs/joins-and-subqueries) for joins,
-subqueries, and derived tables.
+To learn more SQL, read the following pages:
+
+- [SQL overview](/docs/sql)
+- [Data types](/docs/data-types)
+- [Tables and columns](/docs/sql-schema)
+- [SELECT](/docs/sql-queries), for filtering and grouping
+- [Joins and subqueries](/docs/joins-and-subqueries)
 
 ## Connect an application
 
-Use the [.NET driver](/docs/dotnet-driver),
-[TypeScript connector](/docs/typescript-connector), or
-[Python driver](/docs/python-driver). They provide parameter binding, query
-results, and transaction APIs, with helpers for retryable conflicts. The
-libraries handle the HTTP/JSON or gRPC messages behind those APIs.
+To connect an application, use a driver:
+
+- [.NET driver](/docs/dotnet-driver)
+- [TypeScript connector](/docs/typescript-connector)
+- [Python driver](/docs/python-driver)
+
+The drivers bind parameters and manage transactions. They also have helpers
+for retryable conflicts.
 
 ## Explore complete sample applications
 
-Explore the [advanced samples](/docs/advanced-samples) to see CamusDB in
-complete ecommerce, banking, and booking applications. They demonstrate
-transactions, retries, idempotency, concurrency, database branching, and
-failure handling through .NET, EF Core, and TypeScript.
+The [advanced samples](/docs/advanced-samples) are complete applications, such
+as a bank and an online store. They show patterns such as retries and
+idempotency.

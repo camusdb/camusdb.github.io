@@ -4,29 +4,20 @@ sidebar_position: 7.15
 
 # Dapper
 
-CamusDB ships `CamusDB.Dapper`, a small adapter for using
-[Dapper](https://github.com/DapperLib/Dapper) with the .NET driver. Dapper is a
-popular .NET library that runs a SQL query and maps each result row to a C#
-object. You keep full control of the SQL, and you do not read each column by
-hand.
+`CamusDB.Dapper` lets you use [Dapper](https://github.com/DapperLib/Dapper)
+with the CamusDB .NET driver. Dapper is a popular .NET library that maps each
+row of a query result to a C# object. You write the SQL, and you don't read each
+column by hand. The adapter adds helpers for the CamusDB types that Dapper can't
+infer, such as native arrays and wide `NUMERIC` values.
 
-To compare the three .NET packages (driver, Dapper, EF Core) and their target
-frameworks, see [Which .NET package to use](/docs/dotnet-driver#which-net-package-to-use).
-
-Use `CamusDB.Dapper` when:
-
-- You want direct SQL with lightweight object mapping.
-- You use CamusDB SQL features but don't want a full ORM model.
-- You already know Dapper's `QueryAsync` and `ExecuteAsync` APIs.
-- You need parameters of the native `OID`, `UUID`, `ARRAY(T)`, and vector
-  types.
+To compare the .NET packages and their target frameworks, see
+[Which .NET package to use](/docs/dotnet-driver#which-net-package-to-use).
 
 ## How the adapter works
 
-The package builds on `CamusDB.Client`. A `CamusConnection` is a regular
-ADO.NET connection, so Dapper can run SQL through it directly. The adapter adds
-CamusDB-specific parameter helpers and type handlers for the values Dapper
-cannot infer on its own.
+The package builds on `CamusDB.Client`. A `CamusConnection` is a regular ADO.NET
+connection. This means that Dapper's `QueryAsync` and `ExecuteAsync` work on it
+directly. The adapter adds parameter helpers and type handlers.
 
 ## Install
 
@@ -34,16 +25,13 @@ cannot infer on its own.
 dotnet add package CamusDB.Dapper
 ```
 
-`CamusDB.Dapper` depends on `CamusDB.Client`. If your project keeps direct
-database dependencies explicit, you can reference the base driver too:
-
-```bash
-dotnet add package CamusDB.Client
-```
+`CamusDB.Dapper` depends on `CamusDB.Client`. You can also add a direct
+reference to `CamusDB.Client`, if your project lists each database dependency.
 
 ## Register the handlers
 
-Call `CamusDapper.Register()` once during application startup:
+Call `CamusDapper.Register()` once at application startup. You can call it
+more than once.
 
 ```csharp
 using CamusDB.Dapper;
@@ -51,12 +39,18 @@ using CamusDB.Dapper;
 CamusDapper.Register();
 ```
 
-This registers the handler for `CamusObjectIdValue`. It is safe to call more
-than once.
+Each handler binds a parameter of its .NET type, and it reads a column into
+that type.
+
+| .NET type | Column type |
+| --- | --- |
+| `CamusObjectIdValue` | `OID` |
+| `TimeSpan` / `CamusInterval` | `INTERVAL` |
+| `JsonDocument` / `JsonElement` / `JsonNode` / `JsonObject` / `JsonArray` | `JSONB` |
 
 ## Open a connection
 
-Use the same connection string as the .NET driver:
+The connection string is the same as for the .NET driver.
 
 ```csharp
 using CamusDB.Client;
@@ -72,17 +66,14 @@ await using CamusConnection connection = new(
 await connection.OpenAsync();
 ```
 
-See [.NET Driver](/docs/dotnet-driver#connection-string) for the full
-connection string reference, including authentication, gRPC, endpoint pools,
-and learned routing.
-
-Dapper commands also emit the driver's OpenTelemetry traces and metrics. See
-[.NET Driver OpenTelemetry](/docs/dotnet-driver#opentelemetry) for registration,
-attributes, metrics, and SQL-text privacy.
+For the options, such as authentication and gRPC, see
+[Connection string](/docs/dotnet-driver#connection-string). Dapper commands
+emit the traces and metrics of the driver. For more information, see
+[OpenTelemetry](/docs/dotnet-driver#opentelemetry).
 
 ## Query rows
 
-Dapper maps rows to your classes as usual:
+Dapper maps the columns of each row to the properties of your class.
 
 ```csharp
 public sealed class Robot
@@ -105,8 +96,9 @@ IReadOnlyList<Robot> robots = (await connection.QueryAsync<Robot>(
     new { from = 1977 })).ToList();
 ```
 
-Use `ExecuteAsync`, `QuerySingleAsync`, `QuerySingleOrDefaultAsync`, and
-`ExecuteScalarAsync` the same way:
+The other Dapper methods, such as `ExecuteAsync` and `ExecuteScalarAsync`, work
+the same way. An array of parameter objects executes the statement once for
+each object.
 
 ```csharp
 int inserted = await connection.ExecuteAsync(
@@ -126,43 +118,53 @@ long count = await connection.ExecuteScalarAsync<long>(
 
 ## CamusDB values
 
-Dapper infers common scalar values from their .NET types. Use
-`CamusValue` when a value needs an explicit CamusDB column type:
-
-```csharp
-Robot robot = await connection.QuerySingleAsync<Robot>(
-    "SELECT * FROM robots WHERE id = @id",
-    new { id = CamusValue.Id("66f31f0a0c715b91d8c90311") });
-```
-
-`CamusValue` covers:
+Dapper types a parameter by its .NET type. This works for most values,
+including a `string` object id, a `Guid` for a `UUID` column, and a `decimal`
+for a `NUMERIC` column. Wrap a value in `CamusValue` when you want to choose the
+CamusDB column type.
 
 | Helper | Use |
 | --- | --- |
-| `CamusValue.Id(...)` | Bind an `OID`, including an object id stored as a string. |
-| `CamusValue.Uuid(...)` | Bind a native `UUID`. |
-| `CamusValue.Numeric(...)` | Bind a `NUMERIC` value, including exact decimal text too wide for .NET `decimal`. |
-| `CamusValue.Jsonb(...)` | Bind one JSONB document from text, `JsonDocument`, `JsonElement`, or `JsonNode`. |
-| `CamusValue.Array(...)` | Bind one native `ARRAY(T)` value. |
-| `CamusValue.Vector(...)` | Pack a `float` vector for a `BYTES` column. |
+| `CamusValue.Id(...)` | Binds an `OID` from a `string` or a `CamusObjectIdValue`. |
+| `CamusValue.Uuid(...)` | Binds a `UUID` from a `Guid`. |
+| `CamusValue.Numeric(...)` | Binds a `NUMERIC` value from a `decimal` or from decimal text. The text can be wider than .NET `decimal`. |
+| `CamusValue.Jsonb(...)` | Binds one `JSONB` document from text or from a `System.Text.Json` type. |
+| `CamusValue.Array(...)` | Binds one native `ARRAY(T)` value. |
+| `CamusValue.Vector(...)` | Packs a `float` vector for a `BYTES` column. |
 
-`DynamicParameters` can carry `CamusValue` too:
+A `CamusValue` also works in `DynamicParameters`.
 
 ```csharp
 DynamicParameters parameters = new();
-parameters.Add("id", CamusValue.Id(robotId));
+parameters.Add("years", CamusValue.Array(new long[] { 1977, 1984 }));
 
-Robot robot = await connection.QuerySingleAsync<Robot>(
-    "SELECT * FROM robots WHERE id = @id",
+IEnumerable<Robot> robots = await connection.QueryAsync<Robot>(
+    "SELECT * FROM robots WHERE year = ANY(@years)",
     parameters);
 ```
 
+## Intervals
+
+After `CamusDapper.Register()`, a `TimeSpan` or `CamusInterval` parameter is
+sent as ISO-8601 interval text. An interval result is read into either type.
+
+```csharp
+TimeSpan duration = await connection.ExecuteScalarAsync<TimeSpan>(
+    "SELECT CAST(@duration AS INTERVAL)",
+    new { duration = TimeSpan.FromHours(2) });
+```
+
+The parameter arrives as a string. Cast it to `INTERVAL` in the SQL.
+Otherwise, an expression such as `created_at + @duration` returns an error. A
+`TimeSpan` can't hold months, and a result with months throws a
+`DataException`. Use `CamusInterval` for calendar intervals. For more
+information, see [Intervals](/docs/dotnet-driver#intervals).
+
 ## JSON documents
 
-`CamusDapper.Register()` also registers handlers for `JsonDocument`,
-`JsonElement`, `JsonNode`, `JsonObject`, and `JsonArray`. Use these types on a
-mapped property to read a JSONB document, or `CamusValue.Jsonb(text)` to bind
-raw JSON text:
+After `CamusDapper.Register()`, you can use the `System.Text.Json` document
+types as parameters, and as properties that read a `JSONB` column. To bind JSON
+text, use `CamusValue.Jsonb(text)`.
 
 ```csharp
 var rows = await connection.QueryAsync(
@@ -170,13 +172,13 @@ var rows = await connection.QueryAsync(
     new { filter = CamusValue.Jsonb("""{"kind": "login"}""") });
 ```
 
-The underlying driver preserves exact JSON text and the distinction between
-JSON null and SQL NULL. See [.NET JSON handling](/docs/dotnet-driver#json-documents).
+The exact JSON text is preserved, and JSON `null` is different from SQL `NULL`.
+For more information, see
+[JSON documents](/docs/dotnet-driver#json-documents).
 
 ## Object ids
 
-After `CamusDapper.Register()`, Dapper can bind and read
-`CamusObjectIdValue` directly:
+After `CamusDapper.Register()`, Dapper can bind and read `CamusObjectIdValue`.
 
 ```csharp
 using CamusDB.Core.Util.ObjectIds;
@@ -194,16 +196,14 @@ await connection.ExecuteAsync(
     new { id, name = "opened" });
 ```
 
-If your model stores an object id as a `string`, wrap it with
-`CamusValue.Id(...)` when writing or filtering by that value.
+A model can also store an object id as a `string`. The server converts a
+`string` parameter when you compare it with an `OID` column, or write it to one.
 
 ## Numeric values
 
-A plain `decimal` parameter binds as CamusDB `NUMERIC`, and a `NUMERIC` column
-can be read into a `decimal` property when the value fits .NET `decimal`.
-
-For exact values that may exceed .NET `decimal` precision, bind the canonical
-decimal text explicitly:
+A `decimal` parameter binds as `NUMERIC`. A `NUMERIC` column can be read into a
+`decimal` property when the value fits in .NET `decimal`. For a wider value,
+bind the decimal text.
 
 ```csharp
 await connection.ExecuteAsync(
@@ -211,12 +211,12 @@ await connection.ExecuteAsync(
     new { total = CamusValue.Numeric("12345678901234567890.123456789") });
 ```
 
-Dapper maps a `NUMERIC` column to `string` when your model property is `string`,
-which preserves every digit.
+To read each digit of a wide value, use a `string` property. Dapper maps the
+`NUMERIC` column to it.
 
 ## Arrays
 
-Dapper normally expands an enumerable parameter for an `IN @values` predicate:
+By default, Dapper expands an array parameter into a list for `IN @values`.
 
 ```csharp
 IEnumerable<string> names = await connection.QueryAsync<string>(
@@ -224,35 +224,26 @@ IEnumerable<string> names = await connection.QueryAsync<string>(
     new { names = new[] { "R2-D2", "T-800" } });
 ```
 
-That remains the default. To bind a single native CamusDB `ARRAY(T)` value,
-wrap it with `CamusValue.Array(...)`:
+To bind one native `ARRAY(T)` value, wrap it with `CamusValue.Array(...)`. The
+element type is kept for an empty array and for a typed `NULL`.
 
 ```csharp
 IEnumerable<string> names = await connection.QueryAsync<string>(
     "SELECT name FROM robots WHERE year = ANY(@years) ORDER BY name",
     new { years = CamusValue.Array(new long[] { 1977, 1984 }) });
-```
 
-`CamusValue.Array<T>(...)` preserves the element type for an empty array and for
-a typed `NULL`:
-
-```csharp
-await connection.QueryAsync<string>(
+IEnumerable<string> none = await connection.QueryAsync<string>(
     "SELECT name FROM robots WHERE year = ANY(@years)",
     new { years = CamusValue.Array(Array.Empty<long>()) });
 ```
 
-For code that frequently reads or writes native arrays, opt in to array type
-handlers:
+If your code reads or writes native arrays often, register an array type
+handler. Then a `long[]` parameter binds as one `ARRAY(INT64)` value, and an
+`ARRAY(INT64)` column can be read into `long[]`.
 
 ```csharp
 CamusDapper.RegisterArrayTypeHandler<long>();
-```
 
-Then a `long[]` parameter is bound as one `ARRAY(INT64)` value and an
-`ARRAY(INT64)` column can be read into `long[]`:
-
-```csharp
 public sealed class TaggedRobot
 {
     public string Id { get; set; } = "";
@@ -267,16 +258,21 @@ TaggedRobot row = await connection.QuerySingleAsync<TaggedRobot>(
     "SELECT id, tags FROM tagged_robots WHERE 1 = ANY(tags)");
 ```
 
-`CamusDapper.RegisterArrayTypeHandlers()` registers handlers for `long`, `int`,
-`double`, `bool`, `string`, and `Guid` arrays.
+`CamusDapper.RegisterArrayTypeHandlers()` registers the handlers for arrays of
+`long`, `int`, `double`, `bool`, `string`, and `Guid`.
 
-This registration changes Dapper's behavior for that array type. After a
-handler is registered, write `= ANY(@values)` for a membership test. The
-`IN @values` expansion no longer applies to that array type.
+A handler changes the behavior of Dapper for that array type. `IN @values` isn't
+expanded, and it returns the syntax error `CADB0406`. Write `= ANY(@values)` for
+a membership test. Note that the list includes `string`. This means that
+`IN @names` with a `string[]` fails after `RegisterArrayTypeHandlers()`.
+
+Register the array handlers at startup, before the first query. Dapper caches
+how it binds the parameters of each SQL text. A statement that ran before the
+registration can still expand its array.
 
 ## Transactions
 
-Use the `CamusTransaction` returned by the .NET driver and pass it to Dapper:
+Pass the `CamusTransaction` of the .NET driver to each Dapper call.
 
 ```csharp
 await using CamusTransaction tx = await connection.BeginTransactionAsync();
@@ -301,6 +297,7 @@ catch
 }
 ```
 
-For serializable conflicts in a multi-statement transaction, retry the whole
-transaction from `BEGIN`. See
-[Retries And Conflicts](/docs/serializable-retries).
+If a serializable transaction conflicts, run it again from `BEGIN`. The driver's
+`SerializableRetryHelper` can do this for you. For more information, see
+[Serializable retries](/docs/dotnet-driver#serializable-retries) and
+[Retries and conflicts](/docs/serializable-retries).

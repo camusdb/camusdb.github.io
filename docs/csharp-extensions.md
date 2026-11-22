@@ -5,50 +5,40 @@ description: "Extend CamusDB with C# scalar functions, table functions, aggregat
 
 # C# extensions
 
-C# extensions let you add application-specific behavior to CamusDB without
-adding another network service or repeating a multi-step rule in every client.
-Expose C# code as scalar functions, table functions, or aggregates; run it
-automatically when rows change; or call a transactional procedure from SQL.
+C# extensions add your own logic to CamusDB SQL. Your validation rules and
+multi-step writes can live in the database. You don't need another network
+service, and each client doesn't need a copy of the rule.
 
-Use extensions for:
-
-- **Reusable SQL expressions.** Expose C# calculations as scalar functions for
-  projections, filters, defaults, and checks.
-- **Rules that every writer follows.** Use triggers for normalization,
-  validation, derived values, and transactional audit rows, including writes
-  made outside your primary application.
-- **One atomic server-side operation.** Use a procedure to package several SQL
-  statements behind one `CALL`, reducing client orchestration while keeping all
-  database changes in one transaction.
-
-Choose [inline functions](#inline-functions) or [inline triggers](#inline-triggers)
-for C# bodies defined directly in SQL, without deploying a DLL. The operator
-enables each feature separately; users with the required database or table
-privileges can then create them. Inline code is checked against an allowlist
-and runs with resource budgets.
-
-DLL extensions remain the option for table functions, aggregates, procedures,
-and code outside the inline subset. They are reviewed, operator-managed
-assemblies that execute inside the server process.
-
-| Extension | SQL surface | Best use |
+| Extension | SQL | Use it to |
 | --- | --- | --- |
-| Scalar function | `SELECT my_function(...)` | Calculate or transform one value. |
-| Table function | `SELECT word FROM split_words(...)` | Produce rows for a query. |
-| Aggregate function | `SELECT geomean(price) FROM items` | Summarize rows with domain-specific logic. |
-| Trigger | `CREATE TRIGGER ... EXTERNAL NAME ...` | React automatically to each inserted, updated, or deleted row. |
-| Procedure | `CALL my_procedure(...)` | Run a named, multi-statement transactional operation. |
+| Scalar function | `SELECT slugify(title) FROM posts` | Calculate or transform one value. |
+| Table function | `SELECT word FROM split_words('a b')` | Produce rows for a query. |
+| Aggregate function | `SELECT geomean(price) FROM items` | Summarize rows with your own logic. |
+| Trigger | `CREATE TRIGGER audit ON orders ...` | Validate or audit each changed row, also for writes from other applications. |
+| Procedure | `CALL transfer('alice', 'bob', 30)` | Execute several SQL statements as one transactional operation. |
+
+You can supply the C# code in two ways:
+
+| | Inline code | DLL extension |
+| --- | --- | --- |
+| Kinds | Scalar functions and triggers. | All the kinds above. |
+| Where the code is | In the `CREATE FUNCTION` or `CREATE TRIGGER` statement. | In a .NET class library that the operator copies to each node. |
+| Who creates it | A user with `CREATE` on the database (functions) or `ALTER` on the table (triggers), after the operator enables the feature. | The operator deploys the DLL. A superuser installs it in a database. |
+| Code checks | An allowlist of types and members, and a time and memory budget for each call. | A safe-assembly check when the DLL loads, or none for a reviewed unsafe assembly. |
+| Privileges of trigger SQL | The trigger owner's. | The privileges of the user whose statement fired the trigger. |
 
 ## Inline functions
 
-Define a reusable SQL calculation without building or distributing an assembly.
-First enable creation in `config.yml` on every node and restart:
+An inline function is a scalar function with its C# body in the SQL
+statement. There is no file to build or deploy. To allow
+`CREATE FUNCTION`, set the following in `config.yml` on each node, and restart
+the nodes:
 
 ```yaml
 inline_functions_enabled: true
 ```
 
-Then run this in an existing database:
+Then create and call a function in a database:
 
 ```camussql
 CREATE FUNCTION slugify(s STRING) RETURNS STRING LANGUAGE csharp AS $$
@@ -61,25 +51,26 @@ SHOW CREATE FUNCTION slugify;
 ```
 
 The body is the statements of one C# 12 method. It uses the parameter names
-and case from the declaration. System, collections, globalization, LINQ,
-text, and regex namespaces are imported. Dollar quotes preserve body text,
-including semicolons and quotes; use `$body$ ... $body$` if it contains `$$`.
-FUNCTION, RETURNS, CALLED, INPUT, LANGUAGE, and csharp remain usable as
-identifiers. The browser playground does not include the inline compiler.
+from the declaration, with the same case. Common namespaces, such as
+`System.Linq` and `System.Text.RegularExpressions`, are imported.
+
+Dollar quotes keep the body text as written, with its semicolons and quotes. If
+the body contains `$$`, use a tag, such as `$body$ ... $body$`. You can also
+use the new keywords, such as `LANGUAGE` and `RETURNS`, as table and column
+names. The [browser playground](/docs/browser-playground) doesn't include the
+inline compiler.
 
 ### Types and NULLs
 
-Parameters and results accept INT64, FLOAT64, FLOAT32, BOOL, STRING, UUID,
-BYTES, DATETIME, and NUMERIC. Their C# types are `long`, `double`, `float`,
-`bool`, `string`, `Guid`, `byte[]`, `DateTime`, and `decimal`.
-ARRAY(E) accepts those element types except BYTES and uses
-`IReadOnlyList<T?>`; elements are nullable. NUMERIC values must also fit
-[.NET decimal](/docs/csharp-extensions#decimal-precision). OID, DATE, JSONB,
-and nested arrays are not supported in an inline signature.
+Parameters and the result can use the types in
+[Supported values](#supported-values), except `OID` and `DATE`. The elements of
+an `ARRAY` can't be `BYTES`. In the body, an array is an `IReadOnlyList<T?>`
+with nullable elements. Other types, such as `JSONB`, return an error.
 
-The default is RETURNS NULL ON NULL INPUT: a NULL argument returns SQL NULL
-without running the body. CALLED ON NULL INPUT passes nullable C# arguments
-instead. A return value can always be null:
+By default, a function is `RETURNS NULL ON NULL INPUT`. If an argument is
+`NULL`, the body isn't called, and the result is `NULL`. With
+`CALLED ON NULL INPUT`, the body is called with nullable C# arguments. A body
+can return `null` in both cases:
 
 ```camussql
 CREATE FUNCTION display_label(s STRING) RETURNS STRING
@@ -88,7 +79,7 @@ CALLED ON NULL INPUT LANGUAGE csharp AS $$
 $$;
 ```
 
-### Change, inspect, or remove a function
+### Manage a function
 
 ```camussql
 CREATE OR REPLACE FUNCTION slugify(s STRING) RETURNS STRING LANGUAGE csharp AS $$
@@ -99,83 +90,144 @@ ALTER FUNCTION slugify OWNER TO app_owner;
 DROP FUNCTION IF EXISTS slugify;
 ```
 
-Names are case-insensitive and share the function namespace with built-ins
-and extension members. There are no overloads or default arguments.
+Function names are case-insensitive. Overloads and default arguments aren't
+supported. An inline function can't use the name of a built-in function. It
+also can't use the name of a function from an extension that the node loads,
+even if the database doesn't install that extension. A name that is in use
+returns `CADB0842`.
 
-CREATE requires CREATE privilege on the database, or a superuser. The creator owns the
-function. Replacing it requires CREATE plus ownership, or a superuser;
-dropping it or changing its owner requires ownership or a superuser. The
-caller still needs database visibility. If the owner is dropped, only a
-superuser can change the function. Calling it does not acquire the owner's database privileges: the
-body cannot run SQL. SHOW FUNCTIONS and SHOW CREATE FUNCTION require SELECT
-or CREATE on the database.
+| Statement | Requires |
+| --- | --- |
+| `CREATE FUNCTION` | `CREATE` on the database, or a superuser. The creator owns the function. |
+| `CREATE OR REPLACE FUNCTION` for an existing function | `CREATE` and ownership, or a superuser. |
+| `DROP FUNCTION`, `ALTER FUNCTION ... OWNER TO` | Ownership, or a superuser. |
+| `SHOW FUNCTIONS`, `SHOW CREATE FUNCTION` | `SELECT` or `CREATE` on the database. |
+| A call | A grant in the database. |
 
-DROP, or a replacement that changes parameter/result types, is refused while
-a view, materialized view, or CHECK calls the function (CADB0844). A body-only
-replacement keeps the owner and dependencies. These objects use the new body
-in subsequent statements; a materialized view keeps stored rows until refresh.
-A deterministic column default is computed once at table creation and keeps
-that value. Inline-trigger bodies also block incompatible changes when they
-reference the function; see [trigger recompilation](#trigger-recompilation-and-ownership).
+A function body can't execute SQL. This means that a call doesn't use the
+owner's privileges. If the owner is dropped, only a superuser can change the
+function.
+
+While another object calls the function, for example a view or a `CHECK`
+constraint, `DROP FUNCTION` returns `CADB0844`. A replacement that changes the
+parameter or result types returns the same error. The message lists the
+objects.
+
+A replacement that changes only the body doesn't change the owner or the
+dependent objects. These objects use the new body in later statements.
+However, a materialized view returns its stored rows until the next refresh. A
+column default that calls a deterministic function is evaluated once, when the
+table is created. A later replacement doesn't change that default.
 
 ### Allowed code and resource budgets
 
-Inline functions are deterministic SQL functions. They support local
-variables, loops, local functions, lambdas, pattern matching, exceptions,
-strings, numeric operations, supported collections, and LINQ. Materialize a
-stored LINQ sequence with ToList or ToArray; a deferred chain kept in a local
-is refused. Regex calls must specify a match timeout.
+Inline functions are deterministic SQL functions. The body can use most of the
+C# language, for example lambdas and LINQ. The following aren't allowed:
 
-Every type and member must be allowed. Files, networking, processes,
-reflection, unsafe code, threads/tasks, async bodies, SQL calls, and calls to
-other SQL functions are refused. Functions also cannot use the clock, Random,
-or Guid.NewGuid. Some allocation, formatting, and deeply nested type shapes
-are restricted too. CADB0839 lists refused constructs and their body positions;
-CADB0838 reports compiler errors with line and column information. CANCEL QUERY
-does not interrupt a running inline function; use its call budget to limit it.
+- I/O, such as files and the network.
+- Reflection and unsafe code.
+- Threads, tasks, and `async` code.
+- SQL statements, and calls to other SQL functions.
+- The clock, `Random`, and `Guid.NewGuid()`.
+- A regex call that doesn't set a match timeout.
+- Custom sort comparisons such as `List<T>.Sort((a, b) => ...)` and
+  `Comparer<T>.Create(...)`. Use a key with `OrderBy`, or a built-in comparer
+  such as `StringComparer.Ordinal`. Stored functions and triggers that use a
+  custom sort comparison return `CADB0845` until you replace the body.
+- A LINQ query kept in a local variable. End the query with `ToList()` or
+  `ToArray()`.
 
-Loops, local calls, and allocation run under [configurable budgets](/docs/settings-reference#inline-c-functions-and-triggers):
+Some allocations and formatting calls are also restricted. `CREATE FUNCTION`
+returns `CADB0839` with the position of each construct that isn't allowed. A
+compile error returns `CADB0838` with the line and column.
 
-| Limit | Default |
-| --- | --- |
-| Time per call or trigger fire | 1 second |
-| Managed allocation per call or fire | 16 MiB |
-| Elements in `new T[n]` | 1,048,576 |
-| Function source size | 64 KiB of UTF-8 |
-| Compile deadline, including slot wait | 10 seconds |
-| Concurrent compiles on one node | 2 |
-| Inline functions per database | 256 |
+Each call has the following budgets. You can change them in the
+[settings](/docs/settings-reference#inline-c-functions-and-triggers):
 
-Exceeding a runtime budget fails the statement with CADB0840. Recursion is
-checked against available stack space. Checks happen between framework calls,
-so one framework operation can finish before a limit is detected. Configure a
-[process heap limit](/docs/configuration#cache-defaults-proportional-to-memory) as
-the memory backstop; these bodies still execute inside the server process.
+| Limit | Default | Setting |
+| --- | --- | --- |
+| Time for each call or trigger fire | 1 second | `inline_function_call_timeout_ms` |
+| Memory allocated by each call or fire | 16 MiB | `inline_function_allocation_limit_bytes` |
+| Elements in one `new T[n]` | 1,048,576 | `inline_function_array_limit` |
+| Source size | 64 KiB of UTF-8 | `inline_function_source_limit_bytes` |
+| Compile time, with the wait for a compile slot | 10 seconds | `inline_function_compile_timeout_ms` |
+| Compiles at the same time on one node | 2 | `inline_function_compile_concurrency` |
+| Inline functions in one database | 256 | `max_inline_functions_per_database` |
 
-Use ordinal string comparisons when results must agree across nodes, and keep
-server builds and globalization modes consistent. Culture-sensitive comparisons
-and the last bits of platform math can otherwise differ. Body replacement
-invalidates cached results that depend on the function.
+A call over a budget returns `CADB0840`, and the message names the setting.
+Recursion that is too deep for the stack returns the same error. The checks are
+made between calls to .NET methods. This means that one .NET operation can
+finish before the call stops. A budget error skips pending `finally` blocks in
+the function or trigger body.
+
+`CANCEL QUERY` doesn't stop a running inline call. The call budget stops it. A
+statement that calls a function for each row of a large table can take a long
+time, even when each call is in its budget. To limit the statement, set the
+`statement_timeout_ms` [runtime cluster setting](/docs/settings-reference#statement-timeout).
+A statement over that limit returns `CADB0562`.
+
+The code executes in the server process. Set a
+[process heap limit](/docs/configuration#cache-defaults-proportional-to-memory)
+as the memory limit for the node.
+
+You should use ordinal string comparisons when a result must be the same on
+each node. Culture-sensitive comparisons and the last bits of some
+floating-point math can differ between platforms. Use the same server build and
+globalization mode on all nodes. A replacement of the body clears the cached
+query results that use the function.
+
+### Compile rate limit
+
+Each `CREATE [OR REPLACE] FUNCTION` and each
+`CREATE TRIGGER ... LANGUAGE csharp` compiles C# on the node.
+`max_inline_definitions_per_user_per_minute` (default `60`) limits how many of
+these statements one user can execute in a minute. The next statement returns
+`CADB0848` (HTTP 429), and the message tells you when to try again.
+
+- A user can execute that many statements at once, and then one statement each
+  `60 / value` seconds.
+- A statement counts when it gets to the compiler, also if the body doesn't
+  compile. A statement that fails earlier, for example for a missing privilege,
+  doesn't count. Functions and triggers share one count.
+- The limit doesn't apply to superusers, or to any user when authentication is
+  off.
+- Each node counts separately. A change of schema leader starts a new count.
+- It's a runtime cluster setting. `0` or less turns off the limit.
+
+To load a dump with many functions, load it as a superuser, or raise the
+setting during the load.
 
 ### Compilation across nodes
 
-Run function DDL on the database's schema leader. Creation validates the body
-there; the schema replicates source and its hash, not a DLL. Each node compiles
-and caches code at first use. SHOW FUNCTIONS includes signature, NULL rule,
-owner, generation, source hash, rule revision, and node-local compilation state.
-It lists database inline functions, not the functions provided by extension
-DLLs. States include `not compiled`, `compiled`, and a failure reason; `unloading`
-rows describe replaced/dropped code still held by a running statement.
+In a cluster, execute function DDL on the database's schema leader. This is
+the node that [leads](/docs/concepts#leader) schema changes for that database.
+Another node returns `CADB0099`, and the message names the leader.
 
-A node that cannot compile required code fails its statement with CADB0845.
-Upgrade every node before using APIs newly allowed by a server build.
-Turning off `inline_functions_enabled` blocks new CREATE FUNCTION statements;
-existing functions remain callable.
+The schema leader compiles the body to check it. The schema log replicates the
+source text and its hash. Each node compiles a function at its first call and
+caches the compiled code. A node that doesn't call a function doesn't compile
+it.
+
+`SHOW FUNCTIONS` lists the inline functions of the current database, with
+their signatures and owners. It doesn't list the functions of DLL extensions.
+The `state` column shows the compile state on the node that executes the
+statement: `not compiled`, `compiled`, or `failed:` with a reason. An
+`unloading` row is the code of a replaced or dropped function that a running
+statement uses.
+
+A node that can't compile a function returns `CADB0845` for the statements
+that call it. This can happen in a rolling upgrade, when a body uses a member
+that only the newer server build allows. Upgrade all the nodes before you
+create such a function.
+
+If you set `inline_functions_enabled` to `false`, `CREATE FUNCTION` returns
+`CADB0841`. The existing functions can be called as before.
 
 ## Create an extension project
 
-Create a class library and reference `CamusDB.Extensions.Abstractions`. Target
-`netstandard2.0` or `net10.0`:
+A DLL extension is a .NET class library. Reference the
+`CamusDB.Extensions.Abstractions` package, and target `netstandard2.0` or
+`net10.0`:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -190,19 +242,19 @@ Create a class library and reference `CamusDB.Extensions.Abstractions`. Target
 </Project>
 ```
 
-Use the package version that matches the CamusDB servers where the assembly
-will run. A server can load an extension built against the same or an older
-contract, but refuses one built against a newer contract with `CADB0803`. While
-CamusDB is in the `0.x` series, pin the matching minor version, such as
-`0.16.*`, because a minor release may change the contract.
+The package is the contract between the extension and the server. A server
+can load an extension built against the same contract version or an older one.
+A DLL built against a newer contract returns `CADB0803`, and the server doesn't
+start. While CamusDB is in the `0.x` series, a newer minor version counts as
+newer. You should pin a minor version that isn't newer than your servers. For
+example, `0.17.*` works with 0.17 and 0.18 servers.
 
-The package provides the attributes, interfaces, contexts, and row types that
-extension code can use. CamusDB supplies its own copy at runtime. You do not
-need to deploy the contract DLL beside the extension; a bundled copy is ignored.
+The server supplies the contract DLL at runtime. You don't need to deploy it
+with the extension.
 
 ## Declare the extension
 
-Every assembly must declare a name and version at assembly level:
+Each assembly must declare a name and a version at the assembly level:
 
 ```csharp
 using CamusDB.Extensions;
@@ -210,30 +262,31 @@ using CamusDB.Extensions;
 [assembly: CamusExtension("text_utils", "1.0.0")]
 ```
 
-The name is case-insensitive and must start with a letter or underscore,
-followed by letters, digits, or underscores. The version uses SemVer
-(`major.minor.patch`, optionally with a `-prerelease` suffix, without `+build`
-metadata). A missing or invalid manifest prevents startup with `CADB0827`.
+The name is case-insensitive, and it must match `[A-Za-z_][A-Za-z0-9_]*`. The
+version uses SemVer (`major.minor.patch`). A `-prerelease` suffix is allowed,
+and `+build` metadata isn't. A missing or invalid declaration returns
+`CADB0827`, and the server doesn't start.
 
-If your extension needs another extension installed first, declare it with
+If your extension needs another extension, declare it with
 `Requires = new[] { "other_extension" }` on the attribute.
 
 ## Install an extension in a database
 
-Loading a DLL makes its extension **available** on that node. Install it in
-each database where you want to use its functions, procedures, or triggers:
+When a node loads a DLL, its extension is **available** on that node. To use
+its members in a database, install it there:
 
 ```camussql
 CREATE EXTENSION text_utils;                  -- highest loaded version
--- Or select an exact version instead:
+-- Or select an exact version:
 -- CREATE EXTENSION text_utils VERSION '1.0.0';
 
 SELECT text_utils.greet('ann');
 ```
 
-The database records the extension's name, version, and DLL SHA-256. Each node
-must load that exact build to run statements that use it. Different databases
-can select different versions loaded side by side on the same node.
+Before the install, a call returns `CADB0407 Function not found`. The database
+records the version and the SHA-256 of the DLL. Each node must load that exact
+build to execute statements that use it. Different databases on the same node
+can use different versions, loaded side by side.
 
 ```mermaid
 flowchart TD
@@ -243,9 +296,8 @@ flowchart TD
     R --> U["Functions, procedures, and triggers<br/>use the selected build"]
 ```
 
-Only a superuser can create, update, or drop an extension. These statements
-persist across restarts and replicate through the schema log. In a cluster,
-run them on the database's schema leader, which coordinates schema changes.
+Extension DDL needs a superuser, and the schema log replicates it. In a
+cluster, execute it on the database's schema leader.
 
 ```camussql
 ALTER EXTENSION text_utils UPDATE;            -- highest loaded version
@@ -253,24 +305,23 @@ ALTER EXTENSION text_utils UPDATE TO '2.0.0'; -- exact version
 DROP EXTENSION text_utils;
 ```
 
-Install extensions listed in the manifest's `Requires` before installing the
-extension. An update also checks its target version's requirements. You cannot
-drop an extension while another installed extension requires it.
+Install the extensions in the `Requires` list first. An update also checks the
+requirements of the target version. You can't drop an extension while another
+installed extension requires it.
 
-A drop is also refused while column defaults, `CHECK` constraints, views,
-materialized views, or triggers depend on the extension. An update is refused
-if its target version lacks a member those objects use. The error lists the
-dependents; remove them first when necessary. There is no `CASCADE`.
+While objects in the database use an extension, for example a column default
+or a trigger, `DROP EXTENSION` returns `CADB0833`. An update returns the same
+error if the target version doesn't have a member that these objects use. The
+message lists the objects. Remove or change them first. `CASCADE` isn't
+supported.
 
-Updating switches scalar and table functions, aggregates, procedures, and
-triggers to the selected build together; triggers do not need to be recreated. Query results, bound
-statements, and cached plans are keyed on installed extensions, so an install,
-update, or drop cannot reuse caches from the previous extension selection.
+An update moves all the members to the new build at the same time. You don't
+need to recreate the triggers.
 
 ## Scalar functions
 
 Mark a public static method with `[CamusFunction]`. Include the assembly
-manifest once in the project:
+declaration once in the project:
 
 ```csharp
 using CamusDB.Extensions;
@@ -293,61 +344,66 @@ public static class TextFunctions
 }
 ```
 
-After deployment and `CREATE EXTENSION text_utils`, the methods become SQL
-scalar functions:
+After you deploy the DLL and execute `CREATE EXTENSION text_utils`, the methods
+are SQL scalar functions:
 
 ```camussql
 SELECT slugify(title)
 FROM posts
 WHERE slugify(title) = 'hello-world';
 
-SELECT greet(NULL), hello('ann', 'hi');
-SELECT text_utils.greet('ann'); -- extension-qualified name
+SELECT greet(NULL), hello('ann', 'hi');  -- 'hello stranger', 'hi ann'
+SELECT text_utils.greet('ann');          -- extension-qualified name
 ```
 
-Names and aliases are case-insensitive. A collision with a built-in function,
-aggregate, or table function prevents startup, as does a duplicate member
-within one extension. Different extensions may load members with the same
-name, but installing both in one database is refused with `CADB0832`.
-Unqualified names resolve against the current database's installed extensions;
-use `text_utils.greet(...)` to qualify a function with its extension name.
+Names and aliases are case-insensitive. The server doesn't start if a member
+has the name of a built-in, or if one extension defines a name twice. Two
+extensions can have members with the same name. However, a database can't
+install both extensions (`CADB0832`).
+
+A name without a qualifier is found in the extensions that the current database
+installs. To name the extension, write `text_utils.greet(...)`.
 
 ### Nulls and optional arguments
 
-A nullable value type such as `long?`, or a nullable reference parameter such
-as `string?`, receives SQL `NULL` as C# `null`. For a non-nullable parameter,
-any `NULL` argument makes the SQL result `NULL` without calling the method.
-Returning C# `null` returns SQL `NULL`.
+A nullable parameter, such as `long?` or `string?`, receives SQL `NULL` as C#
+`null`. If a parameter isn't nullable, a `NULL` argument makes the result
+`NULL`, and the method isn't called. A method that returns C# `null` returns
+SQL `NULL`.
 
-Optional C# parameters define the accepted argument-count range. A missing SQL
-argument receives the parameter's default value.
+Optional C# parameters set the range of argument counts. A missing argument
+gets the default value of its parameter. A call with too few or too many
+arguments returns `CADB0400`.
 
 ### Deterministic and volatile functions
 
 Functions are deterministic by default. Set `IsVolatile = true` when the same
-arguments can produce a different result, for example a random token or a value
-from the clock.
+arguments can give a different result, for example for a random token or a
+value from the clock.
 
-Volatility affects SQL behavior:
+Volatility changes the following SQL behavior:
 
-- A volatile function bypasses the query result cache.
-- A volatile function cannot be used in a `CHECK` constraint.
-- A deterministic function used as a column `DEFAULT` is evaluated when the
-  table is created and stored as a constant.
-- A volatile default is evaluated separately for every inserted row.
+- The [query result cache](/docs/query-result-cache) doesn't store the results
+  of a query that calls a volatile function.
+- A volatile function can't be used in a `CHECK` constraint.
+- A deterministic function in a column `DEFAULT` is evaluated when the table
+  is created. `SHOW CREATE TABLE` shows the resulting constant.
+- A volatile default is evaluated for each inserted row.
 
-An exception from a function fails the statement with `CADB0809`. Concurrent
-statements can call the method at the same time, so function code must be
-thread-safe. Calls run on the node coordinating the statement; expressions that
-use an extension function are not pushed to peer nodes during a distributed
-scan.
+An exception in a function returns `CADB0809` with the exception message.
+Concurrent statements can call the method at the same time. This means that
+function code must be thread-safe.
+
+A call executes on the node that coordinates the statement. In a
+[distributed scan](/docs/distributed-queries), a filter that calls an
+extension function isn't sent to peer nodes. It's evaluated on the
+coordinator, because a peer may not load the same DLL.
 
 ## Table functions
 
-A table function exposes a C# sequence as a queryable relation. Use it to turn
-text or application-specific input into rows you can filter or join.
-In your manifested extension, mark a public static method returning
-`IEnumerable<T>` with `[CamusTableFunction]`:
+A table function returns a C# sequence as rows. Use it to turn text or other
+input into rows that you can filter or join. Mark a public static method that
+returns `IEnumerable<T>` with `[CamusTableFunction]`:
 
 ```csharp
 using System;
@@ -366,45 +422,54 @@ public static class TextTables
 }
 ```
 
-After installing its extension:
+After you install the extension:
 
 ```camussql
 SELECT word FROM split_words('inventory low stock');
+
 SELECT w.word, d.weight
 FROM split_words(@text) AS w JOIN dictionary d ON d.term = w.word;
 ```
 
 The output has one column of a supported scalar or array type. `Column` names
-it; otherwise the function name or relation alias supplies the name. Multiple
-output columns are unsupported. Arguments can reference columns of earlier
-FROM sources through implicit [LATERAL](/docs/joins-and-subqueries#lateral).
+the column. If you don't set it, the column has the name of the function or of
+the alias. Arguments can use the columns of earlier `FROM` items, as an
+implicit [LATERAL](/docs/joins-and-subqueries#lateral) reference.
 
-Arguments follow scalar-function null and conversion rules. A non-nullable
-parameter receiving NULL produces zero rows; a null sequence also produces
-zero rows. A null element produces a row with a NULL value.
+Arguments follow the null and conversion rules of scalar functions. A `NULL`
+argument for a parameter that isn't nullable gives zero rows. A `null`
+sequence also gives zero rows. A `null` element gives a row with a `NULL`
+value.
 
-The server consumes the sequence lazily and disposes its enumerator when it
-stops, including for `LIMIT`, cancellation, or an error. Check cancellation
-between expensive steps: the server checks between yielded values and cannot
-interrupt code that never yields. There is no built-in output row cap.
+The server reads the sequence one row at a time. It disposes the enumerator
+when the read stops, also after a `LIMIT` or an error. The server checks for
+cancellation between rows. Code that takes a long time before it yields a row
+can't be interrupted.
 
-A join may reread the function. Non-volatile functions run again on each read
-and must reproduce their output. An `IsVolatile = true` function's rows are
-retained for the statement, spilling if needed, so rereads see the same output.
-The next statement evaluates it again.
+One read of a table function can return at most `max_table_function_rows` rows
+(default 5,000,000). The next row returns `CADB0561`. For more information, see
+[Row limit](/docs/functions-set-returning#row-limit).
 
-For a better planner estimate, `CountRowsMethod` can name a public static
-method on the same class with identical parameters and return type `long?`.
-The planner calls it for constant arguments; keep it cheap and free of side
-effects. `EXPLAIN` shows the estimate on the `function-scan` node.
-Table functions run on the coordinator. Method or enumeration failures use
-`CADB0809`.
+A join can read the function more than once. A function that isn't volatile is
+called again for each read, and it must return the same rows. The rows of a
+volatile function are kept for the statement, and they spill to disk if
+needed. A second read then returns the same rows.
+
+To give the planner a row estimate, set `CountRowsMethod` to the name of a
+public static method on the same class. The method has the same parameters and
+returns `long?`. The planner calls it for constant arguments. Keep it fast, and
+don't make changes in it. `EXPLAIN` shows the estimate on the `function-scan`
+node. Without `CountRowsMethod`, the estimate is 10,000 rows.
+
+Table functions execute on the coordinator. An exception in the method or in
+the enumeration returns `CADB0809`.
 
 ## Aggregate functions
 
-A custom aggregate summarizes rows without sending them back to application
-code. Implement `ICamusAggregate<TState>` in a public class marked
-`[CamusAggregate]`. For example, a geometric mean of positive prices:
+A custom aggregate summarizes rows in the database. The application doesn't
+need to read the rows. Implement `ICamusAggregate<TState>` in a public class
+that has the `[CamusAggregate]` attribute. For example, a geometric mean of
+positive prices:
 
 ```csharp
 using System;
@@ -432,32 +497,38 @@ SELECT category, geomean(price) AS typical_price
 FROM items GROUP BY category HAVING geomean(price) > 10;
 ```
 
-`Create` allocates one state per group. `Accumulate` returns void and takes the
-SQL arguments after that state; there must be one public method of this name.
-`Finish` returns a supported value type, including arrays. For a global
-aggregate over zero rows, `Create` and `Finish` still run; an empty `GROUP BY`
-has no groups. Non-nullable arguments skip NULL rows; nullable arguments
-receive null.
+- `Create` makes one state for each group.
+- `Accumulate` returns `void`, and takes the state followed by the SQL
+  arguments. The class must have one public method with this name. A parameter
+  that isn't nullable skips rows with `NULL`.
+- `Finish` returns the result, in a supported type.
 
-One aggregate instance is shared by concurrent statements. Keep group data in
-the state object, which is used by one thread at a time. Set `StateSizeHint`
-on the attribute when state needs more than the default 64-byte estimate.
-Grouping charges that hint against the memory budget; spilling writes input
-rows, rather than serializing your state.
+An aggregate over zero rows without `GROUP BY` calls `Create` and `Finish`. A
+`GROUP BY` over zero rows has no groups.
 
-Use aggregates in projections and `HAVING`, including inside expressions.
-They are refused in `WHERE`, `JOIN ON`, `GROUP BY`, defaults, and checks.
-Window functions and `DISTINCT` arguments are unsupported. Aggregation runs on
-the coordinator after gathering rows; optional `Merge` methods are not called
-in this version. Errors from the lifecycle methods use `CADB0809`.
+One aggregate instance is shared by concurrent statements. Put the group data
+in the state object, which one thread uses at a time. If a state needs more
+than the default estimate of 64 bytes, set `StateSizeHint` on the attribute.
+The estimate counts against the memory budget of the grouping. The state
+doesn't need to be serializable, because a spill writes the input rows.
+
+You can use an aggregate in the select list and in `HAVING`, also in
+expressions. In other places, such as `WHERE` and `GROUP BY`, it returns
+`CADB0400`. A window call (`OVER`) and a `DISTINCT` argument aren't supported.
+Aggregation executes on the coordinator after it gathers the rows. An
+exception returns `CADB0809`.
 
 ## Triggers
 
-A trigger is a public class with a public parameterless constructor that
-implements `ICamusTrigger`:
+A DLL trigger is a public class that implements `ICamusTrigger`. It must have
+a public constructor without parameters:
 
 ```csharp
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using CamusDB.Extensions;
+
+namespace MyCompany.Ext;
 
 public sealed class AuditTrigger : ICamusTrigger
 {
@@ -477,8 +548,8 @@ public sealed class AuditTrigger : ICamusTrigger
 }
 ```
 
-Install the extension that defines the CLR type, then register it on a table
-with SQL:
+Install the extension that defines the class. Then register the trigger on a
+table:
 
 ```camussql
 CREATE TRIGGER audit ON orders
@@ -492,19 +563,19 @@ EXTERNAL NAME 'MyCompany.Ext.NormalizeTrigger';
 DROP TRIGGER audit ON orders;
 ```
 
-`EXTERNAL NAME` is the full CLR type name for a DLL trigger. Inline bodies use
-[LANGUAGE csharp](#inline-triggers) instead. Creation requires ALTER on the
-table; dropping requires ALTER or a superuser, with an additional owner rule
-for inline triggers. In a cluster, run trigger DDL on the
-database's schema leader: the node that currently
-[leads](/docs/concepts#leader) schema changes for that database. Other nodes
-reject trigger DDL instead of forwarding it, and the error names the current
-schema leader.
+`EXTERNAL NAME` is the full name of the class, with its namespace. A name that
+no installed extension defines returns `CADB0811`. For a trigger with a C#
+body in SQL, see [Inline triggers](#inline-triggers).
+
+`CREATE TRIGGER` needs `ALTER` on the table. `DROP TRIGGER` needs `ALTER` on
+the table, or a superuser. The owner of an inline trigger can also drop it. In
+a cluster, execute trigger DDL on the database's schema leader. Another node
+returns `CADB0099`.
 
 ### Before and after triggers
 
-A trigger fires once for every affected row, in creation order, inside the
-statement's transaction:
+A trigger fires once for each affected row, in the transaction of the
+statement. Triggers on the same table fire in the order of creation:
 
 ```mermaid
 flowchart TD
@@ -516,53 +587,53 @@ flowchart TD
     F --> A["AFTER triggers<br/>for each affected row"]
 ```
 
-SQL issued by either trigger type shares the statement's transaction.
+SQL from both trigger types is part of the statement's transaction.
 
-- A `BEFORE` trigger runs before validation and storage. On `INSERT` and
-  `UPDATE`, it may modify `context.New`; the final row must still pass type,
-  `NOT NULL`, length, foreign-key, and `CHECK` constraints. A `BEFORE DELETE`
-  trigger cannot change the row, but it can reject the deletion by throwing.
-- An `AFTER` trigger runs after the complete statement has written its rows and
-  passed foreign-key checks. It sees the final rows and cannot change them.
+- A `BEFORE` trigger fires before the row is validated and stored. On `INSERT`
+  and `UPDATE`, it can change `context.New`. The final row must pass all the
+  constraints. A `BEFORE DELETE` trigger can't change the row. However, it can
+  stop the delete with an exception.
+- An `AFTER` trigger fires after the statement writes all its rows and passes
+  the foreign-key checks. It sees the final rows, and it can't change them.
 
-`context.Old` and `context.New` contain every column, including large values.
-One DLL trigger instance is shared by concurrent statements in an engine, so do not
-keep per-statement state in instance or static fields.
+`context.Old` and `context.New` contain all the columns, also large values. One
+DLL trigger instance is shared by concurrent statements. Don't keep the state
+of a statement in instance or static fields.
 
-Triggers fire for SQL `INSERT`, `UPDATE`, and `DELETE`, including `RETURNING`
-and `INSERT ... SELECT`; for DML issued by procedures and triggers; and for the
-typed HTTP and gRPC write APIs. They do not fire for internal maintenance such
-as `TRUNCATE`, TTL expiration, schema backfills and rewrites, materialized-view
-refresh, restore, or dropped-table recovery.
+| Triggers fire for | Triggers don't fire for |
+| --- | --- |
+| SQL writes, including `RETURNING` and `INSERT ... SELECT` | `TRUNCATE` |
+| Writes from procedures and other triggers | TTL expiration |
+| The typed write APIs of HTTP and gRPC | Schema backfills and table rewrites |
+| | `REFRESH MATERIALIZED VIEW` |
+| | Restore and dropped-table recovery |
 
-An audit trigger therefore cannot record every way data changes. Use
-[privileges](/docs/sql-authentication) to control access to the table; trigger
-validation covers only operations that fire it.
+This means that an audit trigger can't record all changes to a table. Use
+[privileges](/docs/sql-authentication) to control who can change the table.
 
-For `INSERT ... ON CONFLICT` and `UPSERT`, BEFORE INSERT also runs on proposed
-rows that will be skipped or updated. A conflict update then fires the UPDATE
-triggers; a skipped row fires no further row trigger. See
-[conflict handling](/docs/sql-writes#on-conflict) for the complete order.
+For `INSERT ... ON CONFLICT` and `UPSERT`, `BEFORE INSERT` triggers also fire
+for proposed rows that are then skipped or updated. A conflict update then
+fires the `UPDATE` triggers. A skipped row fires no more triggers. For the full
+order, see [Conflict handling](/docs/sql-writes#on-conflict).
 
-A `BEFORE` trigger must not use its SQL session to change another row that the
-outer statement has already read and is still writing. CamusDB rejects that
-stale-row hazard with `CADB0825`.
+A `BEFORE` trigger's SQL must not change another row that the outer statement
+already read and is about to write. Such a change returns `CADB0825`.
 
-Triggers can be created only on plain tables. A recovered dropped table has
-no triggers; recreate them after recovery. Each trigger follows the version
-selected by its database's installed extension when it uses EXTERNAL NAME.
+You can create triggers on base tables only. A recovered dropped table doesn't
+get its triggers back. Recreate them after the recovery.
 
 ### Inline triggers
 
-Put normalization, validation, or audit logic directly on a table without an
-extension assembly. Enable creation separately from inline functions, on
-every node, then restart:
+An inline trigger has its C# body in the `CREATE TRIGGER` statement. There is
+no extension DLL to deploy. Inline triggers have a separate setting. Set it in
+`config.yml` on each node, and restart the nodes:
 
 ```yaml
 inline_triggers_enabled: true
 ```
 
-With `slugify` defined above, create a post table and its audit log:
+With the `slugify` function from [Inline functions](#inline-functions), create
+a table for posts and an audit table:
 
 ```camussql
 CREATE TABLE posts (id INT64 PRIMARY KEY, title STRING, slug STRING);
@@ -581,78 +652,92 @@ CREATE TRIGGER audit ON posts AFTER INSERT, UPDATE, DELETE LANGUAGE csharp AS $$
 $$;
 
 INSERT INTO posts (id, title) VALUES (1, 'New Book');
-SELECT slug FROM posts WHERE id = 1;
-SELECT op, post_id FROM post_audit;
+SELECT slug FROM posts WHERE id = 1;   -- 'new-book'
+SELECT op, post_id FROM post_audit;    -- 'Insert', 1
 ```
 
-Inline and DLL triggers share the same timing, transaction, and creation-order
-rules. NEW properties can be changed only in a BEFORE INSERT/UPDATE trigger;
-OLD is read-only, and AFTER rows are read-only.
+Inline and DLL triggers follow the same rules for timing and order. Only a
+`BEFORE INSERT` or `BEFORE UPDATE` trigger can change `NEW`. `OLD` is
+read-only. A change to `NEW` in an `AFTER` trigger returns `CADB0818` when the
+trigger fires.
 
 | Name in the body | Use |
 | --- | --- |
-| `NEW`, `OLD` | Generated nullable row properties, typed from the table. NEW is null for DELETE; OLD is null for INSERT. |
-| `Operation`, `Timing`, `TableName`, `TriggerName` | The event and trigger metadata. |
-| `Sql` | Bind typed parameters with Set, then await ExecuteAsync or QueryAsync with constant SQL text. Parameters are cleared after that SQL operation. |
-| `Context` | The ITriggerContext row API, including columns without generated properties. |
-| Database inline-function names | Call an inline function as a C# method, with that function's NULL rule and budget. |
+| `NEW`, `OLD` | Nullable row objects with a property for each column, typed from the table. `NEW` is null for `DELETE`. `OLD` is null for `INSERT`. |
+| `Operation`, `Timing`, `TableName`, `TriggerName` | The event and the trigger. |
+| `Sql` | Bind typed parameters with `Set`. Then await `ExecuteAsync` or `QueryAsync` with constant SQL text. The parameters are cleared after each SQL operation. |
+| `Context` | The `ITriggerContext` row API, also for columns that don't have a property. |
+| Inline function names | Call an inline function of the database as a C# method, with that function's NULL rule and budget. |
 
-A C# keyword column uses a verbatim property, such as `NEW.@class`. Columns
-that collide with context names, start with `__camus`, or have no supported
-property type use the row API instead, for example
+A column with the name of a C# keyword uses a verbatim property, such as
+`NEW.@class`. Some columns don't get a property, for example a column named
+`Timing`. Use the row API for these columns, such as
 `Context.New!.GetString("Timing")` or `Context.New!.Set("Timing", "x")`.
 
-SQL text passed to `Sql.ExecuteAsync` or `Sql.QueryAsync` must be a compile-time
-constant, such as a literal or literals joined with `+`. Building SQL text
-from row values, or taking these methods as delegates, is refused with
-`CADB0839`. Use `Sql.Set` parameters for values: the SQL runs with the trigger
-owner's privileges, so joining untrusted text into it would expose those rights.
+The SQL text for `Sql.ExecuteAsync` or `Sql.QueryAsync` must be a compile-time
+constant, such as a literal or literals joined with `+`. Text built from row
+values returns `CADB0839`. Pass values with `Sql.Set`:
 
 ```csharp
 await Sql.Set("note", NEW!.note)
     .ExecuteAsync("UPDATE audit_notes SET note = @note WHERE id = 1");
 ```
 
-A trigger can await only Sql operations; Task.Run, Task.Delay, and awaits
-inside lambdas/local functions are refused. Unlike functions, triggers may
-use DateTime.UtcNow and Guid.NewGuid. Other inline-code restrictions apply.
+The SQL executes with the privileges of the trigger owner. If untrusted text
+were part of the SQL, a writer could use those privileges.
 
-Each row's fire has the same time, allocation, and array budgets as an inline
-function. Time and memory spent in nested SQL are excluded from the C# body
-budget; SQL resource limits and the transaction mutation limit still apply.
-A throw fails the statement with CADB0818; catching a nested SQL failure does
-not make it committable (CADB0823).
+A trigger can await `Sql` operations only. Other awaits, such as
+`Task.Delay`, return `CADB0839`. Triggers can use `DateTime.UtcNow` and
+`Guid.NewGuid()`, which functions can't use. The other rules for inline code
+apply.
+
+Each fire of a trigger for one row has the budgets of an inline function call.
+The time and memory of nested SQL don't count against these budgets. The SQL
+resource limits and the transaction mutation limit apply to the nested SQL. An
+exception in the body returns `CADB0818`. If the body catches the error of a
+nested SQL statement and returns, the statement returns `CADB0823`.
+
+If you set `inline_triggers_enabled` to `false`,
+`CREATE TRIGGER ... LANGUAGE csharp` returns `CADB0841`. The existing triggers
+fire as before. Inline `CREATE TRIGGER` statements count against the
+[compile rate limit](#compile-rate-limit).
 
 ### Trigger recompilation and ownership
 
-The first fire after a table or inline-function change recompiles the body on
-each node. Adding a column or replacing a function is picked up automatically.
-Dropping or renaming a referenced column is refused with `CADB0530`.
-Dropping a called inline function, or replacing it with different parameter
-or result types, is refused with `CADB0844`. Drop or rewrite the trigger first.
-These checks inspect source names conservatively: a local variable can also
-match, and a string equal to a column name counts as a reference. Column type
-changes are not checked; if the body can no longer compile, writes that fire
-it fail with `CADB0845` until you replace the trigger.
+The first fire after a change to the table or to a called inline function
+compiles the body again on each node. An added column and a replaced function
+body are picked up automatically.
 
-An inline trigger's SQL runs with its creator's privileges, rather than the
-writer's. Its owner must hold the grants needed by that SQL; the writer does
-not need those extra grants. BEFORE changes to NEW remain part of the writer's
-own operation. If the owner is dropped, firing fails with CADB0846; a new
-account with the same name does not inherit ownership.
+| Change | Result |
+| --- | --- |
+| Drop or rename a column that the body names | `CADB0530`. Drop or rewrite the trigger first. |
+| Drop a called inline function, or change its parameter or result types | `CADB0844`. Drop or rewrite the trigger first. |
+| Change a column type | Not checked. If the body doesn't compile after the change, writes that fire the trigger return `CADB0845` until you replace the trigger. |
 
-The owner can drop an inline trigger after losing ALTER, provided the owner
-still has a grant making the database visible. ALTER holders and superusers
-can also drop it. A trigger created with authentication off has no owner.
-After authentication is enabled, its nested SQL fails with `CADB0846`, even
-when a superuser fires it. A BEFORE trigger that only changes NEW still works.
-A superuser can drop and recreate the trigger under an owner with the required
-grants. `SHOW TRIGGERS` shows an empty owner for ownerless triggers.
+The check for column names is cautious. A local variable or a string with the
+same text as a column name also counts as a reference.
 
-DLL triggers use the writer's privileges. If one inserts audit rows, writers
-need `INSERT` on that audit table; avoid granting UPDATE or DELETE there when
-the audit history must stay protected. An inline trigger can instead hold that
-INSERT privilege through its owner.
+The SQL of an inline trigger executes with the privileges of its owner, the
+user who created it. The writer doesn't need the owner's grants. For example,
+a writer with `INSERT` on `posts` only can fire an audit trigger that writes to
+`post_audit`. The owner needs `INSERT` on `post_audit`. Changes to `NEW` in a
+`BEFORE` trigger are part of the writer's own write.
+
+If the owner is dropped, each inline trigger of that owner returns `CADB0846`
+when it fires. A new user with the same name doesn't become the owner. To fix
+the trigger, a superuser drops it and creates it again as a user with the
+required grants. The owner can also drop an inline trigger after losing
+`ALTER`, if the owner has a grant that makes the database visible.
+
+A trigger created while authentication is off doesn't have an owner, and
+`SHOW TRIGGERS` shows no owner for it. After authentication is turned on, each
+SQL statement in its body returns `CADB0846`, also when a superuser fires it.
+However, a `BEFORE` trigger that only changes `NEW` works as before.
+
+DLL triggers use the writer's privileges. If a DLL trigger inserts audit rows,
+writers need `INSERT` on the audit table, or the write returns `CADB0517`.
+Don't grant `UPDATE` or `DELETE` on that table when the audit history must be
+protected. An inline trigger can get the `INSERT` privilege from its owner.
 
 ```camussql
 SHOW TRIGGERS ON posts;
@@ -660,18 +745,15 @@ SHOW CREATE TRIGGER normalize ON posts;
 DROP TRIGGER normalize ON posts;
 ```
 
-SHOW TRIGGERS optionally lists all tables when ON is omitted. It reports both
-forms, with timing, events, form, owner, and source hash where applicable.
-SHOW CREATE TRIGGER returns EXTERNAL NAME for a DLL trigger or dollar-quoted
-C# for an inline trigger. Both statements require SELECT or ALTER on the
-database. Turning off `inline_triggers_enabled` blocks creation but does not
-stop existing triggers from firing.
+Without `ON`, `SHOW TRIGGERS` lists the triggers of all tables. It shows both
+forms, with the owner and the source hash. `SHOW CREATE TRIGGER` returns
+`EXTERNAL NAME` for a DLL trigger, or the C# body in dollar quotes for an
+inline trigger. Both statements need `SELECT` or `ALTER` on the database.
 
 ### Typed trigger rows
 
-Implement `ICamusTrigger<TRow>` to work with named C# properties instead of
-reading columns through `IRow`. A row class can model only the columns your
-trigger needs:
+Implement `ICamusTrigger<TRow>` to use named C# properties in place of `IRow`
+calls. The row class can have only the columns that your trigger needs:
 
 ```csharp
 using System.Threading.Tasks;
@@ -701,33 +783,37 @@ CREATE TRIGGER trim_customer ON orders BEFORE INSERT, UPDATE
 EXTERNAL NAME 'MyCompany.Ext.TrimCustomerName';
 ```
 
-Public properties with public getters and setters map by case-insensitive name
-or `[CamusColumn]`. Fields, indexers, and init-only properties are not mapped.
-Property types must match the table's mapped CLR types exactly. Missing columns
-or mismatched types fail `CREATE TRIGGER` with `CADB0836` and a list of problems.
+A public property with a public getter and setter maps to the column with the
+same name, or to the column in `[CamusColumn]`. Names are case-insensitive.
+Other members, such as fields and init-only properties, aren't mapped. A
+property type must be the exact mapped C# type of its column. A missing column
+or a type mismatch returns `CADB0836` from `CREATE TRIGGER`, with a list of the
+problems.
 
-Use nullable properties for SQL NULL or values unavailable when the trigger
-fires, such as an omitted column or a row id in BEFORE INSERT. An unexpected
-NULL in a non-nullable property fails the statement with `CADB0818`.
+Use nullable properties for columns that can be `NULL` or missing when the
+trigger fires, for example the row id in `BEFORE INSERT`. An unexpected `NULL`
+for a property that isn't nullable returns `CADB0818`.
 
-BEFORE triggers write back only changed NEW properties, comparing arrays and
-byte buffers by content; normal row validation still applies. Changes to AFTER
-trigger objects are ignored. Cast to `ITriggerContext` for the untyped rows.
+A `BEFORE` trigger writes back only the properties of `NEW` that changed.
+Changes to the objects of an `AFTER` trigger are ignored. To get the untyped
+rows, cast the context to `ITriggerContext`.
 
-Mapped columns cannot be dropped or renamed while the trigger exists
-(`CADB0530`). Drop the trigger first. If an extension update changes the row
-class incompatibly, the first DML firing it fails with `CADB0836` on each node.
+While the trigger exists, a mapped column can't be dropped or renamed
+(`CADB0530`). If an extension update changes the row class so that it doesn't
+fit the table, the first write that fires the trigger returns `CADB0836`.
 
-Typed triggers allocate an object per row image and convert mapped columns.
-Use untyped triggers when that cost matters. Both forms use the same retained
-row memory budget for AFTER triggers.
+A typed trigger creates an object for each row image. Use an untyped trigger
+when that cost matters.
 
 ## Procedures
 
-A procedure is a public class with a public parameterless constructor, marked
-with `[CamusProcedure]`, that implements `ICamusProcedure`:
+A procedure is a public class with the `[CamusProcedure]` attribute that
+implements `ICamusProcedure`. It must have a public constructor without
+parameters:
 
 ```csharp
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using CamusDB.Extensions;
 
 [CamusProcedure("transfer", MinArguments = 3, MaxArguments = 3)]
@@ -750,44 +836,47 @@ public sealed class Transfer : ICamusProcedure
 }
 ```
 
-After installing its extension, call it with values, parameters, expressions,
-or functions:
+After you install the extension, call the procedure with values or
+expressions:
 
 ```camussql
 CALL transfer('alice', 'bob', 30);
 CALL transfer(@from, @to, 10 * 3);
 ```
 
-Arguments are evaluated before the procedure runs. A call outside
-`MinArguments` through `MaxArguments` is rejected first. The procedure runs in
-the `CALL` transaction: all its SQL commits together, and an exception rolls it
-all back with `CADB0822`.
+The arguments are evaluated before the procedure starts. A call with an
+argument count outside `MinArguments` to `MaxArguments` returns `CADB0400`. The
+procedure executes in the transaction of the `CALL`. Its SQL commits as one
+unit. An exception rolls back all its changes and returns `CADB0822`.
 
-`CALL` reports the total rows changed and returns no result set. Send it through
-an execute/non-query client API. It is not preparable. Calling a procedure
-currently requires a superuser because procedure-specific grants are not yet
-available.
+`CALL` returns the total count of changed rows, and no result set. Send it
+through the non-query API of your client, such as `execute-sql-non-query` in
+the HTTP API. You can't prepare a `CALL`. In this version, only a superuser can
+call a procedure, because grants for procedures aren't available yet.
 
-## SQL inside a trigger or procedure
+## SQL in a trigger or procedure
 
-`context.Sql` runs statements in the same transaction and with the same user
-privileges as the statement that invoked the extension:
+`context.Sql` executes statements in the same transaction as the statement that
+called the extension, and with the same user's privileges:
 
-- `ExecuteAsync` runs `INSERT`, `UPDATE`, or `DELETE` and returns the changed-row
-  count.
-- `QueryAsync` runs `SELECT` and returns row copies that remain valid after the
-  call.
-- DDL and transaction control such as `BEGIN`, `COMMIT`, and `ROLLBACK` are
-  rejected with `CADB0820`.
-- Parameters use a dictionary key with or without the leading `@`.
-- Nested writes count against `max_mutations_per_transaction` and fire the
-  target tables' triggers.
+- `ExecuteAsync` executes a write statement, and returns the count of changed
+  rows.
+- `QueryAsync` executes `SELECT`, and returns copies of the rows. The copies
+  are valid after the call.
+- DDL and transaction control, such as `BEGIN` and `COMMIT`, return
+  `CADB0820`.
+- A parameter key can have the leading `@` or not.
+- Nested writes count against `max_mutations_per_transaction`, and they fire
+  the triggers of their tables.
 
-An error from nested SQL makes the transaction rollback-only even when the
-extension catches the exception. There are no savepoints. Returning after such
-an error fails the statement with `CADB0823`, and attempting to commit the
-transaction rolls it back with `CADB0824`. Later statements are refused too,
-following the general [failed-statement rule](/docs/sql-transactions#failed-statements).
+Inline triggers use the `Sql.Set(...)` form that
+[Inline triggers](#inline-triggers) describes, with the owner's privileges.
+
+An error in nested SQL makes the transaction rollback-only, also when the
+extension catches the exception. There are no savepoints. A return after such
+an error returns `CADB0823`. A commit of the transaction rolls it back and
+returns `CADB0824`. Later statements in the transaction also return an error,
+as described in [Failed statements](/docs/sql-transactions#failed-statements).
 
 ## Supported values
 
@@ -798,21 +887,24 @@ following the general [failed-statement rule](/docs/sql-transactions#failed-stat
 | `FLOAT32` | `float` |
 | `BOOL` | `bool` |
 | `STRING` | `string` |
-| `OID` | `string` containing the ObjectId text |
+| `OID` | `string` with the ObjectId text |
 | `UUID` | `Guid` |
 | `BYTES`, including vectors | `byte[]` |
-| `DATE`, `DATETIME` | UTC `DateTime`; a returned `DateTime` is `DATETIME` |
+| `DATE`, `DATETIME` | UTC `DateTime`. A returned `DateTime` is a `DATETIME`. |
 | `NUMERIC` | `decimal` |
-| `ARRAY(E)` | `IReadOnlyList<T>` for the element's mapped type |
+| `ARRAY(E)` | `IReadOnlyList<T>` for the mapped type of the element |
 
-An `INT64` argument can convert to `double` or `decimal`, and a UUID-formatted
-`STRING` can convert to `Guid`. JSON is represented as `STRING`.
+An `INT64` argument can convert to `double` or `decimal`. A `STRING` with a
+UUID in it can convert to `Guid`. JSON is passed as `STRING`.
+
+Byte arrays are copied between the server and the extension. A change to an
+array that you receive doesn't change the stored data.
 
 ### Arrays
 
-Use `IReadOnlyList<T>` in function signatures; CLR array signatures such as
-`long[]` are refused. You may return an array from a method declared to return
-`IReadOnlyList<long>`:
+Use `IReadOnlyList<T>` in signatures. A signature with a CLR array, such as
+`long[]`, returns an error. A method declared to return `IReadOnlyList<long>`
+can return an array:
 
 ```csharp
 [CamusFunction("sum_list")]
@@ -824,31 +916,27 @@ public static long SumList(IReadOnlyList<long> values)
 }
 ```
 
-NULL arrays follow the parameter's nullability. NULL elements require nullable
-value elements such as `IReadOnlyList<long?>`; reference elements can receive
-null. Element conversions follow scalar rules. Nested arrays and arrays of
-`byte[]` are unsupported.
+A `NULL` array follows the nullability of the parameter. For value types, a
+`NULL` element needs a nullable element type, such as `IReadOnlyList<long?>`.
+With `IReadOnlyList<long>`, `sum_list(ARRAY[1, NULL, 3])` returns `CADB0400`.
+Nested arrays and arrays of `byte[]` aren't supported.
 
-Arguments are copied to read-only lists and returned lists are copied back.
-The return declaration preserves the SQL array element type in derived tables
-and `CREATE TABLE ... AS SELECT`. Boxed arrays in procedure arguments or
-`IRow.GetValue` use lists with nullable elements. Use `IRow.GetArray<T>` and
-`IWritableRow.SetArray<T>` for typed row access; SQL session parameters may use
-CLR arrays or lists of mapped elements.
+In procedure arguments and `IRow.GetValue`, an array is a list with nullable
+elements. For typed access to row arrays, use `IRow.GetArray<T>` and
+`IWritableRow.SetArray<T>`.
 
 ### Decimal precision
 
-CamusDB `NUMERIC` can hold more significant digits than .NET `decimal`. A value
-that does not fit fails with `CADB0810` instead of being truncated. Returned
-decimals with more than nine fractional digits use CamusDB's normal
-half-away-from-zero rounding.
-
-Byte arrays are copied across the contract. Mutating an array received from a
-row or argument does not change stored data.
+CamusDB `NUMERIC` can hold more significant digits than .NET `decimal`. A
+value that doesn't fit returns `CADB0810`, and it isn't truncated. For example,
+`99999999999999999999999999999` (29 digits) doesn't fit. A returned `decimal`
+with more than nine fractional digits is rounded half away from zero, the same
+as other `NUMERIC` values. For example, a function that returns `2m / 3m`
+gives `0.666666667`.
 
 ## Deploy extensions
 
-Build the class library, copy its DLL to every CamusDB node, and list the
+Build the class library and copy the DLL to each CamusDB node. Then list the
 absolute path in the server configuration:
 
 ```yaml
@@ -859,8 +947,8 @@ unsafe_extension_assemblies:
   - /opt/camusdb/extensions/MyCompany.Reviewed.dll
 ```
 
-Each node loads its local DLL into the CamusDB server process. SQL calls and
-supported write APIs invoke extension code through that server:
+Each node loads its local copy of the DLL into the CamusDB server process. SQL
+calls and the typed write APIs call the extension code in that process:
 
 <ArchDiagram
   sources={[
@@ -870,182 +958,164 @@ supported write APIs invoke extension code through that server:
   group="CamusDB node"
   hub={{label: 'CamusDB server', icon: 'server'}}
   targets={[{label: 'C# extension DLL', sub: 'Functions, triggers, procedures', icon: 'chip'}]}
-  title="SQL calls and typed write APIs reach a CamusDB server. The server loads and invokes a C# extension DLL inside its own process. Each node needs its own copy of the DLL."
+  title="SQL calls and typed write APIs reach a CamusDB server. The server loads and calls a C# extension DLL in its process. Each node needs a copy of the DLL."
 />
 
-The equivalent command-line flags are `--extension-assemblies` and
-`--unsafe-extension-assemblies`, with space-separated paths. Both settings are
-restart-class: replace the file and restart the node to load a new build.
+The command-line flags are `--extension-assemblies` and
+`--unsafe-extension-assemblies`, with paths separated by spaces. A change to
+either setting needs a restart. To load a new build, replace the file and
+restart the node. At startup, the server logs each extension that it loads,
+with its trust level, SHA-256, and members.
 
-The DLL is not stored in the database or replicated. Every node must receive
-the same files. Invalid paths, missing files, missing manifests, and duplicate
-extension name/version pairs prevent startup. See
-[configuration](/docs/configuration) for the assembly settings.
+The DLL isn't stored in the database, and it isn't replicated. You must copy
+the same files to each node. The server doesn't start if a configured file is
+missing or two files declare the same name and version. For more information
+about the settings, see [Configuration](/docs/configuration).
 
-An installed extension pins its DLL's SHA-256 and a dependency hash. For an
-unsafe extension, the dependency hash includes every other file in its folder
-and subfolders, including native libraries, `.deps.json`, and unused files
-such as `.pdb` files. Give each unsafe extension its own folder and deploy it
-as one unit on every node. Safe extensions cannot load private dependencies
-and use an empty dependency set.
+An installed extension records the SHA-256 of its DLL and a dependency hash.
+For an unsafe extension, the dependency hash covers the other files in its
+folder and subfolders, also native libraries and `.pdb` files. Give each
+unsafe extension a separate folder, and deploy the folder as one unit on each
+node. Safe extensions can't load private dependencies.
 
-Dependencies are checked again when first loaded; files added or changed
-since startup are refused. Restart nodes after changing files. To pin
-dependencies for an older installation, or accept changed dependencies at the
-same version, deploy the folder everywhere, restart nodes, and run
-`ALTER EXTENSION name UPDATE TO 'same version'`. `SHOW EXTENSIONS` reports
-`dependencies_sha256`. Only the operator account should be able to write to
-extension folders.
+Dependencies are checked again when they are first loaded. A file that was
+added or changed after startup returns an error. Restart the nodes after you
+change files. To accept changed dependencies at the same version, deploy the
+folder to all nodes and restart them. Then execute
+`ALTER EXTENSION name UPDATE TO 'same version'`. `SHOW EXTENSIONS` shows the
+hash in `dependencies_sha256`. Only the operator account should have write
+access to the extension folders.
 
-Without `VERSION`, `CREATE EXTENSION` chooses the highest version loaded on
-the executing node. Pin the version in deployment scripts, especially during
-rolling upgrades.
+Without `VERSION`, `CREATE EXTENSION` selects the highest version that the
+node loads. You should pin the version in deployment scripts, especially
+during rolling upgrades.
 
 ### Rolling upgrade
 
-1. Deploy the new DLL beside the old one on every node. Add both paths to
-   `extension_assemblies` (or the unsafe list as appropriate) and restart nodes
-   one at a time. Databases continue using their installed version.
-2. Run `ALTER EXTENSION text_utils UPDATE TO '2.0.0'` in each database to
-   select the new build through the replicated schema log.
-3. Remove the old path and file after no database uses that version, then
+1. Copy the new DLL to each node, next to the old one. Add both paths to
+   `extension_assemblies`, or to the unsafe list. Restart the nodes one at a
+   time. The databases use their installed version until you update them.
+2. In each database, execute `ALTER EXTENSION text_utils UPDATE TO '2.0.0'`.
+   The schema log replicates the change to all nodes.
+3. When no database uses the old version, remove its path and file. Then
    restart the nodes again.
 
-Before an install or update, the coordinating node checks the target name,
-version, DLL SHA-256, and dependency hash on other cluster nodes. A responding node without the
-build causes `CADB0835`, naming the affected nodes. Nodes that do not respond
-are skipped; this check does not guarantee that an offline node has the build.
+Before an install or an update, the node that executes it checks the other
+cluster nodes for the target build. A node that answers and doesn't load the
+build makes the statement return `CADB0835`, with the names of those nodes.
+Nodes that don't answer are skipped. This means that the check doesn't prove
+that an offline node has the build.
 
 ### Missing builds
 
-A node without the installed name/version, or with a different DLL hash, still
-starts and serves statements that do not use that extension. It logs the
-missing build when opening the database. Function and procedure calls, and
-writes to tables with that extension's triggers, fail with `CADB0834`.
-`SHOW EXTENSIONS` reports the installed build as `missing`. Deploy the exact
-build and restart the node to restore those operations.
+A node can be without the installed version, or have a different DLL hash.
+This node starts and serves the statements that don't use the extension. When
+it opens the database, it logs the problem:
 
-The browser playground cannot load extensions. Logical dumps include
-`CREATE EXTENSION name VERSION 'version'` for installed extensions, but no DLLs
-or trigger definitions. Deploy the files before reimporting and recreate
-triggers after loading rows. See
-[logical dump and reimport](/docs/logical-dump-and-reimport).
+```text
+Database shop has extension text_utils installed, but this node loads extension 'text_utils' versions 1.0.0, not the installed version 2.0.0; statements that use it fail on this node until the same file is deployed
+```
+
+On this node, function calls and procedure calls return `CADB0834`. Writes to
+tables with the extension's triggers return the same error. `SHOW EXTENSIONS`
+shows the installed build as `missing`. To fix the node, deploy the exact build
+and restart the node.
+
+The browser playground can't load extensions. `camus-dump` 0.18.0 and later
+includes the extension installs and the triggers in a dump. The DLL files
+aren't in the dump. Deploy them before you load the dump. For more
+information, see [Logical dump and reimport](/docs/logical-dump-and-reimport).
 
 ## Safe and unsafe assemblies
 
-Files in `extension_assemblies` are **safe extensions**. Before loading one,
-CamusDB inspects its metadata and rejects APIs that can access files, processes,
-networking, native code, dynamic assembly loading, or other dangerous runtime
-facilities. Runtime dependency loading is restricted to the same allow-list.
+Files in `extension_assemblies` are **safe extensions**. Before the server
+loads one, it inspects the metadata for APIs that aren't allowed, such as file
+access and dynamic assembly loading. A finding stops the startup, and the error
+names it:
 
-Files in `unsafe_extension_assemblies` skip those checks. They can load private
-dependencies from their own directory, and the server logs their trust level at
-startup.
+```text
+Extension '/opt/camusdb/extensions/Bad.Ext.dll' failed the SAFE check (1 finding(s)): type System.IO.File. Review the code, then list it under unsafe_extension_assemblies if it must load.
+```
 
-Safe mode is a review guardrail. It does not sandbox extension code, which runs
-inside the database process with its permissions. It can consume unbounded CPU or memory,
-and a stack overflow can terminate the server. Deploy only reviewed code; the
-operator-controlled assembly lists are the security boundary.
+Dependencies that a safe extension loads at runtime must also be on the
+allowlist.
+
+Files in `unsafe_extension_assemblies` skip these checks. They can load private
+dependencies from their folder. The server logs a warning at startup for each
+unsafe extension.
+
+Safe mode is a review check. It isn't a sandbox. Extension code executes in the
+database process, with the permissions of that process. It can use unbounded
+CPU or memory, and a stack overflow can stop the server. Deploy only reviewed
+code. The assembly lists that the operator controls are the security boundary.
 
 ## Transactions, retries, and side effects
 
-Database writes made through `context.Sql` commit and roll back with their outer
-statement. CamusDB may retry a statement after a serializable conflict or
-schema transition. Rolled-back attempts do not leave database changes, but an
-effect outside the database, such as a network call, file write, or in-memory
-counter, can occur more than once.
+Database writes through `context.Sql` commit and roll back with the outer
+statement. CamusDB can execute a statement again after a serializable conflict
+or during a schema change. A rolled-back attempt leaves no database changes.
+However, an effect outside the database, such as a network call or a file
+write, can occur more than once.
 
-Keep extension behavior inside the database where possible. Any unavoidable
-external effect must be idempotent or performed after the transaction commits.
-A trigger or procedure failure inside an explicit transaction rolls back that
-whole transaction.
+You should keep extension behavior in the database where possible. An external
+effect must be idempotent, or it must happen after the transaction commits.
+A trigger or procedure failure in an explicit transaction rolls back the
+transaction.
 
 ## Limits
 
-- Triggers and procedures may nest up to 16 levels. Deeper recursion fails with
-  `CADB0819`.
-- Trigger and procedure writes count against
-  `max_mutations_per_transaction`.
-- Rows retained for `AFTER` triggers count against `spill_threshold_bytes`; an
-  oversized statement fails with `CADB0826`.
-- Cancellation is cooperative, and a write is not cancellable after writing
-  begins in this version.
-- CamusDB cannot stop a DLL extension method that never returns. Inline bodies
-  have the separate instrumented budgets described above.
-- Table functions return one column and support implicit LATERAL references.
-- Window functions, `DISTINCT` aggregate arguments, and distributed partial
-  aggregation for extension aggregates are unsupported.
+- Triggers and procedures can nest up to 16 levels. A deeper call returns
+  `CADB0819`. For example, a trigger that writes to the table it's on reaches
+  this limit.
+- Trigger and procedure writes count against `max_mutations_per_transaction`.
+- The rows kept for `AFTER` triggers count against `spill_threshold_bytes`.
+  A statement over that limit returns `CADB0826`.
+- Cancellation is cooperative. In this version, a write can't be cancelled
+  after it starts to write.
+- CamusDB can't stop a DLL method that doesn't return. Inline code has the
+  budgets described in [Allowed code and resource budgets](#allowed-code-and-resource-budgets).
 
 ## Inspect loaded extensions
 
-Use `SHOW EXTENSIONS` to check both node deployment and database installation:
+Use `SHOW EXTENSIONS` to check the DLLs that a node loads, and the extensions
+that the current database installs:
 
 ```camussql
 SHOW EXTENSIONS;
 ```
 
-The result includes `name`, `version`, `status`, `path`, `sha256`, `trust`,
-`requires`, registered `functions`, `triggers`, `procedures`, `aggregates`, and
-`table_functions`, plus `signatures` for scalar, aggregate, and table functions.
-Signatures are separated by `; ` and include array types, optional parameters,
-and table outputs such as `split_words(STRING) -> SETOF STRING`.
+| Column | Meaning |
+| --- | --- |
+| `name`, `version`, `status` | The extension, its version, and its status in the current database. |
+| `path`, `trust` | The DLL file, and `safe` or `unsafe`. Both are null for a `missing` build. |
+| `sha256`, `dependencies_sha256` | The hash of the DLL, and the hash of its dependencies. |
+| `requires` | The extensions that this one needs. |
+| `functions`, `triggers`, `procedures`, `aggregates`, `table_functions` | The members, separated by commas. |
+| `signatures` | The function signatures, separated by `; `, such as `greet(STRING, [STRING]) -> STRING`. Optional parameters are in brackets. |
 
 | Status | Meaning in the current database |
 | --- | --- |
-| `available` | The node loaded the build, but this database does not use it. |
-| `installed` | This database uses this build and the node loaded it. |
-| `missing` | This database selected a build the node cannot run; `path` and `trust` are null. |
+| `available` | The node loads the build, and this database doesn't use it. |
+| `installed` | This database uses this build, and the node loads it. |
+| `missing` | This database uses a build that the node can't execute. |
 
-The statement is node-local and requires a superuser. Compare `sha256` across
-nodes to find inconsistent deployments. With no loaded or installed
-extensions, it returns no rows. CamusDB also logs loaded extensions and their
-members at startup.
+The statement shows the state of one node, and it needs a superuser. To find
+inconsistent deployments, compare `sha256` across the nodes. With no loaded or
+installed extensions, it returns no rows.
 
 ## Try the sample extension
 
 The [sample extension repository](https://github.com/camusdb/camusdb-extension-sample)
-walks through a small bookstore: scalar functions validate ISBNs and calculate
-prices, triggers normalize book rows and record price changes, and a procedure
-places an order in one transaction.
+builds a small bookstore. Scalar functions check ISBNs and calculate prices.
+Triggers normalize book rows and record price changes. A procedure places an
+order in one transaction.
 
-It includes an assembly manifest, SQL demo scripts, unit tests that run without
-a server, and scripts to build the DLL and start CamusDB. Follow the repository's
-quick start with .NET SDK 10 or later and CamusDB 0.16.1 or later.
+The repository includes SQL demo scripts, unit tests that don't need a server,
+and scripts to build the DLL and start CamusDB. Follow its quick start with
+.NET SDK 10 or later and CamusDB 0.16.1 or later.
 
-## Common errors
+## Error codes
 
-| Code | Meaning |
-| --- | --- |
-| `CADB0800`-`CADB0804` | Invalid, missing, unloadable, incompatible, or duplicate extension assembly. |
-| `CADB0805` | A member collides with a built-in or is defined twice in one extension. |
-| `CADB0806`, `CADB0807` | A safe assembly failed inspection or attempted a disallowed runtime load. |
-| `CADB0808` | An extension member has a signature CamusDB cannot bind. |
-| `CADB0809`, `CADB0810` | A scalar, table, or aggregate function threw, or a `NUMERIC` value did not fit a .NET `decimal`. |
-| `CADB0811`-`CADB0816` | A trigger type or trigger DDL target is invalid. |
-| `CADB0817` | The installed version of a trigger's extension lacks its CLR type. |
-| `CADB0818` | A trigger threw and the statement rolled back. |
-| `CADB0819` | Trigger and procedure nesting exceeded 16 levels. |
-| `CADB0820` | Extension SQL attempted unsupported DDL or transaction control. |
-| `CADB0821`, `CADB0822` | A procedure is missing, or it threw and rolled back. |
-| `CADB0823`, `CADB0824` | Nested SQL failed and left the transaction rollback-only. |
-| `CADB0825` | A `BEFORE` trigger changed a row the outer statement was still writing. |
-| `CADB0826` | Rows retained for `AFTER` triggers exceeded the memory threshold. |
-| `CADB0827` | The assembly manifest is missing or invalid. |
-| `CADB0828` | The requested extension or version is not loaded on this node. |
-| `CADB0829` | The extension is already installed in the database. |
-| `CADB0830` | The extension is not installed, including when creating a trigger from a loaded but uninstalled extension. |
-| `CADB0831` | A required extension is not installed. |
-| `CADB0832` | Another installed extension defines the same function, procedure, aggregate, or table-function name. |
-| `CADB0833` | Dependent objects prevent dropping the extension or removing a member during an update. |
-| `CADB0834` | This node does not load the database's installed extension build. |
-| `CADB0835` | A responding cluster node does not load the target build for an install or update. |
-| `CADB0836` | A typed trigger row class does not fit its table. |
-| `CADB0838` | Inline function or trigger compilation failed or timed out. |
-| `CADB0839` | Inline source or a function signature uses a refused construct. |
-| `CADB0840` | An inline call or trigger fire exceeded a time, allocation, array, or stack budget. |
-| `CADB0841` | Creation is disabled by its inline feature flag, or this server build lacks the compiler. |
-| `CADB0842` | A function exists or its name collides with another function/member. |
-| `CADB0843` | DROP/ALTER/SHOW CREATE FUNCTION named a missing function. |
-| `CADB0844` | Dependent views or CHECK constraints prevent a function drop or signature change. |
-| `CADB0845` | This node cannot compile a required function or trigger. |
-| `CADB0846` | An inline trigger's owner no longer exists; its SQL cannot run. |
+For the error codes of extensions and inline code, see
+[C# extension errors](/docs/error-codes#c-extension-errors) and
+[Inline C# errors](/docs/error-codes#inline-c-errors).

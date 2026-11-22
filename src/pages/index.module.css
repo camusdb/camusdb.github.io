@@ -1315,9 +1315,10 @@
     margin: 0 auto;
   }
 
+  /* The margin leaves room for the replay button, which hangs below the pyramids. */
   .proofGrid {
     grid-template-columns: 1fr;
-    margin-top: 0.5rem;
+    margin-top: 1.9rem;
   }
 
   .proofItem + .proofItem {

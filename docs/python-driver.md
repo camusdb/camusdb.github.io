@@ -5,39 +5,37 @@ description: "camusdb-py connects Python applications to CamusDB through a DB-AP
 
 # Python driver
 
-`camusdb-py` connects Python applications to CamusDB through a familiar DB-API
-2.0 interface: connections, cursors, named parameters, and transactions. It
-also provides a native asyncio interface for services that use asynchronous
-I/O. The driver handles HTTP requests, value encoding, and transaction handles
-for both interfaces. Bind Python values and use the DB-API or asyncio methods;
-the REST message format is an implementation detail.
+`camusdb-py` connects Python applications to CamusDB through the familiar DB-API 2.0 interface. It also has a native
+asyncio interface for services that use asynchronous I/O. The driver handles the HTTP protocol and the
+transaction handles. You bind
+Python values, and you don't need to know the REST message format.
 
-Use it for Python services, scripts, and data-processing jobs that need typed
-SQL values and explicit transaction control. The package name is
-`camusdb-py`; the import name is `camusdb`. Source and integration examples are
-in [camusdb-py](https://github.com/camusdb/camusdb-py).
+Use it for Python services and scripts. The package name is
+`camusdb-py`, and the import name is `camusdb`. The source and integration
+examples are in [camusdb-py](https://github.com/camusdb/camusdb-py). This page
+describes version 0.2.3.
 
 ## Install
 
-Python 3.10 or later is required:
+The driver needs Python 3.10 or later:
 
 ```bash
 pip install camusdb-py
 ```
 
-For HTTP/2 over HTTPS, install `pip install 'camusdb-py[http2]'` and pass
-`http2=True`. The driver does not support gRPC or HTTP/3.
+For HTTP/2 over HTTPS, install `'camusdb-py[http2]'` and pass `http2=True`. The
+driver doesn't support gRPC or HTTP/3.
 
 ## Create a database and query it
 
-Start CamusDB with the [installation guide](/docs/server-installation). This example uses
-its default REST port, 5095:
+Start CamusDB with the [installation guide](/docs/server-installation). This
+example uses its default REST port, 5095:
 
 ```python
 import camusdb
 
 with camusdb.connect("Endpoint=http://localhost:5095;Database=shop") as conn:
-    # Run database creation once, with an account allowed to create databases.
+    # Create the database once, with an account that can create databases.
     conn.create_database(if_not_exists=True)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS products (
@@ -60,14 +58,15 @@ with camusdb.connect("Endpoint=http://localhost:5095;Database=shop") as conn:
         print(name, stock)
 ```
 
-`connect()` makes no network request. The database must exist before its first
-data statement. The connection context commits on success, rolls back on an
-exception, and closes. Schema DDL runs separately and is not undone by rollback.
+`connect()` doesn't send a request. The database must exist before its first
+data statement. At the end of the `with` block, the connection commits and closes. After an
+exception, it rolls back. Schema DDL executes separately,
+and a rollback doesn't undo it.
 
 ## Connection settings
 
-Pass a CamusDB connection string, keyword arguments, or both. Keywords override
-the same settings in the string:
+Pass a connection string or keyword arguments. If you combine them, a keyword
+overrides the same setting in the string:
 
 ```python
 conn = camusdb.connect(
@@ -79,60 +78,61 @@ conn = camusdb.connect(
 
 | Keyword | Connection-string key | Default and behavior |
 | --- | --- | --- |
-| `endpoint` | `Endpoint` | Required REST URL; accepts a sequence or comma-separated URLs. |
-| `database` | `Database` | Required database name. |
-| `timeout` | `Timeout` | 10 seconds per request. |
-| `autocommit` | `Autocommit` | `False`: begin a transaction on the first data statement. |
-| `isolation_level` | `IsolationLevel` | Server default; accepts `Serializable` or `ReadCommitted`. |
-| `read_only` | `TransactionMode` | Server default; use `True`/`False` in Python or `ReadOnly`/`ReadWrite` in the string. |
-| `locking` | `Locking` | Server default; accepts `Pessimistic` or `Optimistic`. |
-| `user`, `password` | `User`, `Password` | Optional login credentials. |
-| `access_token` | `AccessToken` | Optional externally managed bearer token; never renewed by the driver. |
-| `http2` | `HttpVersion` | `False`; HTTP/2 requires the optional dependency and HTTPS. `HttpVersion=3` uses HTTP/2, not HTTP/3. |
-| `token_lifetime` | `TokenLifetime` | 600 seconds when login returns no token lifetime. |
-| `allow_insecure_credentials` | `AllowInsecureCredentials` | `False`; see authentication below. |
-| `backup_endpoint` | `BackupEndpoint` | Optional single REST node for backup administration. |
-| `backup_timeout` | `BackupTimeout` | 300 seconds per backup request. |
+| `endpoint` | `Endpoint` | Required. One REST URL or several URLs. |
+| `database` | `Database` | Required. |
+| `timeout` | `Timeout` | 10 seconds for each request. |
+| `autocommit` | `Autocommit` | `False`: the first data statement begins a transaction. |
+| `isolation_level` | `IsolationLevel` | The server default. `Serializable` or `ReadCommitted`. |
+| `read_only` | `TransactionMode` | The server default. `True`/`False` in Python, or `ReadOnly`/`ReadWrite` in the string. |
+| `locking` | `Locking` | The server default. `Pessimistic` or `Optimistic`. |
+| `user`, `password` | `User`, `Password` | Optional sign-in credentials. |
+| `access_token` | `AccessToken` | An optional bearer token that you manage. The driver doesn't renew it. |
+| `http2` | `HttpVersion` | `False`. HTTP/2 needs the optional dependency and HTTPS. `HttpVersion=3` uses HTTP/2. |
+| `token_lifetime` | `TokenLifetime` | 600 seconds, if the sign-in response doesn't give a lifetime. |
+| `allow_insecure_credentials` | `AllowInsecureCredentials` | `False`. See [Authentication](#authentication). |
+| `backup_endpoint` | `BackupEndpoint` | An optional REST node for backup administration. |
+| `backup_timeout` | `BackupTimeout` | 300 seconds for each backup request. |
 | `row_factory` | — | Tuple rows by default. |
 
-Endpoints must have a valid host and port, without embedded user/password
-credentials or `.` / `..` path segments. Pass authentication through `user`
-and `password` instead. Invalid endpoints fail locally.
+An endpoint must have a valid host and port. It can't have a user name and
+password in the URL, or `.` and `..` path segments. Pass credentials with `user`
+and `password`. An invalid endpoint returns an error in `connect()`.
 
-Connection-string keys are case-insensitive. Quote values containing
-semicolons and double an embedded quote, for example
-`Password='pa;ss''word'`. Repeated keys are rejected. Use
-`camusdb.redact_connection_string(text)` before logging a connection string.
+Connection-string keys aren't case-sensitive. Quote a value with semicolons,
+and double an embedded quote, for example `Password='pa;ss''word'`. A repeated
+key returns `CADB0400`. Before you log a connection string, use
+`camusdb.redact_connection_string(text)`.
 
-With multiple endpoints, requests rotate between nodes and transactions stay
-on the node where they began. An unreachable endpoint is skipped for 30
-seconds. The failed request raises `OperationalError` (`CADB0001`) and is not
-replayed on another node because it might already have run. Connections naming
-the same nodes share endpoint rotation and health state within the process.
+With several endpoints, requests rotate between the nodes, and a
+transaction continues on the node where it began. An endpoint that doesn't answer is skipped for
+30 seconds. The failed request raises `OperationalError` (`CADB0001`).
+It isn't sent to another node: it can already have executed. Connections
+to the same nodes share the rotation and health state in the process.
 
 ### Authentication
 
-Use `user` and `password` to log in and send a cached bearer token with later
-requests. Connections with the same nodes and credentials share the process
-cache. From 0.2.0, renewal starts in the background at 80% of the token's
-lifetime while requests keep using the old token. A request waits for login
-when no token exists or the token reaches 95% of its lifetime. Failed background
-renewals wait at least five seconds before retrying. A busy login (`CADB0518`)
-is retried up to three times with a short randomized wait.
-A rejected managed token triggers login and one resend. An `access_token`
-supplied by you is never renewed.
+With `user` and `password`, the driver signs in and sends a cached bearer token
+with later requests. Connections with the same nodes and credentials share the
+cache in the process.
 
-Credentials require HTTPS unless the endpoint is loopback. Other plaintext
-endpoints fail in `connect()` with `InterfaceError` (`CADB0519`). Set
-`allow_insecure_credentials=True` only when the plaintext hop is inside your
-trusted TLS-termination setup. You can also call `conn.login(user, password)`
-and `conn.logout()`. See [SQL authentication](/docs/sql-authentication) for users
-and grants.
+The driver renews the token in the background at 80% of its lifetime, and
+requests continue to use the old token. A request waits for a sign-in when
+there is no token, or when the token reaches 95% of its lifetime. After a failed
+background renewal, the driver waits at least 5 seconds. A busy sign-in
+(`CADB0518`) is retried up to three times. If a managed token is no longer valid, the driver
+signs in again and sends the request once more.
+
+Credentials need HTTPS, unless the endpoint is a loopback address. A plaintext
+endpoint raises `InterfaceError` (`CADB0519`) in `connect()`. Set
+`allow_insecure_credentials=True` only if a trusted TLS terminator is in front
+of the plaintext hop. You can also call `conn.login(user, password)` and
+`conn.logout()`. For users and grants, see
+[SQL authentication](/docs/sql-authentication).
 
 ## Parameters and values
 
-Use `@name` placeholders with a mapping; keys may include or omit `@`.
-Do not interpolate application values into SQL text:
+Use `@name` placeholders with a mapping. A key can include or omit the `@`. You
+should always bind values, and not write them into the SQL text:
 
 ```python
 cursor = conn.execute(
@@ -141,7 +141,7 @@ cursor = conn.execute(
 )
 ```
 
-The driver reports `paramstyle = "named"` and sends typed parameter values.
+`paramstyle` is `"named"`. The driver sends typed values:
 
 | Python value | CamusDB type | Returned Python value |
 | --- | --- | --- |
@@ -154,19 +154,21 @@ The driver reports `paramstyle = "named"` and sends typed parameter values.
 | `camusdb.ObjectId` | `OID` | `str` |
 | `bytes`, `bytearray`, `memoryview` | `BYTES` | `bytes` |
 | `datetime.date` | `DATE` | `datetime.date` |
-| `datetime.datetime` | `DATETIME` | UTC `datetime.datetime` with microsecond precision |
+| `datetime.datetime` | `DATETIME` | A UTC `datetime.datetime`, with microsecond precision |
 | `uuid.UUID` | `UUID` | `uuid.UUID` |
-| `dict` | `JSONB` | PostgreSQL JSON text as `str`. |
+| `dict` | `JSONB` | The PostgreSQL JSON text, as a `str` |
 | `list`, `tuple` | `ARRAY(T)` | `list` |
+| `datetime.timedelta`, `camusdb.Interval` | Interval text, cast in SQL | `str`. Parse it with `Interval`. |
 
-Integers must fit signed 64-bit storage. NaN and infinity are rejected.
-Naive datetimes are interpreted as UTC. Decimal scalars travel as text,
-without a float conversion; CamusDB's `NUMERIC` still has
-[38-digit precision and 9-digit scale](/docs/data-types).
+Integers must fit in 64 bits. Floats can be infinite or NaN, also in `FLOAT32`
+values and arrays. A naive datetime is interpreted as UTC. A decimal is sent as
+text, and it isn't converted to a float. `NUMERIC` has
+[38 digits of precision and a scale of 9](/docs/data-types).
 
-Array types come from the first non-NULL element. Decimal array elements use
-`FLOAT64` and lose the scalar decimal exactness. Use `Typed` for an empty array
-or a type Python cannot distinguish, such as `FLOAT32`:
+The type of an array comes from its first element that isn't `NULL`. Decimal
+array elements are sent as `FLOAT64`, and they lose the exactness of a decimal.
+For an empty array, or a type that Python can't express, such as `FLOAT32`, use
+`Typed`:
 
 ```python
 from camusdb import ColumnType, Typed
@@ -175,13 +177,42 @@ empty_ids = Typed([], ColumnType.ARRAY, element_type=ColumnType.INT64)
 single_precision = Typed(9.5, ColumnType.FLOAT32)
 ```
 
-`FLOAT32` results are returned as Python floats. Strings can also bind to OID
-columns; `camusdb.ObjectId.generate()` creates an ID on the client.
+`FLOAT32` results are Python floats. A string can also bind to an `OID` column.
+`camusdb.ObjectId.generate()` creates an id on the client.
+
+### Intervals
+
+`datetime.timedelta` and `camusdb.Interval` parameters bind as ISO 8601
+interval text. Cast them in SQL. Result cells are Python strings:
+
+```python
+import datetime as dt
+from camusdb import Interval
+
+cursor = conn.execute(
+    "SELECT name, finished - started AS duration FROM jobs "
+    "WHERE finished - started > CAST(@limit AS INTERVAL)",
+    {"limit": dt.timedelta(hours=1)},
+)
+for name, duration in cursor:
+    print(name, Interval.parse(duration).to_timedelta())
+```
+
+An `Interval` stores calendar months separately from days and microseconds.
+`str(value)` returns its ISO 8601 text. If there are months, `to_timedelta()` raises
+`ValueError`. Keep calendar intervals, such as `AGE` results, as `Interval`
+values. `Interval` equality compares the three parts. SQL compares intervals
+with 30-day months. This means that two values that SQL thinks are equal can be
+different `Interval` values.
+
+A list of timedelta values needs an explicit `STRING` element type:
+`Typed(values, ColumnType.ARRAY, element_type=ColumnType.STRING)`. The server
+doesn't have an interval column type. See [Intervals](/docs/data-types#intervals).
 
 ### JSON documents
 
-From 0.2.0, a `dict` binds as [JSONB](/docs/json). A `list` still binds as
-`ARRAY`; use `Typed` to send it as one JSON array document or to bind raw text:
+A `dict` binds as [JSONB](/docs/json). A `list` binds as `ARRAY`. To send a list
+as one JSON array document, or to bind raw JSON text, use `Typed`:
 
 ```python
 from camusdb import ColumnType, Typed
@@ -197,34 +228,32 @@ cur = conn.execute(
 payload_text = cur.fetchone()[0]
 ```
 
-JSONB results are strings in PostgreSQL's JSON text form, preserving numeric
-digits. A JSON null document is `"null"`; SQL NULL is `None`. An older server
-without `jsonbAsText` support returns both as `None`. Use
-`json.loads(payload_text, parse_float=decimal.Decimal)` when parsing exact
-fractional values, or `camusdb.format_jsonb(text)` to format JSON text.
+A JSONB result is a string in the JSON text form of PostgreSQL, with the exact
+digits of its numbers. A JSON null document is `"null"`, and SQL `NULL` is
+`None`. To parse exact fractions, use
+`json.loads(payload_text, parse_float=decimal.Decimal)`. To format JSON text,
+use `camusdb.format_jsonb(text)`.
 
-Arrays of JSONB values are unsupported; send one JSON array document instead.
-In 0.2.1, a dict/list document deeper than 512 levels raises `DataError` before
-sending. Malformed server responses raise `InterfaceError`, including invalid
-base64 BYTES cells and invalid typed values.
+Arrays of JSONB values aren't supported. Send one JSON array document. A
+document deeper than 512 levels raises `DataError` before it is sent. A
+malformed server response raises `InterfaceError`.
 
 ## Read results
 
-The server's default buffered response caps are 1,000,000 rows and 256 MiB of
-estimated memory. Excess results fail with `CADB0556`; use streaming for large
-ordinary reads or reduce the result. See
+`execute()` returns a cursor with all its rows in memory. Iterate it, or use the DB-API fetch methods, such as `fetchmany()`. `cursor.arraysize` sets the
+default size of `fetchmany()`.
+
+The server limits a buffered result to 1,000,000 rows and 256 MiB by default.
+A larger result returns `CADB0556`. For large reads, use streaming. See
 [request limits](/docs/settings-reference#request-resource-limits).
 
-`execute()` returns a cursor with all rows buffered in memory. Iterate it or
-use `fetchone()`, `fetchmany()`, and `fetchall()`. Set `cursor.arraysize` to
-choose the default `fetchmany()` size.
+`cursor.description` has DB-API column descriptions, with a
+`camusdb.ColumnType` as the type code. `rowcount` is the number of returned or
+affected rows, and `-1` for DDL. `lastrowid` is always `None`. To get generated
+keys, use `RETURNING`, as in the first example.
 
-`cursor.description` contains DB-API seven-item column descriptions with
-`camusdb.ColumnType` as the type code. `rowcount` reports returned or affected
-rows and is `-1` for DDL. `lastrowid` is always `None`; use `RETURNING`, as in
-the quick example, to obtain generated keys.
-
-For dictionary or named-tuple rows, set a connection or cursor factory:
+For dictionary or named-tuple rows, set a row factory on the connection or the
+cursor:
 
 ```python
 from camusdb.rows import dict_row, namedtuple_row
@@ -234,14 +263,15 @@ product = conn.execute("SELECT name, stock FROM products LIMIT 1").fetchone()
 cursor = conn.cursor(row_factory=namedtuple_row)
 ```
 
-`cursor.executemany(sql, parameter_mappings)` runs one statement per mapping
-and reports the total row count; it is not a single bulk request.
-`cursor.insert(table, row)` uses the typed HTTP insert route without SQL text.
+`cursor.executemany(sql, parameter_mappings)` executes the statement once for each mapping, and `rowcount` is the total. It
+isn't one bulk request.
+`cursor.insert(table, row)` uses the typed HTTP insert route, and you don't
+write SQL.
 
 ### Stream large results
 
-Use `stream()` when the result should not be buffered. Fully consume or close
-the iterator to release its HTTP connection:
+To read a large result as a stream, use `stream()`. Read the iterator to the
+end, or close it, to release its HTTP connection:
 
 ```python
 from contextlib import closing
@@ -252,16 +282,16 @@ with closing(conn.cursor().stream("SELECT id, name, stock FROM products")) as ro
 ```
 
 The description is available when the first row arrives. Writes with
-`RETURNING` can stream too. Errors can be raised during iteration; once rows
-have arrived, the server cannot transparently replay a serialization conflict.
-The timeout applies to each wait for data, not to the full stream duration.
+`RETURNING` can stream too. An error can be raised during the iteration. After
+rows have arrived, a serialization conflict can't be replayed. The timeout
+applies to each wait for data, and not to the full stream.
 
 ## Transactions and retries
 
-Autocommit is off by default. The first data statement begins a transaction;
-`commit()` or `rollback()` ends it. Closing a connection rolls back open work.
-With `autocommit=True`, statements run independently, but `transaction()` can
-still group several statements:
+Autocommit is off by default. The first data statement begins a transaction,
+and `commit()` or `rollback()` ends it. A connection that closes rolls back its
+open work. With `autocommit=True`, each statement is separate. To group several
+statements, use `transaction()`:
 
 ```python
 with camusdb.connect(
@@ -274,18 +304,19 @@ with camusdb.connect(
         )
 ```
 
-A transaction block begins immediately, commits on success, and rolls back on
-an exception. Transactions do not nest. Connection isolation, read-only, and
-locking settings cannot change while a transaction is open; new settings
-apply to future transactions and autocommit writes.
+A transaction block begins at once. It commits at the end, or rolls back after
+an exception. Transactions don't nest. The transaction settings of a connection, such as the isolation level, can't
+change while a transaction is open.
 
-After a statement failure, the server rolls back the transaction and the driver
-refuses further statements until `rollback()` clears the failed state.
-Attempting to commit the failed transaction raises `InternalError`. DDL does not join that transaction, and
-`TRUNCATE` is refused inside one (`CADB0538`); use autocommit for it.
+After a statement fails, the server discards the transaction. The driver then
+raises `InternalError` for each statement or commit until you call
+`rollback()`. To include supported DDL in the same transaction as your writes,
+enable [transactional schema changes](/docs/sql-transactions#transactional-schema-changes).
+Use autocommit for `TRUNCATE`.
 
-Use `run_transaction()` to replay all reads and writes after a serialization
-conflict. Start it with no transaction already open:
+To replay all the reads and writes after a serialization conflict, use
+`run_transaction()`. Call it when the connection doesn't have an open
+transaction:
 
 ```python
 def reserve_kettle(conn):
@@ -301,16 +332,14 @@ with camusdb.connect(
     changed = camusdb.run_transaction(conn, reserve_kettle, max_attempts=5)
 ```
 
-`CADB0502`, `CADB0504`, and `CADB0505` map to `SerializationFailure`, a subclass
-of `OperationalError`. The helper replays retryable failures with bounded
-exponential backoff and jitter. The callback must be safe to run repeatedly;
-keep external side effects outside it. `camusdb.is_retryable(exc)` supports
-custom retry loops.
+A retryable conflict raises `SerializationFailure`, a subclass of
+`OperationalError`. For the codes, see
+[Retries and conflicts](/docs/serializable-retries#which-errors-to-retry-and-how). The helper retries them with backoff and jitter. The
+callback must be safe to execute again. Put external side effects outside it.
+For a custom retry loop, use `camusdb.is_retryable(exc)`.
 
-An unresolved commit (`CADB0509`) is different: `commit()` retries finalizing
-the same transaction, up to 10 retries, instead of replaying its work. See
-[retries and conflicts](/docs/serializable-retries) and
-[transaction isolation](/docs/serializable-transactions).
+An unresolved commit (`CADB0509`) is different. `commit()` sends the same commit again, up to 10
+times. It doesn't replay the work.
 
 ## asyncio
 
@@ -342,29 +371,40 @@ async def main():
 asyncio.run(main())
 ```
 
-Await `connect()`, execution, fetching, commit, and rollback. `cursor()` and
-`transaction()` themselves are not awaited. Use `async for` with
-`cursor.stream(sql, parameters)`, and fully consume or close the async iterator.
-`camusdb.aio.run_transaction()` accepts an async callback.
+Await `connect()` and the methods that send requests, such as `execute()` and
+`commit()`. Don't await `cursor()` or `transaction()`. Use `async for` with
+`cursor.stream(sql, parameters)`, and read the iterator to the end or close it.
+`camusdb.aio.run_transaction()` takes an async callback.
 
 ## Errors and administration
 
-Driver errors expose `code` and `message`. Catch DB-API classes such as
-`IntegrityError` for constraint violations, `DataError` for invalid values,
-`ProgrammingError` for SQL or privilege errors, and `OperationalError` for
-connectivity or transaction failures. `InterfaceError` covers driver misuse and malformed server responses.
-`camusdb.codes` provides named constants; see [server error codes](/docs/error-codes).
+Driver errors have a `code` and a `message`. They use the DB-API classes:
 
-Connections also expose `ping()`, `create_database()`, `drop_database()`,
-`create_branch()`, `show_branches()`, and `show_ancestors()`. Set `conn.database`
-to change databases when no transaction is open. Database administration runs
-outside the connection's data transaction. See
-[database branching](/docs/database-branching) for branch behavior.
+| Class | Errors |
+| --- | --- |
+| `IntegrityError` | Constraint violations. |
+| `DataError` | Invalid values. |
+| `ProgrammingError` | SQL and privilege errors. |
+| `OperationalError` | Connection and transaction failures. |
+| `InterfaceError` | Wrong use of the driver, and malformed server responses. |
+
+`camusdb.codes` has named constants for the
+[server error codes](/docs/error-codes).
+
+Connections also have methods for administration, such as `create_database()`. To change databases, set
+`conn.database` when no transaction is open. Database administration executes
+outside the data transaction of the connection. See
+[Database branching](/docs/database-branching).
+
+`conn.execute()` can also execute DDL for inline functions and extensions, such as
+`CREATE OR REPLACE FUNCTION`. A dollar-quoted function body is one literal. This
+means that a semicolon in the body doesn't end the statement. See
+[C# extensions](/docs/csharp-extensions).
 
 ### Node statistics and backups
 
-Use `conn.node_stats()` for the selected node's CPU, disk, and memory readings.
-To inspect a pool, pass each node explicitly:
+`conn.node_stats()` returns the resource readings of the selected node, such as
+the free disk space. To inspect a pool, pass each node:
 
 ```python
 for endpoint in conn.endpoints:
@@ -372,9 +412,9 @@ for endpoint in conn.endpoints:
     print(endpoint, stats.data_volume.available_bytes)
 ```
 
-Unavailable readings are `-1`, with reasons in `stats.errors`. The server
-requires a superuser or `MONITOR` privilege when authentication is enabled.
-See [Node stats](/docs/node-stats).
+An unavailable reading is `-1`, and the reason is in `stats.errors`. With
+authentication on, the server requires a superuser or `MONITOR`. See
+[Node stats](/docs/node-stats).
 
 `conn.backups` manages online backups:
 
@@ -385,25 +425,23 @@ chain = conn.backups.chain(incremental.backup_id)
 preview = conn.backups.preview_garbage_collection()
 ```
 
-It also provides `list()`, `take_coordinated()`, and `collect_garbage()`.
-Backups cover every database on the node and require server backup configuration.
-Authenticated callers must be superusers; unauthenticated calls are loopback-only.
-Set `backup_endpoint` to the backup coordinator for coordinated cluster backups,
-or to a specific node when the normal endpoint is a pool. A full backup may
-replace an unavailable incremental base; check `was_substituted`.
-The driver cannot restore backups. See [Backup and restore](/docs/backup-and-restore).
+It has more methods, such as `list()` and `take_coordinated()`. Backups
+cover all the databases of the node, and they need the backup configuration of
+the server. With authentication on, the caller must be a superuser. If
+authentication is off, backups work from the same machine only. For a coordinated
+cluster backup, set `backup_endpoint` to the backup coordinator. A full backup
+can replace an unavailable incremental base. Check `was_substituted`. The driver
+can't restore backups. See [Backup and restore](/docs/backup-and-restore).
 
-The asyncio connection provides the same administration methods with `await`.
+The asyncio connection has the same administration methods, with `await`.
 
 ## Current limits
 
-- `threadsafety` is `1`: threads can share the module, but each thread needs its
-  own connection.
-- Causal tokens are not tracked or forwarded. Multi-node round-robin access
-  does not provide the explicit causal floor described in
-  [causal tokens](/docs/grpc-api#causal-tokens); do not assume cross-node
-  read-your-writes from endpoint rotation alone.
-- gRPC, HTTP/3, prepared statements, learned routing, transaction pipelines,
-  and OpenTelemetry integration are not provided.
-  Shared .NET connection-string tuning keys such as `RoutingMode` and
-  `MaxAutoPrepare` are accepted without effect; `Protocol=grpc` is rejected.
+- `threadsafety` is `1`. Threads can share the module, but each thread needs a
+  separate connection.
+- The driver doesn't track causal tokens. Endpoint rotation alone doesn't give
+  read-your-writes across nodes. See [Causal tokens](/docs/grpc-api#causal-tokens).
+- The driver doesn't support gRPC or HTTP/3. Prepared statements and OpenTelemetry
+  aren't available either.
+- Tuning keys of the .NET driver, such as `RoutingMode`, are accepted and have no
+  effect. `Protocol=grpc` raises `NotSupportedError`.

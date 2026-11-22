@@ -4,33 +4,31 @@ sidebar_position: 7.35
 
 # Prisma
 
-`@camusdb/prisma-adapter` lets a TypeScript application use [Prisma](https://www.prisma.io/typescript) Client with
-CamusDB. Define models in a Prisma schema, generate a typed client, and use
-Prisma queries, relations, and transactions against CamusDB over REST or gRPC.
-The package also includes `camusdb-prisma`, a CLI for translating and applying
-schema migrations with a recorded history.
+`@camusdb/prisma-adapter` lets a TypeScript application use
+[Prisma](https://www.prisma.io/typescript) Client with CamusDB. You define models in a Prisma schema, and you use the
+generated typed client over REST or gRPC. The package also has `camusdb-prisma`, a CLI
+that translates and applies schema migrations, with a recorded history.
 
-Use it when you want Prisma's model-based API. For direct SQL or access to the
-full database administration API, use the
-[TypeScript connector](/docs/typescript-connector) underneath the adapter.
-Source and a runnable application are in
-[camusdb-prisma](https://github.com/camusdb/camusdb-prisma).
+Use it if you want the model-based API of Prisma. For direct SQL or database
+administration, use the [TypeScript connector](/docs/typescript-connector) that
+the adapter is built on. The source and an example application are in
+[camusdb-prisma](https://github.com/camusdb/camusdb-prisma). This page
+describes version 0.2.0 of the adapter.
 
 ## Install
 
-Use Prisma 7.10 or later within the 7.x or 8.x lines, and the `camusdb` driver
-0.8.x. Supported Node.js versions are `^20.19.0 || >=22.12.0`. The repository
-reports testing against CamusDB 0.16; choose a server with the SQL features your
-models use.
+The adapter needs Prisma 7.10 or later (7.x or 8.x), the `camusdb` driver
+0.15.0 or later, and Node.js `^20.19.0 || >=22.12.0`. The repository tests it
+against CamusDB 0.16.
 
 ```bash
 npm install @camusdb/prisma-adapter camusdb @prisma/client
 npm install --save-dev prisma
 ```
 
-Keep `prisma` and `@prisma/client` on matching versions within the supported
-range. Start a CamusDB server using the [installation guide](/docs/intro).
-The examples use REST at `http://localhost:5095`.
+Keep `prisma` and `@prisma/client` on the same version. To start a server, see
+the [installation guide](/docs/intro). The examples use REST at
+`http://localhost:5095`.
 
 ## Define and generate a client
 
@@ -65,14 +63,14 @@ model Post {
 }
 ```
 
-`provider = "mysql"` selects the SQL dialect Prisma generates. The adapter
-rewrites the differences CamusDB needs, then sends statements through the
-CamusDB driver. CamusDB itself serves REST and gRPC, without a MySQL wire
-endpoint.
+`provider = "mysql"` selects the SQL dialect that Prisma generates. The adapter
+rewrites the parts that differ in CamusDB, and it sends the statements through
+the CamusDB driver. CamusDB doesn't have a MySQL wire endpoint.
 
-`relationMode = "prisma"` uses Prisma's relation handling without database
-foreign keys. Keep indexes on referencing columns, as with `authorId` above.
-See [relation enforcement](#choose-relation-enforcement) before choosing a mode.
+With `relationMode = "prisma"`, Prisma handles relations, and the database
+doesn't have foreign keys. Keep indexes on the referencing columns, as on `authorId`
+above. Before you choose a mode, see
+[Choose relation enforcement](#choose-relation-enforcement).
 
 Add the Prisma CLI configuration:
 
@@ -85,11 +83,10 @@ export default defineConfig({
 });
 ```
 
-This MySQL URL is a placeholder required by the file-based `prisma migrate diff`
-workflow. That comparison does not open it. The real CamusDB connection is
-configured separately below.
+`prisma migrate diff` needs this MySQL URL, but it doesn't open it. The CamusDB
+connection is configured separately.
 
-Generate the client and apply the initial migration:
+Generate the client and apply the first migration:
 
 ```bash
 npx prisma generate
@@ -97,8 +94,8 @@ export CAMUSDB_URL="Endpoint=http://localhost:5095;Database=app"
 npx camusdb-prisma migrate dev --name init
 ```
 
-The CLI creates the target database if absent. Pass `--no-create-database`
-when database creation is managed separately.
+The CLI creates the database if it doesn't exist. If you manage database
+creation separately, pass `--no-create-database`.
 
 ## Query your models
 
@@ -132,8 +129,8 @@ try {
 }
 ```
 
-`PrismaCamusDb` also accepts a CamusDB connection string. To use the environment
-variable set earlier, check it before constructing the adapter:
+`PrismaCamusDb` also takes a connection string, for example from the
+environment variable above:
 
 ```ts
 const connectionString = process.env.CAMUSDB_URL;
@@ -141,42 +138,48 @@ if (!connectionString) throw new Error('Set CAMUSDB_URL');
 const adapter = new PrismaCamusDb(connectionString);
 ```
 
-The options object accepts the same connection settings as `CamusClient`,
-including authentication and `protocol: 'grpc'`. For gRPC, use its endpoint
-(normally port 5096) and install the connector's optional gRPC dependencies.
+The options object takes the connection settings of `CamusClient`, also
+authentication and `protocol: 'grpc'`. For gRPC, use the gRPC endpoint (port
+5096 by default), and install the optional gRPC dependencies of the connector.
 See [connection options](/docs/typescript-connector#connection-options).
 
-Prisma reads included relations with separate statements. The adapter disables
-Prisma's relation-join strategy because it depends on MySQL JSON aggregation
-functions CamusDB does not provide.
+Prisma reads included relations with separate statements. The relation-join strategy of Prisma is off. It needs MySQL JSON aggregation
+functions.
+
+Relation filters, such as `some` and `none`, work in `findMany` and in `count`:
+
+```ts
+const publishedAuthors = await prisma.user.count({
+  where: { posts: { some: { published: true } } },
+});
+```
 
 ## Choose relation enforcement
 
 | Mode | Behavior | Considerations |
 | --- | --- | --- |
-| `relationMode = "prisma"` | Prisma handles relations and referential actions. | Supports actions such as `Cascade` and `SetNull` through Prisma. Raw SQL and other writers do not gain database foreign-key enforcement. |
-| `relationMode = "foreignKeys"` (default) | CamusDB enforces foreign keys at the end of each statement. | Only `Restrict` and `NoAction` actions are supported. |
+| `relationMode = "prisma"` | Prisma handles relations and referential actions. | Prisma executes actions such as `Cascade`. Raw SQL and other writers don't get foreign-key checks. |
+| `relationMode = "foreignKeys"` (default) | CamusDB checks foreign keys at the end of each statement. | Only `Restrict` and `NoAction` are supported. |
 
-Prisma defaults to `onUpdate: Cascade`, and optional relations default to
-`onDelete: SetNull`. In foreign-key mode the translator replaces unsupported
-`CASCADE`, `SET NULL`, and `SET DEFAULT` actions with `NO ACTION` and reports
-warnings. Prisma then leaves enforcement to the database; it does not perform
-the replaced action. A parent delete or key update can fail with `P2003`.
+By default, Prisma uses `onUpdate: Cascade`. An optional relation also gets
+`onDelete: SetNull`. In foreign-key mode, the translator replaces the unsupported
+actions with `NO ACTION`, and it shows a warning. Prisma then leaves the check to
+the database, and it doesn't run the replaced action. This means that a parent
+delete or key update can fail with `P2003`.
 
-To make database enforcement explicit, declare supported actions:
+To make the database check explicit, declare supported actions:
 
 ```text
 author User @relation(fields: [authorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 ```
 
-Cycles across two or more tables are refused with `CADB0416`; self-references
-are accepted. See [foreign keys](/docs/foreign-keys) for database behavior.
+A cycle across two or more tables returns `CADB0416`. A table can reference
+itself. See [Foreign keys](/docs/foreign-keys).
 
 ## Migrations
 
-Use `camusdb-prisma` for schema changes. Standard `prisma migrate dev` attempts
-a MySQL wire connection through Prisma's schema engine, so it cannot connect
-to CamusDB through this adapter.
+Use `camusdb-prisma` for schema changes. The standard `prisma migrate dev` needs
+a MySQL wire connection, and it can't connect to CamusDB.
 
 The CLI compares schema files with `prisma migrate diff`, translates the MySQL
 DDL to CamusSQL, and applies it through the CamusDB driver:
@@ -203,76 +206,76 @@ npx camusdb-prisma db push
 
 | Command | Purpose |
 | --- | --- |
-| `migrate dev --name label` | Generates a migration from the last snapshot and applies pending migrations. |
-| `migrate deploy` | Applies pending migration directories in name order. |
-| `migrate status` | Reports applied, pending, changed, and missing migration files. |
-| `db push` | Applies the schema difference and updates the snapshot without writing a migration history entry. Use for disposable development databases. |
+| `migrate dev --name label` | Writes a migration from the last snapshot, and applies the pending migrations. |
+| `migrate deploy` | Applies the pending migration directories, in name order. |
+| `migrate status` | Shows the state of each migration, such as applied or pending. |
+| `db push` | Applies the schema change and updates the snapshot. It doesn't write a migration. Use it for disposable development databases. |
 
-Run `npx camusdb-prisma --help` for connection and path flags. Use
-`npx camusdb-prisma translate -- migration.sql` to inspect the CamusSQL
-translation of a MySQL DDL file without applying it.
+For the connection and path flags, run `npx camusdb-prisma --help`. To see the
+CamusSQL translation of a MySQL DDL file, run
+`npx camusdb-prisma translate migration.sql`.
 
-### Keep the snapshot and review warnings
+### Keep the snapshot and read the warnings
 
-Commit the entire `prisma/migrations` directory, including:
+Commit the full `prisma/migrations` directory. It has these files:
 
-- `.snapshot.prisma`: the schema used as the starting point of the next diff.
+- `.snapshot.prisma`: the schema that the next diff starts from.
 - `<timestamp>_<label>/migration.sql`: the CamusSQL statements that are applied.
-- `<timestamp>_<label>/migration.mysql.sql`: the original DDL for reference.
+- `<timestamp>_<label>/migration.mysql.sql`: the original MySQL DDL, for
+  reference.
 
-The CLI uses the snapshot instead of replaying history into a shadow database.
-A missing snapshot makes the next diff start from an empty schema. It does not
-inspect the live database for drift.
+The CLI starts each diff from the snapshot, and it doesn't use a shadow
+database. If the snapshot is missing, the next diff starts from an empty schema.
+The CLI doesn't inspect the live database for drift.
 
-`_camusdb_migrations` records each completed migration's name, checksum,
-application time, and statement count. `migrate status` detects edited or missing
-applied files; deployment skips names already recorded as applied.
+`_camusdb_migrations` records the name and checksum of each completed migration,
+with its time and statement count. `migrate status` detects applied files that
+were changed or removed, and `migrate deploy` skips migrations that are applied.
 
-Statements run sequentially, without a transaction around the migration.
-If a later statement fails, earlier changes can remain while the migration is
-still unrecorded. Inspect and resolve that partial state before rerunning it.
+The statements of a migration execute one after another, and no transaction
+covers the migration. If a statement fails, the earlier changes can stay, and
+the migration isn't recorded. Resolve that state before you run the migration
+again.
 
-Read translation warnings: unsupported referential actions, decimal precision,
-and in-place type changes can make the applied schema differ from your model.
-CamusDB cannot change a column's type or length in place; the translator applies
-nullable changes and warns about the rest. For a type change, add a replacement
-column, copy values, drop the old column, and rename the replacement.
+Read the translation warnings. For example, unsupported referential actions can
+make the applied schema differ from your model. CamusDB can't change the type or
+length of a column in place. The translator applies changes to nullability, and
+it warns about the others. For a type change, use a new column:
+add it and copy the values. Then drop the old column, and rename the new one.
 
 ## Type mapping
 
 | Prisma field | CamusDB storage |
 | --- | --- |
-| `String` | `VARCHAR(191)` by default; `@db.Text` maps to `TEXT`. |
+| `String` | `VARCHAR(191)` by default. `@db.Text` maps to `TEXT`. |
 | `Int`, `BigInt` | `INT64`. |
 | `Int @default(autoincrement())` | `INT64 GENERATED BY DEFAULT AS IDENTITY`. |
 | `Float` | `FLOAT64`. |
 | `Boolean` | `BOOL`. |
 | `DateTime` | `DATETIME`. |
 | `Bytes` | `BYTES`. |
-| `Decimal` | `NUMERIC`, with 38 digits total and 9 fractional digits. |
-| `Json` | `STRING`; returned as text, without JSON-path filtering. |
-| Enum | `STRING`; the database does not restrict values to enum members. |
+| `Decimal` | `NUMERIC`, with 38 digits and 9 fractional digits. |
+| `Json` | `STRING`. It is returned as text, and JSON path filters don't work. |
+| Enum | `STRING`. The database doesn't limit the values to the enum. |
 
-Integer and scalar decimal values travel through the adapter without conversion
-to JavaScript floating-point numbers. Use `BigInt` in your Prisma model when
-application values need the 64-bit integer range. Decimal values beyond 9
-fractional digits are rounded; more than 29 integer digits are refused with
-`P2020`. `@db.Decimal(p, s)` still maps to CamusDB's fixed precision and scale.
-Decimal list parameters use `FLOAT64` because the connector has no NUMERIC
-array mapping; they do not have the same exactness as scalar decimal parameters.
+Integer and decimal values aren't converted to JavaScript numbers. For values in
+the full 64-bit range, use `BigInt` in the model. A decimal with more than 9
+fractional digits is rounded, and one with more than 29 integer digits returns
+`P2020`. `@db.Decimal(p, s)` maps to the fixed precision and scale of CamusDB.
+Decimal list parameters are sent as `FLOAT64`, and they aren't exact.
 
-Let the database generate identity keys. Explicitly inserting a key does not
-advance its sequence, so a later generated value can collide with it (`P2002`).
-The adapter discovers identity columns with `DESCRIBE` and uses `RETURNING`
-to report generated keys to Prisma.
+You should let the database generate identity keys. An explicit key doesn't
+advance the sequence. This means that a later generated value can collide with
+it (`P2002`). The adapter finds identity columns with `DESCRIBE`, and it uses
+`RETURNING` to give the generated keys to Prisma.
 
-Native MySQL types without a mapping, including `@db.Time`, `@db.Year`,
-`@db.Bit`, and spatial types, are refused by the translator.
+MySQL types that CamusDB doesn't have, such as `@db.Time`, return an error in
+the translator.
 
 ## Transactions and errors
 
-`prisma.$transaction` uses CamusDB transaction handles. For example, using the
-models above:
+`prisma.$transaction` uses CamusDB transactions. For example, with the models
+above:
 
 ```ts
 await prisma.$transaction(async (tx) => {
@@ -284,11 +287,11 @@ await prisma.$transaction(async (tx) => {
 }, { isolationLevel: 'Serializable' });
 ```
 
-`Serializable` and `ReadCommitted` are supported. Leave the option unset to use
-the server default. `RepeatableRead`, `ReadUncommitted`, and `Snapshot` are
-rejected. Savepoints are not supported.
+`Serializable` and `ReadCommitted` are supported. If you don't set the option, the server default
+applies. Other isolation levels return an error. Savepoints aren't
+supported.
 
-The adapter maps matching database errors to Prisma error kinds:
+The adapter maps database errors to Prisma error kinds:
 
 | CamusDB code | Prisma result |
 | --- | --- |
@@ -296,20 +299,20 @@ The adapter maps matching database errors to Prisma error kinds:
 | `CADB0301` | `P2011`: null constraint violation. |
 | `CADB0304`, `CADB0305`, `CADB0306` | `P2003`: foreign-key violation. |
 | `CADB0417` | `P2020`: value out of range. |
-| `CADB0011` | `P2021`: table does not exist. |
-| `CADB0404` | `P2022`: column not found. |
+| `CADB0011` | `P2021`: the table doesn't exist. |
+| `CADB0404` | `P2022`: the column doesn't exist. |
 | `CADB0502`, `CADB0504` | `TransactionWriteConflict`. |
 | `CADB0516` | `P1000`: authentication failed. |
 
-Other CamusDB errors remain raw database errors. Adapter error payloads retain
-`originalCode` and `originalMessage` for CamusDB failures. See
-[transaction isolation](/docs/sql-transactions) and [error codes](/docs/error-codes).
+Other CamusDB errors stay raw database errors. The error payloads of the adapter
+have `originalCode` and `originalMessage`. See
+[Transactions](/docs/sql-transactions) and [Error codes](/docs/error-codes).
 
 ## Raw SQL and C# extensions
 
-Write CamusSQL in `$queryRaw` and `$executeRaw`; raw statements are not a general
-MySQL-to-CamusSQL translation path. Quote table and column identifiers with
-backticks, especially names such as `User` that are reserved words:
+`$queryRaw` and `$executeRaw` take CamusSQL. Raw statements aren't translated
+from MySQL. Quote table and column names with backticks, especially reserved
+words such as `User`:
 
 ```ts
 const rows = await prisma.$queryRaw<{ email: string }[]>`
@@ -317,43 +320,26 @@ const rows = await prisma.$queryRaw<{ email: string }[]>`
 `;
 ```
 
-Use `$executeRaw` for an installed C# procedure, or `$queryRaw` for an extension
-function. A procedure joins the enclosing Prisma transaction and reports its
-changed-row count. See [C# extensions](/docs/csharp-extensions) for deployment
-and `CREATE EXTENSION` installation requirements.
+To call an installed C# procedure, use `$executeRaw`. For an extension function,
+use `$queryRaw`. A procedure joins the open Prisma transaction, and it returns
+its count of changed rows. See [C# extensions](/docs/csharp-extensions).
 
-For triggers or other objects Prisma does not model, add a manually written
-`migration.sql` in a directory whose name sorts after existing migrations, then
-run `migrate deploy`. This file must contain CamusSQL; deployment runs it
-without translation. Schema diffs do not track these manually managed objects.
-
-## Count rows matching a relation
-
-Relation filters such as `some`, `none`, and `every` work in both `findMany`
-and `count` on a server with nested-subquery binding support:
-
-```ts
-const publishedAuthors = await prisma.user.count({
-  where: { posts: { some: { published: true } } },
-});
-```
-
-Prisma can place this filter inside a derived table under `COUNT(*)`. Older
-server builds rejected that shape with `CADB0099`; upgrade the server rather
-than fetching matching rows just to count them.
+For triggers and other objects that Prisma doesn't model, write a `migration.sql`
+by hand. Put it in a directory whose name sorts after the existing migrations,
+and run `migrate deploy`. The file must contain CamusSQL, and it isn't
+translated. Schema diffs don't track these objects.
 
 ## Query limitations
 
-- Scalar subqueries in a projection are unsupported, including in raw SQL.
-- JSON fields return text, and filters inside JSON documents are unsupported.
-- Database foreign keys support only `Restrict` and `NoAction`; use Prisma
-  relation mode when application-managed cascading is required.
+- JSON fields return text. Filters in JSON documents don't work.
+- Database foreign keys support only `Restrict` and `NoAction`. For cascading
+  actions, use the Prisma relation mode.
 
-To inspect generated and rewritten statements during development:
+To see the generated and rewritten statements during development:
 
 ```bash
 DEBUG='prisma:driver-adapter:camusdb' node your-app.js
 ```
 
-The repository's [example application](https://github.com/camusdb/camusdb-prisma/tree/main/example)
-shows models, relation queries, grouping, transactions, and raw SQL together.
+The [example application](https://github.com/camusdb/camusdb-prisma/tree/main/example)
+of the repository shows the adapter in a full application.

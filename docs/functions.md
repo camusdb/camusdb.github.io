@@ -4,16 +4,15 @@ sidebar_position: 4
 
 # Functions
 
-Built-in functions let you clean, convert, and compute values inside the query,
-so that work does not have to move into your application. You can trim and
-normalize text, round numbers, bucket timestamps, extract JSON fields, generate
-UUIDs, and compare vectors in the same statement that reads or writes the rows.
-Many functions use a name you already know from PostgreSQL or MySQL, such as
-`now()`, `date_trunc`, and `date_format`.
+Built-in functions let you clean and convert values in the query, and your
+application doesn't have to do that work. For example, you can normalize
+text or bucket timestamps in the same statement that reads or writes the rows.
+Many functions have a name that you know from PostgreSQL or MySQL, such as
+`now()` and `date_trunc`.
 
-A scalar function works anywhere a value is accepted: in the select list, in a
-`WHERE` filter, as a `GROUP BY` key, in a column default, and in a check
-constraint. Functions also nest:
+You can use a scalar function in any place where a value is allowed, for
+example in a `WHERE` filter or in a column default.
+Functions can also be nested:
 
 ```camussql
 SELECT upper(trim(name)) AS display_name
@@ -21,78 +20,70 @@ FROM robots
 WHERE abs(year - 2000) <= 5;
 ```
 
-Function names are not case-sensitive.
+Function names aren't case-sensitive.
 
-To add application-specific scalar functions written in C#, see
+To add your own scalar functions in C#, see
 [C# extensions](/docs/csharp-extensions). The same extension system also
-supports table functions, aggregates, transactional row triggers, and stored procedures.
+supports table functions, aggregates, row triggers, and stored procedures.
 
 ## Categories
 
-- [Session Functions](/docs/functions-session) report the current database,
-  authenticated user, role, and superuser status.
-- [String Functions](/docs/functions-string) inspect, normalize, slice, replace,
-  and combine text.
-- [Bytes Functions](/docs/functions-bytes) encode, decode, inspect, and modify
-  binary values.
-- [Math Functions](/docs/functions-math) round, truncate, compare, and calculate
-  with numeric values.
-- [Hash Functions](/docs/functions-hash) calculate hexadecimal and binary
-  digests, HMACs, and CRC-32 checksums.
-- [Date/Time Functions](/docs/functions-datetime) construct, inspect, calculate,
-  format, and parse dates and timestamps.
-- [Set-returning Functions](/docs/functions-set-returning) produce rows in a
-  `FROM` clause, including numeric and temporal series.
-- [JSON Functions](/docs/functions-json) validate JSON text and inspect or
-  extract values with paths.
-- [JSONB functions](/docs/json#functions) build, inspect, change, expand, and
-  aggregate `JSONB` documents with the PostgreSQL function names.
-- [Regex Functions](/docs/functions-regex) match, extract, replace, count, and
-  split text with regular expressions.
-- [Conversion Functions](/docs/functions-conversion) convert scalar values with
-  functions or SQL `CAST` syntax.
-- [Null Functions](/docs/functions-null) select fallback values for nullable
+- [Session functions](/docs/functions-session) return the current database and
+  user.
+- [String functions](/docs/functions-string) inspect and change text.
+- [Bytes functions](/docs/functions-bytes) encode and decode binary values.
+- [Math functions](/docs/functions-math) round and calculate numeric values.
+- [Hash functions](/docs/functions-hash) calculate digests and checksums.
+- [Date/time functions](/docs/functions-datetime) calculate and format dates and
+  timestamps.
+- [Set-returning functions](/docs/functions-set-returning) return rows in a
+  `FROM` clause, such as an integer series.
+- [JSON functions](/docs/functions-json) validate JSON text and extract values
+  with paths.
+- [JSONB functions](/docs/json#functions) build and change `JSONB` documents,
+  with the PostgreSQL function names.
+- [Regex functions](/docs/functions-regex) match and replace text with regular
   expressions.
-- [UUID Functions](/docs/functions-uuid) generate native version 4 and version 7
-  UUID values.
-- [Object ID Functions](/docs/functions-object-id) generate and convert native
-  `OID` values.
-- [Array Functions](/docs/functions-array) inspect array length and test element
-  membership.
-- [Sequence Functions](/docs/sequences#use-values) allocate, inspect, and set
-  values from named counters.
-- [Vector Functions](/docs/vector-search) inspect vector dimensions and compare
-  vectors with distance and similarity metrics.
+- [Conversion functions](/docs/functions-conversion) convert values, also with
+  SQL `CAST` syntax.
+- [Null functions](/docs/functions-null) return a fallback value for a `NULL`.
+- [UUID functions](/docs/functions-uuid) generate version 4 and version 7 UUIDs.
+- [Object ID functions](/docs/functions-object-id) generate and convert `OID`
+  values.
+- [Array functions](/docs/functions-array) return the length of an array and
+  test whether it contains a value.
+- [Sequence functions](/docs/sequences#use-values) get and set values of named
+  counters.
+- [Vector functions](/docs/vector-search) return vector dimensions and compare
+  vectors.
 
-[Window functions](/docs/sql-queries#window-functions) rank rows, compare
-neighboring values, and calculate totals while keeping individual rows. They
-use `OVER (...)` and are allowed in the select list and final `ORDER BY`, rather
-than wherever a scalar value is accepted.
+[Window functions](/docs/sql-queries#window-functions) rank rows and calculate
+running totals for each row. They use
+`OVER (...)`. You can use them in the select list and in the final `ORDER BY`
+only.
 
 ## Nulls and volatile functions
 
-Nulls propagate: most functions return `NULL` when any argument is `NULL`.
-[Null Functions](/docs/functions-null) covers the exceptions, such as `coalesce`
-and `nullif`, and each category page marks any others.
+Most functions return `NULL` when an argument is `NULL`.
+[Null functions](/docs/functions-null) covers the exceptions, such as `coalesce`
+and `nullif`. Each category page shows other exceptions.
 
-Some functions are volatile. Their result can change from one call, statement,
-or transaction to the next:
+The result of a volatile function can change over time. The following table
+shows when it changes:
 
-- **Per call:** `gen_id()`, `gen_uuid_v4()`, `gen_uuid_v7()`, `random()`,
-  `gen_random_bytes(n)`, `clock_timestamp()`, and `sysdate()`.
-- **Per statement:** `statement_timestamp()`.
-- **Per transaction:** `now()`, `current_timestamp()`, `transaction_timestamp()`,
-  `current_date()`, `unix_timestamp()`, and `unix_timestamp_ms()`.
-- **Sequence functions:** `nextval`, `currval`, `lastval`, and `setval`.
+| Changes | Functions |
+| --- | --- |
+| On each call | `gen_id()`, `gen_uuid_v4()`, `gen_uuid_v7()`, `random()`, `gen_random_bytes(n)`, `clock_timestamp()`, `sysdate()` |
+| On each statement | `statement_timestamp()` |
+| On each transaction | `now()`, `current_timestamp()`, `transaction_timestamp()`, `current_date()`, `unix_timestamp()`, `unix_timestamp_ms()` |
+| On each call, with a sequence | `nextval`, `currval`, `lastval`, `setval` |
 
-Volatile functions such as `gen_id()` and `now()` work as column defaults. A
-per-call function is unsafe in a predicate that must stay stable across a
-scan.
+Volatile functions such as `gen_id()` and `now()` work as column defaults. Don't
+use a per-call function in a filter that must return the same rows each time.
 
-The [session functions](/docs/functions-session) vary by caller, not by row. See
-that page for how they interact with the result cache, `DEFAULT`, and `CHECK`.
+The result of a [session function](/docs/functions-session) depends on the
+caller. That page also covers their use in `DEFAULT` and `CHECK`.
 
-Most scalar functions evaluate their arguments before the call. `IF` and
-`CASE` evaluate only the selected result. Conditional result types can be
-checked before rows are read; see
-[conditional type rules](/docs/data-types#conditional-result-types).
+Most scalar functions evaluate all their arguments before the call. `IF` and
+`CASE` evaluate only the selected result. For the type rules of conditional
+results, see [conditional type rules](/docs/data-types#conditional-result-types).

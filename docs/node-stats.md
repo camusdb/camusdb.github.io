@@ -4,35 +4,36 @@ sidebar_position: 3.65
 
 # Node resource stats
 
-CamusDB exposes the disk, CPU, and memory state of the node that receives a
-request. This gives operators and monitoring systems a lightweight way to
-check whether a node has enough resources to keep serving traffic, especially
-whether its data volume is approaching the write-admission watermark.
+The node stats call returns the disk, CPU, and memory use of one node. Use it to
+alert before the data volume of a node gets too full. When the free space falls
+below the write watermark, writes on that node fail.
 
 - REST: `GET /v1/admin/stats`
 - gRPC: `CamusSql.GetNodeStats`
 
-The call is node-local, so query every node separately when you monitor a
-cluster. It reads cached samples and does not scan the database on the request
-path.
+The call returns the stats of the node that receives it. To monitor a cluster,
+call each node. The call reads cached samples, and it doesn't scan the database.
 
 ## Authorization
 
-With authentication disabled, anyone who can reach the endpoint can call it.
-With authentication enabled, the caller must be a superuser or hold the global
-`MONITOR` privilege:
+With authentication off, any client that can reach the endpoint can call it.
+With authentication on, the caller must be a superuser or have the global
+`MONITOR` privilege.
 
 ```camussql
 CREATE USER monitoring IDENTIFIED BY 'use-a-secret';
 GRANT MONITOR ON *.* TO monitoring;
 ```
 
-`MONITOR` is valid only on `*.*`. It is intentionally outside `ALL PRIVILEGES`
-and grants no access to application data. An account with only `MONITOR` sees no
-databases through `SHOW DATABASES`.
+You can grant `MONITOR` only `ON *.*`. Another target returns `CADB0515`.
+`ALL PRIVILEGES` doesn't include `MONITOR`, and `MONITOR` doesn't give access to
+application data. An account that has only `MONITOR` sees no databases in
+`SHOW DATABASES`.
 
-Other authenticated users receive `CADB0517 InsufficientPrivilege`, as HTTP
-`403` or gRPC `PERMISSION_DENIED`.
+| Caller | HTTP | gRPC |
+| --- | --- | --- |
+| A request that doesn't have a valid token | `401`, `CADB0516 AuthenticationFailed` | `UNAUTHENTICATED` |
+| A user that isn't a superuser and doesn't have `MONITOR` | `403`, `CADB0517 InsufficientPrivilege` | `PERMISSION_DENIED` |
 
 ## Call the endpoint
 
@@ -42,7 +43,7 @@ curl -s \
   https://db1.example.com:7141/v1/admin/stats
 ```
 
-With the .NET driver, over REST or gRPC:
+The .NET driver has the same call for REST and gRPC connections.
 
 ```csharp
 CamusNodeStats stats = await connection.GetNodeStatsAsync();
@@ -52,74 +53,89 @@ if (data is { BelowWatermark: true })
     Console.WriteLine("This node is refusing new writes");
 ```
 
-`GetNodeStatsAsync()` queries the next endpoint in the connection's rotation.
-Use `GetNodeStatsAsync(endpoint)` to ask a specific node. The endpoint must be
-one of the entries in the connection string's `Endpoint`.
+`GetNodeStatsAsync()` calls the next endpoint in the rotation of the
+connection. To call a given node, use `GetNodeStatsAsync(endpoint)`. The
+endpoint must be one of the entries in `Endpoint` in the connection string.
 
 ## Returned data
 
-The REST response uses camel-case field names. gRPC uses the corresponding
-snake-case protobuf fields.
+The REST response uses camelCase field names. gRPC uses the matching snake_case
+protobuf fields.
 
 ### Node identity
 
 | Field | Meaning |
 | --- | --- |
-| `nodeId` | The node's id within the cluster. It can be empty early during startup. |
-| `endpoint` | The node's internal cluster address. |
-| `version` | Server version and build commit. |
-| `clusterMode` | Whether the node runs in cluster mode. |
-| `uptimeSeconds` | Whole seconds since process startup. |
-| `sampledAtUnixMs` | Time when the reply was assembled. |
+| `nodeId` | The id of the node in the cluster. It can be empty early in startup. |
+| `endpoint` | The internal cluster address of the node. |
+| `version` | The server version and the build commit, for example `0.18.4+f45cffac...`. |
+| `clusterMode` | `true` in cluster mode. |
+| `uptimeSeconds` | The seconds since the process started. |
+| `sampledAtUnixMs` | The time when the response was built. |
 
 ### Disk volumes
 
-The first disk entry has role `data`. A second entry with role `wal` appears
-when the [write-ahead log](/docs/concepts#wal) (WAL) directory is mounted on
-another volume.
+The first entry in `disks` has the role `data`. A second entry with the role
+`wal` is added when the [write-ahead log](/docs/concepts#wal) (WAL) directory is
+on a different volume.
 
 | Field | Meaning |
 | --- | --- |
-| `role`, `path`, `mountPoint` | The role and location of the measured volume. |
-| `totalBytes`, `freeBytes`, `availableBytes`, `usedBytes` | Capacity and currently available space. |
-| `minFreeDiskBytes` | The write-admission watermark for the data volume. |
-| `belowWatermark` | Whether this node currently refuses new writes for insufficient space. |
-| `engineBytes` | Bytes occupied by the storage engine and, when colocated, its WAL. |
+| `role` | `data` or `wal`. |
+| `path` | The directory that is measured. |
+| `mountPoint` | The mount point of the volume. |
+| `totalBytes` | The size of the volume. |
+| `freeBytes` | The free space on the volume. |
+| `availableBytes` | The free space that the CamusDB process can use. |
+| `usedBytes` | The used space on the volume. |
+| `minFreeDiskBytes` | The write watermark (`min_free_disk_bytes`). |
+| `belowWatermark` | `true` when new writes on this node fail for lack of space. |
+| `engineBytes` | The size of the storage engine files. On the `data` entry, it includes the WAL when the WAL is on the same volume. |
 
-`belowWatermark` comes from the same probe used by the write gate. When it is
-true, writes fail with `CADB0536 InsufficientDiskSpace`; reads, DDL, and `DROP`
-remain available so an operator can investigate or free space. Alert before
-that point, for example when available space falls below several times the
-configured watermark.
+`belowWatermark` uses the same disk reading as the write check. While it is
+`true`, a DML statement returns `CADB0536 InsufficientDiskSpace`. This includes
+`DELETE`. Reads and DDL work, for example `DROP TABLE` and
+`TRUNCATE TABLE`. `CREATE TABLE ... AS SELECT` writes rows, and it returns
+`CADB0536`. You should alert before that point, for example when
+`availableBytes` falls below a few times `minFreeDiskBytes`. For the setting,
+see [`min_free_disk_bytes`](/docs/settings-reference).
+
+The write check watches only the data volume. On the `wal` entry,
+`minFreeDiskBytes` is `0` and `belowWatermark` is `false`. If the WAL is on a
+separate volume, alert on its `availableBytes`.
 
 ### CPU
 
 | Field | Meaning |
 | --- | --- |
-| `processCpuPercent` | Process CPU as a percentage of the whole node. |
-| `processCpuWindowMs` | Sampling window, normally 60 seconds. |
-| `processorCount` | Processors visible to .NET, including container CPU limits. |
-| `loadAverage1m`, `loadAverage5m`, `loadAverage15m` | Host load averages on Linux and macOS. |
+| `processCpuPercent` | The CPU use of the process, as a percentage of all the processors of the node. |
+| `processCpuWindowMs` | The time window of `processCpuPercent`. It is 60 seconds, and shorter in the first minute after startup. |
+| `processorCount` | The processors that .NET can use. A container CPU limit is applied. |
+| `loadAverage1m`, `loadAverage5m`, `loadAverage15m` | The load averages of the host. They are available on Linux and macOS. |
 
 ### Memory
 
 | Field | Meaning |
 | --- | --- |
-| `processWorkingSetBytes` | Resident memory of the CamusDB process. |
-| `gcHeapBytes` | Managed heap size. |
-| `gcCommittedBytes` | Memory committed by the garbage collector. |
-| `gcMemoryLimitBytes` | Effective managed heap limit. `0` means no limit is configured. |
-| `hostTotalBytes`, `hostAvailableBytes` | Memory available to the node, respecting Linux cgroup limits. |
+| `processWorkingSetBytes` | The resident memory of the CamusDB process. |
+| `gcHeapBytes` | The size of the managed heap. |
+| `gcCommittedBytes` | The memory that the garbage collector has committed. |
+| `gcMemoryLimitBytes` | The limit of the managed heap. `0` means that no limit is set. |
+| `hostTotalBytes`, `hostAvailableBytes` | The memory of the node. A Linux cgroup limit is applied. |
 
-## Missing measurements and sample age
+## Missing values and sample age
 
-A measurement that the node cannot read is `-1`, never `0`. The `errors`
-array identifies the field and explains why it was unavailable. One failed
-probe does not fail the whole response.
+A value that the node can't read is `-1`. This means that you can tell a
+missing value from a real `0`. Each entry in the `errors` array has a `field`,
+such as `cpu.load_average_1m`, and a `message` with the reason. A failed probe
+doesn't fail the response.
 
-Disk capacity is at most two seconds old. CPU, load, and host memory samples are
-at most five seconds old. Engine size and mount layout are refreshed every 60
-seconds. Working-set and GC values come directly from the runtime.
+| Values | Age |
+| --- | --- |
+| Disk space and `belowWatermark` | At most 2 seconds |
+| CPU, load averages, and host memory | At most 5 seconds |
+| `engineBytes` and `mountPoint` | At most 60 seconds |
+| `processWorkingSetBytes`, `gcHeapBytes`, `gcCommittedBytes` | Read at the time of the call |
 
 ## Related pages
 
@@ -128,4 +144,3 @@ seconds. Working-set and GC values come directly from the runtime.
 - [.NET driver](/docs/dotnet-driver)
 - [Operator dashboard](/docs/operator-dashboard)
 - [Spill to disk](/docs/spill-to-disk)
-

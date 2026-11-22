@@ -77,9 +77,14 @@ SELECT COUNT(*) FROM accounts;
 COMMIT;
 ```
 
-All queries use one snapshot fixed at `BEGIN`. Later commits stay invisible,
-and the reads take no locks. You can keep that snapshot across requests by
-resuming the same transaction ID.
+All queries use one snapshot, fixed when `SET TRANSACTION` executes. A
+transaction that you start read-only from the client fixes it when it starts.
+Later commits stay invisible, and the reads take no locks. You can keep that
+snapshot across requests by resuming the same transaction ID.
+
+A statement that changes data or schema in a read-only transaction returns
+`CADB0849` (`ReadOnlyTransaction`).
+For more information, see [Read-only transactions](/docs/sql-transactions#read-only-transactions).
 
 Use a **serializable read-write transaction** when a later write depends on an
 earlier read. CamusDB protects the rows and scanned ranges you read, including

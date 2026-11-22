@@ -11,9 +11,9 @@ image: /img/temple.png
 
 ![Data temple order](/img/temple.png)
 
-If your queries join five, ten or fifteen tables, CamusDB now plans them
-better and runs them faster. This post explains what changed in plain terms,
-so you can see what to expect from your own queries.
+If your queries join five, ten or fifteen tables, they now get better plans
+and finish faster in CamusDB. This post explains what changed and what to
+expect from your own queries.
 
 A join query names its tables and its conditions. It does not say in which
 order to join the tables. The database picks the order, and the order decides
@@ -39,72 +39,73 @@ In short, the planner finds the cheapest plan for small groups of tables first
 and reuses those plans for larger groups.
 
 Our first run of the 113 JOB queries used synthetic movie data at 1/1000 of
-the real size. SQLite ran the same rows as an independent check. Every CamusDB
-result matched. But 25 queries did not finish in 30 seconds, and the full run
-took 1,159 seconds. Every plan contained a cross product, a join of every row
-against every row.
+the real size. SQLite ran the same rows as an independent check. All the
+CamusDB results matched. But 25 queries did not finish in 30 seconds, and the
+full run took 1,159 seconds. All the plans contained a cross product, a join
+of all the rows of one table with all the rows of another.
 
-The executor was fine. We put the tables of two queries in a good order by
-hand. One query went from 10 seconds to 0.4 seconds. Another went from a
-timeout to 40 milliseconds. The planner did not find the order on its own.
+The cause was the planner, which did not find a good order. We put the
+tables of two queries in a good order by hand. One query went from 10 seconds
+to 0.4 seconds. Another went from a timeout to 40 milliseconds.
 
 ## Six planner changes
 
-Six changes made the difference. Each one stands on its own and applies to
-every join query, including queries outside the benchmark.
+Each of the six changes is independent and applies to all join queries,
+including queries outside the benchmark.
 
-**The planner reads every condition on its own.** A JOB query lists its tables
+**The planner reads each condition separately.** A JOB query lists its tables
 with commas and puts all conditions in `WHERE`. The old planner grouped the
 conditions as the query wrote them. A table whose only link came through a
-later table looked unconnected, so the planner joined it with a cross product.
-The planner now reads each condition on its own and finds the links between
-tables wherever they are. No JOB plan has a cross product today. The run went
-from 1,159 seconds to 184 seconds, with no timeouts.
+later table looked unconnected, and the planner joined it with a cross
+product. The planner now reads each condition separately and finds the links
+between tables wherever they are. No JOB plan has a cross product today. The
+run went from 1,159 seconds to 184 seconds, and no query timed out.
 
 **One estimate per group of tables.** To compare two orders, the planner
 estimates how many rows each step produces. JOB queries name the same movie
-through up to six columns and write every pair of them as equal. The old
+through up to six columns and write all pairs of them as equal. The old
 estimator treated each of those fifteen equalities as a separate filter and
-multiplied the estimate down to almost nothing. The new estimator sees one
+multiplied the estimate down to almost zero. The new estimator sees one
 fact: these six columns hold the same value. The run went from 184 seconds to
 9.5 seconds.
 
-**Wide joins get the full search.** The search compares every group of tables
-that an order can build. That number grows fast, so the old search stopped at
-12 tables and used a simple rule above that. Nine JOB queries have 14 or 17
+**Wide joins get the full search.** The search compares all the groups of
+tables that an order can build. That number grows fast, and the old search
+stopped at 12 tables and used a simple rule above that. Nine JOB queries have 14 or 17
 tables. The search now skips the groups that no order can build, which are
 most of them, and plans joins of up to 30 tables. Past a budget of steps it
-takes a fast greedy order instead of a slow search.
+takes a fast greedy order and stops the slow search.
 
 **Statistics that see popular values.** The planner sizes a join from the
-number of distinct values in the join column. That formula assumes every value
-is as common as every other. Real data is not like that: one movie has
-thousands of cast rows and most have a few. `ANALYZE` now keeps the most
+number of distinct values in the join column. That formula assumes that all
+values are equally common. In real data, some values are much more common:
+one movie has thousands of cast rows and most have a few. `ANALYZE` now stores the most
 common values of each column with their counts, and the planner uses them. It
-also records how many rows hold NULL, because a NULL key joins with nothing.
+also records how many rows contain NULL, because a NULL key matches no row.
 When a query filters a small lookup table down to one row, the planner reads
 that row before it plans. It then prices the join by the popularity of that
 key.
 
-**Each lookup costs less.** With a good order, a join runs as a chain of index
+**Each lookup costs less.** With a good order, a join is a chain of index
 lookups. For each row on the left, the join finds the rows on the right that
 match. The old
 lookup asked the store for a page of 512 index entries and used 11 of them on
-average. The lookup now stops at the entries of its key. The join also keeps
-the rows of each key it found, so a repeated key costs nothing. And it sends a
-page of left rows to the store in one request instead of one request per row.
+average. The lookup now stops at the entries of its key. The join also remembers
+the rows of each key it found, which makes a repeated key free. And it sends a
+page of left rows to the store in one request, where the old join sent one
+request per row.
 
 **A test that watches plan quality.** A correctness test does not catch a
 planner that returns the right rows and reads ten times more data to do it. A
-new test suite runs a fixed set of queries on fixed data and counts the rows
+new test suite has a fixed set of queries on fixed data and counts the rows
 and lookups of each plan. It compares the counts with a baseline file in git
 and fails when a query's work grows by more than half. The JOB queries run
-every night, and every result is checked against SQLite.
+each night, and each result is checked against SQLite.
 
 ## Benchmark results
 
 Work is the number of rows read, key lookups and index entries scanned over
-the whole plan, at a scale of about 225,000 rows.
+the plan, at a scale of about 225,000 rows.
 
 | Baseline | Total work, 113 queries | Largest estimate error |
 | --- | ---: | ---: |
@@ -112,16 +113,16 @@ the whole plan, at a scale of about 225,000 rows.
 | Current | 1,007,752 | 1,240x |
 
 The engine does one sixth of the work it did at the first baseline, for the
-same results. The same test on the same laptop ran the 113 queries in 51
-seconds before the lookup changes and runs them in 7.9 seconds today. No query takes more than a
+same results. The same test on the same laptop took 51 seconds for the 113
+queries before the lookup changes and takes 7.9 seconds today. No query takes more than a
 second. The three 17-table queries took 4 to 5 seconds each and now run in
 under 15 milliseconds.
 
 The [plan quality page](/docs/plan-quality-testing#comparison-with-sqlite-and-postgresql)
 in the docs compares the three engines on the same rows with warm runs.
 CamusDB takes 1.5 seconds, SQLite 7.2 seconds and PostgreSQL 0.74 seconds.
-CamusDB runs as an embedded node on a transactional key-value store, so read
-these times as a reference point. Before this work, 25 of these queries did not
+CamusDB is an embedded node on a transactional key-value store in this test.
+Read these times as a reference point. Before this work, 25 of these queries did not
 finish at all.
 
 ## Effect on queries outside the benchmark
@@ -131,57 +132,58 @@ them visible at the same time.
 
 The shape of a JOB query is common. One large table links to many small ones,
 and the filters sit on the small ones. That is a star schema, and most
-applications have one:
+applications have one.
 
 - An online store joins orders to customers, products, categories, warehouses
   and shipments. A report filters on one category or one month.
 - A ledger joins transactions to accounts, counterparties, currencies and
   instruments. A statement filters on one account and a date range.
 - A multi-tenant product joins events to tenants, users, projects and plans.
-  Every query filters on one tenant.
+  All queries filter on one tenant.
 - A game backend joins players, inventories, items, trades and guilds. A
   player's screen filters on one player.
 
-The data behind those tables is skewed, has NULLs, and repeats its keys:
+The data behind those tables is skewed, has NULLs, and repeats its keys.
 
 - A few products appear in most orders. A few accounts hold most of the
   transactions. One tenant can hold half of the rows. A planner that prices
-  every value alike plans for the average and then meets the largest customer.
+  all values alike plans for the average and then meets the largest customer.
 - Foreign keys are often NULL: an order without a coupon, a transaction
   without a counterparty, an item without an owner. An estimate that ignores
   NULLs is wrong by the NULL share.
-- Keys repeat. Every line of an order carries the same order id, and every row
-  of an inventory carries the same owner. A lookup that remembers its answers
-  runs once per key.
+- Keys repeat. All the lines of an order carry the same order id, and all the
+  rows of an inventory carry the same owner. A lookup that remembers its
+  answers happens once per key.
 - Nobody writes a `FROM` list in the best order, and an ORM or a report
   builder writes it in no order at all. The planner has to find it.
 
-The last point matters most for CamusDB. The store is distributed, so each
-lookup can be a network round trip. A plan that looks up a thousand times
+The last point matters most for CamusDB, because the store is distributed and
+each lookup can be a network round trip. A plan that looks up a thousand times
 where ten would do is slow by the latency of the cluster.
 
 ## Six properties of a robust optimizer
 
-These six properties keep the optimizer robust outside the benchmark:
+These six properties keep the optimizer robust outside the benchmark.
 
-1. **Results never change.** SQLite checks every plan on every nightly run. A
-   plan that changes results is a bug.
+1. **Results do not change.** SQLite checks all plans each night. A plan
+   that changes results is a bug.
 2. **The search is bounded.** The step budget and the greedy fallback keep
    planning time small at any width. The 17-table queries plan in 9 to 16
    milliseconds.
 3. **The same query gets the same plan.** Two orders of equal cost keep the
    order the user wrote.
-4. **Missing statistics lead to a fallback order.** Without statistics the
-   planner uses a simple order and still removes avoidable cross products.
+4. **Missing statistics lead to a fallback order.** When statistics are
+   missing, the planner uses a simple order and removes avoidable cross
+   products.
 5. **The plan is visible.** `EXPLAIN (ANALYZE)` shows the order the search
    chose, its estimate next to the actual rows, and the lookups each join saved.
-6. **Regressions are caught before merge.** The plan quality test runs on every
-   pull request.
+6. **Regressions are caught before merge.** The plan quality test is part of
+   each pull request.
 
 ## Remaining gaps
 
 PostgreSQL executes the corpus five times faster, and the gap is in the
-executor, not in the planner. The search considers one shape of plan, a chain
+executor. The search considers one shape of plan, a chain
 that adds one table at a time. Plans that join two groups of tables, and a
 search below an outer join, are not there yet. The worst estimate error is
 still above 1,000x on one query.

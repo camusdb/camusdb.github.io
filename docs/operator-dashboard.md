@@ -7,12 +7,11 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 
 # Operator dashboard
 
-Open a CamusDB node's HTTP port in a browser to see a read-only operator
-dashboard. It shows node health, load, engine metrics, databases, relations,
-backups, slow queries, and the resolved configuration of that node.
+Each CamusDB node serves a read-only operator dashboard on its HTTP port. Open
+the port in a browser to see the health and the slow queries of the node, with
+no extra tools to install.
 
-The dashboard does not run DML or DDL. It opens no coordinated transaction and
-offers no action that changes the database.
+The dashboard doesn't run DML or DDL, and it can't change the database.
 
 <ThemedImage
   alt="CamusDB operator dashboard"
@@ -33,90 +32,90 @@ dashboard_refresh_seconds: 2
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `dashboard_enabled` | `true` | Serve the dashboard pages and `/v1/dashboard/*` endpoints. |
-| `dashboard_refresh_seconds` | `2` | Browser refresh cadence for the load panel. Clamped from 1 to 300 seconds. |
+| `dashboard_enabled` | `true` | Serve the dashboard pages and the `/v1/dashboard/*` endpoints. |
+| `dashboard_refresh_seconds` | `2` | How often the browser refreshes the load panel, from 1 to 300 seconds. |
 
-Set `dashboard_enabled: false` to remove the surface entirely. The pages and
-dashboard endpoints then return 404.
+With `dashboard_enabled: false`, the pages and the dashboard endpoints return
+404.
 
 ## What it shows
 
-| Area | Content |
+| Panel | Content |
 | --- | --- |
-| Node | Endpoint, role, readiness, mode, auth state, version, uptime, and data directory. |
-| Load | In-flight requests, open transactions, prepared statements, retained bytes, and the [partitions](/docs/concepts#partition) (slices of the data) that this node hosts. |
-| Engine | Request and statement rates, commit duration, cache hit rates, and counters for [Raft](/docs/concepts#raft) consensus, the write-ahead log, and storage. |
-| Cluster | Committed membership roster. |
-| Databases | Database ids, branch parents, and whether this node currently has each database loaded. |
-| Relations | Tables and views for the selected database. |
-| Backups | Recent backups with kind and size. |
-| Slow queries | Recent entries from `SHOW SLOW QUERIES`. |
-| Configuration | Effective `SHOW VARIABLES` output for this node. |
-| Overlay | Live `SHOW CLUSTER SETTINGS` entries. |
+| Node | The endpoint, role, readiness, mode, version, uptime, and data directory. |
+| Load | In-flight requests, open transactions, and the [partitions](/docs/concepts#partition) that the node hosts. |
+| Engine | Request rates, commit duration, cache hit rates, and counters for [Raft](/docs/concepts#raft), the write-ahead log, and storage. |
+| Cluster | The committed list of cluster members. |
+| Databases | The databases, their branch parents, and whether each one is loaded on this node. |
+| Relations | The tables and views of the selected database. |
+| Backups | Recent backups, with their kind and size. |
+| Slow queries | Recent entries of the [slow query log](/docs/slow-query-log). |
+| Configuration | The `SHOW VARIABLES` output of this node. |
+| Overlay | The `SHOW CLUSTER SETTINGS` entries. |
 
-Each panel refreshes independently and fails independently. One failing panel
-does not stop the rest of the page.
+Each panel refreshes separately. If one panel fails, the other panels continue
+to work.
 
 ## Authentication
 
-With authentication enabled, a browser at `/` redirects to `/SignIn`. The form
-exchanges the password for a short-lived token and stores it in an HTTP-only
-`__Host-camus_session` cookie for dashboard routes.
+With authentication enabled, a browser at `/` is redirected to `/SignIn`. The
+sign-in form gets a short-lived token for the password, and stores it in the
+`__Host-camus_session` cookie.
 
-The cookie is `HttpOnly`, `SameSite=Strict`, and always `Secure`. The `__Host-`
-prefix also requires `Path=/` and no `Domain`, so another host on the same
-registrable domain cannot write a cookie that this dashboard reads.
+The cookie is `HttpOnly`, `SameSite=Strict`, and `Secure`. The `__Host-` prefix
+requires `Path=/` and no `Domain`. This means that another host on the same
+domain can't set a cookie that the dashboard reads.
 
-Because the cookie is always `Secure`, the dashboard needs HTTPS or loopback
-when authentication is enabled. Browsers treat loopback as a secure context, so
-local development still works. A plaintext remote connection cannot keep the
-cookie and therefore cannot complete sign-in.
+Because the cookie is `Secure`, sign-in needs HTTPS or loopback. Browsers treat
+loopback as secure, and local development works. Over a plaintext remote
+connection, the browser doesn't keep the cookie, and sign-in fails.
 
-The cookie authenticates dashboard pages and `/v1/dashboard/*` only. SQL and row
-APIs still require an `Authorization: Bearer ...` header.
+The cookie authenticates the dashboard pages and `/v1/dashboard/*` only. SQL
+and row APIs need an `Authorization: Bearer ...` header.
 
-With authentication disabled, the dashboard is loopback-only because there is no
-principal to check. Enable authentication to expose it from another machine.
+With authentication disabled, the dashboard works from loopback only. A request
+from another address returns 403 with `CADB0517`. To use the dashboard from
+another machine, enable [authentication](/docs/sql-authentication).
 
 ## Browser security headers
 
 Dashboard pages and the error page include a content security policy,
 `X-Frame-Options: DENY`, and `X-Content-Type-Options: nosniff`. The content
-security policy allows inline scripts only with a per-request nonce. JSON
-endpoints do not carry the page policy.
+security policy allows inline scripts only with a nonce for each request. The
+JSON endpoints don't send the page policy.
 
 ## Permissions
 
-Non-superusers can open the dashboard, but these panels require a superuser:
+All authenticated users can open the dashboard. However, the following panels
+need a superuser:
 
-- Engine, because it runs `SHOW ENGINE STATS`.
-- Configuration, because it runs `SHOW VARIABLES` and `SHOW CLUSTER SETTINGS`.
-- Slow queries, because entries include SQL text submitted by other users.
-- Cluster, because it names the addresses of other nodes, partitions, and
-  [leaders](/docs/concepts#leader).
+| Panel | Reason |
+| --- | --- |
+| Engine | It reads `SHOW ENGINE STATS`. |
+| Configuration | It reads `SHOW VARIABLES` and `SHOW CLUSTER SETTINGS`. |
+| Slow queries | The entries contain the SQL of other users. |
+| Cluster | It shows the addresses of other nodes. |
 
-Other panels use the caller's ordinary grants. The database list is filtered to
-databases that the user may reach.
+For other users, these panels return 403 with `CADB0517`. The other panels use
+the grants of the user. For example, the database list shows only the databases
+that the user can reach.
 
 ## Slow queries panel
 
-The slow queries panel reads [the slow query log](/docs/slow-query-log). It
-shows duration, rows read, rows returned, full-scan flags, spill flags, outcome,
-and statement text. It also indicates when the ring has wrapped and older
-entries were overwritten.
+The slow queries panel reads the [slow query log](/docs/slow-query-log). For
+each statement, it shows the duration and the text, and flags for full scans
+and spills to disk. It also shows when old entries were overwritten.
 
-Polling the panel does not pollute the log. `SHOW SLOW QUERIES` is never
-recorded as a slow query.
+`SHOW SLOW QUERIES` isn't recorded in the log. This means that the panel doesn't
+add entries to it.
 
 ## Limits
 
-- Every value is node-local. Open the dashboard on each node for a fleet view.
-- Counters accumulate from process start. Rates appear after the second refresh.
-- The dashboard stores no history and raises no alerts.
-- If `engine_metrics_enabled` is false, the Engine panel reports that metrics
-  are disabled.
-- If `slow_query_log_enabled` is false, the Slow queries panel reports that the
-  log is disabled.
+- All values are node-local. To see all nodes, open the dashboard on each node.
+- Counters start at process start. Rates appear after the second refresh.
+- The dashboard doesn't store history or send alerts.
+- If `engine_metrics_enabled` is `false`, the Engine panel shows that metrics are
+  disabled. The same applies to the Slow queries panel and
+  `slow_query_log_enabled`.
 
-For alerting, history, and cluster-wide aggregation, use the Prometheus or
-OpenTelemetry diagnostics export.
+For alerts and history, use the Prometheus or OpenTelemetry export.

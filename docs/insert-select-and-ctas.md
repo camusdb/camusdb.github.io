@@ -4,76 +4,150 @@ sidebar_position: 2.35
 
 # Copying query results
 
-Two statements write a query's result into a table in one step, without
-sending every row to the client and back:
+Two statements write the result of a query into a table in one step. The rows
+stay on the server, and the client doesn't fetch and resend them:
 
 - `INSERT INTO ... SELECT` copies query results into an existing table.
 - `CREATE TABLE ... AS SELECT` (CTAS) creates a new table from query results.
 
-Use them to archive closed orders, backfill a new table, build a summary table,
-or recover rows from before a bad `UPDATE`.
+Use them to archive old orders, build a summary table, or recover rows from
+before a bad `UPDATE`.
 
-Both use the familiar PostgreSQL and MySQL forms. In CamusDB, the source can
-also read the past with [time travel](#time-travel-recover-historical-data),
-which turns a copy into a recovery tool.
+Both statements use the same syntax as PostgreSQL and MySQL. In CamusDB, the
+source can also read a past state of the data with
+[time travel](#time-travel-recover-historical-data), which makes a copy a
+recovery tool.
+
+The examples on this page use the following data:
+
+<details>
+<summary>Sample data for the examples on this page</summary>
+
+```camussql
+CREATE TABLE orders (
+  id OID PRIMARY KEY NOT NULL DEFAULT (gen_id()),
+  customer STRING NOT NULL,
+  total NUMERIC NOT NULL,
+  status STRING NOT NULL,
+  created_at DATETIME NOT NULL
+);
+
+CREATE TABLE archived_orders (
+  id OID PRIMARY KEY NOT NULL,
+  customer STRING NOT NULL,
+  total NUMERIC NOT NULL,
+  status STRING,
+  created_at DATETIME
+);
+
+INSERT INTO orders (customer, total, status, created_at) VALUES
+  ('acme', 45.00, 'cancelled', '2025-12-03T09:15:00Z'),
+  ('globex', 75.50, 'closed', '2026-02-10T14:30:00Z'),
+  ('initech', 320.00, 'open', '2026-03-15T11:00:00Z'),
+  ('acme', 180.00, 'open', '2026-04-02T16:45:00Z'),
+  ('umbrella', 60.00, 'open', '2026-04-20T08:05:00Z');
+
+CREATE TABLE inventory (
+  sku STRING NOT NULL,
+  quantity INT64 NOT NULL DEFAULT (0),
+  location STRING,
+  PRIMARY KEY (sku)
+);
+
+INSERT INTO inventory (sku, quantity, location) VALUES
+  ('KETTLE-01', 5, 'A1'),
+  ('MUG-02', 40, 'B3');
+
+CREATE TABLE stock_import (
+  sku STRING NOT NULL,
+  quantity INT64 NOT NULL,
+  PRIMARY KEY (sku)
+);
+
+INSERT INTO stock_import (sku, quantity) VALUES
+  ('KETTLE-01', 12),
+  ('TEAPOT-03', 7);
+
+CREATE TABLE pairs (
+  id INT64 PRIMARY KEY NOT NULL,
+  a INT64,
+  b INT64
+);
+
+INSERT INTO pairs (id, a, b) VALUES (1, 10, 20);
+
+CREATE TABLE payments (
+  id INT64 PRIMARY KEY NOT NULL,
+  amount NUMERIC NOT NULL
+);
+```
+
+</details>
+
+## Quick example
 
 ```camussql
 -- Copy rows between tables
 INSERT INTO archived_orders (id, customer, total)
 SELECT id, customer, total FROM orders WHERE created_at < '2026-01-01';
 
--- Copy every column, in schema order
+-- Copy all columns, in schema order
 INSERT INTO archived_orders SELECT * FROM orders WHERE status = 'closed';
 
--- Build a new table from a query's result
+-- Build a new table from the result of a query
 CREATE TABLE order_totals AS
 SELECT customer, SUM(total) AS total_spent FROM orders GROUP BY customer;
 
--- Structure only, no rows
+-- Copy the structure, with no rows
 CREATE TABLE IF NOT EXISTS orders_empty AS SELECT * FROM orders WITH NO DATA;
 ```
 
-The source is an ordinary `SELECT`. Joins, `GROUP BY`, `DISTINCT`, subqueries,
-`ORDER BY`, `LIMIT`, `OFFSET`, and parameters work exactly as they do in a
-standalone query. The source can also be a plain [view](/docs/views), including
-when CTAS uses WITH NO DATA. Reading a view as a source does not make the
-view itself writable.
+The source query can use the same features as a standalone `SELECT`, including
+joins and parameters. The source can also be a [view](/docs/views). Reading a view doesn't make the view writable.
 
 ## INSERT INTO ... SELECT
 
-CamusDB matches columns by position, never by name. The source's k-th output
-column feeds the k-th target column, whatever their names:
+Columns match by position. The first output column of the source goes into the
+first target column, whatever their names are:
 
 ```camussql
--- b's values land in a, and a's in b
-INSERT INTO pairs (a, b) SELECT b, a FROM pairs;
+-- copies b into a, and a into b
+INSERT INTO pairs (id, a, b) SELECT id + 100, b, a FROM pairs;
 ```
 
-Both lists must have the same number of columns. CamusDB rejects a mismatch
-before the query runs.
+```text
+┌─────┬────┬────┐
+│ id  │ a  │ b  │
+├─────┼────┼────┤
+│ 1   │ 10 │ 20 │
+│ 101 │ 20 │ 10 │
+└─────┴────┴────┘
+```
 
-Without an explicit column list, the target is every column of the table, in
-schema order. `INSERT ... VALUES` uses the same rule.
+The two lists must have the same number of columns. A mismatch returns error
+`CADB0400` before the query is executed. If you omit the column list, the target
+is all columns of the table, in schema order, as with `INSERT ... VALUES`.
 
-CamusDB coerces each value to the target column's declared type. Target columns
-that the statement does not name take their defaults. A default that calls a
-function, such as `gen_uuid_v7()`, runs once per row, so each row gets its own
-value.
+Each value is converted to the type of its target column. Target columns that
+the statement doesn't name get their defaults. A default that calls a function,
+such as `gen_uuid_v7()`, is evaluated for each row, and each row gets a
+different value.
 
-CamusDB enforces `NOT NULL`, `CHECK`, unique indexes, and TTL exactly as it
-does for `INSERT ... VALUES`, because the rows go through the same insert path.
+The rows go through the same insert path as `INSERT ... VALUES`. `NOT NULL`,
+`CHECK`, unique indexes, and TTL apply in the same way.
 
-The statement is all-or-nothing: a violation on one row aborts the whole
-statement. The result is the number of inserted rows. An empty source succeeds
-with a count of `0`.
+The statement is atomic. If one row violates a constraint, no rows are
+inserted. The result is the number of inserted rows, and an empty source
+returns `0`.
 
-An `ORDER BY` in the source is valid but means nothing for storage. CamusDB
-stores rows by a generated row id, not in insert order.
+An `ORDER BY` in the source is allowed, but it doesn't set the order in which
+rows are stored.
 
 ### Handle existing keys
 
-Place `ON CONFLICT` after the source query to skip duplicates or update stored
-rows. For example, import a stock snapshot while preserving other columns:
+Put `ON CONFLICT` after the source query to skip or update rows that already
+exist. For example, import a stock snapshot and leave the other columns as they
+are:
 
 ```camussql
 INSERT INTO inventory (sku, quantity)
@@ -82,159 +156,175 @@ ON CONFLICT (sku) DO UPDATE SET quantity = excluded.quantity
 RETURNING sku, quantity;
 ```
 
-The target needs a matching unique index. `UPSERT INTO inventory (sku,
-quantity) SELECT ...` is the primary-key shorthand. See
-[conflict handling](/docs/sql-writes#on-conflict) for duplicate-input rules,
-privileges, and triggers.
+```text
+┌───────────┬──────────┐
+│ sku       │ quantity │
+├───────────┼──────────┤
+│ KETTLE-01 │ 12       │
+│ TEAPOT-03 │ 7        │
+└───────────┴──────────┘
+Query OK, 2 rows affected (00:00:00.0094279)
+```
+
+The statement updated the `KETTLE-01` row and left its location unchanged. Then
+it inserted `TEAPOT-03`.
+
+The target needs a unique index on the conflict columns.
+`UPSERT INTO inventory (sku, quantity) SELECT ...` is a shorter form for the
+primary key. For duplicate input rows, privileges, and triggers, see
+[conflict handling](/docs/sql-writes#on-conflict).
 
 ### Copy a table into itself
 
-`INSERT INTO t SELECT ... FROM t` is supported and terminates. The engine reads
-the whole source before it writes the first row, so the scan cannot see the rows
-the statement inserts.
+`INSERT INTO t SELECT ... FROM t` reads the full source before it writes the
+first row. This means that the statement doesn't read the rows it inserts, and
+it always ends.
 
-### Limits
+### Size limit and locks
 
-A transaction cannot insert more rows than `max_mutations_per_transaction`
-(default 20,000), and this statement respects that bound.
+A transaction can insert at most `max_mutations_per_transaction` rows (default
+20,000). A larger copy returns `CADB0506`. Split the copy into several
+transactions with a `WHERE` clause or a `LIMIT`. A value of `0` or less disables
+the [mutation limit](/docs/transaction-limits#mutation-limit).
 
-A larger copy fails with `CADB0506`. Split the copy with a `WHERE` clause or a
-`LIMIT`, and run it in several transactions.
-
-While the copy runs, CamusDB locks the rows it reads against concurrent writers
-until the transaction ends. Because the source scan decides what CamusDB writes,
-the scan holds exclusive locks over the entire key range it scanned. A large
-copy blocks writes to that range until it commits. A time travel source is
-exempt; see below.
+During the copy, CamusDB locks the key range that the source scan read.
+Concurrent writes to that range wait until the transaction ends, and a large
+copy can block writers for a long time. A
+[time travel](#time-travel-recover-historical-data) source doesn't take these
+locks.
 
 ## CREATE TABLE ... AS SELECT
 
-The new table's columns are the source query's output columns, with the types
-the query would report to a client.
+The new table gets the output columns of the source query, with the types that
+the query returns to a client. For the `order_totals` table from the quick
+example:
 
-Nothing else is inherited: no indexes, `CHECK` constraints, `NOT NULL`,
-defaults, comments, or table settings. CamusDB uses only the shape of the
-result.
+```camussql
+SHOW COLUMNS FROM order_totals;
+```
 
-Add `WITH NO DATA` to create the table without loading any rows. `WITH DATA` is
-the default.
+```text
+┌─────────────┬─────────┬──────┬─────┬──────────┬───────┐
+│ Field       │ Type    │ Null │ Key │ Default  │ Extra │
+├─────────────┼─────────┼──────┼─────┼──────────┼───────┤
+│ id          │ OID     │ NO   │ PRI │ gen_id() │       │
+│ customer    │ STRING  │ YES  │     │ NULL     │       │
+│ total_spent │ NUMERIC │ YES  │     │ NULL     │       │
+└─────────────┴─────────┴──────┴─────┴──────────┴───────┘
+```
 
-With `IF NOT EXISTS`, if the table already exists, the statement does nothing
-and CamusDB never runs the source query.
+The new table doesn't inherit indexes, `CHECK` constraints, `NOT NULL`
+constraints, defaults, comments, or table settings from the source tables.
+
+`WITH NO DATA` creates the table and loads no rows. `WITH DATA` is the default.
+With `IF NOT EXISTS`, if the table exists, the statement has no effect and the
+source query isn't executed.
+
+A parameter in the select list gives its column the type of the supplied value.
+For example, a FLOAT64 `@price` in `SELECT @price AS price` creates a FLOAT64
+column. A NULL parameter creates a STRING column. Write `CAST(@price AS FLOAT64)`
+when the type must be fixed. `INSERT ... SELECT` uses the parameter values in
+the same way to determine the types of the source expressions.
 
 ### Primary key
 
-A query result has no key of its own, but every CamusDB table needs one, so
-CamusDB synthesizes one: a leading column `id oid NOT NULL DEFAULT gen_id()`.
-The source does not fill that column.
+Each CamusDB table needs a primary key, and a query result doesn't have one.
+CTAS adds a first column, `id OID NOT NULL DEFAULT gen_id()`, as the primary
+key. The source doesn't fill it. If the query already returns a column named
+`id`, the key column is named `id2`, then `id3`, and so on.
 
-If the query already outputs a column named `id`, the synthesized column
-becomes `id2`, then `id3`, and so on.
+CamusDB doesn't use a column from the query as the key, because query results
+can repeat values. To use a key of your choice, create the table first and then
+fill it with `INSERT INTO ... SELECT`.
 
-CamusDB never reuses a projected column as the key. A projection does not have
-to be unique; joins and projections without `DISTINCT` both repeat values, and
-the copy would then fail partway through with a duplicate key.
+### Column names and types
 
-Scalar subqueries preserve their declared output type even when their result
-is NULL. For example, this creates a correctly typed column when `payments`
-is empty:
+Each output column must have a name and a type. These projections return error
+`CADB0400`:
+
+| Projection | Problem | Fix |
+| --- | --- | --- |
+| `SELECT total + 1 FROM orders` | The expression has no name. | `SELECT total + 1 AS total_plus_one` |
+| `SELECT NULL AS x` | `NULL` has no type. | `SELECT CAST(NULL AS INT64) AS x` |
+| `SELECT * FROM orders o JOIN archived_orders a ON o.id = a.id` | Two output columns are named `id`. | List the columns, with an alias for each duplicate name. |
+
+A scalar subquery has its declared type, even when it returns no value. This
+statement creates a NUMERIC column when `payments` is empty:
 
 ```camussql
 CREATE TABLE payment_summary AS
 SELECT (SELECT MAX(amount) FROM payments) AS largest_payment;
 ```
 
-A scalar subquery can inherit its inner name; expressions such as MAX still
-need an alias to give the destination a usable name. A plain untyped
-`SELECT NULL AS x` remains unsupported.
+A scalar subquery column can take the name of its inner column. An aggregate
+such as `MAX` needs an alias.
 
-### Rejected projections
+### Table creation and row loading commit separately
 
-Every output column must become a named, typed column, so CamusDB refuses these
-shapes and explains why:
+CTAS creates the table in a separate commit. In cluster mode, CamusDB
+replicates that commit to the other nodes through [Raft](/docs/concepts#raft),
+the protocol the nodes use to agree on each change. The rows load afterward, in
+your transaction. The two steps aren't atomic:
 
-| Rejected | Why | Fix |
-| --- | --- | --- |
-| `SELECT year + 1 FROM t` | An expression without an alias has no name. CamusDB would call it `0`. | `SELECT year + 1 AS next_year` |
-| `SELECT NULL AS x` | There is no type to declare. | `SELECT CAST(NULL AS INT64) AS x` |
-| `SELECT * FROM a JOIN b ...` | `*` over a join produces qualified names, such as `a.id`. | List the columns, with an alias for each one. |
-
-### Schema and data do not commit together
-
-Creating the table commits on its own. In cluster mode, CamusDB replicates that
-commit to the other nodes through [Raft](/docs/concepts#raft), the protocol the
-nodes use to agree on each change. This commit happens before any rows arrive,
-so the two steps are not one atomic unit:
-
-- The rows load in your transaction and become durable when you commit. The
-  table is already durable.
-- If the load fails, CamusDB drops the table again as a compensating action. If
-  that drop also fails, or the process stops between the two commits, an empty
-  table remains. The error message says so where it can.
-- Other sessions can see the empty table between the two commits.
+- Other sessions can see the empty table before the rows commit.
+- If the load fails, CamusDB drops the table. If that drop also fails, or the
+  process stops between the two commits, an empty table remains. The error
+  message says so when it can.
 
 ## Time travel: recover historical data
 
-Both statements accept `AS OF SYSTEM TIME` on the source. The source reads at a
-past instant while the statement writes into the present. This is the supported
-way to rebuild data from an earlier moment:
+Both statements accept `AS OF SYSTEM TIME` on the source. The source reads the
+data as it was at a past moment, and the statement writes into the present:
 
 ```camussql
--- Rescue a table as it looked before a bad UPDATE
+-- Save a table as it was before a bad UPDATE
 CREATE TABLE orders_before_incident AS
 SELECT customer, total FROM orders AS OF SYSTEM TIME '2026-08-07 14:00:00+00:00';
 
 -- Put historical rows back into the live table
-INSERT INTO orders (id, customer, total)
-SELECT gen_id(), customer, total FROM orders AS OF SYSTEM TIME '-2h' WHERE customer = 'acme';
+INSERT INTO orders (id, customer, total, status, created_at)
+SELECT gen_id(), customer, total, status, created_at
+FROM orders AS OF SYSTEM TIME '-2h'
+WHERE customer = 'acme';
 ```
 
-The snapshot can be a negative offset such as `'-2h'` or `'-500ms'`, an
-absolute timestamp, a Unix epoch value in milliseconds, or a parameter. It
-applies to the whole source query, so an aggregate over the source reports the
-historical value.
+The snapshot can be a negative offset such as `'-2h'`, an absolute timestamp, a
+Unix epoch value in milliseconds, or a parameter. It applies to the full source
+query, and an aggregate over the source returns the historical value.
 
-A time travel source is cheaper and safer than a live one. History cannot
-change, so the scan does not lock the range it reads and blocks no concurrent
-writers. It also can never see its own statement's writes.
+A time travel source doesn't lock the range that it reads, because past data
+can't change. It doesn't block concurrent writers, and it can't read the rows
+that the statement writes.
 
-A plain historical `SELECT` does not work inside an explicit transaction, but
-this form does. Only the source reads at the snapshot; the writes stay in your
-transaction.
+A historical `SELECT` returns error `CADB0409` in an explicit transaction. A
+copy with a time travel source works in one. The source reads at the
+snapshot, and the writes are part of your transaction.
 
 ### What time travel can and cannot recover
 
 Time travel reads the table as it was at the snapshot. Before you rely on it
-during an incident, know what that means:
+during an incident, note what it can do:
 
-- Modified rows recover well. You undo a wrong `UPDATE` by copying the values
-  from before the update.
-- Deleted rows also recover. A `DELETE` writes its tombstone (a deletion
-  marker) as a separate [revision](/docs/concepts#mvcc), a stored version of
-  the row, so the record of the last live value survives. A snapshot from before
-  the delete reads the row back. Revision retention bounds that read, like every
-  other historical read; see below.
-- Dropped columns cannot be recovered. CamusDB reads historical values through
-  the current schema, so it cannot project a column that no longer exists.
-- A table that you dropped and created again is unreachable. The new table has a
-  different internal id, so the old rows are not part of its history.
-- Retention bounds how far back you can go. Time travel reaches only the
-  revisions that storage still keeps. An older snapshot reads as empty instead
-  of failing. When a recovery returns no rows, CamusDB logs a warning that the
-  history may already have been reclaimed.
+- **Updated rows:** copy the values from before the update.
+- **Deleted rows:** a snapshot from before the delete returns the deleted rows.
+- **Dropped columns:** you can't recover them. CamusDB reads past values through
+  the current schema.
+- **A table that you dropped and created again:** the new table has a different
+  internal ID, and its history doesn't include the old rows.
+- **Old snapshots:** time travel reaches only the row versions that storage
+  hasn't reclaimed. An older snapshot returns no rows, and no error. When a
+  recovery returns no rows, CamusDB logs a warning.
 
-While a copy runs, the engine pins the revision floor at the requested
-snapshot, so reclamation cannot pass that floor during the copy. This
-protection starts when the copy starts. It cannot bring back revisions that
-were already gone before then.
+During a copy, CamusDB stops reclamation of row versions at the snapshot of the
+copy. This protection starts when the copy starts. It can't bring back versions
+that were reclaimed earlier.
 
 ## Row counts and empty-copy warnings
 
-Both statements report the number of rows CamusDB wrote, and both flag a time
-travel copy that read nothing. The warning reaches the client as well as the
-server log, so an empty recovery cannot look like a successful one.
-
-The warning text looks like this:
+Both statements return the number of rows written. A time travel copy that
+writes no rows also returns a warning, to the client and in the server log.
+This means that an empty recovery doesn't look like a successful one. The
+warning text starts like this:
 
 ```text
 AS OF SYSTEM TIME copy into 'recovered' inserted no rows. The source may have
@@ -248,16 +338,16 @@ and [gRPC API](/docs/grpc-api#sql-service) references.
 
 ## Privileges
 
-`INSERT ... SELECT` needs `Insert` on the target and `Select` on every source,
-including tables the query reaches only through a join or subquery.
+`INSERT ... SELECT` needs `Insert` on the target and `Select` on each source
+table, including tables that the query reads through a join or a subquery.
 
 `CREATE TABLE ... AS SELECT` needs `CreateTable` on the database and `Select`
-on every source.
+on each source table.
 
 ## RETURNING
 
-An `INSERT ... SELECT` can end with a `RETURNING` list that sends back values
-from the copied rows:
+An `INSERT ... SELECT` can end with a `RETURNING` list that returns values from
+the copied rows:
 
 ```camussql
 INSERT INTO archived_orders (id, customer, total)
@@ -265,6 +355,16 @@ SELECT id, customer, total
 FROM orders
 WHERE total > 100
 RETURNING id, customer;
+```
+
+```text
+┌──────────────────────────┬──────────┐
+│ id                       │ customer │
+├──────────────────────────┼──────────┤
+│ 6afe1def3bd8878b74cfc3f4 │ initech  │
+│ 6afe1def3bd8878b74cfc3f5 │ acme     │
+└──────────────────────────┴──────────┘
+Query OK, 2 rows affected (00:00:00.0058727)
 ```
 
 See [RETURNING](/docs/sql-writes#returning).

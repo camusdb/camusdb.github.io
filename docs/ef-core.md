@@ -5,41 +5,61 @@ description: "Use CamusDB with Entity Framework Core. Define your data as C# cla
 
 # EF Core provider
 
-`CamusDB.EntityFrameworkCore` lets a .NET application use CamusDB through
-Entity Framework Core. Entity Framework Core (EF Core) is the .NET
-object-relational mapper (ORM): you define your data as C# classes and query it
-with LINQ, and EF Core writes the SQL, tracks changes to your objects, and saves
-them.
+`CamusDB.EntityFrameworkCore` lets a .NET application use CamusDB through Entity
+Framework Core (EF Core), the object-relational mapper (ORM) of .NET. You define
+your data as C# classes and query it with LINQ. EF Core writes the SQL and saves
+the changes to your objects.
 
-Use EF Core when your application already uses it, or when you want to work
-with objects instead of SQL text. The provider sits on top of the
-[.NET driver](/docs/dotnet-driver), so transport, authentication, and routing
-work the same way.
+Use EF Core when your application already uses it, or when you prefer to work
+with objects. The provider is built on the [.NET driver](/docs/dotnet-driver).
+This means that the transport and the authentication work the same way. This page describes `CamusDB.EntityFrameworkCore` 0.19.3. To compare the
+.NET packages, see
+[Which .NET package to use](/docs/dotnet-driver#which-net-package-to-use).
 
-To compare the three .NET packages (driver, Dapper, EF Core) and their target
-frameworks, see [Which .NET package to use](/docs/dotnet-driver#which-net-package-to-use).
-
-Use the EF Core provider when:
+Use the EF Core provider in these cases:
 
 - You want LINQ over CamusDB tables.
 - You want EF Core change tracking.
-- You create the schema with `EnsureCreated()`, or with EF migrations for the
-  supported DDL.
-- You want application-level optimistic concurrency with version columns.
+- You create the schema with `EnsureCreated()` or with EF migrations.
+- You want optimistic concurrency with version columns.
 
-Use the [.NET driver](/docs/dotnet-driver) instead when you want to write SQL
-first, or need finer control over each command and transaction.
+If you prefer to write SQL, or you need control of each command and transaction,
+use the [.NET driver](/docs/dotnet-driver).
 
-The provider depends on the EF Core 10 relational APIs.
+For an Aspire application, use the
+[.NET Aspire integration](/docs/aspire#register-an-ef-core-context) to register a
+pooled context with health checks and telemetry.
 
-For an Aspire application, use the [.NET Aspire integration](/docs/aspire#register-an-ef-core-context)
-to register a pooled context with health checks and telemetry.
+## Sample application
+
+CamusShop is a robot store that uses the EF Core provider for migrations and for
+a checkout with serializable retries. See the
+[CamusShop advanced sample](/docs/advanced-samples#camusshop).
 
 ## Install
 
 ```bash
 dotnet add package CamusDB.EntityFrameworkCore
 ```
+
+### Supported versions
+
+The package has a build for each EF Core major version. NuGet selects the build
+for your target framework:
+
+| Target framework | EF Core major |
+| --- | --- |
+| `net10.0` | 10 |
+| `net11.0` or later | 11 |
+
+On .NET 11, update your direct EF Core references to 11.x too. A 10.x reference
+can cause `NU1605` during restore.
+
+`UseCamusDB` checks the loaded EF Core major version at once. A mismatch throws
+`InvalidOperationException`, with both versions and their file paths. To fix it, clean the publish output. Then deploy the matching provider build,
+also for copies that plugins load. The AppContext switch
+`CamusDB.EntityFrameworkCore.DisableEfCoreVersionCheck` turns off the check. Use
+it only for diagnosis.
 
 ## Configure the provider
 
@@ -54,22 +74,15 @@ var options = new DbContextOptionsBuilder<AppDbContext>()
     .Options;
 ```
 
-The connection string accepts the same keys as the ADO.NET driver. Common
-examples are `Protocol=grpc`, `User`, `Password`, `AccessToken`,
-`MaxAutoPrepare`, `AutoPrepareMinUsages`, `IsolationLevel`, `Locking`,
-`TransactionMode`, `ChannelPoolSize`, `CoalescingThreshold`, and
-`CoalescingDelay`.
+The connection string has the same keys as the .NET driver, for example
+`Protocol=grpc` or `User` and `Password`. For the full list, see
+[Connection string](/docs/dotnet-driver#connection-string). For authenticated
+connections, see [Authentication](/docs/dotnet-driver#authentication).
 
-See [.NET Driver](/docs/dotnet-driver#connection-string) for the full
-connection string reference, and
-[.NET Driver Authentication](/docs/dotnet-driver#authentication) for
-authenticated connections.
+EF Core commands also emit the OpenTelemetry traces and metrics of the driver.
+For more information, see [OpenTelemetry](/docs/dotnet-driver#opentelemetry).
 
-EF Core commands also emit the driver's OpenTelemetry traces and metrics. See
-[.NET Driver OpenTelemetry](/docs/dotnet-driver#opentelemetry) for registration
-and how it interacts with EF Core's own instrumentation.
-
-You can also configure it in `OnConfiguring`:
+You can also configure the provider in `OnConfiguring`:
 
 ```csharp
 public sealed class AppDbContext : DbContext
@@ -82,8 +95,8 @@ public sealed class AppDbContext : DbContext
 
 ## Reuse an existing connection
 
-Pass the connection directly when you want to share a `CamusConnection` or
-manage a transaction outside the context:
+To share a `CamusConnection`, or to manage a transaction outside the context,
+pass the connection:
 
 ```csharp
 CamusConnection connection = new(
@@ -95,13 +108,13 @@ var options = new DbContextOptionsBuilder<AppDbContext>()
     .Options;
 ```
 
-When you pass an existing connection, the `DbContext` doesn't own it and
-disposes nothing.
+The `DbContext` doesn't own a connection that you pass, and it doesn't dispose
+it.
 
 ## Define a model
 
-Map an ObjectId primary key with the `"id"` or `"oid"` store type. Mark the
-property as generated on add when the client should create the ObjectId:
+Map an ObjectId primary key with the `"id"` or `"oid"` store type. If the client
+should create the ObjectId, mark the property as generated on add:
 
 ```csharp
 public sealed class Robot
@@ -140,10 +153,10 @@ public sealed class AppDbContext : DbContext
 ```
 
 For a string primary key mapped to `"id"` or `"oid"`, the provider generates a
-24-character Camus ObjectId on the client.
+24-character ObjectId on the client.
 
-Use `ToTable(t => t.HasCheckConstraint(...))` for a server-enforced check
-constraint:
+For a check constraint on the server, use
+`ToTable(t => t.HasCheckConstraint(...))`:
 
 ```csharp
 modelBuilder.Entity<Robot>(b =>
@@ -153,12 +166,12 @@ modelBuilder.Entity<Robot>(b =>
 });
 ```
 
-When a check constraint rejects a row, you get a `DbUpdateException` whose
-inner `CamusException` carries code `CADB0303`.
+A row that breaks the check constraint throws a `DbUpdateException`. Its inner
+`CamusException` has the code `CADB0303`.
 
 ## Type mapping
 
-Supported CLR-to-store mappings:
+The provider supports the following CLR-to-store mappings:
 
 | CLR type | Camus store type | DDL type |
 | --- | --- | --- |
@@ -178,44 +191,59 @@ Supported CLR-to-store mappings:
 | `DateTime`, `DateTimeOffset` | `datetime` or `timestamp` | `DATETIME` |
 | `long[]`, `string[]`, `double[]`, `bool[]` | `array(int64)`, `array(string)`, `array(float64)`, `array(bool)` | `ARRAY(T)` |
 
-For CamusDB ObjectId primary keys, use `HasColumnType("id")` on a `string`
-property. A plain `Guid` property maps to native `UUID`, so
-`HasColumnType("uuid")` is optional. Do not declare a `Guid` property with
-`HasColumnType("id")`: CamusDB ObjectId values are 12 bytes and should be
-modeled as strings or `CamusObjectIdValue`.
+For an ObjectId primary key, use `HasColumnType("id")` on a `string` property. A
+`Guid` property maps to the native `UUID` type, and `HasColumnType("uuid")` is
+optional. Don't declare a `Guid` property with `HasColumnType("id")`. ObjectId
+values are 12 bytes. Model them as strings or as `CamusObjectIdValue`.
 
-A `decimal` property maps to `NUMERIC`. CamusDB uses fixed precision and scale
-for that type, so EF Core `HasPrecision(...)` does not change the generated
-column type. A `decimal` constant in a LINQ query is emitted as a typed
-`NUMERIC` literal.
+`NUMERIC` has a fixed precision and scale. This means that `HasPrecision(...)`
+doesn't change the generated column type. A `decimal` constant in a LINQ query
+becomes a typed `NUMERIC` literal.
 
-The provider normalizes `DateTime` and `DateTimeOffset` values to UTC.
-`DateOnly` maps to a calendar date.
+The provider converts `DateTime` and `DateTimeOffset` values to UTC. `DateOnly`
+maps to a calendar date.
 
-`long[]`, `string[]`, `double[]`, and `bool[]` properties map to native
-`ARRAY(T)` columns. Arrays are read and written as whole values. They are not
-indexable, have no inline SQL literal, and cannot be used in a LINQ predicate.
+Array properties map to native `ARRAY(T)` columns. An array is read and written
+as one value, and it can't be indexed. The provider doesn't support array
+defaults or seed data.
 
-Vector properties can be `float[]` or `byte[]` with
-[`IsVector(dimensions)`](#vector-queries). The provider stores them as packed
-bytes, rather than a SQL array.
+The following array members translate in a query. Other queries over array
+elements aren't supported.
+
+| LINQ | SQL |
+| --- | --- |
+| `a.Length` / `a.Count()` | `array_length(a)` |
+| `a.Any()` | A length test |
+| `a.Contains(x)` | `array_contains(a, x)` |
+ From EF Core 11, you can map an array with
+`Property(e => e.Tags)` or with `PrimitiveCollection(e => e.Tags)`. Both produce
+the same column and support the same translations.
+
+`TimeSpan` maps to an interval in expressions only. A `TimeSpan` property on a
+table entity isn't allowed. Use `HasConversion<long>()` for ticks, or
+`HasConversion<string>()` for text. Read models that use `ToView` or
+`ToSqlQuery` can have `TimeSpan` results.
+
+A vector property can be `float[]` or `byte[]` with
+[`IsVector(dimensions)`](#vector-queries). It is stored as packed bytes. It
+isn't a SQL array.
 
 ## Create tables
 
-`EnsureCreated()` is supported and idempotent:
+`EnsureCreated()` creates the tables of the model. If the database doesn't
+exist, it creates the database first:
 
 ```csharp
 await using var ctx = new AppDbContext(options);
 await ctx.Database.EnsureCreatedAsync();
 ```
 
-`EnsureCreated()` first checks whether the database exists. It sends
-`CREATE DATABASE IF NOT EXISTS` only when the database is missing, then creates
-the model's tables. It continues safely when the database or the tables already
-exist, so an account with DDL grants on an existing database can run
-`EnsureCreated()` or migrations without superuser rights.
+You can call it more than once. It sends `CREATE DATABASE IF NOT EXISTS` only if
+the database is missing. This means that an account with DDL grants on an
+existing database can run `EnsureCreated()` or migrations. A superuser isn't
+necessary.
 
-`EnsureDeleted()` drops the connection string's database:
+`EnsureDeleted()` drops the database of the connection string:
 
 ```csharp
 await ctx.Database.EnsureDeletedAsync();
@@ -278,8 +306,8 @@ await ctx.SaveChangesAsync();
 
 ### Bulk update and delete
 
-Use EF Core `ExecuteUpdateAsync()` and `ExecuteDeleteAsync()` when the change can
-run as one server-side statement and you do not need to load entities into the
+Use EF Core `ExecuteUpdateAsync()` and `ExecuteDeleteAsync()` when the change
+can execute as one statement on the server. The entities aren't loaded into the
 change tracker:
 
 ```csharp
@@ -294,49 +322,98 @@ int removed = await ctx.Orders
     .ExecuteDeleteAsync();
 ```
 
-CamusDB requires `UPDATE` and `DELETE` to have a `WHERE` clause, so an unfiltered
-bulk operation is emitted with `WHERE TRUE`. A filter over the target table is
-sent directly. A filter that uses a navigation, a join, a correlated subquery,
-or `Take` / `Skip` is rewritten as `WHERE <pk> IN (SELECT ...)`, which requires
-a single-column primary key.
+A filter on the target table is sent as the `WHERE` clause. CamusDB requires a
+`WHERE` clause on `UPDATE` and `DELETE`. This means that an operation that doesn't have a filter is
+sent with `WHERE TRUE`. Other filters, such as a join or `Take`,
+select the primary keys of the target in a `WHERE <pk> IN (SELECT ...)`
+subquery. A target row that the join matches twice changes once.
 
-Values passed to `SetProperty` can use constants, parameters, and columns of
-the row being updated. They cannot read another table. Like all EF Core bulk
-operations, these bypass the change tracker, and provider-managed row-version
-tokens are not advanced unless you set them explicitly.
+A `SetProperty` value can also read a joined table or a correlated subquery:
+
+```csharp
+await (from o in ctx.Orders
+       join c in ctx.Customers on o.CustomerId equals c.Id
+       where c.Region == "eu"
+       select new { o, c })
+    .ExecuteUpdateAsync(s => s.SetProperty(x => x.o.Region, x => x.c.Region));
+```
+
+For this query, the provider writes `UPDATE ... FROM` or `DELETE ... USING`. It
+also uses these forms for a filter on a table that doesn't have a single-column
+primary key. Note the following rules:
+
+- These forms need CamusDB 0.18.3 or later.
+- A target row that matches more than one source row returns `CADB0400`. This
+  occurs before any change is written. Aggregate the source to one row for each
+  target.
+- An outer join, or an ordered, limited, or grouped query, throws
+  `InvalidOperationException`.
+
+For more information, see [Joined writes](/docs/sql-writes#joined-writes).
+
+Bulk operations skip the change tracker, as in other EF Core providers. A
+provider-managed row-version token doesn't change, unless you set it.
 
 ## LINQ translation
 
-The provider translates common relational query shapes to CamusDB SQL:
+The provider translates the common relational query shapes to CamusDB SQL:
 
 - `Where`
 - `OrderBy` / `ThenBy`
 - `Skip` / `Take`
 - `Distinct`
-- scalar aggregates: `Count`, `Sum`, `Average`, `Min`, `Max`, `Any`
+- Scalar aggregates: `Count`, `Sum`, `Average`, `Min`, `Max`, `Any`
 - `GroupBy` with aggregates
-- inner joins, left joins, right joins, and cross joins
-- correlated subqueries, such as `Where(o => o.Items.Any(...))`
+- Joins, as shown in the table below
+- Correlated subqueries, such as `Where(o => o.Items.Any(...))`
 
-Parameterized collection checks such as `ids.Contains(e.Id)` expand to
-`IN (@p0, @p1, ...)`, which works with CamusDB's SQL dialect.
+A parameter collection check, such as `ids.Contains(e.Id)`, expands to
+`IN (@p0, @p1, ...)`. A `Skip` that doesn't have a `Take` emits
+`OFFSET` alone.
 
-Join support covers the usual LINQ shapes:
+The LINQ join shapes translate to the following SQL:
 
 | LINQ shape | SQL shape |
 | --- | --- |
 | `join ... on ... equals ...`, `Join(...)`, required navigation | `INNER JOIN` |
 | `GroupJoin(...).SelectMany(...DefaultIfEmpty())`, `LeftJoin(...)`, optional navigation, collection `Include(...)` | `LEFT JOIN` |
 | `RightJoin(...)` | `RIGHT JOIN` |
-| `from a in A from b in B` with no correlation | `CROSS JOIN` |
+| `from a in A from b in B`, uncorrelated | `CROSS JOIN` |
 
-The provider does not translate lateral joins or per-row window query shapes.
-The server supports [window functions](/docs/sql-queries#window-functions),
-which you can use through raw SQL. A `SelectMany` whose
-inner sequence refers to the outer row outside an equality key, and per-row
-`Take` / `Skip` / `First` shapes such as filtered includes, are not translated.
+A correlated `SelectMany` translates to `CROSS JOIN LATERAL`, or to
+`LEFT JOIN LATERAL` with `DefaultIfEmpty`. A limit for each parent, such as `Take(2)`, can use `ROW_NUMBER()` in a derived
+table. This is also true in a filtered include.
+`LATERAL` needs CamusDB 0.18.4 or later. If the inner source doesn't have a key
+or an explicit order, its first row isn't defined.
 
-String operations run on the server when they map to CamusDB functions:
+```csharp
+var top = await ctx.Customers
+    .Select(c => new {
+        c.Name,
+        Top = c.Orders.Where(o => o.Total > c.Limit)
+            .OrderByDescending(o => o.Total).Take(2).ToList()
+    })
+    .ToListAsync();
+```
+
+### Inline and parameter collections
+
+An inline or parameter array that you use in other ways than `Contains` becomes a
+`VALUES` source. This needs CamusDB 0.18.4 or later. `Contains` expands to `IN`:
+
+```csharp
+long[] ids = [1, 2, 3];
+var rows = await ctx.Customers.Where(c => ids.Any(i => i > c.Id)).ToListAsync();
+```
+
+An empty parameter array produces no source rows. `Max` or `Min` of an unfiltered inline array becomes
+`GREATEST` or `LEAST`. A filtered collection can use
+a subquery over `VALUES`. These collections are local to the query. They aren't
+mapped `ARRAY` columns.
+
+### String members and conversions
+
+String operations execute on the server when they map to CamusDB functions:
 
 | LINQ | SQL function or predicate |
 | --- | --- |
@@ -347,9 +424,27 @@ String operations run on the server when they map to CamusDB functions:
 | `s.Trim()` / `s.TrimStart()` / `s.TrimEnd()` | `trim(s)` / `ltrim(s)` / `rtrim(s)` |
 | `s.Replace(a, b)` | `replace(s, a, b)` |
 | `s.Length` | `length(s)` |
+| `s.Substring(i, n)`, `s[i]` | `substring(s, i + 1, n)`, or one character |
+| `s.IndexOf(x)` | `strpos(s, x) - 1` |
+| `string.IsNullOrWhiteSpace(s)` | NULL test or whitespace regex |
+| `int.Parse(s)`, `long.Parse`, `double.Parse`, `decimal.Parse`, `bool.Parse`, `Guid.Parse` | `CAST` to the matching SQL type |
+| `Guid.NewGuid()` | `gen_uuid_v4()` |
 
-`string.Compare(...)` and `a.CompareTo(b)` translate when the expression is
-tested against zero. This is useful for keyset pagination:
+`ToString()` and `Convert.ToString()` translate as follows:
+
+| Value type | Translation |
+| --- | --- |
+| `short` / `int` / `long` / `double` / `Guid` / `char` | `CAST(x AS STRING)` |
+| `bool` | `True` or `False`, as in .NET |
+| `decimal` / `float` / date and time types | Not translated. The server text differs from the .NET text. |
+
+The `Trim` methods accept constant character arrays.
+
+A substring that goes past the end of the text returns the available text, or
+an empty string. In .NET, the same call throws.
+
+`string.Compare(...)` and `a.CompareTo(b)` translate when you compare the result
+with zero. This is useful for keyset pagination:
 
 ```csharp
 List<Item> page = await ctx.Items
@@ -362,7 +457,7 @@ List<Item> page = await ctx.Items
     .ToListAsync();
 ```
 
-Regular expression helpers map to CamusDB's regex functions:
+The regular expression helpers map to the CamusDB regex functions:
 
 ```csharp
 using System.Text.RegularExpressions;
@@ -374,15 +469,66 @@ List<Person> people = await ctx.People
     .ToListAsync();
 ```
 
-Supported regex helpers include `Regex.IsMatch`, `Regex.Replace`,
-`EF.Functions.RegexpLike`, `RegexpReplace`, `RegexpCount`, `RegexpSubstr`, and
-`RegexpInstr`.
+`Regex.IsMatch` and `Regex.Replace` translate. `EF.Functions` also has
+`Regexp*` helpers, such as `RegexpCount` and `RegexpSubstr`.
+
+### Math and date arithmetic
+
+The following `Math` methods translate to server functions:
+
+| .NET | SQL |
+| --- | --- |
+| `Math.Abs` / `Math.Sign` | `abs` / `sign`. `Sign` of a `decimal` isn't translated. |
+| `Math.Ceiling` / `Math.Floor` / `Math.Truncate` | `ceil` / `floor` / `trunc` |
+| `Math.Sqrt` / `Math.Exp` / `Math.Pow` | `sqrt` / `exp` / `pow` |
+| `Math.Log(x)` / `Math.Log10(x)` | `ln(x)` / `log10(x)` |
+| `Math.Log(x, b)` | `log(b, x)` |
+| `Math.Sin` / `Math.Cos` / `Math.Tan` | `sin` / `cos` / `tan` |
+| `Math.Asin` / `Math.Acos` / `Math.Atan` / `Math.Atan2` | `asin` / `acos` / `atan` / `atan2` |
+| `Math.Max` / `Math.Min` | `GREATEST` / `LEAST`. These need CamusDB 0.18.4 or later. |
+
+`Math.Round` translates to `round` only with `MidpointRounding.AwayFromZero`. The default banker's rounding and the
+`MathF` methods aren't supported.
+
+The following date parts execute on the server:
+
+| Type | Parts |
+| --- | --- |
+| `DateTime` | `Year` / `Month` / `Day` / `DayOfWeek` / `DayOfYear` / `Hour` / `Minute` / `Second` / `Millisecond` |
+| `DateOnly` | `Year` / `Month` / `Day` / `DayOfWeek` / `DayOfYear` |
+| `DateTimeOffset` | Not supported. |
+
+`Date` and `TimeOfDay` translate to truncation and subtraction. All temporal values
+are in UTC.
+
+```csharp
+TimeSpan limit = TimeSpan.FromHours(1);
+var slow = await ctx.Jobs
+    .Where(j => j.Started > DateTime.UtcNow.AddDays(-7)
+        && j.Finished - j.Started > limit)
+    .Select(j => new { j.Name, Duration = j.Finished - j.Started })
+    .ToListAsync();
+```
+
+Date arithmetic and `TimeSpan` arithmetic translate to
+[interval expressions](/docs/data-types#intervals):
+
+- Parameter durations are cast to `INTERVAL`, and timestamp differences are read
+  as `TimeSpan`.
+- `AddYears` and `AddMonths` use calendar arithmetic. `DateOnly.AddDays` uses
+  date arithmetic.
+- `TimeSpan.FromDays` and the related methods also accept columns.
+- `DateTime.UtcNow` and `DateTimeOffset.UtcNow` use the `now()` of the
+  transaction.
+
+`DateTime.Now` and `DateTime.Today` aren't supported. The component and `Total*`
+members of `TimeSpan` aren't supported either.
 
 ### String concatenation and interpolation
 
-From 0.16.8, string `+` and `string.Concat` translate to SQL `||`, with nullable
-operands treated as empty strings to match C#. From 0.16.9, simple string
-interpolation translates too:
+String `+` and `string.Concat` translate to SQL `||`. A `NULL` operand is
+treated as an empty string, as in C#. Simple string interpolation also
+translates:
 
 ```csharp
 var people = await ctx.People
@@ -390,21 +536,28 @@ var people = await ctx.People
     .ToListAsync();
 ```
 
-Interpolation supports string/integer arguments and plain placeholders. Format
-specifiers, alignment, and date, decimal, or floating-point arguments are not
-translated. EF Core can format these on the client in the final projection;
-using them in a filter or ordering raises a translation error.
+Interpolation supports string and integer arguments in simple placeholders.
+Format specifiers and alignment aren't translated. Other argument types aren't
+translated either. EF
+Core can format these values on the client in the final projection. In a filter
+or an ordering, they raise a translation error.
 
 ### Set operations
 
-`Union`, `Concat`, `Intersect`, and `Except` translate to `UNION`, `UNION ALL`,
-`INTERSECT`, and `EXCEPT`. See [set operations](/docs/sql-queries#set-operations)
-for server behavior.
+| LINQ | SQL |
+| --- | --- |
+| `Union` | `UNION` |
+| `Concat` | `UNION ALL` |
+| `Intersect` | `INTERSECT` |
+| `Except` | `EXCEPT` |
+
+For the server behavior, see
+[Set operations](/docs/sql-queries#set-operations).
 
 ## JSON documents
 
-Document properties map to JSONB automatically; a string property needs
-`HasColumnType("jsonb")`. GIN indexes use `HasMethod("gin")`:
+Document properties map to `JSONB`. A string property needs
+`HasColumnType("jsonb")`. For a GIN index, use `HasMethod("gin")`:
 
 ```csharp
 modelBuilder.Entity<Event>(b =>
@@ -419,19 +572,20 @@ var events = await ctx.Events
     .ToListAsync();
 ```
 
-`JsonContained`, `JsonExistAny`, `JsonExistAll`, and `JsonTypeof` are also
-available. These helpers translate to the corresponding `jsonb_*` functions.
-A compatible top-level predicate can use the GIN index.
+The other `EF.Functions.Json*` helpers, such as `JsonExistAny` and `JsonTypeof`,
+also translate to the matching `jsonb_*` functions. A
+compatible top-level predicate can use the GIN index.
 
-`JsonNode` properties use content comparison so in-place edits are saved.
-Replace a `JsonDocument` or `JsonElement` value to change it. JSON member access
-such as `RootElement.GetProperty(...)` and EF Core's owned/complex `ToJson()`
-mapping are not translated; use raw SQL for document operators. See
+The provider compares the content of a `JsonNode` property. This means that a
+change in the node is saved. To change a `JsonDocument` or `JsonElement` value, replace it. JSON
+member access, such as `RootElement.GetProperty(...)`, isn't translated. The
+owned or complex `ToJson()` mapping of EF Core isn't translated either. For
+document operators, use raw SQL. For more information, see
 [JSON documents](/docs/json).
 
 ## Vector queries
 
-From 0.16.10, declare a `float[]` or `byte[]` embedding with `IsVector`:
+Declare a `float[]` or `byte[]` embedding with `IsVector`:
 
 ```csharp
 public sealed class SearchDocument
@@ -451,13 +605,18 @@ modelBuilder.Entity<SearchDocument>(b =>
 });
 ```
 
-This sets `BYTES(3072)`, `STORAGE PLAIN`, and a dimension check named
-`CK_{table}_{column}_dims`. `IsRequired()` also rejects NULL; the dimension
-check alone does not. A later `HasStorage` can override the storage strategy.
-For `float[]`, a converter packs the values and an element-wise comparer
-tracks edits made inside the array.
+`IsVector(768)` sets the following:
 
-Rank rows with the vector helpers and a `float[]` query vector:
+- The column type `BYTES(3072)`, which is 4 bytes for each dimension.
+- `STORAGE PLAIN`. A later `HasStorage` can change the storage strategy.
+- A dimension check named `CK_{table}_{column}_dims`.
+
+A `NULL` value passes the dimension check. To refuse `NULL`, add
+`IsRequired()`. For
+`float[]`, the provider packs the values, and it detects changes to elements of
+the array.
+
+To rank rows, use the vector helpers with a `float[]` query vector:
 
 ```csharp
 float[] query = await EmbedAsync("warehouse safety");
@@ -468,18 +627,20 @@ var nearest = await ctx.Set<SearchDocument>()
     .ToListAsync();
 ```
 
-A query vector uses the column's mapping and travels as packed bytes. For a
-`byte[]` property, pack it explicitly with `CamusVector.ToBytes(...)`.
+The query vector uses the mapping of the column, and it is sent as packed bytes.
+For a `byte[]` property, pack the query vector with `CamusVector.ToBytes(...)`.
 
-Use `IsVector(768, loadWithEntity: false)` to omit an embedding from ordinary
-entity loads. The property must be required; its runtime NULL then means
-"not loaded". Queries that name the vector in a filter, ordering, or explicit
-projection still read it. `SaveChanges` does not overwrite a stored vector with
-that unloaded NULL, including on a detached entity passed to `Update`.
-Unrecognized shapes, including collection includes, split queries, and
-`Distinct`, retain the vector.
+To leave an embedding out of ordinary entity loads, use
+`IsVector(768, loadWithEntity: false)`. The property must be required. A `NULL`
+value then means that the vector isn't loaded:
 
-Available helpers:
+- A query reads the vector if it names the vector, for example in a filter or an
+  ordering.
+- `SaveChanges` doesn't replace a stored vector with the `NULL` of an unloaded
+  vector. This is also true for a detached entity passed to `Update`.
+- Other shapes, such as collection includes and split queries, load the vector.
+
+The following helpers are available:
 
 | Helper | SQL function | Best order |
 | --- | --- | --- |
@@ -489,8 +650,9 @@ Available helpers:
 | `EF.Functions.VectorDims(v)` | `vector_dims(v)` | not a ranking metric |
 | `EF.Functions.OctetLength(v)` | `octet_length(v)` | not a ranking metric |
 
-Vector ranking is exact. Pair an `OrderBy` over a distance with `Take(k)` so the
-server can plan it as a bounded top-k query. See [Vector Search](/docs/vector-search).
+Vector ranking is exact. Use an `OrderBy` on a distance with `Take(k)`. Then the
+server can plan a bounded top-k query. For more information, see
+[Vector search](/docs/vector-search).
 
 ## Transactions
 
@@ -506,13 +668,12 @@ await ctx.SaveChangesAsync();
 await tx.CommitAsync();
 ```
 
-With an endpoint pool, commands inside a transaction stay on the same node for
-the transaction's whole lifetime.
+With an endpoint pool, all the commands of a transaction go to the same node.
 
 ## Transaction defaults
 
-Serializable isolation is the server default. You can set default transaction
-options for a context with provider options:
+Serializable isolation is the server default. To set the default transaction
+options of a context, use the provider options:
 
 ```csharp
 var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -528,7 +689,7 @@ var options = new DbContextOptionsBuilder<AppDbContext>()
     .Options;
 ```
 
-For the common optimistic-locking selection, use the shortcut:
+For optimistic locking, you can use the shortcut:
 
 ```csharp
 var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -540,16 +701,17 @@ var options = new DbContextOptionsBuilder<AppDbContext>()
     .Options;
 ```
 
-`UsePessimisticLocking()` selects the pessimistic mode explicitly. Any option
-left unset falls back to the connection string and then to the server default.
+`UsePessimisticLocking()` sets the pessimistic mode explicitly. An option that
+you don't set comes from the connection string. If the connection string
+doesn't set it, the server default applies.
 
 ## Retry on serializable conflicts
 
-Serializable is CamusDB's default isolation level, so `SaveChangesAsync()` and
-`CommitTransactionAsync()` can fail when a concurrent transaction wins a
-serialization conflict.
+Serializable is the default isolation level of CamusDB. This means that
+`SaveChangesAsync()` and `CommitTransactionAsync()` can fail when a concurrent
+transaction wins a conflict.
 
-Enable EF Core's execution strategy with `EnableRetryOnFailure()`:
+To turn on the EF Core execution strategy, use `EnableRetryOnFailure()`:
 
 ```csharp
 var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -560,26 +722,25 @@ var options = new DbContextOptionsBuilder<AppDbContext>()
     .Options;
 ```
 
-The strategy retries only CamusDB's retryable transaction errors:
+The strategy uses the retry rules of the driver. It retries the conflict codes, such as `CADB0502`. It
+also retries some transient errors that their message identifies. For the details, see
+[Serializable retries](/docs/dotnet-driver#serializable-retries).
 
-- `CADB0502` `TransactionConflict`
-- `CADB0504` `TransactionMustRetry`
-- `CADB0505` `TransactionLifetimeExceeded`
+The strategy doesn't retry `CADB0509` `TransactionFinalizeUnresolved`. This code
+means that the commit or rollback doesn't have a final answer yet. Send the same
+commit or rollback again for the same transaction, and don't replay the unit of
+work.
 
-`CADB0509` `TransactionFinalizeUnresolved` is not a signal to replay from the
-start. It can appear while a transaction is finalizing: retry the same commit
-or rollback for the same transaction id, and don't run the unit of work again.
-
-Default retry settings:
+The default retry settings are as follows:
 
 | Parameter | Default | Description |
 | --- | --- | --- |
-| `maxRetryCount` | `15` | Maximum retry attempts. |
-| `maxRetryDelay` | `1 s` | Maximum delay between retries. |
-| `retryDeadline` | `5 s` | Wall-clock deadline from first failure. |
-| `medianFirstRetryDelay` | `30 ms` | Median first retry delay. |
+| `maxRetryCount` | `15` | The maximum number of retries. |
+| `maxRetryDelay` | `1 s` | The maximum delay between retries. |
+| `retryDeadline` | `5 s` | The deadline, from the first failure. |
+| `medianFirstRetryDelay` | `30 ms` | The median delay of the first retry. |
 
-You can override them:
+You can change them:
 
 ```csharp
 camus.EnableRetryOnFailure(
@@ -589,23 +750,22 @@ camus.EnableRetryOnFailure(
     medianFirstRetryDelay: TimeSpan.FromMilliseconds(20));
 ```
 
-The execution strategy retries the whole EF operation. If you manage an
-explicit transaction by hand, replay the whole transaction from the start; don't
-retry the failed statement alone.
+The execution strategy retries the complete EF operation. If you manage an
+explicit transaction, replay the transaction from the start. Don't retry the
+failed statement alone.
 
 ## Prepared statements
 
-The underlying ADO.NET driver automatically prepares EF Core queries and
-`SaveChangesAsync()` statements once the same SQL shape has run enough times.
-You need no EF-specific configuration and no manual `Prepare()` calls.
+The .NET driver prepares EF Core queries and `SaveChangesAsync()` statements
+automatically, after the same SQL has executed enough times. You don't need EF
+configuration or `Prepare()` calls. LINQ queries and change-tracking writes
+usually produce the same parameterized SQL for each operation. This means that
+they benefit from preparation.
 
-This suits EF well: LINQ queries and change-tracking writes usually produce
-deterministic, parameterized SQL for each operation.
+A prepared execution behaves like an inline one, also for transactions and the
+query result cache.
 
-A prepared execution behaves like an inline one, including transactions,
-Serializable isolation, retries, and the query result cache.
-
-Tune the policy with the ordinary connection string keys:
+To change the policy, use the connection string keys:
 
 ```csharp
 var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -614,15 +774,14 @@ var options = new DbContextOptionsBuilder<AppDbContext>()
     .Options;
 ```
 
-Set `MaxAutoPrepare=0` to disable automatic preparation.
-
-See [.NET Driver](/docs/dotnet-driver#prepared-statements) and
-[Prepared Statements](/docs/prepared-statements) for the full behavior.
+`MaxAutoPrepare=0` turns off automatic preparation. For more information, see
+[Prepared statements](/docs/dotnet-driver#prepared-statements) in the driver
+page, and [Prepared statements](/docs/prepared-statements).
 
 ## Query result cache
 
-Use `WithCache(...)` to opt a LINQ query into the CamusDB query result cache.
-The provider adds the `{cache=...}` hint to the generated SQL.
+To use the CamusDB query result cache for a LINQ query, add `WithCache(...)`.
+The provider adds the `{cache=...}` hint to the generated SQL:
 
 ```csharp
 using CamusDB.EntityFrameworkCore;
@@ -635,23 +794,24 @@ List<Order> recent = await ctx.Orders
     .ToListAsync();
 ```
 
-The cache serves only single-table autocommit reads. Queries with joins, and
-queries inside an explicit transaction, read live storage.
+The cache applies to autocommit reads of one table. A query with a join, a
+query through a view, and a query in an explicit transaction read live storage.
 
-Evict cache entries through the underlying `CamusConnection` with
-`EvictCacheAsync(...)` or `EvictAllCacheAsync()`.
+To evict cache entries, use `EvictCacheAsync(...)` or `EvictAllCacheAsync()` on
+the `CamusConnection`. For more information, see
+[Query result cache](/docs/query-result-cache).
 
 ## Migrations
 
-The provider includes design-time services, so the standard EF tools can find
-it:
+The provider includes design-time services. This means that the standard EF
+tools can find it:
 
 ```bash
 dotnet ef migrations add InitialCreate
 dotnet ef database update
 ```
 
-Supported migration operations:
+The following migration operations are supported:
 
 | Operation | SQL shape |
 | --- | --- |
@@ -680,7 +840,7 @@ Supported migration operations:
 | Rename view | `ALTER VIEW ... RENAME TO ...` |
 | Truncate table | `TRUNCATE TABLE ...` |
 | Seed data | `INSERT INTO ... VALUES (...)` |
-| Raw SQL | passed through as-is |
+| Raw SQL | Sent as written. |
 
 Example:
 
@@ -710,16 +870,16 @@ public partial class AddStockColumn : Migration
 }
 ```
 
-You can change a column's nullability as long as the stored type stays the
-same. Changing a column's type in place is not supported.
+A migration can change the nullability of a column if the stored type doesn't
+change. A change of the column type isn't supported.
 
-`DropCheckConstraint` emits `DROP CONSTRAINT`, which CamusDB resolves against
-named `CHECK` and named `NOT NULL` constraints.
+`DropCheckConstraint` emits `DROP CONSTRAINT`. CamusDB finds the named `CHECK`
+or named `NOT NULL` constraint.
 
 ## Comments
 
-Table and column comments use EF Core's built-in `HasComment` API. Index
-comments use the provider's `HasComment` extension:
+For table and column comments, use the `HasComment` API of EF Core. For index
+comments, use the `HasComment` extension of the provider:
 
 ```csharp
 modelBuilder.Entity<User>(b =>
@@ -730,27 +890,27 @@ modelBuilder.Entity<User>(b =>
 });
 ```
 
-Migrations emit `COMMENT ON ...` when a comment changes. Removing a comment
-emits `COMMENT ON ... IS NULL`. Database comments have no EF Core model API, so
-use raw SQL:
+When a comment changes, migrations emit `COMMENT ON ...`. When you remove a
+comment, they emit `COMMENT ON ... IS NULL`. EF Core doesn't have a model API for
+database comments. Use raw SQL:
 
 ```csharp
 migrationBuilder.Sql("COMMENT ON DATABASE app IS 'Application database'");
 ```
 
-Comments are useful metadata for people and for AI agents that inspect the
-database through the CamusDB MCP server.
+Comments help people and AI agents that inspect the database through the
+CamusDB MCP server.
 
 ## Views
 
-Map a read-only entity to a CamusDB view with `ToView(...)`:
+To map a read-only entity to a CamusDB view, use `ToView(...)`:
 
 ```csharp
 modelBuilder.Entity<OpenOrder>().HasNoKey().ToView("open_orders");
 ```
 
-EF Core does not create view migrations automatically, so the provider exposes
-migration helpers:
+EF Core doesn't create view migrations. The provider has migration helpers for
+them:
 
 ```csharp
 protected override void Up(MigrationBuilder migrationBuilder)
@@ -775,13 +935,12 @@ protected override void Down(MigrationBuilder migrationBuilder)
 }
 ```
 
-Views are read-only. Use `HasNoKey()` for a projection type and keep it out of
-`SaveChanges()`. A read through a view can use joins, aggregation, and the query
-optimizer, but a result-cache hint on a view-backed query is bypassed because a
-view expands to a derived source.
+Use `HasNoKey()` for a view projection type, and don't save it with
+`SaveChanges()`. A read through a view can use joins and aggregation. However,
+the query result cache doesn't apply to it.
 
-Materialized views are physical relations. Map them as tables for querying, but
-do not write through them. Refresh them with SQL:
+A materialized view stores its rows. To query it, map it as a table, but don't
+write to it. To refresh it, use SQL:
 
 ```csharp
 await ctx.Database.ExecuteSqlRawAsync(
@@ -790,23 +949,22 @@ await ctx.Database.ExecuteSqlRawAsync(
 
 ## Truncate tables
 
-Use `TruncateTable(...)` when you need to empty a whole base table without
-loading rows into the change tracker:
+To empty a base table, and not load its rows into the change tracker, use
+`TruncateTableAsync(...)`:
 
 ```csharp
 await ctx.Database.TruncateTableAsync("staging_imports");
 ctx.ChangeTracker.Clear();
 ```
 
-`TRUNCATE TABLE` runs outside an explicit transaction and CamusDB rejects it
-inside one. The table keeps its schema, indexes, grants, and name. Its previous
-contents remain recoverable during the server retention window through the
-orphan-table recovery workflow.
+`TRUNCATE TABLE` isn't allowed in an explicit transaction. The table schema and
+indexes stay the same. You can recover the old contents during the retention
+window. For more information, see [TRUNCATE TABLE](/docs/truncate-table).
 
 ## Relationships and foreign keys
 
-Relationships in the EF model become CamusDB `FOREIGN KEY` constraints through
-migrations and `EnsureCreated()`:
+Migrations and `EnsureCreated()` create a CamusDB `FOREIGN KEY` constraint for
+each relationship of the EF model:
 
 ```csharp
 modelBuilder.Entity<Customer>()
@@ -815,23 +973,24 @@ modelBuilder.Entity<Customer>()
     .HasForeignKey(o => o.CustomerId);
 ```
 
-The server enforces the constraint at the end of each statement, inside the
-statement's transaction. A child row without a parent fails with `CADB0304`; a
-delete or update of a referenced parent key fails with `CADB0305` or
-`CADB0306`.
+The server checks the constraint at the end of each statement, in the
+transaction of the statement:
 
-CamusDB supports `NO ACTION` and `RESTRICT` server-side. EF Core defaults a
-required relationship to cascade, but the provider renders unsupported server
-actions as `NO ACTION`; EF still applies cascade or set-null behavior to
-dependents that are tracked in the context. If the dependents are not tracked,
-delete them first or use `DeleteBehavior.Restrict`.
+- A child row that doesn't have a parent returns `CADB0304`.
+- A delete of a referenced parent key returns `CADB0305`.
+- An update of a referenced parent key returns `CADB0306`.
 
-Foreign keys need an index whose leading columns are the referencing columns.
-Migrations reuse the index EF creates for the relationship. `EnsureCreated()`
-lets the server create the needed index when the model has no explicit one.
+The server supports the `NO ACTION` and `RESTRICT` actions. EF Core uses cascade by default for required relationships. The
+provider sends the other actions, such as `Cascade`, as `NO ACTION`. EF Core applies these actions to
+the dependents that the context tracks. If the dependents aren't tracked, delete them first. You
+can also use `DeleteBehavior.Restrict`.
 
-Use `UseForeignKeyConstraints(false)` when you want EF relationships for
-ordering and navigation, but no database foreign-key constraints:
+A foreign key needs an index whose leading columns are the referencing columns.
+Migrations use the index that EF creates for the relationship. If the model
+doesn't have an index for it, `EnsureCreated()` lets the server create one.
+
+To use EF relationships for ordering and navigation, but not create foreign key
+constraints, use `UseForeignKeyConstraints(false)`:
 
 ```csharp
 optionsBuilder.UseCamusDB(connectionString, o =>
@@ -842,9 +1001,9 @@ optionsBuilder.UseCamusDB(connectionString, o =>
 
 The provider supports two EF Core optimistic-concurrency styles.
 
-`[Timestamp]` or `IsRowVersion()` on a `byte[]` property creates a
-provider-managed row-version token. The provider writes a fresh token on every
-insert and update, and EF includes the original token in the update predicate:
+`[Timestamp]` or `IsRowVersion()` on a `byte[]` property creates a row-version
+token that the provider manages. The provider writes a new token on each insert
+and update. EF adds the original token to the condition of the update:
 
 ```csharp
 public sealed class Document
@@ -859,13 +1018,8 @@ public sealed class Document
 
 A stale write raises `DbUpdateConcurrencyException`.
 
-`[ConcurrencyCheck]` is also supported on numeric properties:
-
-- `short`
-- `int`
-- `long`
-
-Example:
+`[ConcurrencyCheck]` is supported on integer properties (`short`, `int`, or
+`long`):
 
 ```csharp
 public sealed class Order
@@ -878,7 +1032,7 @@ public sealed class Order
 }
 ```
 
-Increment the version column in your application code before saving:
+Increment the version in your application code before you save:
 
 ```csharp
 order.Status = "shipped";
@@ -886,45 +1040,34 @@ order.Version++;
 await ctx.SaveChangesAsync();
 ```
 
-Important behavior:
-
-- CamusDB detects write conflicts at transaction commit time.
-- `SaveChangesAsync()` can succeed and the conflict can still surface later at
-  `CommitTransactionAsync()`.
-- For optimistic concurrency, use an explicit numeric version column with
-  `[ConcurrencyCheck]`, or a provider-managed `byte[]` row version.
+In an explicit transaction, `SaveChangesAsync()` can succeed and a conflict can
+then occur at `CommitTransactionAsync()`. With optimistic locking, conflicts are
+checked at the commit. For more information, see
+[Locking strategy](/docs/serializable-transactions#pessimistic-and-optimistic-locking).
 
 ## Current limitations
 
-The provider does not emulate database features that CamusDB does not support.
+The provider doesn't emulate database features that CamusDB doesn't support:
 
-Unsupported or restricted operations include:
+- The server supports `NO ACTION` and `RESTRICT` foreign keys. EF applies the
+  other actions to the dependents that it tracks.
+- Foreign key cycles of two or more tables aren't supported. A table can
+  reference itself.
+- Computed columns aren't supported.
+- `ALTER COLUMN` can only change nullability. To change the stored type, write a
+  manual migration.
+- Migrations can't add or drop a primary key.
+- Array predicates are limited to the translations in
+  [Type mapping](#type-mapping).
+- Bulk writes don't support outer joins.
 
-- foreign keys support `NO ACTION` and `RESTRICT` server-side. `Cascade`,
-  `SetNull`, and `SetDefault` apply only to dependents tracked by EF.
-- foreign-key cycles of two or more tables are not supported. Self-references
-  are supported.
-- no computed columns
-- `ALTER COLUMN` only supports toggling nullability; changing the stored type
-  requires a manual migration strategy
-- no add/drop primary key through migrations
-- no LINQ predicate over an `ARRAY(T)` property; arrays can be read and written
-  as whole values
-- no lateral join or automatic translation of per-row window query shapes;
-  use raw SQL for window functions
-- `ExecuteUpdate` cannot set a value read from another table. Bulk
-  update/delete shapes that use joins, correlated subqueries, or pagination need
-  a single-column primary key.
+The model has these restrictions:
 
-Model restrictions:
-
-- key CLR types must be `string`, `Guid`, `short`, `int`, or `long`
-- `[ConcurrencyCheck]` is limited to numeric columns; use `[Timestamp]` or
-  `IsRowVersion()` for provider-managed `byte[]` row versions
-- plain `Guid` maps to native `UUID`
-- vector embeddings are stored in `bytes` columns; there is no dedicated vector
-  CLR/store type
-- a `NUMERIC` value with more significant digits than .NET `decimal` can hold
-  throws when materialized into a `decimal` property. Read it as `string` when
-  exact wide values are possible.
-- `WithCache(...)` is effective only on single-table autocommit reads
+- A key must be a `string`, `Guid`, `short`, `int`, or `long` property.
+- `[ConcurrencyCheck]` is for numeric columns. For a `byte[]` row version, use
+  `[Timestamp]` or `IsRowVersion()`.
+- Vector embeddings are stored in `BYTES` columns. There isn't a separate vector
+  type.
+- A `NUMERIC` value with more significant digits than a .NET `decimal` throws
+  when it is read into a `decimal` property. If such values can occur, map the
+  property as a `string`.

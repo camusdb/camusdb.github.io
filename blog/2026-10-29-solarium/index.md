@@ -15,7 +15,8 @@ description: SolariumDB is an embedded key-value storage engine written entirely
 This post introduces [SolariumDB](https://solariumdb.github.io/), an embedded
 key-value storage engine written entirely in C#. You will see why we built
 it, how it compares with RocksDB in our first benchmarks, and where it fits
-in the CamusDB stack. RocksDB stays the default storage engine of CamusDB.
+in the CamusDB stack. The default storage engine of CamusDB is RocksDB, as
+before.
 
 With SolariumDB, you can debug the storage engine of your database with the
 same tools you use for your .NET applications. It brings us one step closer
@@ -27,12 +28,12 @@ that writes data to disk.
 ## RocksDB is hard to inspect from .NET
 
 SolariumDB is different from [CamusDB](https://camusdb.github.io/). It is a
-storage engine: the layer that persists data, organizes files, manages
-memory, and recovers after failures. It is an embedded library: it runs
-inside another program and has no server of its own.
+storage engine: the layer that persists data and recovers it after a failure.
+It is also an embedded library, which means that another program loads it and
+no separate server exists.
 
 SolariumDB follows the architecture of [RocksDB](https://rocksdb.org/), a
-Log-Structured Merge Tree (LSM-tree). It has four parts:
+Log-Structured Merge Tree (LSM-tree). It has four parts.
 
 - **Write-ahead log (WAL):** a file that records each write before it is
   applied, for recovery after a crash.
@@ -54,15 +55,15 @@ itself.
 
 - **End-to-end debugging and profiling.** We can follow an operation from the
   application down to the storage layer with .NET tools.
-- **Direct control over I/O.** Every file operation goes through an
+- **Direct control over I/O.** All file operations go through an
   abstraction we control. That lets us experiment with `io_uring`, an
   asynchronous I/O interface of Linux, and with other I/O strategies.
 - **Workload-specific optimizations.** We can tune storage behavior for the
   applications that use it, in addition to general-purpose defaults.
 - **Better observability.** We can expose internal metrics such as write
-  stalls, pending compactions, memtable usage, and file activity.
-- **No native dependencies.** The storage engine ships as .NET assemblies,
-  with no separate native binaries for each platform.
+  stalls and pending compactions.
+- **No native dependencies.** The storage engine ships as .NET assemblies. It
+  needs no separate native binary for each platform.
 
 SolariumDB was first designed around the Raft log of
 [Kommander](https://kahunakv.github.io/kommander.github.io/), and it also
@@ -70,8 +71,8 @@ serves as a storage backend for Kahuna.
 
 One example of a workload-specific optimization: Raft logs are mostly
 append-only and periodically discard old entries. SolariumDB can move
-SSTables that do not overlap between levels with no rewrite of their
-contents, which reduces disk I/O.
+SSTables that do not overlap between levels and leave their contents
+unchanged, which reduces disk I/O.
 
 ## Benchmark results against RocksDB
 
@@ -91,13 +92,13 @@ RocksDB configured to use buffered reads with eight reader threads.
 These results come from specific workloads on a single machine. We do not
 claim that SolariumDB is faster in general.
 
-Some areas need work:
+Some areas need work.
 
 - Garbage collection can affect tail latency (the slowest operations) under
   heavy load.
 - Some compaction workloads need better tuning.
 - The `io_uring` implementation does not outperform the default I/O path in
-  every scenario.
+  all scenarios.
 
 ![Compaction throughput: RocksDB leads on append workloads, SolariumDB leads on random updates](/img/solarium-compaction.svg)
 
@@ -114,8 +115,8 @@ where you select a storage engine for your requirements. Some workloads need
 write throughput, others need efficient range scans, and others need
 predictable latency under heavy concurrency.
 
-Interchangeable storage engines let us explore those tradeoffs with no
-rebuild of the whole database.
+Interchangeable storage engines let us explore those tradeoffs and leave the
+rest of the database unchanged.
 
 Other databases took this approach. CockroachDB replaced RocksDB with Pebble,
 a storage engine written in Go, partly to gain more control over its
@@ -133,7 +134,8 @@ can be used independently, and together they make a distributed database.
 - [Nixie](https://kahunakv.github.io/nixie.github.io/): High-performance actor model
 - [Solarium](https://solariumdb.github.io/): Embedded key-value store, handling the low-level disk I/O
 
-This is how they fit together inside CamusDB:
+In CamusDB, Kahuna stores its key-value state in the storage engine, and
+Kommander stores the Raft log there.
 
 ```mermaid
 flowchart TD
@@ -163,7 +165,7 @@ flowchart TD
     style K fill:#ccfbf1,stroke:#0d9488,stroke-width:2px,color:#134e4a
     style S fill:#f1f5f9,stroke:#94a3b8,color:#1e293b
 ```
-CamusDB turns SQL into key-value operations on Kahuna. Inside Kahuna, Nixie actors handle concurrency: each key and lock belongs to one single-threaded actor, so Kahuna avoids sharing mutable state between threads. Kahuna replicates its writes through Kommander. On each node, a storage engine writes both the key-value state and the Raft log to disk. Today that engine is RocksDB by default, and SolariumDB is the alternative.
+CamusDB turns SQL into key-value operations on Kahuna. In Kahuna, Nixie actors handle concurrency: each key and lock belongs to one single-threaded actor. This means that Kahuna avoids sharing mutable state between threads. Kahuna replicates its writes through Kommander. On each node, a storage engine writes both the key-value state and the Raft log to disk. Today that engine is RocksDB by default, and SolariumDB is the alternative.
 
 ## RocksDB stays the default
 

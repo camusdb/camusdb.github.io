@@ -156,3 +156,30 @@ SELECT 'WITH RECURSIVE LATERAL';`;
   expectToken(editor, 'type', 'DATE');
   expectToken(editor, 'type', 'TIMESTAMP');
 });
+
+
+test('GREATEST and LEAST highlight as functions without changing strings or comments', () => {
+  const sql = "SELECT greatest(NULL, 2, 1), least(3, 2.5), greatest_value, 'greatest least'; -- greatest least";
+  for (const stream of tokens(sql)) {
+    expect(stream.map((token) => token.value).join('')).toBe(sql);
+    expectToken(stream, 'function', 'greatest');
+    expectToken(stream, 'function', 'least');
+    expectToken(stream, 'string', "'greatest least'");
+    expectToken(stream, 'comment', '-- greatest least');
+    expect(stream.some((token) => token.kind === 'function' && token.value === 'greatest_value')).toBe(false);
+  }
+});
+
+test('PARTITIONS is a keyword after SHOW and an identifier in queries', () => {
+  const sql = "SHOW PARTITIONS; SELECT partitions FROM partitions WHERE note = 'SHOW PARTITIONS'; -- SHOW PARTITIONS";
+  for (const stream of tokens(sql)) {
+    expect(stream.map((token) => token.value).join('')).toBe(sql);
+    expectToken(stream, 'keyword', 'PARTITIONS');
+    expectToken(stream, 'string', "'SHOW PARTITIONS'");
+    expectToken(stream, 'comment', '-- SHOW PARTITIONS');
+    const partitionKeywords = stream.filter(
+      (token) => token.kind === 'keyword' && /^partitions$/i.test(token.value),
+    );
+    expect(partitionKeywords).toHaveLength(1);
+  }
+});
