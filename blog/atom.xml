@@ -13,7 +13,7 @@
         <link href="https://camusdb.github.io/blog/what-the-dragon-found-part-four/"/>
         <updated>2026-11-21T00:00:00.000Z</updated>
         <summary type="html"><![CDATA[Five weeks of Caraxes tests on backups, node replacement, online schema changes, deletes, range splits, joins and database branches: each defect, its fix, and the tests that are not done yet.]]></summary>
-        <content type="html"><![CDATA[<p><img decoding="async" loading="lazy" alt="A dragon burning a city of glowing pyramids at night" src="https://camusdb.github.io/assets/images/caraxes-c4fa57eb03047cde9f4604a3d0b83dc8.png" width="1448" height="1086" class="img_ev3q"></p>
+        <content type="html"><![CDATA[<p><img decoding="async" loading="lazy" alt="A dragon burning a city of glowing pyramids at night" src="https://camusdb.github.io/assets/images/caraxes4-aca675e82f08ea4fe8efc14a06d22dec.png" width="1672" height="941" class="img_ev3q"></p>
 <p>This post lists the defects that Caraxes found in CamusDB in the five weeks
 since part three, with the fix for each one. In that period, the tool gained
 five faults and five workloads.</p>

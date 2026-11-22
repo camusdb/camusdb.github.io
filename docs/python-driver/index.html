@@ -15,8 +15,8 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.eff556bf.js" defer="defer"></script>
-<script src="/assets/js/main.7433aad9.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.f0856dd7.js" defer="defer"></script>
+<script src="/assets/js/main.7b4a8632.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -155,8 +155,9 @@ an exception. Transactions don&#x27;t nest. The transaction settings of a connec
 change while a transaction is open.</p>
 <p>After a statement fails, the server discards the transaction. The driver then
 raises <code>InternalError</code> for each statement or commit until you call
-<code>rollback()</code>. DDL doesn&#x27;t join the transaction. <code>TRUNCATE</code> returns <code>CADB0538</code>
-in a transaction. Use autocommit for it.</p>
+<code>rollback()</code>. To include supported DDL in the same transaction as your writes,
+enable <a class="" href="/docs/sql-transactions/#transactional-schema-changes">transactional schema changes</a>.
+Use autocommit for <code>TRUNCATE</code>.</p>
 <p>To replay all the reads and writes after a serialization conflict, use
 <code>run_transaction()</code>. Call it when the connection doesn&#x27;t have an open
 transaction:</p>

@@ -15,8 +15,8 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.eff556bf.js" defer="defer"></script>
-<script src="/assets/js/main.7433aad9.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.f0856dd7.js" defer="defer"></script>
+<script src="/assets/js/main.7b4a8632.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -209,6 +209,9 @@ loaded back unchanged. For the literal rules, see
 direction and the comment of each column, if the source server returns them.
 This means that the indexes are in the dump also with <code>--no-create-table</code>, and
 that <code>--defer-indexes</code> can build them after the rows.</p>
+<p>For <a class="" href="/docs/sql-indexes/#expression-indexes">expression indexes</a>, use a version
+of camus-dump that reads the <code>Key</code> column from <code>SHOW INDEXES</code>. Older versions
+stop with an error when they encounter an expression key.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="sequences-and-identity-values">Sequences and identity values<a href="#sequences-and-identity-values" class="hash-link" aria-label="Direct link to Sequences and identity values" title="Direct link to Sequences and identity values" translate="no">​</a></h2>
 <p>The dump restores the sequences and their positions.</p>
 <p>Free-standing sequences come before the tables. A column default can use
