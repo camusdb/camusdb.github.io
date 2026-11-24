@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.f0856dd7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.fa4b1687.js" defer="defer"></script>
 <script src="/assets/js/main.7b4a8632.js" defer="defer"></script>
 </head>
 <body>
@@ -26,22 +26,22 @@
 <p>CamusDB can delete expired rows for you. You name a column that contains the
 expiry time of each row, and a background sweep deletes the rows whose time has
 passed. No one has to run a <code>DELETE</code>.</p>
-<p>The parameter names, values, and defaults follow a common SQL convention for
-row-level TTL. Some parameters accept fewer values than that convention, and
+<p>The parameters follow a common SQL convention for row-level TTL, also in their
+names and defaults. Some parameters accept fewer values than that convention, and
 some aren&#x27;t supported. See <a href="#limits-of-the-parameters" class="">Parameter limits</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="replace-your-cleanup-jobs">Replace your cleanup jobs<a href="#replace-your-cleanup-jobs" class="hash-link" aria-label="Direct link to Replace your cleanup jobs" title="Direct link to Replace your cleanup jobs" translate="no">​</a></h2>
 <p>TTL means time to live: how long a row remains in the table before it is removed.
-Many tables contain data that is useful only for a limited time:</p>
+Many tables contain data that is useful only for a limited time.</p>
 <ul>
-<li class="">Login sessions, access tokens, and password reset codes.</li>
-<li class="">Temporary carts, reservations, and application locks.</li>
-<li class="">Event logs, audit rows, and telemetry that a retention rule lets you keep for
-a fixed period only.</li>
+<li class="">Login sessions and access tokens.</li>
+<li class="">Temporary carts and reservations.</li>
+<li class="">Event logs and telemetry that a retention rule lets you keep for a fixed
+period only.</li>
 <li class="">Cached copies of data from another system.</li>
 </ul>
-<p>Without TTL, you must write and schedule a cleanup job. It must delete rows in
-small batches, so that it doesn&#x27;t hold a large transaction or slow down the
-application, and it must continue after a failure or a restart. Row-level TTL
+<p>If you don&#x27;t use TTL, you must write and schedule a cleanup job. The job must
+delete rows in small batches, to avoid a large transaction that slows down the
+application. It must also continue after a failure or a restart. Row-level TTL
 does this work in the database. You name the expiry column once, and CamusDB
 deletes the expired rows.</p>
 <p>You don&#x27;t need TTL for data that you keep forever, or for rows that the
@@ -52,7 +52,7 @@ expired row until the sweep reaches it. Read
 before you rely on TTL for correctness.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="turn-it-on">Turn it on<a href="#turn-it-on" class="hash-link" aria-label="Direct link to Turn it on" title="Direct link to Turn it on" translate="no">​</a></h2>
 <p>The node switch <code>ttl_enabled</code> is on by default. To use TTL on a table, name its
-expiry column:</p>
+expiry column.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">ALTER</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TABLE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">sessions</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">SET</span><span class="token plain"> </span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token plain">ttl_expiration_expression </span><span class="token operator" style="color:#94a3b8">=</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;expires_at&#x27;</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
 <p>The column can be a <code>DATETIME</code>, a <code>DATE</code>, or an <code>INT64</code> with Unix epoch
 milliseconds. A column of another type returns <code>CADB0400</code>. Until a table names
@@ -78,7 +78,7 @@ sweep starts, at no fixed time of day. For example, <code>@daily</code> means ab
 day.</p>
 <p>You can also set the parameters in <code>CREATE TABLE ... WITH (...)</code>.
 <code>SHOW CREATE TABLE</code> prints that form, and you can run its output to recreate
-the table:</p>
+the table.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">CREATE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">TABLE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">sessions</span><span class="token punctuation" style="color:#94a3b8">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token comment" style="color:#64748b;font-style:italic">-- CREATE TABLE `sessions` (...) WITH (ttl_expiration_expression = &#x27;expires_at&#x27;, ttl_grace_ms = 5000);</span><br></div></code></pre></div></div>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="node-defaults">Node defaults<a href="#node-defaults" class="hash-link" aria-label="Direct link to Node defaults" title="Direct link to Node defaults" translate="no">​</a></h3>
 <p>Each tuning parameter of a table has a node default. Set one policy for the
@@ -89,7 +89,7 @@ cluster, and override it only on the tables that need a different value.</p>
 background. It doesn&#x27;t filter them out of reads. A <code>SELECT</code> returns an expired
 row if the sweep hasn&#x27;t reached it yet. A filter at read time would add a cost
 to each query of a TTL table.</p>
-<p>If your application needs exact expiry, filter explicitly:</p>
+<p>If your application needs exact expiry, filter explicitly.</p>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SELECT</span><span class="token plain"> </span><span class="token operator" style="color:#94a3b8">*</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">FROM</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">sessions</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">WHERE</span><span class="token plain"> expires_at </span><span class="token operator" style="color:#94a3b8">&gt;</span><span class="token plain"> </span><span class="token function" style="color:#7dd3fc">NOW</span><span class="token punctuation" style="color:#94a3b8">(</span><span class="token punctuation" style="color:#94a3b8">)</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
 <p><code>ttl_job_cron</code> sets the maximum time that an expired row is visible. For a
 shorter maximum, sweep more often.</p>
@@ -101,8 +101,8 @@ key that references a TTL table.</p>
 <p>Tune <code>ttl_delete_rate_limit</code> first. It controls the effect of the sweep on the
 cluster. The batch sizes control the size of each transaction. The default of
 100 rows per second is low on purpose.</p>
-<p>Delete batches are small, because each row costs one mutation per index entry
-plus one for the row. A table with four indexes uses five mutations per row.
+<p>Delete batches are small. Each row costs one mutation per index entry, plus one
+for the row. A table with four indexes uses five mutations per row.
 Keep <code>ttl_delete_batch_size</code> well below the transaction limit of 20,000
 mutations. Short delete transactions also keep foreground writers from waiting
 for the sweep&#x27;s locks.</p>
@@ -131,13 +131,13 @@ this.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="monitoring">Monitoring<a href="#monitoring" class="hash-link" aria-label="Direct link to Monitoring" title="Direct link to Monitoring" translate="no">​</a></h2>
 <div class="language-camussql codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-camussql codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token keyword" style="color:#c4b5fd;font-weight:500">SHOW</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">ENGINE</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">STATS</span><span class="token plain"> </span><span class="token keyword" style="color:#c4b5fd;font-weight:500">LIKE</span><span class="token plain"> </span><span class="token string" style="color:#86efac">&#x27;ttl.%&#x27;</span><span class="token punctuation" style="color:#94a3b8">;</span><br></div></code></pre></div></div>
 <table><thead><tr><th>Metric</th><th>Meaning</th></tr></thead><tbody><tr><td><code>ttl.rows_expired</code></td><td>Rows that the sweep deleted on this node</td></tr><tr><td><code>ttl.rows_skipped_recheck</code></td><td>Rows that were expired at scan time but not at delete time</td></tr><tr><td><code>ttl.rows_failed</code></td><td>Rows whose delete failed, or whose result CamusDB couldn&#x27;t determine</td></tr><tr><td><code>ttl.spans_completed</code></td><td>Spans that this node finished</td></tr><tr><td><code>ttl.spans_reclaimed</code></td><td>Spans that this node took over from a worker whose lease expired</td></tr><tr><td><code>ttl.runs_planned</code></td><td>Runs that this node created as the planner</td></tr><tr><td><code>ttl.runs_completed</code></td><td>Runs that this node closed as finished</td></tr><tr><td><code>ttl.sweep_duration_ms</code></td><td>Total time that this node spent on sweeps</td></tr></tbody></table>
-<p>There are also rows for each table, with the tags <code>db=…</code> and <code>table=…</code>:</p>
+<p>There are also rows for each table, with the tags <code>db=…</code> and <code>table=…</code>.</p>
 <table><thead><tr><th>Metric</th><th>Meaning</th></tr></thead><tbody><tr><td><code>ttl.table.state</code></td><td>0 idle, 1 paused, 2 progressing, 3 waiting, 4 failing, 5 stalled</td></tr><tr><td><code>ttl.table.spans_done</code> and <code>ttl.table.span_count</code></td><td>Progress of the open run</td></tr><tr><td><code>ttl.table.rows_deleted</code> and <code>ttl.table.rows_failed</code></td><td>Totals for this run</td></tr><tr><td><code>ttl.table.horizon_ms</code></td><td>The time that this run compares rows against</td></tr><tr><td><code>ttl.table.last_observed_ms</code></td><td>When the sweep last checked this table</td></tr></tbody></table>
 <p>Read <code>ttl.table.state</code> before the totals. A total for the node shows only
 whether TTL works. The numbers of healthy tables can hide a table that stopped.</p>
-<p>These states look alike from the outside:</p>
+<p>Four of these states look alike from the outside.</p>
 <ul>
-<li class=""><code>idle</code>: the table has no expired rows to delete.</li>
+<li class=""><code>idle</code>: the table doesn&#x27;t have expired rows to delete.</li>
 <li class=""><code>waiting</code>: another node has the spans.</li>
 <li class=""><code>stalled</code>: an open run passed its interval and made no progress.</li>
 <li class=""><code>failing</code>: CamusDB tries to delete rows, and the deletes fail. Check
@@ -157,7 +157,7 @@ small steady count is normal: it counts sessions that were renewed before the
 sweep reached them. A value close to <code>ttl.rows_expired</code> means that the sweep
 competes with live traffic. Change its interval and batch sizes.</p>
 <p>If <code>ttl.rows_expired</code> doesn&#x27;t grow on a table that you expect to shrink, check
-these items in order:</p>
+four items in this order.</p>
 <ol>
 <li class=""><code>ttl_enabled</code> on the node.</li>
 <li class=""><code>ttl_pause</code> on the table.</li>
@@ -167,7 +167,7 @@ disappear.</li>
 </ol>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="limits-of-the-parameters">Parameter limits<a href="#limits-of-the-parameters" class="hash-link" aria-label="Direct link to Parameter limits" title="Direct link to Parameter limits" translate="no">​</a></h2>
 <p>CamusDB supports a subset of the common TTL parameters.</p>
-<p>These parameters accept fewer values:</p>
+<p>Two parameters accept fewer values.</p>
 <ul>
 <li class=""><code>ttl_expiration_expression</code> takes a column name. An SQL expression, such as
 <code>created_at + INTERVAL &#x27;1 day&#x27;</code>, returns an error that says expressions
@@ -175,15 +175,15 @@ aren&#x27;t supported yet.</li>
 <li class=""><code>ttl_job_cron</code> takes only the <code>@</code> macros. Five-field CRON expressions return
 an error.</li>
 </ul>
-<p>These parameters aren&#x27;t available, and they return &quot;Unknown table setting&quot;:</p>
+<p>Four parameters aren&#x27;t available, and they return &quot;Unknown table setting&quot;.</p>
 <ul>
 <li class=""><code>ttl_expire_after</code>. It would need a hidden expiry column. Use
 <code>ttl_expiration_expression</code> with your own column.</li>
-<li class=""><code>ttl_disable_changefeed_replication</code>. CamusDB has no changefeed.</li>
+<li class=""><code>ttl_disable_changefeed_replication</code>. CamusDB doesn&#x27;t have changefeeds.</li>
 <li class=""><code>ttl_row_stats_poll_interval</code> and <code>ttl_label_metrics</code>, which are specific to
 Prometheus. Use <code>SHOW ENGINE STATS</code>.</li>
 </ul>
-<p>One parameter is a CamusDB extension:</p>
+<p>One parameter is a CamusDB extension.</p>
 <ul>
 <li class=""><code>ttl_grace_ms</code> adds a grace period after the expiry time. A column name alone
 can&#x27;t express a grace period.</li>
@@ -195,9 +195,9 @@ time from the <a class="" href="/docs/concepts/#hlc">hybrid logical clock</a>, a
 workers compare their rows with that one time, and two nodes can&#x27;t disagree
 about a row at a span boundary.</p>
 <p>Workers run on all nodes. A worker claims a span with a lease on the span&#x27;s key.
-If a worker stops, only its span waits, and another worker can claim it when the
-lease expires.</p>
-<p>A worker processes each span in these steps:</p>
+If a worker stops, only its span waits. Another worker can claim the span when
+the lease expires.</p>
+<p>A worker processes each span in four steps.</p>
 <ol>
 <li class="">It scans a bounded batch.</li>
 <li class="">It selects the expired rows.</li>

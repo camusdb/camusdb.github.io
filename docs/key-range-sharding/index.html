@@ -15,7 +15,7 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.f0856dd7.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.fa4b1687.js" defer="defer"></script>
 <script src="/assets/js/main.7b4a8632.js" defer="defer"></script>
 </head>
 <body>
@@ -35,7 +35,7 @@ of a table, or the entries of one index. With
 and each of its secondary indexes, map to one partition. Different tables can be
 on different partitions, but one table can&#x27;t spread across them.</p>
 <p>Hash routing is simple, and it suits most tables. However, it has limits for a
-very large or very busy table:</p>
+very large or very busy table.</p>
 <ul>
 <li class="">All the writes to the table go through the same partition leader. When that
 leader is saturated, more nodes in the cluster don&#x27;t help that table.</li>
@@ -49,7 +49,7 @@ coordinate the writes to each range. CamusDB can split a range automatically
 when it grows too large or gets too much load. See
 <a href="#automatic-splits" class="">Automatic splits</a>.</p>
 <!-- -->
-<p>Turn it on in these cases:</p>
+<p>Key-range routing helps when one partition limits a table&#x27;s capacity.</p>
 <ul>
 <li class="">One table or index gets more writes than one partition leader can coordinate.</li>
 <li class="">One table is too large for one partition.</li>
@@ -62,13 +62,12 @@ the same rows in both routing modes. The placement, the concurrency, and the
 network cost are different. Before you design the keys of a key-range table,
 read <a class="" href="/docs/best-practices/">Best practices</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="turn-it-on">Turn it on<a href="#turn-it-on" class="hash-link" aria-label="Direct link to Turn it on" title="Direct link to Turn it on" translate="no">​</a></h2>
-<p>Set it in <code>config.yml</code>:</p>
+<p>Set <code>key_range_sharding</code> in <code>config.yml</code> before starting the cluster.</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">key_range_sharding</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain"></span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">initial_partitions</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">4</span><br></div></code></pre></div></div>
 <p>The environment variable <code>CAMUS_KEY_RANGE_SHARDING</code> (<code>1</code>, <code>true</code>, <code>0</code>, or
 <code>false</code>) overrides the YAML value.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-mode-is-fixed-when-the-cluster-is-created">The mode is fixed when the cluster is created<a href="#the-mode-is-fixed-when-the-cluster-is-created" class="hash-link" aria-label="Direct link to The mode is fixed when the cluster is created" title="Direct link to The mode is fixed when the cluster is created" translate="no">​</a></h3>
-<p>A cluster records its routing mode when it starts for the first time. After
-that, the following rules apply:</p>
+<p>A cluster records its routing mode when it starts for the first time.</p>
 <ul>
 <li class="">If <code>key_range_sharding</code> isn&#x27;t set, the node uses the recorded mode.
 <code>SHOW VARIABLES</code> shows the value with the source <code>cluster</code>.</li>
@@ -109,13 +108,13 @@ schema. A table can have ranged key spaces and hashed key spaces.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="automatic-splits">Automatic splits<a href="#automatic-splits" class="hash-link" aria-label="Direct link to Automatic splits" title="Direct link to Automatic splits" translate="no">​</a></h2>
 <p>Automatic splitting is off until you set a threshold. <code>key_range_sharding: true</code>
 doesn&#x27;t turn on a rebalancing policy.</p>
-<p>The count branch splits a large range:</p>
+<p>The count threshold splits a range based on its size.</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">kahuna</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_threshold</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">1000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_min_range_size</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">10</span><br></div></code></pre></div></div>
 <p><code>range_split_threshold</code> must be <code>0</code> or at least twice
 <code>range_split_min_range_size</code>. <code>0</code> turns off the count branch.</p>
-<p>The load branch splits hot partitions:</p>
+<p>The load threshold splits ranges on busy partitions.</p>
 <div class="language-yaml codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#e2e8f0;--prism-background-color:#0b1120"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-yaml codeBlock_bY9V thin-scrollbar" style="color:#e2e8f0;background-color:#0b1120"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#e2e8f0"><span class="token key atrule" style="color:#c4b5fd;font-weight:500">kahuna</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_load_threshold</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">500</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_load_min_queue_depth</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">8</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_load_min_commit_wait_ms</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">0</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_load_window_ms</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">15000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_load_poll_interval_ms</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">5000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_load_imbalance_max</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">0.8</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_settle_window_ms</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">10000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_split_indivisible_cooldown_ms</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">300000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_move_settle_timeout_ms</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">10000</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">range_merge_min_size</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token number" style="color:#fdba74">10</span><span class="token plain"></span><br></div><div class="token-line" style="color:#e2e8f0"><span class="token plain">  </span><span class="token key atrule" style="color:#c4b5fd;font-weight:500">enable_load_reports</span><span class="token punctuation" style="color:#94a3b8">:</span><span class="token plain"> </span><span class="token boolean important" style="color:#c4b5fd;font-weight:500">true</span><br></div></code></pre></div></div>
-<p>The load branch needs the following:</p>
+<p>Load-based splits need multiple partitions and a source of load reports.</p>
 <ul>
 <li class=""><code>key_range_sharding: true</code>.</li>
 <li class="">Two or more initial partitions.</li>
@@ -148,25 +147,26 @@ the primary index.</li>
 has more keys, the split is refused. The node doesn&#x27;t split from a partial scan.</p>
 <p>With authentication on, the caller must be a superuser. With authentication
 off, the endpoint accepts only loopback requests.</p>
-<p>The response has the following HTTP status codes:</p>
-<table><thead><tr><th>Status</th><th>Meaning</th></tr></thead><tbody><tr><td>200</td><td>The split completed.</td></tr><tr><td>400</td><td>The input is invalid, for example <code>maxKeys</code> below 2.</td></tr><tr><td>409</td><td>The split was refused. <code>status</code> and <code>reason</code> give the cause.</td></tr></tbody></table>
+<table><thead><tr><th>HTTP status</th><th>Meaning</th></tr></thead><tbody><tr><td>200</td><td>The split completed.</td></tr><tr><td>400</td><td>The input is invalid, for example <code>maxKeys</code> below 2.</td></tr><tr><td>409</td><td>The split was refused. <code>status</code> and <code>reason</code> give the cause.</td></tr></tbody></table>
 <p>For example, <code>NoRange</code> means that the key space is hash-routed, or that its range
 map isn&#x27;t available. The split can also be refused when the backend can&#x27;t divide
 the range or place the child.</p>
-<p>The response body has these fields:</p>
-<table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>success</code></td><td>Whether the split completed.</td></tr><tr><td><code>status</code></td><td>The outcome name, such as <code>Succeeded</code>, <code>NotLeader</code>, or <code>NoRange</code>.</td></tr><tr><td><code>reason</code></td><td>The cause of a refusal.</td></tr><tr><td><code>keySpace</code></td><td>The key space that was selected.</td></tr><tr><td><code>splitKey</code></td><td>The new boundary, as an opaque key.</td></tr><tr><td><code>keysSeen</code></td><td>The number of keys that the node scanned.</td></tr><tr><td><code>descriptorsBefore</code></td><td>The number of ranges before the attempt.</td></tr><tr><td><code>newPartitionId</code></td><td>The partition of the new child range.</td></tr><tr><td><code>leaderHint</code></td><td>The leader, when the node that got the request can&#x27;t do the split.</td></tr><tr><td><code>determinate</code></td><td><code>false</code> when the range map can still change after the response.</td></tr></tbody></table>
-<p>On <code>NotLeader</code>, use <code>leaderHint</code> to find the leader of the key space. If
-<code>determinate</code> is <code>false</code>, for example after <code>QuiesceFailed</code> or
-<code>TransferFailed</code>, the split can land later. Run <code>SHOW RANGES</code> again, and compare
-the range count with <code>descriptorsBefore</code> before you retry.</p>
+<table><thead><tr><th>Response field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>success</code></td><td>Whether the split completed.</td></tr><tr><td><code>status</code></td><td>The outcome name, such as <code>Succeeded</code>, <code>NotLeader</code>, or <code>NoRange</code>.</td></tr><tr><td><code>reason</code></td><td>The cause of a refusal.</td></tr><tr><td><code>keySpace</code></td><td>The key space that was selected.</td></tr><tr><td><code>splitKey</code></td><td>The new boundary, as an opaque key.</td></tr><tr><td><code>keysSeen</code></td><td>The number of keys that the node scanned.</td></tr><tr><td><code>descriptorsBefore</code></td><td>The number of ranges before the attempt.</td></tr><tr><td><code>newPartitionId</code></td><td>The partition of the new child range.</td></tr><tr><td><code>leaderHint</code></td><td>The leader, when the node that got the request can&#x27;t do the split.</td></tr><tr><td><code>determinate</code></td><td><code>false</code> when the range map can still change after the response.</td></tr></tbody></table>
+<p>The node checks whether it leads the partition that owns the range map before
+scanning for a split key. On <code>NotLeader</code>, retry on the node named by
+<code>leaderHint</code> if a hint is available.</p>
+<p><code>MedianScanFailed</code> means the scan for a split key couldn&#x27;t finish. The node
+didn&#x27;t attempt a split, and you can retry the request.</p>
+<p>If <code>determinate</code> is <code>false</code>, the split can land later. Run <code>SHOW RANGES</code>
+again and compare the range count with <code>descriptorsBefore</code> before you retry.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="reading-split-activity">Reading split activity<a href="#reading-split-activity" class="hash-link" aria-label="Direct link to Reading split activity" title="Direct link to Reading split activity" translate="no">​</a></h2>
-<p><code>SHOW ENGINE STATS</code> shows the range-split counters for each key space:</p>
+<p><code>SHOW ENGINE STATS</code> shows the range-split counters for each key space.</p>
 <table><thead><tr><th>Counter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>kahuna.range.splits</code></td><td>Committed splits.</td></tr><tr><td><code>kahuna.range.split.indivisible_refusals</code></td><td>One hot key had the load, and a split couldn&#x27;t help.</td></tr><tr><td><code>kahuna.range.split.no_relief_skips</code></td><td>No peer was available for the child range.</td></tr><tr><td><code>kahuna.range.split.settle_skips</code></td><td>A new child range is in its settle window.</td></tr><tr><td><code>kahuna.range.merge.warm_skips</code></td><td>A merge candidate has too much load.</td></tr></tbody></table>
 <p><code>SHOW RANGES</code> shows the current ranges. <code>SHOW ENGINE STATS</code> shows what the
 splitter tried.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="concurrent-writes">Concurrent writes<a href="#concurrent-writes" class="hash-link" aria-label="Direct link to Concurrent writes" title="Direct link to Concurrent writes" translate="no">​</a></h2>
 <p>A write that is in progress while a range boundary moves gets a retryable
-error. The write isn&#x27;t sent to the wrong owner:</p>
+error.</p>
 <ul>
 <li class=""><code>CADB0504</code> means that the routing changed, or that the range was quiesced,
 before the write was applied.</li>
