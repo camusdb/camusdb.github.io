@@ -15,8 +15,8 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.fa4b1687.js" defer="defer"></script>
-<script src="/assets/js/main.7b4a8632.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.6f6ef0ff.js" defer="defer"></script>
+<script src="/assets/js/main.d8954d11.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -130,6 +130,13 @@ converge at each step, and it backfills the existing rows before the element
 becomes <code>Public</code>. The coordinator records the progress of the backfill. If the
 schema leader changes during the backfill, the new leader continues from the
 recorded progress. It doesn&#x27;t restart the job.</p>
+<p>Standalone nodes also record ordered index builds as jobs. After a restart,
+the node can resume an interrupted build when the database opens. If the
+build fails, its entries are removed. For example, adding a unique index
+fails if existing rows have duplicate keys.</p>
+<p>Adding a <code>CHECK</code> constraint or setting <code>NOT NULL</code> also scans existing rows.
+During validation, schema changes on other tables can proceed in either
+mode. Schema changes on the table under validation wait.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="renames-change-metadata-only">Renames change metadata only<a href="#renames-change-metadata-only" class="hash-link" aria-label="Direct link to Renames change metadata only" title="Direct link to Renames change metadata only" translate="no">​</a></h2>
 <p>A rename of a schema object doesn&#x27;t rewrite the stored rows. Rows and
 index entries use stable internal ids, and they don&#x27;t contain names. This means

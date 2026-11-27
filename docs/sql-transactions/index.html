@@ -15,8 +15,8 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.fa4b1687.js" defer="defer"></script>
-<script src="/assets/js/main.7b4a8632.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.6f6ef0ff.js" defer="defer"></script>
+<script src="/assets/js/main.d8954d11.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -164,6 +164,9 @@ second database returns <code>CADB0538</code>.</p>
 until the transaction ends. Other schema changes in that database wait for the
 lock, also in autocommit. After 30 seconds, they return <code>CADB0504</code>. Writes don&#x27;t
 wait for this lock.</p>
+<p>With transactional DDL enabled, autocommit schema statements share the DDL
+lock. The first schema change in an explicit transaction can return
+<code>CADB0504</code> after 30 seconds waiting for an active autocommit schema change.</p>
 <p>When the transaction commits, queries that open the changed tables wait for the
 new schema. A concurrent write that was planned against the old schema can
 return <code>CADB0502</code>, and it must retry from <code>BEGIN</code>. If another schema change

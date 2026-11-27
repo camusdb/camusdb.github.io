@@ -15,8 +15,8 @@
 <meta name="algolia-site-verification" content="CCAE52A1C7A7537A">
 <meta name="google-site-verification" content="AQsqzw7OZO96ezK1TSD9OX4bGaznkyiGh64Ru9-n5yM">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"><link rel="stylesheet" href="/assets/css/styles.59f06f9f.css">
-<script src="/assets/js/runtime~main.fa4b1687.js" defer="defer"></script>
-<script src="/assets/js/main.7b4a8632.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.6f6ef0ff.js" defer="defer"></script>
+<script src="/assets/js/main.d8954d11.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -81,6 +81,10 @@ cancels the query. Scans and the other operators stop at their next storage
 read or operator boundary. If a client stops reading a stream early, the
 server cleans up the query. For long reads, you should use the streaming
 endpoint when your client can process rows one at a time.</p>
+<p>A disconnected client won&#x27;t start a new write transaction or trigger another
+Serializable retry. A write that has started can still commit. The server
+records canceled HTTP requests as status 499. A disconnect by itself leaves
+the write outcome unknown to the client.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="authentication">Authentication<a href="#authentication" class="hash-link" aria-label="Direct link to Authentication" title="Direct link to Authentication" translate="no">​</a></h2>
 <p>A driver takes credentials in its configuration. A direct HTTP client exchanges
 them for a bearer token through <code>/login</code>:</p>
