@@ -214,7 +214,9 @@ transaction executes no new statement, and it can't commit. The rollback starts
 when that statement ends. A read stops at its next row, and a write stops before
 its next write, both with `CADB0565`. If the statement doesn't end within half
 of `cluster_activity_peer_timeout_ms`, the kill returns `CADB0568`. The row then
-shows `state = 'killing'`. Send the same kill again to confirm the rollback.
+shows `state = 'killing'`. Send the same kill again to confirm the rollback. The
+kill also returns `CADB0568` when the rollback itself takes longer than that
+wait.
 
 If a `COMMIT` or `ROLLBACK` of the transaction already started, only one of the
 two wins. A kill that lost to a commit returns `CADB0501`, and the message says
@@ -227,7 +229,8 @@ The following errors are related to kills:
 | `CADB0565` | The killed transaction returns this code to its client. |
 | `CADB0566` | No visible open transaction has that id. The transaction ended, or the id is wrong. A transaction of another user also gives this error. |
 | `CADB0567` | The node that can own the transaction didn't answer before the timeout. The transaction can be open. |
-| `CADB0568` | The kill is in effect, and the rollback waits for a running statement. |
+| `CADB0568` | The kill is in effect, and the rollback didn't end yet. It waits for a running statement, or it is in progress. |
+| `CADB0569` | The kill is in effect, but the rollback failed. The storage node releases the locks when the session of the transaction expires. |
 | `CADB0501` | A commit or rollback of the transaction won, or the outcome of its last commit isn't known yet. |
 
 ## Find and end a blocking transaction
