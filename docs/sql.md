@@ -204,6 +204,7 @@ number, write `10 - -5`, with a space.
 | Partition leaders, replicas, and load with `SHOW PARTITIONS` | [Raft partitions](/docs/sql-inspection#raft-partitions) |
 | The range placement of a table or index | [SHOW RANGES](/docs/show-ranges) |
 | Active queries, connections, and `CANCEL QUERY` | [Query activity](/docs/query-activity) |
+| Open transactions and `KILL TRANSACTION` | [Query activity](/docs/query-activity#open-transactions) |
 | Statements that crossed a slow-query threshold | [Slow query log](/docs/slow-query-log) |
 | Repeated query costs with `SHOW STATEMENT STATS` | [Statement statistics](/docs/statement-stats) |
 | Index reads and writes with `SHOW INDEX USAGE` | [Index usage](/docs/index-usage) |

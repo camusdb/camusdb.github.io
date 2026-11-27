@@ -239,7 +239,8 @@ span, use [SHOW RANGES](/docs/show-ranges).
 
 These `SHOW` statements show the state of the server. With authentication
 enabled, they need a superuser. However, any user can see their own rows in
-`SHOW QUERIES` and `SHOW CONNECTIONS`.
+`SHOW QUERIES` and `SHOW CONNECTIONS`, and their own transactions in
+`SHOW TRANSACTIONS`.
 
 | Statement | Result | Page |
 | --- | --- | --- |
@@ -247,6 +248,7 @@ enabled, they need a superuser. However, any user can see their own rows in
 | `SHOW ENGINE STATS` | Metrics of the storage and replication layers ([Kahuna](/docs/concepts#kahuna) and [Kommander](/docs/concepts#kommander)), for [Raft](/docs/concepts#raft), the [write-ahead log](/docs/concepts#wal), and storage. | [Engine stats](/docs/engine-stats) |
 | `SHOW SLOW QUERIES` | Recent statements on this node that went over the slow-query threshold. | [Slow query log](/docs/slow-query-log) |
 | `SHOW QUERIES`, `SHOW CONNECTIONS` | The running statements and the client connections. `CANCEL QUERY` stops a running read. | [Query activity](/docs/query-activity) |
+| `SHOW TRANSACTIONS` | The open explicit transactions, also the idle ones. `KILL TRANSACTION` rolls one back. | [Query activity](/docs/query-activity#open-transactions) |
 | `SHOW CLUSTER SETTINGS` | The settings that are changed for the full cluster. | [Runtime cluster settings](/docs/runtime-cluster-settings) |
 
 Most of these statements take a `LIKE` filter:
