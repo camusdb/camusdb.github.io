@@ -98,7 +98,7 @@ A start past the end returns an empty string. A negative length returns
 same text form as `to_string`. For example, a `UUID` becomes lowercase text with
 hyphens, and a `BYTES` value becomes `\x` followed by lowercase hex. An array
 argument returns `CADB0400`. For the text form of each type, see
-[Conversion functions](/docs/functions-conversion).
+[Text form of each type](/docs/functions-conversion#text-form-of-each-type).
 
 `concat` skips `NULL` arguments, and it returns `NULL` if all its arguments are
 `NULL`. The `||` operator also joins values as text. However, `||` returns

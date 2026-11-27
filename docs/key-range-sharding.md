@@ -20,7 +20,7 @@ and each of its secondary indexes, map to one partition. Different tables can be
 on different partitions, but one table can't spread across them.
 
 Hash routing is simple, and it suits most tables. However, it has limits for a
-very large or very busy table:
+very large or very busy table.
 
 - All the writes to the table go through the same partition leader. When that
   leader is saturated, more nodes in the cluster don't help that table.
@@ -50,7 +50,7 @@ flowchart TB
     end
 ```
 
-Turn it on in these cases:
+Key-range routing helps when one partition limits a table's capacity.
 
 - One table or index gets more writes than one partition leader can coordinate.
 - One table is too large for one partition.
@@ -65,7 +65,7 @@ read [Best practices](/docs/best-practices).
 
 ## Turn it on
 
-Set it in `config.yml`:
+Set `key_range_sharding` in `config.yml` before starting the cluster.
 
 ```yaml
 key_range_sharding: true
@@ -77,8 +77,7 @@ The environment variable `CAMUS_KEY_RANGE_SHARDING` (`1`, `true`, `0`, or
 
 ### The mode is fixed when the cluster is created
 
-A cluster records its routing mode when it starts for the first time. After
-that, the following rules apply:
+A cluster records its routing mode when it starts for the first time.
 
 - If `key_range_sharding` isn't set, the node uses the recorded mode.
   `SHOW VARIABLES` shows the value with the source `cluster`.
@@ -140,7 +139,7 @@ To see the routing mode of a table or an index, use
 Automatic splitting is off until you set a threshold. `key_range_sharding: true`
 doesn't turn on a rebalancing policy.
 
-The count branch splits a large range:
+The count threshold splits a range based on its size.
 
 ```yaml
 kahuna:
@@ -151,7 +150,7 @@ kahuna:
 `range_split_threshold` must be `0` or at least twice
 `range_split_min_range_size`. `0` turns off the count branch.
 
-The load branch splits hot partitions:
+The load threshold splits ranges on busy partitions.
 
 ```yaml
 kahuna:
@@ -168,7 +167,7 @@ kahuna:
   enable_load_reports: true
 ```
 
-The load branch needs the following:
+Load-based splits need multiple partitions and a source of load reports.
 
 - `key_range_sharding: true`.
 - Two or more initial partitions.
@@ -214,9 +213,7 @@ has more keys, the split is refused. The node doesn't split from a partial scan.
 With authentication on, the caller must be a superuser. With authentication
 off, the endpoint accepts only loopback requests.
 
-The response has the following HTTP status codes:
-
-| Status | Meaning |
+| HTTP status | Meaning |
 | --- | --- |
 | 200 | The split completed. |
 | 400 | The input is invalid, for example `maxKeys` below 2. |
@@ -226,9 +223,7 @@ For example, `NoRange` means that the key space is hash-routed, or that its rang
 map isn't available. The split can also be refused when the backend can't divide
 the range or place the child.
 
-The response body has these fields:
-
-| Field | Meaning |
+| Response field | Meaning |
 | --- | --- |
 | `success` | Whether the split completed. |
 | `status` | The outcome name, such as `Succeeded`, `NotLeader`, or `NoRange`. |
@@ -241,14 +236,19 @@ The response body has these fields:
 | `leaderHint` | The leader, when the node that got the request can't do the split. |
 | `determinate` | `false` when the range map can still change after the response. |
 
-On `NotLeader`, use `leaderHint` to find the leader of the key space. If
-`determinate` is `false`, for example after `QuiesceFailed` or
-`TransferFailed`, the split can land later. Run `SHOW RANGES` again, and compare
-the range count with `descriptorsBefore` before you retry.
+The node checks whether it leads the partition that owns the range map before
+scanning for a split key. On `NotLeader`, retry on the node named by
+`leaderHint` if a hint is available.
+
+`MedianScanFailed` means the scan for a split key couldn't finish. The node
+didn't attempt a split, and you can retry the request.
+
+If `determinate` is `false`, the split can land later. Run `SHOW RANGES`
+again and compare the range count with `descriptorsBefore` before you retry.
 
 ## Reading split activity
 
-`SHOW ENGINE STATS` shows the range-split counters for each key space:
+`SHOW ENGINE STATS` shows the range-split counters for each key space.
 
 | Counter | Meaning |
 | --- | --- |
@@ -264,7 +264,7 @@ splitter tried.
 ## Concurrent writes
 
 A write that is in progress while a range boundary moves gets a retryable
-error. The write isn't sent to the wrong owner:
+error.
 
 - `CADB0504` means that the routing changed, or that the range was quiesced,
   before the write was applied.

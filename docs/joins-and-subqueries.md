@@ -7,11 +7,10 @@ sidebar_position: 2.42
 This page covers queries that read from more than one source: joins, subqueries
 in a `WHERE` clause, and subqueries in a `FROM` clause.
 
-These sources work with the clauses in [SELECT](/docs/sql-queries). Filtering,
-grouping, sorting, and pagination work in the same way after CamusDB combines
-the sources.
+These sources work with the clauses in [SELECT](/docs/sql-queries). After the
+sources are combined, the other clauses of the query work as usual.
 
-Most examples on this page use this data:
+Most examples on this page use the sample data below.
 
 <details>
 <summary>Sample data for the examples on this page</summary>
@@ -85,16 +84,16 @@ INSERT INTO orders (id, customer_id, total) VALUES
 
 ## Join forms
 
-CamusDB supports these joins in the `FROM` clause:
+CamusDB supports four join forms in the `FROM` clause.
 
 | Form | Syntax | Rows returned |
 | --- | --- | --- |
 | Inner | `A JOIN B ON p` or `A INNER JOIN B ON p` | Each pair of rows for which `p` is true. |
-| Left outer | `A LEFT JOIN B ON p` or `A LEFT OUTER JOIN B ON p` | The inner-join pairs, plus one row for each `A` row that has no match, with the `B` columns set to `NULL`. |
+| Left outer | `A LEFT JOIN B ON p` or `A LEFT OUTER JOIN B ON p` | The inner-join pairs. Each `A` row that doesn't match also returns one row, with the `B` columns set to `NULL`. |
 | Right outer | `A RIGHT JOIN B ON p` or `A RIGHT OUTER JOIN B ON p` | The same rows as `B LEFT JOIN A ON p`. |
 | Cross | `A CROSS JOIN B` | All pairs of rows. An `ON` clause isn't allowed. |
 
-Joins chain left to right, and a chain can mix forms:
+Joins chain left to right, and a chain can mix forms.
 
 ```camussql
 SELECT a.id, b.id, c.id
@@ -105,7 +104,7 @@ LEFT JOIN c ON c.b_id = b.id;
 
 ## Inner joins
 
-`JOIN` and `INNER JOIN` are equivalent:
+`JOIN` and `INNER JOIN` are equivalent. This query lists the posts of each user.
 
 ```camussql
 SELECT u.email, p.title
@@ -128,10 +127,10 @@ ORDER BY u.email, p.title;
 6 rows in set (00:00:00.0330492)
 ```
 
-The inner join leaves out carol, who has no posts.
+The inner join leaves out carol, who didn't write a post.
 
-Put the join condition in the `ON` clause, and single-table conditions in the
-`WHERE` clause:
+Put the join condition in the `ON` clause, and the conditions on one table in
+the `WHERE` clause.
 
 ```camussql
 SELECT u.email, p.title
@@ -141,10 +140,11 @@ WHERE u.role = 'admin' AND p.published = true
 ORDER BY u.email, p.title;
 ```
 
-Give each source an alias, and qualify each column reference. With more than one
-table in scope, a bare `name` is ambiguous when both sides have it.
+Give each source an alias, and qualify each column reference. If both sides
+have a column, its bare name is ambiguous. For example, `SELECT id` in this join
+returns `CADB0400` (`Ambiguous column: id`).
 
-Joins work with grouping:
+Joins work with grouping. This query counts the posts of each role.
 
 ```camussql
 SELECT u.role, COUNT(*) AS cnt
@@ -166,7 +166,8 @@ ORDER BY u.role;
 
 ## Outer joins
 
-A left outer join returns all rows of the left side, also rows with no match:
+A left outer join returns all rows of the left side, also the rows that don't
+match.
 
 ```camussql
 SELECT u.email, p.title
@@ -190,13 +191,12 @@ ORDER BY u.email, p.title;
 7 rows in set (00:00:00.0035828)
 ```
 
-If a left row has one or more matches, CamusDB returns one row for each match.
-If it has no match, CamusDB returns one row with all right-side columns set to
-`NULL`.
+A left row with matches returns one row for each match. A left row that
+doesn't match returns one row, with all right-side columns set to `NULL`.
 
 The `ON` clause decides whether a right row matches. The `WHERE` clause filters
-after CamusDB has produced the joined rows. For outer joins, the two clauses
-give different results:
+the joined rows after the join. For outer joins, the two clauses give different
+results.
 
 ```camussql
 -- Users without a post.
@@ -236,7 +236,8 @@ query with the preserved table on the left side, often with a derived table.
 
 ## Cross joins
 
-`CROSS JOIN` returns the Cartesian product:
+`CROSS JOIN` returns the Cartesian product, which pairs each row of one side
+with each row of the other.
 
 ```camussql
 SELECT r.name, c.currency
@@ -244,24 +245,24 @@ FROM robots r
 CROSS JOIN currencies c;
 ```
 
-It is the same as the comma form with no equality predicate. When all sources
-are cross joins, CamusDB can take an equality from the `WHERE` clause and plan
+It is the same as the comma form without an equality predicate. When all
+sources are cross joins, CamusDB can take an equality from the `WHERE` clause and plan
 it as a join predicate.
 
 ### How joins execute
 
 For an inner or left outer join with an equality key, the planner picks one of
-three strategies:
+three strategies.
 
 | Strategy | CamusDB picks it when | Cost |
 | --- | --- | --- |
 | Indexed lookup | The right side has an index on the equality column, and the outer side is small. | One probe per outer row. |
-| Hash join | The right side has no usable index, or the outer side is large compared with the indexed side. | Builds a hash table from the side estimated to be smaller (the build side), then looks up each row of the other side (the probe side) in it. |
-| Merge join | Two compatible indexes already return both sides in join-key order, and the outer side is large. | Streams both sides, with no build phase. |
+| Hash join | The right side doesn't have a usable index, or the outer side is large compared with the indexed side. | Builds a hash table from the side estimated to be smaller (the build side), then looks up each row of the other side (the probe side) in it. |
+| Merge join | Two compatible indexes already return both sides in join-key order, and the outer side is large. | Streams both sides. There is no build phase. |
 
-An equality join with no index uses a hash join. It doesn't scan the inner
-table once per outer row. CamusDB plans a nested loop if the join has no usable
-equality key, for example `ON o.total > c.credit_limit`. An equality between
+An equality join without an index uses a hash join. This means that the inner
+table isn't scanned once per outer row. A join that doesn't have a usable
+equality key, such as `ON o.total > c.credit_limit`, uses a nested loop. An equality between
 columns of different declared types, or on an array column, isn't a usable key.
 
 An index on the join column of the right side helps most when the outer side is
@@ -283,9 +284,8 @@ can return matches, but it can't produce the padded rows of the preserved side.
 
 ### Comma joins
 
-For compatibility, CamusDB supports comma joins. It lifts equality predicates out
-of the `WHERE` clause and treats them as join conditions. Predicates on a single
-source stay filters:
+For compatibility, CamusDB supports comma joins. An equality predicate in the
+`WHERE` clause becomes a join condition. A predicate on one source is a filter.
 
 ```camussql
 SELECT r.name, u.amount
@@ -312,9 +312,10 @@ such locks. See [Transactions and isolation](/docs/serializable-transactions).
 
 ## Current join limits
 
-CamusDB doesn't support `FULL JOIN`, `FULL OUTER JOIN`, `NATURAL JOIN`, or
-`JOIN ... USING (...)` yet. `FULL JOIN` returns `CADB0533`, or a syntax error
-when the left table has an alias. The other forms are syntax errors.
+`FULL JOIN` and `FULL OUTER JOIN` aren't supported yet. They return
+`CADB0533`, or a syntax error when the left table has an alias. `NATURAL JOIN`
+and `JOIN ... USING (...)` aren't supported either, and they return a syntax
+error.
 
 A query with an outer join uses the join order of the statement. The planner
 doesn't reorder a join tree that contains an outer join.
@@ -329,7 +330,7 @@ result depends on that row.
 
 | Position | Supported subqueries |
 | --- | --- |
-| SELECT list (without grouping, aggregates, or window functions), SELECT WHERE | Scalar, EXISTS, IN/NOT IN, and quantified comparisons; correlated or uncorrelated. |
+| SELECT list of a query that doesn't group or aggregate / SELECT WHERE | Scalar / EXISTS / IN / NOT IN / quantified comparisons. Correlated or uncorrelated. |
 | UPDATE SET/WHERE, DELETE WHERE | The same correlated and uncorrelated forms, using the target row as the outer scope. |
 | HAVING, JOIN ON, INSERT VALUES, ON CONFLICT DO UPDATE | Uncorrelated forms only. |
 | GROUP BY or ORDER BY | Subqueries return `CADB0400`. |
@@ -340,7 +341,7 @@ argument. The rules for [CHECK definitions](/docs/check-constraints) and
 
 ### Scalar subqueries
 
-A scalar subquery returns one column and stands in for a single value:
+A scalar subquery returns one column, and it stands for a single value.
 
 ```camussql
 SELECT id, name
@@ -349,14 +350,14 @@ WHERE year = (SELECT MAX(year) FROM robots)
 ORDER BY name;
 ```
 
-Zero rows give `NULL`. More than one row is an error. `SELECT *` or
-`SELECT alias.*` is accepted when expansion produces exactly one column,
-including for scalar, `IN`, `ANY`, and `ALL` subqueries. More than one
-expanded column is rejected.
+Zero rows give `NULL`. More than one row is an error. `SELECT *` and
+`SELECT alias.*` work when they expand to exactly one column. This is true for
+all subquery kinds, such as `IN` and `ANY`. More than one expanded column
+returns an error.
 
 ### Subqueries in projections and writes
 
-Compare each product with the highest price using one statement:
+This statement compares each product with the highest price.
 
 ```camussql
 SELECT id, price, (SELECT MAX(price) FROM products) - price AS price_gap
@@ -375,14 +376,14 @@ FROM products;
 4 rows in set (00:00:00.0019268)
 ```
 
-Use a subquery to supply an inserted value:
+A subquery can supply an inserted value.
 
 ```camussql
 INSERT INTO counters (name, value)
 VALUES ('orders', (SELECT COUNT(*) FROM orders));
 ```
 
-An `EXISTS` can also produce a boolean in the select list or a `CASE` branch:
+An `EXISTS` can also produce a boolean in the select list or a `CASE` branch.
 
 ```camussql
 SELECT id,
@@ -392,14 +393,16 @@ FROM products;
 ```
 
 These uncorrelated subqueries are executed once for the statement. Subqueries
-can also be in the select list of a derived table or a view body. A correlated
-subquery in `HAVING`, `JOIN ON`, `ON CONFLICT DO UPDATE`, or in a select list
-with grouping, aggregates, or window functions returns `CADB0533`.
+can also be in the select list of a derived table or a view body.
+
+A correlated subquery returns `CADB0533` in some positions. Examples are
+`HAVING` and the select list of a query that groups or aggregates. For all the
+positions, see the table at the start of this section.
 
 ### Correlated values
 
-A correlated subquery can compute a value for each outer row, with no
-separate request from your application:
+A correlated subquery can compute a value for each outer row. Your application
+doesn't need a separate request for each row.
 
 ```camussql
 SELECT u.id,
@@ -420,7 +423,7 @@ FROM app_users u;
 4 rows in set (00:00:00.0180690)
 ```
 
-The same subquery can supply a value in an `UPDATE`:
+The same subquery can supply a value in an `UPDATE`.
 
 ```camussql
 UPDATE app_users
@@ -434,9 +437,9 @@ with their usual [NULL and empty-set rules](/docs/sql-expression-syntax#null-rul
 A scalar subquery inherits its inner output name, but an explicit alias
 makes the result clearer to callers and stored definitions.
 
-Names resolve in the nearest query first, then in enclosing queries. An
-inner column or alias can hide an outer name; qualify columns to make the
-intended scope clear. In UPDATE and DELETE, correlated bodies read the target
+A name resolves in the nearest query, or else in an enclosing query. An inner
+column or alias can hide an outer name. Qualify columns to make the scope
+clear. In UPDATE and DELETE, correlated bodies read the target
 and other tables at the statement timestamp. They don't see changes
 made earlier by the same statement.
 
@@ -450,8 +453,8 @@ outer query. See [EXPLAIN](/docs/explain).
 
 ### IN and NOT IN
 
-`IN` and `NOT IN` accept a correlated or uncorrelated subquery that returns
-exactly one column:
+`IN` and `NOT IN` take a correlated or uncorrelated subquery that returns
+exactly one column.
 
 ```camussql
 SELECT email
@@ -474,9 +477,9 @@ ORDER BY email;
 2 rows in set (00:00:00.0082250)
 ```
 
-When the inner query is indexed and eligible, CamusDB uses a semi-join for `IN`,
-which returns each outer row with at least one match. For `NOT IN`, it uses an
-anti-join, which returns each outer row with no match. It doesn't materialize
+When the inner query is indexed and eligible, CamusDB uses a semi-join for `IN`.
+A semi-join returns each outer row with at least one match. For `NOT IN`, it
+uses an anti-join, which returns each outer row that doesn't match. It doesn't materialize
 the full inner result first.
 
 `NOT IN` follows the SQL rules for `NULL`. One `NULL` in the inner result makes
@@ -491,8 +494,8 @@ rewrite applies to eligible uncorrelated forms.
 
 ### EXISTS
 
-`EXISTS` works with or without correlation. Only the existence of a row matters.
-The inner select list can be `*`, one column, or several columns:
+`EXISTS` works with correlated and uncorrelated subqueries. Only the existence
+of a row matters, so the inner select list can be `*` or any columns.
 
 ```camussql
 SELECT email
@@ -516,29 +519,28 @@ ORDER BY email;
 3 rows in set (00:00:00.0019840)
 ```
 
-This body has no `published` filter. Dave, whose only post is unpublished,
-also matches.
+This body doesn't filter on `published`. This means that Dave, whose only post
+is unpublished, also matches.
 
-For a regular `EXISTS` body, CamusDB ignores the select list, `DISTINCT`,
-`GROUP BY`, and `ORDER BY`, because only the existence of a row matters. For
-example, `EXISTS (SELECT 1 / 0 FROM posts)` doesn't divide by zero. Unknown names
-and known type errors in the ignored clauses return errors. Aggregates,
-`HAVING`, `OFFSET`, and `LIMIT 0` can change whether a row exists, and they
-apply as usual. `LIMIT 0` returns false and reads no rows.
+In a regular `EXISTS` body, the clauses that can't change whether a row exists
+are ignored. Examples are the select list and `ORDER BY`. This means that
+`EXISTS (SELECT 1 / 0 FROM posts)` doesn't divide by zero. Unknown names and
+known type errors in the ignored clauses return errors. Clauses that can change
+whether a row exists apply as usual, such as `HAVING` and `OFFSET`. `LIMIT 0`
+returns false and reads no rows.
 
-A correlated EXISTS body can use joins, views, derived tables, set operations,
-aggregates, GROUP BY, HAVING, window functions, OFFSET, and nested subqueries.
-It can also omit FROM and read only outer values. LIMIT 0 is false; negative
-LIMIT or OFFSET is an error.
+A correlated `EXISTS` body can be a full query, with joins, aggregates, window
+functions, and nested subqueries. It can also leave out `FROM` and read only
+outer values. A negative `LIMIT` or `OFFSET` returns an error.
 
-These bodies work in `SELECT ... WHERE`, eligible select lists, `UPDATE ... SET`
-and `WHERE`, and `DELETE ... WHERE`. They can be in a `CASE` or a comparison. An
+These bodies work in the correlated positions in the table at the start of this
+section. They can be in a `CASE` or a comparison. An
 outer name in a table-function argument isn't supported. In a join, CamusDB
 evaluates the correlation where all referenced outer aliases are available.
 
 For a correlated `EXISTS`, CamusDB uses an index on the inner table when the
 inner `WHERE` clause pins the index's leading columns with equalities. The other
-side of each equality can be an outer-row value, a literal, or a parameter:
+side of an equality can be an outer-row value, a literal, or a parameter.
 
 ```camussql
 CREATE INDEX posts_user_idx ON posts (user_id);
@@ -562,7 +564,7 @@ one statement. See
 ## Derived tables
 
 A derived table is a `SELECT` in parentheses in the `FROM` clause. It needs an
-alias:
+alias. Without one, the query returns a syntax error.
 
 ```camussql
 SELECT post_count
@@ -576,7 +578,7 @@ ORDER BY post_count;
 ```
 
 A derived table joins like any other source. That is the usual way to filter a
-table against per-group aggregates:
+table against per-group aggregates.
 
 ```camussql
 SELECT u.email, d.post_count
@@ -590,9 +592,8 @@ WHERE d.post_count >= 1
 ORDER BY u.email;
 ```
 
-The inner query can use `IN`, `NOT IN`, scalar subqueries in its `WHERE`, and
-correlated or uncorrelated `EXISTS`/`NOT EXISTS`, including under an outer
-aggregate:
+The inner query can use subqueries in its `WHERE` clause, such as `IN` and
+correlated `EXISTS`. This also works under an outer aggregate.
 
 ```camussql
 SELECT COUNT(*)
@@ -607,7 +608,7 @@ caller's privileges in a direct query, and the view owner's privileges in a
 stored view body.
 
 A derived table's columns take their names from the inner projection. Give
-computed columns aliases, or supply a column list after the derived-table alias:
+computed columns aliases, or supply a column list after the derived-table alias.
 
 ```camussql
 SELECT d.customer, d.spent
@@ -626,14 +627,15 @@ FROM (SELECT customer_id, SUM(total) FROM orders GROUP BY customer_id)
 ```
 
 Column-list names replace output names by position. A shorter list renames
-only the first columns; a longer list is rejected. Duplicate names make a
+only the first columns, and a longer list returns `CADB0400`. Duplicate names make a
 reference ambiguous. For a named query reused within a statement, see
 [WITH queries](/docs/sql-queries#with-queries).
 
 ## LATERAL sources {#lateral}
 
-`LATERAL` lets a FROM source read columns from sources to its left. Use it to
-fetch each customer's most expensive orders with a small query per customer:
+`LATERAL` lets a `FROM` source read columns from sources to its left. This
+query gets the two most expensive orders of each customer, with a small query
+per customer.
 
 ```camussql
 SELECT c.id AS customer_id, o.id AS order_id, o.total
@@ -655,21 +657,22 @@ CROSS JOIN LATERAL (
 3 rows in set (00:00:00.0023440)
 ```
 
-Customer 3 has no orders, and `CROSS JOIN LATERAL` returns no row for it.
+Customer 3 didn't place an order, and `CROSS JOIN LATERAL` returns no row for
+it.
 
 To also return left rows whose lateral query returns no rows, use
-`LEFT JOIN LATERAL (...) AS o ON true`. The right columns are then `NULL`. The
-comma, `CROSS JOIN`, `INNER JOIN`, and `LEFT JOIN` forms work.
-`RIGHT JOIN LATERAL` returns `CADB0400`, and `CROSS APPLY` and `OUTER APPLY`
-aren't supported.
+`LEFT JOIN LATERAL (...) AS o ON true`. The right columns are then `NULL`.
+`LATERAL` works with a comma and with the `CROSS`, `INNER`, and `LEFT` joins.
+`RIGHT JOIN LATERAL` returns `CADB0400`. `CROSS APPLY` and `OUTER APPLY` return
+a syntax error.
 
-Names resolve in the lateral query first, then in the left sources, then in the
-enclosing queries. A lateral source can't read a source to its right. A derived
-table with no `LATERAL` can't read other items of the same `FROM` clause. A
-second lateral source can read the results of the first one.
+A name resolves in the lateral query, or else in the left sources, or else in
+the enclosing queries. A lateral source can't read a source to its right. A
+derived table that isn't `LATERAL` can't read other items of the same `FROM`
+clause. A second lateral source can read the results of the first one.
 
 Table-function arguments can read left columns, and you don't need to write
-`LATERAL`:
+`LATERAL`.
 
 ```camussql
 SELECT t.id, n FROM tasks AS t, generate_series(1, t.repetitions) AS n;
@@ -682,13 +685,14 @@ Derived tables and VALUES lists require explicit LATERAL for left references.
 The planner preserves the written join order and uses nested loops for lateral
 sources. `EXPLAIN` marks the join `lateral`. Repeated left values can share a
 small result within the statement; volatile bodies run again per left row.
-Views, INSERT SELECT, CTAS, UPDATE FROM, and DELETE USING can use lateral
-sources. `LATERAL` is reserved; quote identifiers named `` `lateral` ``.
+Lateral sources work in views and in the writes that read a query, such as
+`INSERT ... SELECT` and `UPDATE ... FROM`. `LATERAL` is reserved; quote identifiers named `` `lateral` ``.
 
 ## VALUES sources {#values-sources}
 
-A `VALUES` list gives you a small relation, and you don't need to create a table. Join inline
-mappings to stored rows or use them in [joined writes](/docs/sql-writes#joined-writes):
+A `VALUES` list gives you a small relation, and you don't need to create a
+table. You can join inline mappings to stored rows, or use them in
+[joined writes](/docs/sql-writes#joined-writes).
 
 ```camussql
 SELECT p.id, v.label
@@ -707,17 +711,19 @@ JOIN (VALUES (1, 'featured'), (3, 'clearance')) AS v (id, label)
 2 rows in set (00:00:00.0011044)
 ```
 
-The relation alias is required. Without a column list, names are `column1`,
-`column2`, and so on. A shorter list renames the first columns; too many names
-or rows of unequal width fail. Items can be expressions, parameters, functions,
-or scalar subqueries. `DEFAULT`, built-in aggregates, and window calls
-return errors. An extension aggregate is evaluated over its item's single row.
+The relation alias is required. If you don't give a column list, the columns
+are named `column1`, `column2`, and so on. A shorter list renames the first
+columns. Too many names, or rows of unequal width, return an error. An item
+can be any expression, such as a parameter or a scalar subquery. `DEFAULT`
+returns an error, and so do built-in aggregates and window calls. An extension
+aggregate is evaluated over its item's single row.
 
-Column types follow [UNION rules](/docs/sql-queries#match-columns-and-types):
-integers and floats widen, incompatible text/numeric values fail, and a column
-of only `NULL` values has no type. Only ORDER BY guarantees result order.
+Column types follow the [UNION rules](/docs/sql-queries#match-columns-and-types).
+Integers and floats widen. Text and numbers in one column return an error. A
+column of only `NULL` values doesn't have a type. Only `ORDER BY` guarantees
+the order of the result.
 
-Use LATERAL to expand each left row into several named values:
+`LATERAL` can expand each left row into several named values.
 
 ```camussql
 SELECT p.id, v.dimension, v.size
@@ -726,19 +732,21 @@ CROSS JOIN LATERAL (VALUES ('width', p.width), ('height', p.height))
   AS v (dimension, size);
 ```
 
-VALUES sources work in SELECT, joins, subqueries, CTEs, views, joined writes,
-INSERT SELECT, and CTAS. A view preserves the VALUES syntax in SHOW CREATE.
-Standalone `VALUES (1), (2)` and direct `WITH c AS (VALUES ...)` bodies are
-unsupported; wrap them in `SELECT * FROM (VALUES ...) AS v`. `ORDER BY`,
-`LIMIT`, and `OFFSET` can't be in the parentheses of `VALUES`.
+A `VALUES` source works wherever a derived table works, such as in a view or a
+joined write. `SHOW CREATE` shows the `VALUES` syntax of a view.
 
-Lists use derived-table and UNION ALL execution. For thousands of reusable
-rows, prefer a stored table. A source-only EXPLAIN shows `values(alias=v, rows=N)`.
+A standalone `VALUES (1), (2)` statement returns a syntax error, and so does a
+`WITH c AS (VALUES ...)` body. Wrap them in `SELECT * FROM (VALUES ...) AS v`.
+Clauses such as `ORDER BY` and `LIMIT` can't be in the parentheses of `VALUES`.
+
+A list runs as a derived table of `UNION ALL` rows. For thousands of reusable
+rows, use a stored table. `EXPLAIN` shows the list as a `values` node with the
+detail `alias=v, rows=N`.
 
 ## Check the plan
 
 Plan choice matters most for queries with several sources. `EXPLAIN` shows the
-chosen join strategy and whether CamusDB used an index:
+chosen join strategy and whether CamusDB used an index.
 
 ```camussql
 EXPLAIN SELECT u.email, p.title

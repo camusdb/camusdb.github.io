@@ -10,12 +10,12 @@ doesn't execute the query or read storage again.
 
 ## When to use the cache
 
-Many applications repeat the same read: a leaderboard, the home page of a store,
-a product catalog, a settings lookup, or a dashboard panel that refreshes at short
-intervals. The data behind these reads changes much less often than clients
+Many applications repeat the same read, such as a leaderboard or a dashboard
+panel that refreshes at short intervals. The data behind these reads changes much less often than clients
 read it, but each read costs a full query execution.
 
-The cache removes that repeated cost. A hit returns from memory, and you get:
+The cache removes that repeated cost. A hit returns from memory, and it has
+three benefits.
 
 - Lower latency for the cached query.
 - Less load on storage and on the partition
@@ -25,7 +25,7 @@ The cache removes that repeated cost. A hit returns from memory, and you get:
   application. A write on the same node removes the affected entries
   automatically.
 
-The cache isn't a good fit when:
+The cache isn't a good fit in three cases.
 
 - The values in the query are different in almost each request, and the same
   result is rarely requested twice.
@@ -40,7 +40,7 @@ The cache isn't a good fit when:
 The result cache stores complete `SELECT` results in memory, on each node. A
 query opts in with a hint, as in `SELECT * FROM orders {cache=recent_orders}`.
 CamusDB can then serve a later identical query from memory, and it doesn't read
-storage. That query must have the same shape, the same bound values, and the
+storage. That query must be the same query, with the same bound values and the
 same schema.
 
 A committed write on the same node evicts the dependent entries before a later
@@ -53,18 +53,17 @@ limits that staleness, and the optional `strict` mode removes it at each hit.
 The cache is on by default, and it applies only to queries with a hint. It is
 safe to leave on. Set `query_result_cache_enabled: false` to turn it off.
 
-This page covers what you need to use and tune the cache. For the read path,
-the invalidation protocol, and the publish gate, see
-[Query result cache internals](/docs/query-result-cache-internals).
+This page covers what you need to use and tune the cache. For the mechanisms,
+see [Query result cache internals](/docs/query-result-cache-internals).
 
 ## How entries are keyed and invalidated
 
-The rest of this page uses these ideas:
+The rest of this page uses four ideas.
 
 - **Each query names a family.** A `SELECT` opts in with a `{cache=name}` hint,
-  and `name` is the family. The entry key has five more parts: the database ID,
-  the query shape, each bound value with its type, the schema versions, and the
-  cache options. Two queries share an entry if all parts match.
+  and `name` is the family. The entry key has more parts, such as the query
+  shape and the bound values. Two queries share an entry if all parts match. See
+  [Vocabulary](#vocabulary).
 - **The cache is in memory, on each node.** It is an L1 cache, a first-level
   cache in the server process, and each process has one. CamusDB doesn't share
   it across a cluster or replicate it, and it is empty after a restart. A hit on
@@ -96,7 +95,7 @@ the string `'1'` don't share an entry. See
 [The fingerprint](/docs/query-result-cache-internals#the-fingerprint).
 
 The **dependency set** is what an entry depends on. It has three kinds of
-dependency:
+dependency.
 
 - A **range dependency** is a key space bucket that the query scanned: the row
   bucket of a table, or an index bucket. It detects inserted rows.
@@ -113,13 +112,13 @@ entries.
 
 ### The cache hint
 
-Put `{cache=name}` directly after a table reference, after its optional alias:
+Put `{cache=name}` directly after a table reference, after its optional alias.
 
 ```camussql
 SELECT id, total FROM orders {cache=recent_orders} WHERE status = 1 ORDER BY total DESC LIMIT 20;
 ```
 
-Put options in the braces, separated by commas, in any order:
+Put options in the braces, separated by commas, in any order.
 
 ```camussql
 SELECT * FROM orders {cache=hot_orders, ttl=30s};        -- TTL for this entry
@@ -127,8 +126,8 @@ SELECT * FROM orders {cache=hot_orders, strict};         -- validate each hit ag
 SELECT * FROM orders {cache=hot_orders, ttl=5m, strict};
 ```
 
-`ttl=<n>[unit]` sets the TTL of this entry. The units are `ms`, `s`, `m`, and
-`h`, and a bare number means milliseconds. The value must be a positive
+`ttl=<n>[unit]` sets the TTL of this entry. The unit can be `ms`, `s`, `m`, or
+`h`. A bare number means milliseconds. The value must be a positive
 integer within the range of an `int`. `ttl=0`, an overflow, an unknown unit, a
 value that isn't an integer, and an unknown option return `CADB0400`.
 
@@ -158,15 +157,14 @@ named `cache` or `all` work as before.
 
 ### What is eligible for the cache
 
-A query uses the cache if all of these conditions are true:
+A query uses the cache only if it meets six conditions.
 
 - It has a `{cache=…}` hint.
-- It is an autocommit read: a read-only transaction with no transaction ID from
-  the client. An explicit `BEGIN … READ ONLY` has a fixed snapshot, and it always
+- It is an autocommit read. The client doesn't send a transaction ID with it. An explicit `BEGIN … READ ONLY` has a fixed snapshot, and it always
   reads live storage.
 - It isn't `SELECT ... FOR UPDATE`. Cached rows can't take row locks.
-- It reads one table. Joins, views, and combined results from `UNION`,
-  `INTERSECT`, or `EXCEPT` bypass the cache.
+- It reads one table. A join or a view bypasses the cache, and so does a set
+  operation, such as `UNION`.
 - It doesn't use a volatile function, such as a clock or random function.
 - The cache is on.
 
@@ -176,36 +174,36 @@ such as `join` or `inner-hint`.
 
 ### Read the cache status
 
-Each response to a query with a hint has cache metadata:
+Each response to a query with a hint has cache metadata.
 
 | Field | Meaning |
 |-------|---------|
-| `cacheStatus` | `hit`, `miss`, `bypass`, `stale-revalidated`, or `evicted-before-publish` |
+| `cacheStatus` | One of the status values below. |
 | `cacheBypassReason` | The reason for a bypass or a failed publish (see below). Null otherwise. |
 | `cacheName` | The family name. Present when the query had a hint. |
 | `cachedAtHlc` | The [HLC](/docs/concepts#hlc) timestamp (the cluster-wide clock value) at which CamusDB computed the entry. Present on hits only. |
 | `ageMs` | The approximate age of the entry, in milliseconds. Present on hits only. |
 
-For queries without a hint, CamusDB omits these fields, and existing clients
-aren't affected.
+A response to a query that doesn't have a hint doesn't have these fields. This
+means that existing clients aren't affected.
 
 gRPC returns the same five values in a trailing `CacheMetadata` message, after
 the last row of an `ExecuteQuery` stream, and on the `QueryComplete` message of
 a query in a `BatchExecute`. If the message is missing, the statement had no
 hint. Over REST, a missing `cacheStatus` means the same.
 
-The status values mean:
+The status values have these meanings.
 
 - `hit`: CamusDB returned the stored rows.
 - `miss`: CamusDB executed the query and stored a new entry.
-- `bypass`: CamusDB executed the query and didn't store an entry, because the query
-  wasn't eligible or a write was in progress.
+- `bypass`: CamusDB executed the query and didn't store an entry. The query
+  wasn't eligible, or a write was in progress.
 - `evicted-before-publish`: CamusDB executed the query and returned correct
   rows, but it couldn't store the new entry.
 - `stale-revalidated`: CamusDB found a strict entry, found that it was stale,
   and executed the query again.
 
-The bypass reasons are:
+The bypass reason says why the cache wasn't used.
 
 | Reason | Meaning |
 | --- | --- |
@@ -215,11 +213,11 @@ The bypass reasons are:
 | `dependency-limit` | The query had too many dependencies to record, or a strict entry lost some of its row dependencies to the limit. |
 | `join` | The query joins tables. |
 | `derived-source` | The query reads through a view. |
-| `inner-hint` | The hint is in a `WHERE` subquery, and the outer `SELECT` has no hint. |
+| `inner-hint` | The hint is in a `WHERE` subquery, and the outer `SELECT` doesn't have one. |
 | `in-transaction` | The query is in an explicit transaction or a write transaction. |
 | `non-deterministic` | The query has a volatile function. |
 
-## How the cache stays correct
+## Correctness rules {#how-the-cache-stays-correct}
 
 These rules describe what you can observe. The
 [internals page](/docs/query-result-cache-internals) explains each mechanism.
@@ -237,8 +235,8 @@ These rules describe what you can observe. The
   callers wait up to `query_result_cache_singleflight_wait_ms`, then look up the
   cache themselves. A waiter doesn't get rows that skipped its checks.
 - A cancelled or failed query doesn't store a partial result.
-- When a result passes the row, byte, or dependency limits, CamusDB returns the
-  live rows and doesn't store an entry. The status is `evicted-before-publish` with the
+- When a result passes a limit of the cache, such as the row limit, CamusDB
+  returns the live rows and doesn't store an entry. The status is `evicted-before-publish` with the
   reason `oversized-result` or `dependency-limit`.
 
 ### Strict mode
@@ -246,15 +244,15 @@ These rules describe what you can observe. The
 An entry that isn't strict can lag behind a write on another node until its TTL
 expires. A `strict` entry removes that lag. At each hit, before it returns the
 rows, CamusDB checks the schema versions, each row that the query read, and
-each scanned bucket against live storage. A changed, deleted, or inserted row
-makes the entry stale. CamusDB then evicts the entry, executes the query, and
-returns the status `stale-revalidated`.
+each scanned bucket against live storage. Any change to those rows makes the
+entry stale, also an insert or a delete. CamusDB then evicts the entry and
+executes the query. The status is `stale-revalidated`.
 
-Strict mode has these limits:
+Strict mode has three limits.
 
-- **It needs a snapshot timestamp.** Only an autocommit read under the
-  serializable default without [key-range sharding](/docs/key-range-sharding),
-  or an `AS OF SYSTEM TIME` read, has one. For other reads, a `strict` hint
+- **It needs a snapshot timestamp.** Only two kinds of read have one: an
+  `AS OF SYSTEM TIME` read, and an autocommit read under the Serializable
+  default when [key-range sharding](/docs/key-range-sharding) is off. For other reads, a `strict` hint
   returns live rows and doesn't store an entry.
 - **It needs all row dependencies.** CamusDB doesn't store a strict entry whose
   row dependencies passed `query_result_cache_max_point_deps`. With missing
@@ -281,9 +279,9 @@ entries, and existing entries keep their expiry.
 | `query_result_cache_max_entry_bytes` | `1048576` | The byte limit for one entry (1 MiB). CamusDB doesn't store a larger result. |
 | `query_result_cache_max_entry_rows` | `10000` | The row limit for one entry. CamusDB doesn't store a larger result. |
 | `query_result_cache_max_deps` | `4096` | The limit on total dependencies for one entry. Above it, CamusDB doesn't publish the entry. |
-| `query_result_cache_max_point_deps` | `2048` | The limit on point dependencies for one entry. Above it, CamusDB drops point dependencies, and it doesn't publish a strict entry. |
+| `query_result_cache_max_point_deps` | `2048` | The limit on point dependencies for one entry. Above it, the extra point dependencies are dropped. A strict entry isn't published. |
 | `query_result_cache_max_ranges` | `256` | The limit on range dependencies for one entry. |
-| `query_result_cache_singleflight_wait_ms` | `250` | How long a concurrent miss on the same fingerprint waits for the first caller before it executes the query itself. See [How the cache stays correct](#how-the-cache-stays-correct). |
+| `query_result_cache_singleflight_wait_ms` | `250` | How long a concurrent miss on the same fingerprint waits for the first caller before it executes the query itself. See [Correctness rules](#how-the-cache-stays-correct). |
 | `query_result_cache_strict_validation_max_keys` | `10000` | The maximum number of keys that strict validation reads. Above it, the entry is treated as stale. |
 | `query_result_cache_sweep_interval_ms` | `10000` | The interval of the background TTL sweep. |
 

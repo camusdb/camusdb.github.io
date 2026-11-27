@@ -10,8 +10,6 @@ rows, has locks that block other transactions, and its commit can take a long
 time. The limits protect all clients of the database. If a job reaches a limit,
 split the work into smaller transactions.
 
-The following limits apply to transactions:
-
 | Limit | Default | Applies to | Error |
 | --- | --- | --- | --- |
 | Lifetime | 1 hour | Serializable read-write transactions | `CADB0505 TransactionLifetimeExceeded` |
@@ -41,11 +39,15 @@ client connections, see
 
 ## Idle timeout
 
-If an explicit transaction (`BEGIN` ... `COMMIT`) doesn't send a statement for
-`transaction_idle_timeout_ms` (default `300000`, 5 minutes), it's treated as
-abandoned. A background task rolls it back and releases its locks. The next
-statement of that transaction returns `CADB0400` "Unknown transaction".
-Autocommit statements aren't affected.
+An explicit transaction can wait up to `transaction_idle_timeout_ms` for its
+client (5 minutes by default). The idle clock starts at `BEGIN` and resets
+when each statement finishes. For streamed results, that includes writing
+the rows to the client. A running statement can exceed this idle limit.
+
+A background task rolls back idle transactions and releases their locks.
+The next statement returns `CADB0400` "Unknown transaction". Autocommit
+transactions belong to their requests. They are eligible for idle cleanup
+if both commit and rollback fail.
 
 The background task checks for idle transactions at an interval of
 `transaction_reaper_interval_ms` (default `30000`). This means that a transaction can stay open for up to one interval
@@ -75,8 +77,7 @@ Each row is stored as one row entry. Each primary key entry and each secondary
 index entry is stored separately. One mutation is a write or a delete of one of
 these entries.
 
-This means that the number of indexes changes the number of rows that one
-transaction can write:
+The number of indexes changes the number of rows that one transaction can write.
 
 | Operation | Mutations |
 | --- | --- |
@@ -84,8 +85,7 @@ transaction can write:
 | Delete one row from a table with `K` secondary indexes | `2 + K` |
 | Update one row and change `M` indexed columns | `1 + 2M` |
 
-For example, each row inserted into a table with two secondary indexes costs 4
-mutations:
+Each insert into a table with two secondary indexes costs four mutations.
 
 ```text
 1 row + 1 primary key entry + 2 secondary index entries = 4 mutations
@@ -107,7 +107,7 @@ provisional writes that become final at commit) must be committed.
 `CADB0506 TransactionMutationLimitExceeded` means that the transaction is too
 large. It isn't a signal to retry.
 
-Don't retry the same transaction. Split the work into batches:
+A smaller batch can update one range of order IDs per transaction.
 
 ```camussql
 UPDATE orders

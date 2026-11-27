@@ -4,31 +4,36 @@ sidebar_position: 7.25
 
 # Testcontainers
 
-Test CamusDB queries and application code against a temporary database server
-without maintaining a shared test instance. The CamusDB [Testcontainers](https://testcontainers.com/) packages
-start a standalone server in Docker, wait for it to be ready, and let you remove
-it when the test or fixture ends.
+The CamusDB [Testcontainers](https://testcontainers.com/) packages let you test
+queries and application code against a temporary database server. A test starts
+a standalone CamusDB server in Docker, and the container is removed when the
+test or the fixture ends. This means that you don't need a shared test instance.
 
-Use a container per test for isolation, or share one through an xUnit fixture
-to reduce startup time. Shared fixtures also share database state; reset data
-or use separate databases when tests must be independent.
+Use a container for each test for isolation, or share one through an xUnit
+fixture to reduce startup time. Note that tests that share a fixture also share
+its data. When tests must be independent, reset the data or use a separate
+database for each test class.
 
 ## Choose a package
 
-All three packages target .NET 8, .NET 9, and .NET 10. You need a running Docker
-host that Testcontainers can discover, locally or in CI.
+The packages support .NET 8 and later. You need a Docker host that
+Testcontainers can find, on your machine or in CI.
 
 | Package | Use |
 | --- | --- |
-| `CamusDB.Testcontainers` | `CamusDbBuilder` and `CamusDbContainer`, usable with any test framework. |
+| `CamusDB.Testcontainers` | `CamusDbBuilder` and `CamusDbContainer`, for any test framework. |
 | `CamusDB.Testcontainers.Xunit` | `CamusDbFixture` and `CamusDbAdoNetFixture` for xUnit.net v2. |
 | `CamusDB.Testcontainers.XunitV3` | The same fixtures for xUnit.net v3. |
 
 Install the fixture package that matches your xUnit version. Both fixture
-packages use the namespace `CamusDB.Testcontainers.Xunit` and include the base
-module as a dependency.
+packages use the namespace `CamusDB.Testcontainers.Xunit`, and they include the
+base package as a dependency.
 
-Source and integration tests are in
+The packages (version 0.17.0) start the server image `camusdb/camusdb:0.15.3` by
+default. Newer server images, such as `0.18.5`, are available. To use one, pass
+the image to the builder, as shown in [Configure the server](#configure-the-server).
+
+The source and the integration tests are in
 [camusdb-testcontainers](https://github.com/camusdb/camusdb-testcontainers).
 
 ## Start a test database
@@ -37,8 +42,8 @@ Source and integration tests are in
 dotnet add package CamusDB.Testcontainers
 ```
 
-This example creates a database, inserts a product, and queries it through the
-container's HTTP helpers:
+This example creates a `shop` database with a `products` table. It inserts a
+product and reads it back with the HTTP helpers of the container.
 
 ```csharp
 using CamusDB.Testcontainers;
@@ -56,21 +61,51 @@ string json = await database.ExecuteQueryAsync("shop",
     "SELECT name FROM products WHERE id = 1");
 ```
 
-`await using` disposes the container at the end of the scope. With the default
-wait strategy, `StartAsync` waits for a successful `SHOW DATABASES`, or a login
-when authentication is enabled. Checking `/health` alone is insufficient:
-the HTTP listener starts before storage is ready.
+`await using` disposes the container at the end of the scope. `StartAsync`
+returns when the server can run statements. By default, it waits until a
+`SHOW DATABASES` statement succeeds, or until a login succeeds when
+authentication is on.
+
+If you add your own wait strategy, it replaces the default one. Don't use
+`/health` alone as the condition. The HTTP listener answers `/health` before
+storage is ready.
+
+### HTTP helpers
+
+The container has helpers that send SQL over the HTTP API. They don't need a
+driver.
+
+| Method | Purpose |
+| --- | --- |
+| `CreateDatabaseAsync(name)` | Creates a database if it doesn't exist. It returns no response body. |
+| `ExecuteDdlAsync(database, sql)` | Sends a schema change, such as `CREATE TABLE`. |
+| `ExecuteNonQueryAsync(database, sql)` | Sends a data change, such as `INSERT`. |
+| `ExecuteQueryAsync(database, sql)` | Sends a query. |
+| `GetAccessTokenAsync()` | Returns the bearer token. Authentication must be on. |
+
+Use the helper that matches the statement. For example, an `INSERT` sent with
+`ExecuteDdlAsync` returns `CADB0407`.
+
+The SQL helpers return the JSON response body as a string. For example, the body
+of an `INSERT` has the changed-row count in `rows`. A response with an error
+status throws `InvalidOperationException`. The exception message includes the
+response body, with the CamusDB error code. Each helper also takes an optional
+cancellation token.
+
+For typed results and parameters, use the
+[.NET driver](/docs/dotnet-driver) with the connection string of the container.
 
 ## Connect with the .NET driver
 
-The module does not depend on `CamusDB.Client`. Add the driver separately when
-you want typed results, parameters, or transactions:
+The packages don't depend on `CamusDB.Client`. Add the driver when you need
+parameters or transactions.
 
 ```bash
 dotnet add package CamusDB.Client
 ```
 
-After starting the container and creating `shop`, open a connection:
+This example opens a connection to the `shop` database from the first example,
+and it reads the product name.
 
 ```csharp
 using CamusDB.Client;
@@ -84,80 +119,34 @@ await using CamusCommand command = connection.CreateCamusCommand(
 string? name = (string?)await command.ExecuteScalarAsync();
 ```
 
-The container maps the HTTP and gRPC ports to random host ports. Read addresses
-and connection strings **after** `StartAsync`; do not hard-code host ports.
+The container maps the HTTP and gRPC ports to random host ports. Read the
+addresses and the connection strings after `StartAsync`, and don't hard-code
+host ports.
 
 | Method | Result |
 | --- | --- |
-| `GetConnectionString()` | HTTP connection string without a database. |
-| `GetConnectionString("shop")` | HTTP connection string with `Database=shop`. |
-| `GetGrpcConnectionString("shop")` | gRPC connection string with `Protocol=grpc`, the database, and an HTTP `BackupEndpoint`. The database argument is optional. |
-| `GetHttpAddress()` | HTTP API address. |
-| `GetGrpcAddress()` | gRPC address using plaintext HTTP/2. |
+| `GetConnectionString()` | An HTTP connection string. It doesn't select a database. |
+| `GetConnectionString("shop")` | An HTTP connection string with `Database=shop`. |
+| `GetGrpcConnectionString("shop")` | A gRPC connection string with `Protocol=grpc` and `Database=shop`. The database argument is optional. |
+| `GetHttpAddress()` | The address of the HTTP API. |
+| `GetGrpcAddress()` | The address of the gRPC API, over plaintext HTTP/2. |
 
-The gRPC string includes `BackupEndpoint` because backup administration uses
-the REST API. [Dapper](/docs/dapper) and [EF Core](/docs/ef-core) use the same
-driver connection strings; the module repository's transport tests exercise
-`CamusDB.Client` directly.
-
-## Configure the server
-
-```csharp
-await using CamusDbContainer database = new CamusDbBuilder()
-    .WithMemoryProfile("dev")
-    .WithPartitions(1)
-    .WithSetting("query_result_cache_enabled", "false")
-    .Build();
-await database.StartAsync();
-```
-
-| Builder option | Behavior |
-| --- | --- |
-| `new CamusDbBuilder(image)` | Selects a Docker image. The module's default is pinned to `camusdb/camusdb:0.15.3`. |
-| `WithMemoryProfile("dev")` | Sets the development profile, with approximately 96 MiB of server caches; this is not a limit on total process memory. |
-| `WithPartitions(n)` | Sets the number of Raft partitions, the server's data partitions. The image default is 4. |
-| `WithSetting(key, value)` | Writes a setting to the container's `config.yml`. |
-| `WithAuthentication(user, password)` | Enables authentication and seeds a bootstrap superuser. |
-
-Choose an image version that supports the features under test. Standard
-Testcontainers builder options, such as `WithEnvironment`, are also available.
-
-`WithSetting` writes raw YAML scalar values to `/etc/camusdb/config.yml` and
-sets `CAMUS_CONFIG_PATH`. Dotted keys produce nested mappings, for example
-`.WithSetting("kahuna.backup_dir", "/data/backups")`. The image's command line
-overrides the configured HTTP port, data directory, and partition count;
-use `WithPartitions` for the latter. See [configuration](/docs/configuration)
-for server settings.
-
-### Authentication
-
-```csharp
-await using CamusDbContainer database = new CamusDbBuilder()
-    .WithAuthentication("admin", "test-password")
-    .Build();
-await database.StartAsync();
-```
-
-The module generates a random access-token signing key. HTTP helpers log in
-with the bootstrap credentials and renew the cached token shortly before it
-expires. `GetAccessTokenAsync()` exposes that token when authentication is on.
-
-Connection strings include `User`, `Password`, and
-`AllowInsecureCredentials=true`. The module also sets
-`require_tls_when_auth_enabled: false` so the test host can authenticate over
-Docker's plaintext connection. These settings support the test environment;
-they do not configure TLS.
+The gRPC connection string also sets `BackupEndpoint` to the HTTP address. The
+backup commands of the driver use the HTTP API. [Dapper](/docs/dapper) and
+[EF Core](/docs/ef-core) use the same connection strings as the driver.
 
 ## Share a container with xUnit
 
-For xUnit.net v3:
+The fixture package for xUnit.net v3 is `CamusDB.Testcontainers.XunitV3`, and
+the package for v2 is `CamusDB.Testcontainers.Xunit`. The examples in this
+section use v3.
 
 ```bash
 dotnet add package CamusDB.Testcontainers.XunitV3
 ```
 
-For xUnit.net v2, install `CamusDB.Testcontainers.Xunit` instead. This v3 example
-seeds inventory data before the first test:
+This fixture creates an `inventory` database and adds a row before the first
+test.
 
 ```csharp
 using System.Threading;
@@ -191,19 +180,25 @@ public sealed class InventoryTests(InventoryFixture fixture)
     public async Task ReadsSeededItem()
     {
         string json = await fixture.Container.ExecuteQueryAsync("inventory",
-            "SELECT name FROM items WHERE id = 1");
+            "SELECT name FROM items WHERE id = 1",
+            TestContext.Current.CancellationToken);
         Assert.Contains("bolt", json);
     }
 }
 ```
 
-For v2, import `Xunit.Abstractions` for `IMessageSink` instead of `Xunit.Sdk`.
-The fixture starts one container for the class and disposes it after the tests.
-It exposes `Container`, `HttpAddress`, and `GrpcAddress`. Override
-`InitializeDatabaseAsync` to create databases and seed data after startup.
+For xUnit.net v2, change two things in these examples. Import
+`Xunit.Abstractions` for `IMessageSink`, and remove the
+`TestContext.Current.CancellationToken` argument.
 
-To share the fixture across classes, declare a collection in your test project
-and annotate each participating class:
+The fixture starts one container for the test class, and it disposes the
+container after the last test. Use its `Container` property in the tests.
+`HttpAddress` and `GrpcAddress` give the addresses of the two APIs.
+`InitializeDatabaseAsync` runs after the container starts. Override it to
+create databases and add data.
+
+To share one container across test classes, use an xUnit collection. Each class
+with the `[Collection("Inventory")]` attribute gets the same fixture.
 
 ```csharp
 [CollectionDefinition("Inventory")]
@@ -218,7 +213,8 @@ public sealed class OrderTests(InventoryFixture fixture)
     public async Task CanReadInventory()
     {
         string json = await fixture.Container.ExecuteQueryAsync("inventory",
-            "SELECT name FROM items WHERE id = 1");
+            "SELECT name FROM items WHERE id = 1",
+            TestContext.Current.CancellationToken);
         Assert.Contains("bolt", json);
     }
 }
@@ -226,38 +222,98 @@ public sealed class OrderTests(InventoryFixture fixture)
 
 ### ADO.NET fixture
 
-`CamusDbAdoNetFixture` provides `OpenConnectionAsync()`, `CreateConnection()`,
-and `CreateCommand(sql)` through Testcontainers' `DbContainerFixture`. Your
-derived fixture must supply a `DbProviderFactory`; the package leaves the
-client version to your test project.
+`CamusDbAdoNetFixture` gives the tests ADO.NET connections and commands. Its
+methods, such as `OpenConnectionAsync()` and `CreateCommand(sql)`, come from
+the `DbContainerFixture` class of Testcontainers. The fixture creates the
+database `DatabaseName` (default `test`) before it calls
+`InitializeDatabaseAsync`. `ConnectionString` selects that database over HTTP.
 
-`CamusProviderFactory` is absent from `CamusDB.Client` 0.16.0. Use a client
-version that provides it, or supply a compatible factory yourself. You can use
-`CamusDbFixture` with manually opened `CamusConnection` instances without that
-factory.
+Your fixture supplies the `DbProviderFactory`. This means that your test project
+chooses the version of `CamusDB.Client`. `CamusProviderFactory.Instance` is in
+`CamusDB.Client` 0.16.1 and later.
 
-The ADO.NET fixture creates `DatabaseName` (default `test`) before calling
-`InitializeDatabaseAsync`. Its connection string selects that database over
-HTTP. To use gRPC, override:
+```csharp
+using System.Data.Common;
+using System.Threading;
+using System.Threading.Tasks;
+using CamusDB.Client;
+using CamusDB.Testcontainers;
+using CamusDB.Testcontainers.Xunit;
+using Xunit.Sdk;
+
+public sealed class RobotsFixture(IMessageSink messageSink)
+    : CamusDbAdoNetFixture(messageSink)
+{
+    public override DbProviderFactory DbProviderFactory
+        => CamusProviderFactory.Instance;
+
+    protected override async Task InitializeDatabaseAsync(
+        CamusDbContainer container, CancellationToken ct)
+    {
+        await using DbCommand command = CreateCommand(
+            "CREATE TABLE robots (id INT64 PRIMARY KEY NOT NULL, name STRING NOT NULL)");
+        await command.ExecuteNonQueryAsync(ct);
+    }
+}
+```
+
+To use gRPC, override `ConnectionString` in your fixture with the gRPC
+connection string.
 
 ```csharp
 public override string ConnectionString
     => Container.GetGrpcConnectionString(DatabaseName);
 ```
 
-## HTTP helpers
+## Configure the server
 
-Helpers accept an optional cancellation token. SQL execution helpers return
-the JSON response body, rather than typed rows or a changed-row count. A
-non-2xx HTTP response throws `InvalidOperationException`.
+This example selects a newer image and changes three server options.
 
-| Method | Purpose |
+```csharp
+await using CamusDbContainer database = new CamusDbBuilder("camusdb/camusdb:0.18.5")
+    .WithMemoryProfile("dev")
+    .WithPartitions(1)
+    .WithSetting("query_result_cache_enabled", "false")
+    .Build();
+await database.StartAsync();
+```
+
+| Builder option | Behavior |
 | --- | --- |
-| `CreateDatabaseAsync(name)` | Creates a database if it does not exist; returns no response body. |
-| `ExecuteDdlAsync(database, sql)` | Runs schema DDL. |
-| `ExecuteNonQueryAsync(database, sql)` | Runs `INSERT`, `UPDATE`, or `DELETE`. |
-| `ExecuteQueryAsync(database, sql)` | Runs a query. |
-| `GetAccessTokenAsync()` | Returns the cached or renewed bearer token; requires authentication. |
+| `new CamusDbBuilder(image)` | Selects the Docker image. The default is `camusdb/camusdb:0.15.3`. |
+| `WithMemoryProfile("dev")` | Selects the `dev` [memory profile](/docs/configuration#memory-profile), with about 96 MiB of server caches. It doesn't limit the total memory of the process. |
+| `WithPartitions(n)` | Sets the number of [partitions](/docs/concepts#partition). The image default is `4`. |
+| `WithSetting(key, value)` | Writes a setting to the `config.yml` file of the container. |
+| `WithAuthentication(user, password)` | Turns on authentication, and creates a superuser with these credentials. |
 
-For typed assertions and parameterized SQL, use the
-[.NET driver](/docs/dotnet-driver) with the container's connection string.
+The standard Testcontainers builder options, such as `WithEnvironment`, also
+work.
+
+`WithSetting` writes the value to `/etc/camusdb/config.yml` as a raw YAML
+scalar. For example, `"false"` becomes a boolean. A key with dots becomes a
+nested mapping, as in `.WithSetting("kahuna.backup_dir", "/data/backups")`. A
+misspelled key stops the server at startup with `Unknown config option`. For
+the keys, see the [settings reference](/docs/settings-reference).
+
+The command line of the image sets the HTTP port and the data directory. It
+also sets the partition count from `WithPartitions`. A `WithSetting` value for
+one of these settings has no effect.
+
+### Authentication
+
+```csharp
+await using CamusDbContainer database = new CamusDbBuilder()
+    .WithAuthentication("admin", "test-password")
+    .Build();
+await database.StartAsync();
+```
+
+The module generates a random key to sign access tokens. The HTTP helpers log
+in with the superuser credentials, and they get a new token about 30 seconds
+before the current one expires. `GetAccessTokenAsync()` returns the current
+token. With authentication off, it throws `InvalidOperationException`.
+
+The connection strings include `User` and `Password`, with
+`AllowInsecureCredentials=true`. The module also sets
+`require_tls_when_auth_enabled: false`. These two settings let the test host
+log in over the plaintext connection to the container. They don't set up TLS.

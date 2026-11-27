@@ -4,8 +4,8 @@ sidebar_position: 6
 
 # The connection model
 
-Thousands of application instances, serverless functions, or small services
-can connect to CamusDB with no external connection pooler, because an idle
+Thousands of application instances, such as serverless functions, can connect
+to CamusDB directly. You don't need an external connection pooler. An idle
 connection costs only one open socket. This page explains the server model for
 capacity planning and deployment. It compares the model with PostgreSQL and
 MySQL, and it lists the trade-offs.
@@ -34,8 +34,8 @@ wire details on this page to write an application.
 In PostgreSQL, each connection has a backend process with private memory, and
 the default `max_connections` is 100. Large applications put a pooler such as
 PgBouncer in front of the database. A pooler in transaction mode shares
-backends between clients, and session state, such as a `SET`, an advisory lock,
-a temporary table, or `LISTEN`, can reach the wrong client.
+backends between clients, and session state, such as a `SET` or a temporary
+table, can reach the wrong client.
 
 In MySQL, each connection has a thread by default, with its stack and session
 buffers, and the default `max_connections` is 151. Thread pool plugins separate
@@ -45,8 +45,8 @@ is tied to one client.
 ## How CamusDB handles a request
 
 CamusDB uses the Kestrel web server of ASP.NET Core, which uses asynchronous
-I/O. A request uses a thread only while it does CPU work. When it waits for the
-disk, the network, or a lock, it releases the thread for another request. A
+I/O. A request uses a thread only while it does CPU work. When it waits, for
+example for the disk or a lock, it releases the thread for another request. A
 small shared thread pool serves many requests, and the thread count doesn't
 grow with the number of clients.
 
@@ -76,8 +76,8 @@ carries many concurrent statements. See [Query activity](/docs/query-activity).
 
 ## Where the state lives
 
-CamusDB doesn't have sessions. It stores each kind of state in a place that the client
-can refer to:
+CamusDB doesn't have sessions. It stores each kind of state in a place that the
+client can refer to.
 
 | State | Where it lives | How a client refers to it |
 |---|---|---|
@@ -89,7 +89,7 @@ can refer to:
 
 A transaction therefore isn't tied to a connection. A client can start a
 transaction over REST, or with the unary gRPC call `StartTransaction`, and
-commit it on another socket. If a socket fails, the transaction is still open. The
+commit it on another socket. A failed socket doesn't end the transaction. The
 client opens a new socket and continues with the same handle.
 
 ```mermaid
@@ -117,44 +117,45 @@ transaction open.
 
 - **No external pooler.** The number of open connections doesn't set the server
   cost. An application with a thousand workers can share a few HTTP/2
-  connections, and you don't deploy, monitor, or configure a pooler.
-- **Short-lived clients.** A serverless function, a script, or a test can send
-  one HTTPS request and doesn't need a warm pool. A new connection costs a TCP and TLS
+  connections, and you don't need to run a pooler.
+- **Short-lived clients.** A short-lived client, such as a serverless function,
+  can send one HTTPS request. It doesn't need a warm pool. A new connection costs a TCP and TLS
   handshake, and the server doesn't start a process or a thread. See
   [Serverless functions](#serverless-functions) for the limits that a burst of
   functions can reach.
 - **Fewer round trips.** `BatchExecute` sends many statements and doesn't wait
-  for each response. Frame contract version 2 can send `START`, the statements,
-  and `COMMIT_IF_OK` in one message. A short transaction then needs one
+  for each response. Frame contract version 2 can send a complete short
+  transaction, from `START` to `COMMIT_IF_OK`, in one message. A short transaction then needs one
   exchange.
-- **Standard infrastructure.** REST and gRPC are regular HTTP. Load balancers,
-  proxies, TLS termination, service meshes, and tracing tools support them. A
+- **Standard infrastructure.** REST and gRPC are regular HTTP. Standard tools,
+  such as load balancers and tracing tools, support them. A
   client doesn't need a database-specific wire protocol.
 - **No session state to mix up.** A PostgreSQL pooler in transaction mode can
-  mix the session state of two clients. In CamusDB, transactions, prepared
-  statements, and causal tokens each have an explicit handle in the request.
-- **Low cost for idle clients.** An idle socket uses no process, no thread, and
-  no sort buffer. An open transaction that a client forgot has locks, and
+  mix the session state of two clients. In CamusDB, each kind of state has an
+  explicit handle in the request. See [Where the state lives](#where-the-state-lives).
+- **Low cost for idle clients.** An idle socket doesn't use a process or a
+  thread. An open transaction that a client forgot has locks, and
   CamusDB rolls it back after `transaction_idle_timeout_ms` (5 minutes by
   default).
 
 ## Costs of this model
 
-Know these trade-offs before you design a client:
+The model has trade-offs that you should know before you design a client.
 
 - **A transaction belongs to its node.** The node that starts an explicit
   transaction stores it in memory. Send each statement of the transaction, and
   its `COMMIT` or `ROLLBACK`, to the same node. Another node doesn't know the
   handle and returns an error. Autocommit statements can go to any node.
-- **Each request repeats some context.** Each REST request contains the database
-  name, the token, and a JSON body, and the parsing costs CPU each time. gRPC
+- **Each request repeats some context.** Each REST request contains its context,
+  such as the database name and the token. The parsing costs CPU each time. gRPC
   with Protobuf and prepared statements reduces that cost. See
   [Prepared statements](/docs/prepared-statements).
 - **A pause can end a transaction.** CamusDB treats a pause longer than
   `transaction_idle_timeout_ms` in a transaction as abandonment, and it rolls
   the transaction back.
-- **There is no session state.** CamusDB has no session-level `SET`, no session
-  temporary tables, and no `LISTEN` or `NOTIFY`. `SET TRANSACTION` applies to
+- **There is no session state.** CamusDB doesn't have session features, such as
+  a session-level `SET` or session temporary tables. `LISTEN` and `NOTIFY`
+  aren't available either. `SET TRANSACTION` applies to
   one transaction. Put other context in the request.
 - **A gRPC prepared statement belongs to its stream.** A client that opens a new
   stream must prepare the statement again.
@@ -205,8 +206,8 @@ minutes by default. Other transactions that need those rows wait or fail.
 
 - Use autocommit statements for single writes.
 - Use the driver's [transaction and retry helpers](/docs/serializable-retries)
-  to finish the work in the same invocation, with no slow external calls in
-  between. The .NET and TypeScript clients also have pipeline APIs that reduce
+  to finish the work in the same invocation. Don't make slow external calls
+  during the transaction. The .NET and TypeScript clients also have pipeline APIs that reduce
   round trips.
 - Let the driver send an explicit transaction to the node that started it.
   Custom protocol clients must do this themselves.

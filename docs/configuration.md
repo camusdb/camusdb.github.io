@@ -456,6 +456,23 @@ Treat the setting as a switch for the full cluster:
   committed-head ledger, start once with the setting off, and let a checkpoint
   happen. Then remove the override and restart.
 
+### Log entries per commit
+
+Kahuna.Core 1.19.0 adds two startup settings that can reduce the number of
+Raft log entries written for durable transactions. Both default to `false`.
+
+- `kahuna.durable_merge_adjacent_settles` combines adjacent operations that
+  apply committed writes into one log entry. The merged entry uses the
+  existing settlement format and needs no special upgrade order.
+- `kahuna.durable_one_phase_bundle_entry` writes the record, prepare, and
+  decision of a one-phase commit in one entry. Before enabling it on any
+  node, upgrade all nodes to builds with Kahuna.Core 1.19.0 or later. Keep
+  those builds on nodes that join or replay a log containing bundle entries.
+
+You can turn either setting off. Turning off the bundle setting changes
+future writes. Nodes still need a compatible build to read entries already
+in the log.
+
 ### Persistent MVCC revision retention
 
 Kahuna stores several versions of each row. Then readers see a consistent
@@ -484,15 +501,16 @@ also be dispatched sooner when it reaches the size learned from recent load.
 | Key | Default | Effect |
 | --- | --- | --- |
 | `kahuna.key_value_write_max_in_flight_batches_per_partition` | `1` | The batches of a partition that can wait on Raft at the same time. Change it only after an A/B test on your workload. |
-| `kahuna.key_value_write_linger_ms` | `1` | How long the oldest queued write can wait, while no batch is in flight, before a batch is sent. |
+| `kahuna.key_value_write_linger_ms` | `0` standalone, `1` cluster | How long the oldest queued write can wait, while no batch is in flight, before a batch is sent. |
 | `kahuna.key_value_write_max_batch_items` | `512` | The maximum items in one batch. |
-| `kahuna.key_value_write_post_completion_hold_ms` | `1` | The wait after a batch completes before the next one is sent. It increases batch density at full load. `0` sends at once, as Kahuna does by default. |
+| `kahuna.key_value_write_post_completion_hold_ms` | `0` standalone, `1` cluster | How long the aggregator waits after a batch completes before it sends the next one. |
 | `kahuna.key_value_write_precise_wake` | `true` | Uses a dedicated timer thread for the aggregator wakeups. It can wake closer to the deadline. |
 | `kahuna.key_value_write_fill_target_trigger` | `true` | Sends a buffer as soon as it reaches the learned fill target, and doesn't always wait for the timer. |
 
-These settings change write latency and throughput. Record them with benchmark
-results. Results with different batching settings aren't
-directly comparable.
+Standalone mode dispatches a batch as soon as the partition is ready. A node
+short of CPU at high concurrency can set both delays to `1` ms to accumulate
+larger batches at the cost of added latency. A one-node cluster uses the
+cluster defaults. Explicit settings override the defaults in either mode.
 
 ### Garbage collection and write batching
 
@@ -533,7 +551,7 @@ can see the profile only in how often a read comes from cache.
 
 | Profile | Block cache | Memtable sub-budget | Actor caches | Total |
 |---------|-------------|---------------------|--------------|-------|
-| `prod` (default) | 10% of machine memory, up to 2 GiB | A quarter of the block cache, raised to the Raft-log flush unit when possible, up to 1 GiB | 6.25% of the managed heap budget, at least 64 MiB | Depends on the engine and the heap limit. See below. |
+| `prod` (default) | 10% of machine memory, up to 2 GiB | A quarter of the block cache, raised to the Raft-log flush unit when possible, up to 1 GiB | Caps based on 6.25% of the managed heap budget. See [cache sizing](#cache-defaults-proportional-to-memory). | Depends on the engine and the heap limit. |
 | `dev` | 64 MiB | 16 MiB | 32 MiB | About 96 MiB, on any machine. |
 
 Use `dev` for a node that shares a developer machine with your application. Its
@@ -582,24 +600,20 @@ transactions per second, with 8 clients.
 |-----|---------------------|-------|
 | `rocksdb_shared_memory_budget_mb` | 10% of machine memory. | 64 MiB to 2 GiB. The 320 MiB minimum doesn't apply on small nodes. |
 | `rocksdb_shared_memtable_budget_mb` | A quarter of the block cache, raised to the Raft-log flush unit when possible. | 16 MiB to 1 GiB. The 128 MiB minimum doesn't apply on small nodes. |
-| `max_bytes_per_actor` | 6.25% of the managed heap budget, at least 64 MiB for the layer, divided by `key_value_workers`. | 1 MiB to 2 GiB for each actor. The 8 MiB minimum doesn't apply on small nodes. |
+| `max_bytes_per_actor` | One share of the actor-cache budget, or up to four shares with a managed heap budget of at least 2 GiB. | 1 MiB to 2 GiB per actor. |
 | `max_entries_per_actor` | `max_bytes_per_actor` divided by about 512 B. | 2k to 4M. The 10k minimum doesn't apply on small nodes. |
 
-The total of the two cache layers is at most 4 GiB, on any machine. The fractions are conservative. An unconfigured node is often a developer
-workstation or a CI container.
+The actor-cache budget is 6.25% of the managed heap budget, with a minimum of
+64 MiB. One share is that budget divided by `key_value_workers`. At a heap
+budget of 2 GiB or more, each actor can use four shares, up to the actor-cache
+budget. This gives busy actors more room. Four shares per actor allow a
+combined cap of up to four times the budget before the per-actor limits in
+the table apply.
 
-For example, take an 8 GiB machine with 8 cores and no heap limit, where none of
-the four keys is set. The block cache is 819 MiB, and the memtable sub-budget is 204
-MiB. The 8 cores give 32 key-value workers, each with a 16 MiB actor cache, for
-512 MiB. The total is about 1.3 GiB.
-
-On a dedicated server, you should set all four values explicitly. The computed
-sizes are a starting point.
-
-The 6.25% share and its 64 MiB minimum apply to the full actor-cache layer. CamusDB divides that budget by `key_value_workers` (default
-max(32, 4 × CPU cores)), and the 8 MiB minimum applies to each actor. This means
-that more cores divide the same budget into more parts. To get the total,
-multiply `max_bytes_per_actor` by `key_value_workers`.
+For example, with an 8 GiB managed heap and 32 workers, the actor-cache budget
+is 512 MiB. Each worker can cache up to 64 MiB, for a combined cap of 2 GiB.
+To size the cap for your workload, set `max_bytes_per_actor` and
+`max_entries_per_actor` explicitly.
 
 The KV store and the Raft WAL share the two RocksDB budgets. See
 [Shared RocksDB memory](/docs/storage#shared-rocksdb-memory).

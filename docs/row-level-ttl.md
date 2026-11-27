@@ -8,24 +8,24 @@ CamusDB can delete expired rows for you. You name a column that contains the
 expiry time of each row, and a background sweep deletes the rows whose time has
 passed. No one has to run a `DELETE`.
 
-The parameter names, values, and defaults follow a common SQL convention for
-row-level TTL. Some parameters accept fewer values than that convention, and
+The parameters follow a common SQL convention for row-level TTL, also in their
+names and defaults. Some parameters accept fewer values than that convention, and
 some aren't supported. See [Parameter limits](#limits-of-the-parameters).
 
 ## Replace your cleanup jobs
 
 TTL means time to live: how long a row remains in the table before it is removed.
-Many tables contain data that is useful only for a limited time:
+Many tables contain data that is useful only for a limited time.
 
-- Login sessions, access tokens, and password reset codes.
-- Temporary carts, reservations, and application locks.
-- Event logs, audit rows, and telemetry that a retention rule lets you keep for
-  a fixed period only.
+- Login sessions and access tokens.
+- Temporary carts and reservations.
+- Event logs and telemetry that a retention rule lets you keep for a fixed
+  period only.
 - Cached copies of data from another system.
 
-Without TTL, you must write and schedule a cleanup job. It must delete rows in
-small batches, so that it doesn't hold a large transaction or slow down the
-application, and it must continue after a failure or a restart. Row-level TTL
+If you don't use TTL, you must write and schedule a cleanup job. The job must
+delete rows in small batches, to avoid a large transaction that slows down the
+application. It must also continue after a failure or a restart. Row-level TTL
 does this work in the database. You name the expiry column once, and CamusDB
 deletes the expired rows.
 
@@ -40,7 +40,7 @@ before you rely on TTL for correctness.
 ## Turn it on
 
 The node switch `ttl_enabled` is on by default. To use TTL on a table, name its
-expiry column:
+expiry column.
 
 ```camussql
 ALTER TABLE sessions SET (ttl_expiration_expression = 'expires_at');
@@ -93,7 +93,7 @@ day.
 
 You can also set the parameters in `CREATE TABLE ... WITH (...)`.
 `SHOW CREATE TABLE` prints that form, and you can run its output to recreate
-the table:
+the table.
 
 ```camussql
 SHOW CREATE TABLE sessions;
@@ -126,7 +126,7 @@ background. It doesn't filter them out of reads. A `SELECT` returns an expired
 row if the sweep hasn't reached it yet. A filter at read time would add a cost
 to each query of a TTL table.
 
-If your application needs exact expiry, filter explicitly:
+If your application needs exact expiry, filter explicitly.
 
 ```camussql
 SELECT * FROM sessions WHERE expires_at > NOW();
@@ -146,8 +146,8 @@ Tune `ttl_delete_rate_limit` first. It controls the effect of the sweep on the
 cluster. The batch sizes control the size of each transaction. The default of
 100 rows per second is low on purpose.
 
-Delete batches are small, because each row costs one mutation per index entry
-plus one for the row. A table with four indexes uses five mutations per row.
+Delete batches are small. Each row costs one mutation per index entry, plus one
+for the row. A table with four indexes uses five mutations per row.
 Keep `ttl_delete_batch_size` well below the transaction limit of 20,000
 mutations. Short delete transactions also keep foreground writers from waiting
 for the sweep's locks.
@@ -197,7 +197,7 @@ SHOW ENGINE STATS LIKE 'ttl.%';
 | `ttl.runs_completed` | Runs that this node closed as finished |
 | `ttl.sweep_duration_ms` | Total time that this node spent on sweeps |
 
-There are also rows for each table, with the tags `db=…` and `table=…`:
+There are also rows for each table, with the tags `db=…` and `table=…`.
 
 | Metric | Meaning |
 |---|---|
@@ -210,9 +210,9 @@ There are also rows for each table, with the tags `db=…` and `table=…`:
 Read `ttl.table.state` before the totals. A total for the node shows only
 whether TTL works. The numbers of healthy tables can hide a table that stopped.
 
-These states look alike from the outside:
+Four of these states look alike from the outside.
 
-- `idle`: the table has no expired rows to delete.
+- `idle`: the table doesn't have expired rows to delete.
 - `waiting`: another node has the spans.
 - `stalled`: an open run passed its interval and made no progress.
 - `failing`: CamusDB tries to delete rows, and the deletes fail. Check
@@ -235,7 +235,7 @@ sweep reached them. A value close to `ttl.rows_expired` means that the sweep
 competes with live traffic. Change its interval and batch sizes.
 
 If `ttl.rows_expired` doesn't grow on a table that you expect to shrink, check
-these items in order:
+four items in this order.
 
 1. `ttl_enabled` on the node.
 2. `ttl_pause` on the table.
@@ -247,7 +247,7 @@ these items in order:
 
 CamusDB supports a subset of the common TTL parameters.
 
-These parameters accept fewer values:
+Two parameters accept fewer values.
 
 - `ttl_expiration_expression` takes a column name. An SQL expression, such as
   `created_at + INTERVAL '1 day'`, returns an error that says expressions
@@ -255,15 +255,15 @@ These parameters accept fewer values:
 - `ttl_job_cron` takes only the `@` macros. Five-field CRON expressions return
   an error.
 
-These parameters aren't available, and they return "Unknown table setting":
+Four parameters aren't available, and they return "Unknown table setting".
 
 - `ttl_expire_after`. It would need a hidden expiry column. Use
   `ttl_expiration_expression` with your own column.
-- `ttl_disable_changefeed_replication`. CamusDB has no changefeed.
+- `ttl_disable_changefeed_replication`. CamusDB doesn't have changefeeds.
 - `ttl_row_stats_poll_interval` and `ttl_label_metrics`, which are specific to
   Prometheus. Use `SHOW ENGINE STATS`.
 
-One parameter is a CamusDB extension:
+One parameter is a CamusDB extension.
 
 - `ttl_grace_ms` adds a grace period after the expiry time. A column name alone
   can't express a grace period.
@@ -277,10 +277,10 @@ workers compare their rows with that one time, and two nodes can't disagree
 about a row at a span boundary.
 
 Workers run on all nodes. A worker claims a span with a lease on the span's key.
-If a worker stops, only its span waits, and another worker can claim it when the
-lease expires.
+If a worker stops, only its span waits. Another worker can claim the span when
+the lease expires.
 
-A worker processes each span in these steps:
+A worker processes each span in four steps.
 
 1. It scans a bounded batch.
 2. It selects the expired rows.

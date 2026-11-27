@@ -183,3 +183,15 @@ test('PARTITIONS is a keyword after SHOW and an identifier in queries', () => {
     expect(partitionKeywords).toHaveLength(1);
   }
 });
+
+test('transaction activity commands highlight their contextual keywords', () => {
+  const sql = "SHOW TRANSACTIONS; SHOW CLUSTER TRANSACTIONS; KILL TRANSACTION '42'; SELECT kill FROM transactions; -- KILL TRANSACTION";
+  for (const stream of tokens(sql)) {
+    expect(stream.map((token) => token.value).join('')).toBe(sql);
+    expect(stream.filter((token) => token.kind === 'keyword' && /^transactions$/i.test(token.value))).toHaveLength(2);
+    expect(stream.filter((token) => token.kind === 'keyword' && /^kill$/i.test(token.value))).toHaveLength(1);
+    expectToken(stream, 'keyword', 'TRANSACTION');
+    expectToken(stream, 'string', "'42'");
+    expectToken(stream, 'comment', '-- KILL TRANSACTION');
+  }
+});

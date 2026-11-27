@@ -4,19 +4,19 @@ sidebar_position: 6.1
 
 # Large values
 
-CamusDB can compress large `STRING`, `BYTES`, `JSONB`, and `ARRAY` values, and
-store them outside the row, similar to TOAST in PostgreSQL. Query results don't
+CamusDB can compress a large value, such as a long `STRING` or a `JSONB`
+document, and store it outside the row, similar to TOAST in PostgreSQL. Query results don't
 change. The stored size, the I/O of a query, and the size of each row version
 get smaller.
 
-Use it for document bodies, JSON, images, archives, and other large values that
-most queries don't read. Don't use it for values that most queries read, such
+Use it for large values that most queries don't read, such as document bodies
+or images. Don't use it for values that most queries read, such
 as embeddings for an exact vector search.
 
 ## Why out-of-line storage helps
 
 Each row is stored as one key/value entry, and each update writes a new version
-of the row. When a row contains a large value, you pay two costs:
+of the row. When a row contains a large value, you pay two costs.
 
 - A query that reads only small columns also reads the large value from storage.
 - An update to a small column writes the full row again, with another copy of
@@ -29,16 +29,17 @@ again. Compression makes the stored value smaller when it saves enough space.
 
 ## Storage strategies
 
-Each `STRING`, `BYTES`, `JSONB`, and `ARRAY` column has a storage strategy:
+A storage strategy applies to the variable-length types: `STRING`, `BYTES`,
+`JSONB`, and `ARRAY`. Each column of these types has one.
 
 | Strategy | Compresses | Stores out of line | Use it for |
 | --- | --- | --- | --- |
-| `EXTENDED` | Yes, when it saves enough | Yes, at or above the threshold | The default. Text, JSON, documents, and most large columns. |
+| `EXTENDED` | Yes, when it saves enough | Yes, at or above the threshold | The default. Most large columns, such as text or JSON. |
 | `MAIN` | Yes, when it saves enough | No | Compressible values that most queries read. |
-| `EXTERNAL` | No | Yes, at or above the threshold | Images, archives, and other incompressible values that most queries skip. |
+| `EXTERNAL` | No | Yes, at or above the threshold | Values that don't compress and that most queries skip, such as images. |
 | `PLAIN` | No | No | Values that all queries read, such as embeddings for nearest-neighbor (KNN) search. |
 
-Set a strategy when you create the column:
+Set a strategy when you create the column.
 
 ```camussql
 CREATE TABLE docs (
@@ -50,7 +51,7 @@ CREATE TABLE docs (
 );
 ```
 
-To change it later, use `ALTER COLUMN ... SET STORAGE`:
+To change it later, use `ALTER COLUMN ... SET STORAGE`.
 
 ```camussql
 ALTER TABLE docs ALTER COLUMN thumbnail SET STORAGE PLAIN;
@@ -62,7 +63,7 @@ fixed-size column, such as `INT64` or `FLOAT64`, returns `CADB0414`
 
 ## How values are stored
 
-When a non-null value is written, the following steps apply:
+These steps apply to each value that isn't `NULL`, in this order.
 
 1. If the strategy allows compression and the value is at least 256 bytes, the
    value is compressed.
@@ -108,8 +109,8 @@ Each out-of-line value is one more key, and one more mutation. An insert or a
 delete of a row with `k` out-of-line values costs `k` more mutations than the
 same row stored inline.
 
-For example, a table with a primary key, no secondary index, and four large
-columns stored out of line costs the following for each inserted row:
+For example, take a table that has a primary key and four large columns stored
+out of line, and no secondary index. Each inserted row costs six mutations.
 
 ```text
 row + primary-key entry + 4 large values = 6 mutations
@@ -122,7 +123,7 @@ insert 3,333 of these rows. For more information, see
 ## Settings
 
 These [runtime cluster settings](/docs/runtime-cluster-settings) control how
-new rows are stored, and the size of read and rewrite batches:
+new rows are stored, and the size of read and rewrite batches.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -149,17 +150,18 @@ readable, and you don't have to convert them.
 - `ALTER TABLE ... REWRITE STORAGE` converts the existing rows.
 
 Run a rewrite when you want the existing rows in the current form, ideally when
-the table gets few writes:
+the table gets few writes.
 
 ```camussql
 ALTER TABLE docs REWRITE STORAGE;
 ```
 
-The rewrite has these properties:
+The rewrite has six properties.
 
 - It converts `large_value_rewrite_batch_rows` rows in each transaction. On a
   busy table, you should use a smaller value.
-- The row IDs, the values, and the index entries don't change.
+- The rewrite doesn't change the row IDs or the values. It doesn't change the
+  index entries either.
 - A row that is already in the target form isn't written again.
 - If the statement stops, run it again. It continues after the last committed
   batch.
@@ -169,7 +171,8 @@ The rewrite has these properties:
 - A concurrent user write can get the retryable error `CADB0502`
   `TransactionConflict` while a rewrite batch commits.
 
-To convert all values back to the inline, uncompressed form, use:
+To convert all values back to the inline, uncompressed form, use the `INLINE`
+option.
 
 ```camussql
 ALTER TABLE docs REWRITE STORAGE INLINE;
@@ -178,12 +181,12 @@ ALTER TABLE docs REWRITE STORAGE INLINE;
 ## Downgrades and rolling upgrades
 
 A binary from before this feature can't read a compressed row or a row with an
-out-of-line value. To downgrade to an older binary:
+out-of-line value. To downgrade to an older binary, do these four steps.
 
 1. Set `large_value_threshold_bytes` to `0`.
 2. Set `large_value_compression_enabled` to `false`.
 3. Run `ALTER TABLE <table> REWRITE STORAGE INLINE` on each table.
-4. Confirm that the rewrite completed without deferred rows.
+4. Confirm that the rewrite didn't defer any rows.
 
 During a rolling upgrade, don't store large values until all nodes run a version
 that can read them. An older node can't read these rows, also when a distributed
@@ -198,7 +201,7 @@ query sends them to it.
 - **Backups.** A physical backup contains the out-of-line values.
 - **Logical dump and reimport.** A dump writes the full value as SQL. A reimport
   stores the rows with the current rules.
-- **Indexes.** An index entry stores the indexed value, not a pointer.
+- **Indexes.** An index entry stores the indexed value itself.
 - **`TRUNCATE TABLE` and `DROP TABLE`.** The retired or dropped contents include
   the out-of-line values. They're deleted with the contents.
 
@@ -210,7 +213,7 @@ query sends them to it.
 | `CADB0540` | `LargeValueCorrupt` | A stored large value couldn't be decompressed, or didn't match the checksum in its row. |
 | `CADB0541` | `LargeValueNotResolved` | An internal error. Report it. |
 
-A read without a fixed snapshot can see a row and its out-of-line value from
+A read that doesn't use a fixed snapshot can see a row and its out-of-line value from
 two versions, during a concurrent update. A checksum in the pointer detects
 this, and the row is read again. If the row continues to change, the read
 returns the retryable error `CADB0504` `TransactionMustRetry`.

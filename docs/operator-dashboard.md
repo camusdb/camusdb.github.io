@@ -8,8 +8,8 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 # Operator dashboard
 
 Each CamusDB node serves a read-only operator dashboard on its HTTP port. Open
-the port in a browser to see the health and the slow queries of the node, with
-no extra tools to install.
+the port in a browser to see the health and the slow queries of the node. You
+don't need to install other tools.
 
 The dashboard doesn't run DML or DDL, and it can't change the database.
 
@@ -23,7 +23,7 @@ The dashboard doesn't run DML or DDL, and it can't change the database.
 
 ## Enable or disable it
 
-The dashboard is enabled by default:
+The dashboard is enabled by default.
 
 ```yaml
 dashboard_enabled: true
@@ -33,7 +33,7 @@ dashboard_refresh_seconds: 2
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `dashboard_enabled` | `true` | Serve the dashboard pages and the `/v1/dashboard/*` endpoints. |
-| `dashboard_refresh_seconds` | `2` | How often the browser refreshes the load panel, from 1 to 300 seconds. |
+| `dashboard_refresh_seconds` | `2` | How often the browser refreshes the load panel, from 1 to 300 seconds. A value outside the range uses the nearest limit. |
 
 With `dashboard_enabled: false`, the pages and the dashboard endpoints return
 404.
@@ -42,11 +42,11 @@ With `dashboard_enabled: false`, the pages and the dashboard endpoints return
 
 | Panel | Content |
 | --- | --- |
-| Node | The endpoint, role, readiness, mode, version, uptime, and data directory. |
-| Load | In-flight requests, open transactions, and the [partitions](/docs/concepts#partition) that the node hosts. |
-| Engine | Request rates, commit duration, cache hit rates, and counters for [Raft](/docs/concepts#raft), the write-ahead log, and storage. |
+| Node | The endpoint / role / readiness / mode / version / uptime / data directory. |
+| Load | In-flight requests / open transactions / the [partitions](/docs/concepts#partition) that the node hosts. |
+| Engine | Request rates / commit duration / cache hit rates. Also counters for [Raft](/docs/concepts#raft) / the write-ahead log / storage. |
 | Cluster | The committed list of cluster members. |
-| Databases | The databases, their branch parents, and whether each one is loaded on this node. |
+| Databases | The databases and their branch parents. It also shows if each database is loaded on this node. |
 | Relations | The tables and views of the selected database. |
 | Backups | Recent backups, with their kind and size. |
 | Slow queries | Recent entries of the [slow query log](/docs/slow-query-log). |
@@ -62,7 +62,7 @@ With authentication enabled, a browser at `/` is redirected to `/SignIn`. The
 sign-in form gets a short-lived token for the password, and stores it in the
 `__Host-camus_session` cookie.
 
-The cookie is `HttpOnly`, `SameSite=Strict`, and `Secure`. The `__Host-` prefix
+The cookie has three attributes: `HttpOnly`, `SameSite=Strict`, and `Secure`. The `__Host-` prefix
 requires `Path=/` and no `Domain`. This means that another host on the same
 domain can't set a cookie that the dashboard reads.
 
@@ -79,15 +79,15 @@ another machine, enable [authentication](/docs/sql-authentication).
 
 ## Browser security headers
 
-Dashboard pages and the error page include a content security policy,
-`X-Frame-Options: DENY`, and `X-Content-Type-Options: nosniff`. The content
+Dashboard pages and the error page include a content security policy. They also
+send `X-Frame-Options: DENY` and `X-Content-Type-Options: nosniff`. The content
 security policy allows inline scripts only with a nonce for each request. The
 JSON endpoints don't send the page policy.
 
 ## Permissions
 
-All authenticated users can open the dashboard. However, the following panels
-need a superuser:
+All authenticated users can open the dashboard. However, four panels need a
+superuser.
 
 | Panel | Reason |
 | --- | --- |

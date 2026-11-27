@@ -174,6 +174,15 @@ becomes `Public`. The coordinator records the progress of the backfill. If the
 schema leader changes during the backfill, the new leader continues from the
 recorded progress. It doesn't restart the job.
 
+Standalone nodes also record ordered index builds as jobs. After a restart,
+the node can resume an interrupted build when the database opens. If the
+build fails, its entries are removed. For example, adding a unique index
+fails if existing rows have duplicate keys.
+
+Adding a `CHECK` constraint or setting `NOT NULL` also scans existing rows.
+During validation, schema changes on other tables can proceed in either
+mode. Schema changes on the table under validation wait.
+
 ## Renames change metadata only
 
 A rename of a schema object doesn't rewrite the stored rows. Rows and

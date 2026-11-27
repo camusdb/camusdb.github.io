@@ -6,8 +6,8 @@ hide_table_of_contents: true
 
 # Settings reference
 
-This page lists every setting that a CamusDB node accepts, with its default,
-its type, when a change takes effect, and whether all nodes must agree. Each
+This page lists the settings that a CamusDB node reads, with the default and
+the type of each one. Each
 variable that [`SHOW VARIABLES`](/docs/show-variables) lists has an entry here.
 Use this page to look up a value that you see in that output, or to choose a
 value before you edit `config.yml`.
@@ -19,21 +19,22 @@ Most keys are top-level keys in `config.yml`. Two nested maps have their own
 tables: [Kahuna keys](#kahuna-keys) and [Diagnostics keys](#diagnostics-keys).
 
 
-The **Change** column says when a new value takes effect:
+The **Change** column says when a new value takes effect.
 
 - **runtime**: you can change the value with
   [`SET CLUSTER SETTING`](/docs/runtime-cluster-settings), and the next
   statement or background pass uses it.
 - **restart**: edit `config.yml` and restart the node. `SET CLUSTER SETTING`
-  rejects the key, with six exceptions: it accepts those keys, but the node
-  applies the new value only after a restart. Their rows and notes say so.
+  returns an error for these keys.
 
-The **Scope** column says whether nodes must agree:
+A few runtime keys don't take effect at once. Their rows and notes say so.
 
-- **cluster**: every node must use the same value. A runtime change reaches
-  every node.
-- **node**: nodes may use different values, set in each node's `config.yml`. A
-  `SET CLUSTER SETTING` value still applies to every node and overrides the file.
+The **Scope** column says whether nodes must agree.
+
+- **cluster**: all nodes must use the same value. A runtime change applies to
+  all nodes.
+- **node**: nodes may use different values, set in each node's `config.yml`. However,
+  a `SET CLUSTER SETTING` value applies to all nodes, and it overrides the file.
 
 Sizes are in bytes and durations in milliseconds unless the key name says
 otherwise (`_seconds`, `_mb`).
@@ -42,28 +43,28 @@ otherwise (`_seconds`, `_mb`).
 
 | Key | Default | Type | Change | Scope | Description |
 |-----|---------|------|--------|-------|-------------|
-| `data_dir` | `~/.camusdb/data`, or `$CAMUS_HOME/data` | path | restart | node | Where the node stores its data. |
-| `mode` | `standalone` | `standalone` or `cluster` | restart | node | Runs a single node, or a node in a Raft [cluster](/docs/cluster). |
+| `data_dir` | `$CAMUS_HOME/data` when `CAMUS_HOME` is set. Otherwise `$XDG_DATA_HOME/camusdb` or `~/.local/share/camusdb`, and `%LOCALAPPDATA%\camusdb` on Windows | path | restart | node | Where the node stores its data. |
+| `mode` | `standalone` | `standalone` or `cluster` | restart | node | `standalone` is a single node. `cluster` is a node in a Raft [cluster](/docs/cluster). |
 | `memory_profile` | `prod` | `prod` or `dev` | restart | node | Sizes the storage caches that you leave unset. See [Memory profile](/docs/configuration#memory-profile). |
 | `node_name` | `""`, then the machine name in cluster mode | string | restart | node | This node's name in the cluster. |
 | `raft_node_id` | `1` | int | restart | node | Numeric Raft node id. Must be above `0`. |
 | `raft_host` | `localhost` | string | restart | node | Host name of this node's Raft endpoint. |
 | `raft_port` | `7070` | port | restart | node | Port for node-to-node Raft traffic. |
-| `initial_partitions` | `1` standalone, `3` cluster | int | restart | cluster | Initial hash-pool partition count, fixed at first boot. Later values are ignored with a warning. Standalone mode always uses `1`. Must be at least `1`. |
+| `initial_partitions` | `1` standalone, `3` cluster | int | restart | cluster | Initial hash-pool partition count, fixed at first boot. Later values are ignored with a warning. Must be at least `1`. |
 | `peers` | `[]` | list of `host:port` | restart | node | Raft endpoints of the other nodes, or the seed nodes when `join_existing` is on. |
 | `http_peers` | `[]` | list of `host:port` | restart | node | Each peer's HTTP address, in the same order as `peers`. The two lists must have the same length. |
 | `join_existing` | `false` | bool | restart | node | Joins a running cluster as a new member, with `peers` as the seed list. Cluster mode only. |
 | `pitr_bootstrap_from` | unset | backup id | restart | node | Seeds a joining node from this backup before it joins. Needs `join_existing` and `kahuna.backup_dir`. See [Backup and restore](/docs/backup-and-restore#seed-a-joining-node-from-a-backup). |
 | `pitr_bootstrap_target_time_ms` | `0` | Unix time, ms | restart | node | Point in time to seed to. `0` is the latest point that the chain covers. Needs `pitr_bootstrap_from`. |
-| `schema_ack_wait_timeout_ms` | `30000` | ms | restart | node | How long a DDL statement waits for every live node to acknowledge the previous schema version. See [Distributed schema](/docs/distributed-schema). |
-| `schema_ack_live_node_lease_ms` | `30000` | ms | restart | node | How long after its last contact a node still counts as live for that wait. `-1` always waits for every configured node. |
+| `schema_ack_wait_timeout_ms` | `30000` | ms | restart | node | How long a DDL statement waits for the live nodes to acknowledge the previous schema version. See [Distributed schema](/docs/distributed-schema). |
+| `schema_ack_live_node_lease_ms` | `30000` | ms | restart | node | How long after its last contact a node counts as live for that wait. `-1` waits for all the configured nodes. |
 | `schema_freshness_check_interval_ms` | `10000` | ms | restart | node | How often a cluster node compares each open database's schema with its durable checkpoint, and reloads the schema when it is behind. |
 | `unhosted_control_log_probe_interval_ms` | `250` | ms | restart | node | How often a node probes the checkpoint of a control log (schema or cluster settings) whose Raft partition it does not host. This matters when `kahuna.replication_factor` is below the node count. `0` or less turns the probe off. |
-| `coordinator_job_sweep_interval_ms` | `10000` | ms | restart | node | How often the schema leader of each open database looks for a staged schema change, such as `CREATE INDEX` or `ALTER TABLE ... ADD COLUMN`, whose driver stopped, and finishes it. A failed attempt retries with a backoff that doubles each time. Runs in standalone and cluster mode. `0` or less turns the sweep off. |
-| `registry_generation_lease_ms` | `250` | ms | restart | cluster | How long a cluster node trusts its cached database names. `DROP DATABASE` and `RENAME DATABASE` wait out one lease before they return. `0` checks on every lookup. Ignored in standalone mode. |
-| `database_idle_eviction_ms` | `900000` | ms | restart | node | How long an unused database stays open on this node before the node frees its memory. `0` or less keeps it open. |
+| `coordinator_job_sweep_interval_ms` | `10000` | ms | restart | node | How often the schema leader of each open database finishes a staged schema change whose driver stopped, for example a `CREATE INDEX`. A failed attempt retries with a backoff that doubles each time. This applies in standalone and cluster mode. `0` or less turns the sweep off. |
+| `registry_generation_lease_ms` | `250` | ms | restart | cluster | How long a cluster node trusts its cached database names. `DROP DATABASE` and `RENAME DATABASE` wait out one lease before they return. `0` turns the cache off. Ignored in standalone mode. |
+| `database_idle_eviction_ms` | `900000` | ms | restart | node | Idle time after which this node closes an unused database and frees its memory. With `0` or less, the database isn't closed. |
 | `extension_assemblies` | `[]` | list of paths | restart | node | [C# extension](/docs/csharp-extensions) DLLs loaded with the safe-assembly checks. |
-| `unsafe_extension_assemblies` | `[]` | list of paths | restart | node | Reviewed extension DLLs loaded without the safe-assembly checks. |
+| `unsafe_extension_assemblies` | `[]` | list of paths | restart | node | Reviewed extension DLLs that skip the safe-assembly checks. |
 
 ## Inline C# functions and triggers
 
@@ -71,35 +72,35 @@ All keys below require a restart, except `max_inline_definitions_per_user_per_mi
 
 | Key | Default | Type | Change | Scope | Description |
 | --- | --- | --- | --- | --- | --- |
-| `inline_functions_enabled` | `false` | bool | restart | cluster | Accept CREATE FUNCTION. Existing functions still run when disabled. |
-| `inline_triggers_enabled` | `false` | bool | restart | cluster | Accept CREATE TRIGGER ... LANGUAGE csharp. Existing triggers still fire when disabled. |
+| `inline_functions_enabled` | `false` | bool | restart | cluster | Allows `CREATE FUNCTION`. Turning it off doesn't stop existing functions. |
+| `inline_triggers_enabled` | `false` | bool | restart | cluster | Allows `CREATE TRIGGER ... LANGUAGE csharp`. Turning it off doesn't stop existing triggers. |
 | `inline_function_call_timeout_ms` | `1000` | ms | restart | cluster | Time budget per function call or trigger fire, excluding nested trigger SQL. Zero or less disables it. |
 | `inline_function_allocation_limit_bytes` | `16777216` (16 MiB) | bytes | restart | cluster | Managed allocation per call/fire, excluding nested SQL. Zero or less disables it. |
-| `inline_function_array_limit` | `1048576` | elements | restart | cluster | Maximum elements in `new T[n]`. Zero or less disables it; other allocations still use the memory budget. |
+| `inline_function_array_limit` | `1048576` | elements | restart | cluster | Maximum elements in `new T[n]`. Zero or less disables it. Other allocations use the memory budget in either case. |
 | `inline_function_source_limit_bytes` | `65536` | UTF-8 bytes | restart | cluster | Maximum source body size; must be positive. |
 | `inline_function_compile_timeout_ms` | `10000` | ms | restart | node | Compile deadline, including wait for a compile slot; must be positive. |
 | `inline_function_compile_concurrency` | `2` | int | restart | node | Concurrent inline compiles on this node; must be positive. |
 | `max_inline_functions_per_database` | `256` | int | restart | cluster | Maximum inline functions in one database. Zero or less disables it. |
-| `max_inline_definitions_per_user_per_minute` | `60` | statements | runtime | cluster | Inline `CREATE [OR REPLACE] FUNCTION` and `CREATE TRIGGER ... LANGUAGE csharp` statements that one user who isn't a superuser can execute per minute on a node. The next one fails with `CADB0848`. Zero or less disables it. See [compile rate limit](/docs/csharp-extensions#compile-rate-limit). |
+| `max_inline_definitions_per_user_per_minute` | `60` | statements | runtime | cluster | Inline `CREATE [OR REPLACE] FUNCTION` and `CREATE TRIGGER ... LANGUAGE csharp` statements that one user who isn't a superuser can execute per minute on a node. The next one returns `CADB0848`. Zero or less disables it. See [compile rate limit](/docs/csharp-extensions#compile-rate-limit). |
 
 ## Network, TLS, and client protocols
 
 | Key | Default | Type | Change | Scope | Description |
 |-----|---------|------|--------|-------|-------------|
 | `http_port` | `5095` | port | restart | node | [HTTP API](/docs/http-api) port. |
-| `https_port` | `7141` | port | restart | node | HTTPS port. It opens only when `https_certificate` is set. |
+| `https_port` | `7141` | port | restart | node | HTTPS port. It is open if `https_certificate` is set. |
 | `https_certificate` | `""` | path | restart | node | PFX certificate for the HTTPS port. Empty means no HTTPS. |
 | `http3_enabled` | `false` | bool | restart | node | Also serves HTTP/3 on the HTTPS port. See [HTTP/3](/docs/configuration#http3-on-the-https-port). |
 | `grpc_enabled` | `true` | bool | restart | node | Opens the client-facing [gRPC API](/docs/grpc-api). |
 | `grpc_port` | `5096` | port | restart | node | gRPC API port. |
-| `grpc_certificate` | `""` | path | restart | node | PFX certificate for the gRPC port. Empty falls back to `raft_certificate`. |
+| `grpc_certificate` | `""` | path | restart | node | PFX certificate for the gRPC port. Empty uses `raft_certificate`. |
 | `grpc_tls_enabled` | `true` | bool | restart | node | `false` serves gRPC as plaintext h2c even when a certificate is set. |
 | `grpc_batch_max_in_flight` | `64` | int | runtime | node | Operations one `BatchExecute` stream may run at once before backpressure. |
 | `raft_certificate` | `""` | path | restart | node | PFX certificate for the Raft port in cluster mode. |
 | `raft_mutual_tls_enabled` | `false` | bool | restart | node | Cluster mode: each peer must present a client certificate that chains to `raft_peer_ca`. Needs `raft_certificate` and `raft_peer_ca`. |
-| `raft_peer_ca` | `""` | path | restart | node | PEM file with the CA that peer certificates must chain to. Use a CA that signs only this cluster's nodes, because the node accepts every certificate it signed. |
+| `raft_peer_ca` | `""` | path | restart | node | PEM file with the CA that peer certificates must chain to. Use a CA that signs the certificates of this cluster's nodes only. Any certificate that it signed is trusted as a peer. |
 | `peer_tls_enabled` | `false` | bool | restart | node | Reaches peer HTTP endpoints over HTTPS. See [Cluster peer transport](/docs/configuration#cluster-peer-transport). |
-| `require_tls_when_auth_enabled` | `true` | bool | runtime | node | With authentication on, refuses credentials sent over plaintext, except from loopback. |
+| `require_tls_when_auth_enabled` | `true` | bool | runtime | node | With authentication on, a request that sends credentials over plaintext returns an error, except from loopback. |
 | `sql_routing_advice_enabled` | `true` | bool | restart | node | Adds [routing advice](/docs/sql-routing-advice) to responses for clients that ask for it. |
 | `sql_routing_advice_ttl_ms` | `5000` | ms | restart | node | Maximum age at which a client may reuse an advertised route. `1` to `600000`. |
 
@@ -114,12 +115,12 @@ only from the environment. See [SQL authentication](/docs/sql-authentication).
 | `login_kdf_max_concurrency` | `8` | int | restart | node | Password checks that may run at once. Others queue. |
 | `login_max_attempts_per_minute` | `20` | int | restart | node | Login attempts per account and source address in a rolling minute. |
 | `login_max_attempts_per_source_per_minute` | `200` | int | restart | node | Login attempts per source address in a rolling minute, across all accounts. |
-| `login_rate_limit_max_entries` | `100000` | int | restart | node | Keys that each login rate limiter tracks. When the per-source map is full, logins fail. When the per-account map is full, it stops adding keys and the per-source limit still applies. |
+| `login_rate_limit_max_entries` | `100000` | int | restart | node | Keys that each login rate limiter tracks. When the per-source map is full, logins fail. When the per-account map is full, new accounts aren't tracked, but the per-source limit applies. |
 | `access_token_ttl` | `900000` | ms | restart | cluster | Absolute lifetime of an access token. |
-| `authentication_cache_ttl` | `1000` | ms | restart | node | How long a node trusts a cached token or privilege check. `0` checks the catalog on every request. |
+| `authentication_cache_ttl` | `1000` | ms | restart | node | How long a node trusts a cached token or privilege check. `0` turns the cache off. |
 | `authentication_cache_max_entries` | `10000` | int | restart | node | Per-node authentication cache size limit. |
 | `session_reaper_interval_ms` | `300000` | ms | restart | node | How often expired session records are deleted. `0` or less turns the sweep off. |
-| `expired_session_retention_ms` | `300000` | ms | restart | cluster | How long a session record is kept after it expires, so a long-lived stream can tell expiry from revocation. |
+| `expired_session_retention_ms` | `300000` | ms | restart | cluster | How long a session record is kept after it expires. This lets a long-lived stream tell expiry from revocation. |
 
 The five keys below come only from environment variables. `config.yml` does
 not accept them. [`SHOW VARIABLES`](/docs/show-variables) lists them with
@@ -127,11 +128,11 @@ source `env` when the variable is set, and masks the three secrets.
 
 | Key | Environment variable | Type | Change | Scope | Description |
 |-----|----------------------|------|--------|-------|-------------|
-| `authentication_enabled` | `CAMUSDB_AUTH_ENABLED` | bool | restart | cluster | `true` requires a valid token on every request and checks privileges on every statement. Any other value, or no value, turns authentication off. |
-| `access_token_server_key` | `CAMUSDB_AUTH_TOKEN_KEY` | secret | restart | cluster | Key that hashes each access-token secret (HMAC) before the session catalog stores it, so a copy of the catalog does not give usable tokens. Required while authentication is on. At least 32 bytes. Same value on every node. |
+| `authentication_enabled` | `CAMUSDB_AUTH_ENABLED` | bool | restart | cluster | `true` turns authentication on. Each request needs a valid token, and each statement checks privileges. Any other value, or no value, turns authentication off. |
+| `access_token_server_key` | `CAMUSDB_AUTH_TOKEN_KEY` | secret | restart | cluster | Key that hashes each access-token secret (HMAC) before the session catalog stores it. This means that a copy of the catalog doesn't give usable tokens. Required while authentication is on. At least 32 bytes. All nodes need the same value. |
 | `bootstrap_superuser` | `CAMUSDB_BOOTSTRAP_USER` | string | restart | node | Name of the first superuser. CamusDB creates it at the first start with authentication, when no user exists yet. After that, CamusDB ignores it and logs a warning. |
-| `bootstrap_superuser_password` | `CAMUSDB_BOOTSTRAP_PASSWORD` | secret | restart | node | Password of the bootstrap superuser. CamusDB uses it once and never stores it in cleartext. |
-| `node_secret` | `CAMUSDB_NODE_SECRET` | secret | restart | node | Shared secret for node-to-node forwarding routes while authentication is on. Without it, a cluster node refuses those routes. At least 32 bytes when set. Same value on every node. |
+| `bootstrap_superuser_password` | `CAMUSDB_BOOTSTRAP_PASSWORD` | secret | restart | node | Password of the bootstrap superuser. It is used once, and it isn't stored in cleartext. |
+| `node_secret` | `CAMUSDB_NODE_SECRET` | secret | restart | node | Shared secret for node-to-node forwarding routes while authentication is on. If it isn't set, those routes return an error on a cluster node. At least 32 bytes when set. All nodes need the same value. |
 
 ## Transactions and locking
 
@@ -149,43 +150,46 @@ source `env` when the variable is set, and masks the three secrets.
 | `transactional_ddl_resolve_after_ms` | `30000` | ms | runtime | node | Age at which the schema leader can resolve a pending schema change after an interrupted commit. `0` makes the change eligible at the next recovery pass. |
 | `transaction_finalize_retry_budget_ms` | `15000` | ms | runtime | cluster | How long `COMMIT` or `ROLLBACK` retries while the outcome is not known yet. At least `2000`, or `0` or less to turn retries off. |
 | `sequence_retry_budget_ms` | `10000` | ms | runtime | cluster | How long a call to an internal id counter (database id, table id) retries while storage asks for a retry. |
-| `transaction_idle_timeout_ms` | `300000` | ms | runtime | cluster | An explicit transaction idle this long is rolled back and its locks are released. `0` or less turns the idle check off. See [Transaction limits](/docs/transaction-limits). |
+| `transaction_idle_timeout_ms` | `300000` | ms | runtime | cluster | How long an explicit transaction can wait for its client after `BEGIN` or after a statement finishes. `0` or less turns off idle rollback. See [Idle timeout](/docs/transaction-limits#idle-timeout). |
 | `transaction_reaper_interval_ms` | `30000` | ms | runtime | node | How often the reaper looks for idle transactions. |
 | `abandoned_transaction_release_after_ms` | `0` | ms | runtime | cluster | Age after which a rollback of a transaction that the coordinator no longer knows releases its leftover locks and staged writes. `0` derives it: the larger of `kahuna.max_transaction_timeout_ms` and `max_serializable_transaction_lifetime_ms`, plus 30 seconds. A negative value turns the release off. A positive value must be at least `max_serializable_transaction_lifetime_ms`. |
-| `lock_escalation_threshold` | `1000` | int | runtime | cluster | Number of shared point locks in one table or index bucket after which a serializable read-write transaction takes one shared lock on the whole bucket. |
+| `lock_escalation_threshold` | `1000` | int | runtime | cluster | Number of shared point locks in one table or index bucket after which a serializable read-write transaction locks the bucket with one shared lock. |
 | `optimistic_intent_wait_ms` | `100` | ms | runtime | cluster | How long an optimistic row read waits for another transaction's uncommitted write before reading the committed value below it. `0` disables the wait; Kahuna caps it at `1000`. |
 | `serializable_optimistic_point_locks` | `false` | bool | runtime | cluster | Serializable optimistic single-key reads use validation. `true` restores shared point locks; scans retain range locks. See [Locking strategy](/docs/serializable-transactions#pessimistic-and-optimistic-locking). |
-| `lock_wait_deadline_ms` | `500` | ms | runtime | cluster | Longest time one lock-acquire retry loop waits during a serializable conflict. |
-| `replication_wait_deadline_ms` | `5000` | ms | runtime | cluster | Longest time a lock or write waits on a key whose value is still replicating, or whose previous writer committed but did not settle yet. This wait is not a lock conflict, so it has its own budget, separate from `lock_wait_deadline_ms`. When the budget runs out, the statement fails with a retryable error. Must be above `0`. |
+| `transaction_read_reuse_enabled` | `true` | bool | restart | node | Lets an optimistic Serializable `UPDATE` or `DELETE` reuse an earlier read by key when the transaction validates point reads at commit. `false` makes the write read the row again. |
+| `lock_wait_deadline_ms` | `500` | ms | runtime | cluster | Longest time one lock acquisition can wait on a conflicting lock. See [Row-lock waits](/docs/serializable-transactions#row-lock-waits). |
+| `replication_wait_deadline_ms` | `5000` | ms | runtime | cluster | Longest time a lock or write waits on a key whose value is replicating, or whose previous writer committed but didn't settle yet. This wait isn't a lock conflict, and its budget is separate from `lock_wait_deadline_ms`. After the budget, the statement returns a retryable error. Must be above `0`. |
 | `max_mutations_per_transaction` | `20000` | int | runtime | cluster | Number of row and index-entry writes one transaction may make. `0` or less turns the limit off. |
-| `key_range_sharding` | `false` | bool | restart | cluster | Routing mode fixed at cluster creation. Unset nodes follow the stored mode; an explicit mismatch refuses startup. See [Key-range sharding](/docs/configuration#key-range-sharding-and-range-splits). |
+| `key_range_sharding` | `false` | bool | restart | cluster | Routing mode fixed at cluster creation. A node that doesn't set it uses the stored mode. A node with a different explicit value doesn't start. See [Key-range sharding](/docs/configuration#key-range-sharding-and-range-splits). |
 
 ## Request resource limits
 
-These runtime settings bound the work and state a node accepts. A value of
-`0` or below disables the corresponding cap.
+These runtime settings limit the work and the state of one node. A value of
+`0` or below turns the limit off.
 
 | Key | Default | Unit | Change | Scope | Meaning |
 | --- | --- | --- | --- | --- | --- |
-| `statement_timeout_ms` | `0` | ms | runtime | cluster | Longest time one SQL statement can execute. A statement over the limit fails with `CADB0562`. A commit isn't stopped. `0` means no limit. |
-| `max_statement_bytes` | `8388608` (8 MiB) | UTF-8 bytes | runtime | node | Maximum inline SQL before parsing; excess fails with `CADB0557`, HTTP 413. Bound parameter values are excluded. |
-| `max_buffered_result_rows` | `1000000` | rows | runtime | node | Rows held for one buffered response; excess fails with `CADB0556`. |
-| `max_buffered_result_bytes` | `268435456` (256 MiB) | estimated bytes | runtime | node | Memory estimate for one buffered response; excess fails with `CADB0556`. |
-| `max_open_explicit_transactions` | `10000` | transactions | runtime | node | Open explicit transactions per node; excess begins fail with `CADB0558`, HTTP 503. Autocommit is excluded. |
-| `max_client_connections` | `10000` | connections | runtime | node | Open HTTP, HTTPS, and gRPC client connections; excess connections are closed before reading a request. Raft is excluded. |
-| `max_databases` | `10000` | databases | runtime | cluster | Registry capacity for creates, branch creates, and relinks; excess fails with `CADB0408`. |
-| `cluster_activity_max_concurrent_fan_outs` | `8` | requests | runtime | node | Concurrent SHOW CLUSTER QUERIES/CONNECTIONS requests; excess fails with `CADB0558`. |
+| `statement_timeout_ms` | `0` | ms | runtime | cluster | Longest time one SQL statement can execute. A statement over the limit returns `CADB0562`. A commit isn't stopped. `0` means no limit. |
+| `max_statement_bytes` | `8388608` (8 MiB) | UTF-8 bytes | runtime | node | Maximum size of the SQL text before parsing. Larger text returns `CADB0557`, HTTP 413. Bound parameter values are excluded. |
+| `max_buffered_result_rows` | `1000000` | rows | runtime | node | Rows in one buffered response. More rows return `CADB0556`. |
+| `max_buffered_result_bytes` | `268435456` (256 MiB) | estimated bytes | runtime | node | Memory estimate of one buffered response. A larger estimate returns `CADB0556`. |
+| `max_open_explicit_transactions` | `10000` | transactions | runtime | node | Open explicit transactions per node. A `BEGIN` over the limit returns `CADB0558`, HTTP 503. Autocommit is excluded. |
+| `max_client_connections` | `10000` | connections | runtime | node | Open client connections, over REST or gRPC. A connection over the limit is closed before a request is read. Raft connections are excluded. |
+| `max_databases` | `10000` | databases | runtime | cluster | Databases in the registry. A new database or branch over the limit returns `CADB0408`. This includes a `RELINK`. |
+| `cluster_activity_max_concurrent_fan_outs` | `8` | requests | runtime | node | Concurrent `SHOW CLUSTER QUERIES` / `SHOW CLUSTER CONNECTIONS` requests. More requests return `CADB0558`. |
 
-Buffered results are checked before commit, so exceeding a cap rolls back the
-statement. The byte estimate includes in-memory overhead and counts strings
+Buffered results are checked before commit. This means that a statement over a
+cap rolls back. The byte estimate includes in-memory overhead and counts strings
 at two bytes per character; it is not the JSON payload size. Ordinary streaming
-reads bypass these result caps. Writes with RETURNING, and locking reads that
-buffer before autocommit, can still hit them even on a streaming endpoint.
+reads bypass these result caps. However, writes with `RETURNING` and locking
+reads buffer their results before an autocommit. They can reach these caps on a
+streaming endpoint too.
 
-Lowering the connection cap does not close existing connections. Transaction
-slots are released on commit, rollback, reaping, or a failed begin. Database
-capacity is checked against each node's registry view: concurrent creates on
-different nodes can briefly overshoot it, so it is not a strict global quota.
+Lowering the connection cap does not close existing connections. A transaction
+slot is released when the transaction ends, or when its `BEGIN` fails. The
+database limit is checked against the registry view of the node that runs the
+statement. Concurrent creates on different nodes can go over it for a short
+time. This means that it isn't a strict global quota.
 
 Prepared statements also have the separate `max_prepared_statement_bytes` cap.
 See [transaction limits](/docs/transaction-limits) and
@@ -202,7 +206,7 @@ SET CLUSTER SETTING statement_timeout_ms = 30000;
 
 The setting applies across the cluster, starting with the next statement. The
 default is `0`, which leaves the timeout off. Each automatic retry of a
-Serializable autocommit statement has its own deadline.
+Serializable autocommit statement gets a new deadline.
 
 A timed-out statement returns `CADB0562`. An autocommit statement rolls back.
 If the statement was part of an explicit transaction, roll back that
@@ -214,14 +218,20 @@ as an index backfill can run past the deadline.
 
 See [Prepared statements](/docs/prepared-statements).
 
+Note that in the current release, a `SET CLUSTER SETTING` value doesn't reach
+the REST prepared-statement registry, also after a restart. `SHOW VARIABLES`
+shows the new value, but REST prepares use the value from `config.yml`. Set the
+`rest_*`, `prepared_statement_*`, and `max_prepared_statement_bytes` keys in
+`config.yml`. The two gRPC keys take effect at once.
+
 | Key | Default | Type | Change | Scope | Description |
 |-----|---------|------|--------|-------|-------------|
-| `prepared_statement_idle_timeout_ms` | `600000` | ms | runtime | node | A REST prepared statement unused this long is dropped. `0` keeps it until it is closed. |
-| `prepared_statement_sweep_interval_ms` | `60000` | ms | runtime | node | How often the REST prepared-statement sweep runs. |
-| `max_prepared_statement_bytes` | `65536` | bytes | runtime | node | Largest statement text that may be prepared, on either transport. `0` means no limit. |
-| `rest_max_prepared_statements` | `8192` | int | runtime | node | REST prepared statements this node holds, across all principals. `0` means no limit. |
+| `prepared_statement_idle_timeout_ms` | `600000` | ms | runtime | node | A REST prepared statement unused this long is dropped. With `0`, it is dropped only when it is closed. |
+| `prepared_statement_sweep_interval_ms` | `60000` | ms | runtime | node | Interval of the REST prepared-statement sweep. |
+| `max_prepared_statement_bytes` | `65536` | bytes | runtime | node | Largest statement text that may be prepared over REST. A gRPC prepare uses `max_statement_bytes`. `0` means no limit. |
+| `rest_max_prepared_statements` | `8192` | int | runtime | node | REST prepared statements on this node, across all principals. `0` means no limit. |
 | `rest_max_prepared_statements_per_principal` | `512` | int | runtime | node | REST prepared statements one principal may hold. `0` means no limit. |
-| `rest_max_prepared_statement_bytes` | `67108864` | bytes | runtime | node | Total REST prepared-statement text this node holds. `0` means no limit. |
+| `rest_max_prepared_statement_bytes` | `67108864` | bytes | runtime | node | Total REST prepared-statement text on this node. `0` means no limit. |
 | `rest_max_prepared_statement_bytes_per_principal` | `8388608` | bytes | runtime | node | REST prepared-statement text one principal may hold. `0` means no limit. |
 | `grpc_max_prepared_statements_per_stream` | `512` | int | runtime | node | Prepared statements one gRPC `BatchExecute` stream may hold. `0` means no limit. |
 | `grpc_max_prepared_statement_bytes_per_stream` | `8388608` | bytes | runtime | node | Prepared-statement text one gRPC stream may hold. `0` means no limit. |
@@ -239,7 +249,7 @@ See [Query planning](/docs/query-planning) and
 | `stats_flush_interval_ms` | `5000` | ms | runtime | cluster | Shortest interval between writes of a table's in-memory statistics to storage. `0` writes after each change. `-1` turns the background write off. |
 | `stats_analyze_sample_rows` | `100000` | rows | runtime | cluster | Rows a manual `ANALYZE` reads, the first ones in storage order. `0` reads all rows. |
 | `stats_histogram_buckets` | `100` | int | runtime | cluster | Histogram buckets per column. Must be at least `1`. |
-| `stats_top_values` | `100` | int | runtime | cluster | Most common values kept per column. `0` keeps none. |
+| `stats_top_values` | `100` | int | runtime | cluster | Most common values kept per column. `0` turns them off. |
 | `stats_analyze_max_columns` | `32` | int | runtime | cluster | Columns per table that `ANALYZE` collects. The leading column of each index is always collected. |
 | `stats_plan_time_lookup_max_rows` | `2000` | rows | runtime | node | Largest small table whose filtered rows the join planner reads while it plans. `0` turns the lookup off. |
 | `plan_cache_enabled` | `false` | bool | runtime | node | Caches access-path and join-order decisions per query shape. |
@@ -271,9 +281,9 @@ See [Automatic ANALYZE](/docs/automatic-analyze).
 | `index_scan_fetch_batch_size` | `64` | rows | runtime | node | Row ids a non-covering index scan collects before it fetches the rows in one batch. |
 | `distributed_query_execution` | `false` | bool | restart | cluster | Splits eligible scans of key-range-sharded tables into per-range fragments. See [Distributed queries](/docs/distributed-queries). |
 | `broadcast_join_max_build_rows` | `10000` | rows | runtime | node | Largest hash-join build side that may be sent to remote fragments. `0` turns broadcast joins off. |
-| `hash_join_max_build_rows` | `1000000` | rows | runtime | node | When spill is off, a hash-join build larger than this falls back to a nested-loop join. |
-| `hash_join_max_build_bytes` | `1073741824` | estimated bytes | runtime | node | With spill disabled, a hash-join build past this limit falls back to nested loops. `0` or less disables it. |
-| `max_recursive_cte_iterations` | `10000` | steps | runtime | cluster | Recursive steps that produce rows per CTE run. `0` disables the limit. Exceeding it raises CADB0560. |
+| `hash_join_max_build_rows` | `1000000` | rows | runtime | node | When spill is off, a hash-join build larger than this uses a nested-loop join. |
+| `hash_join_max_build_bytes` | `1073741824` | estimated bytes | runtime | node | When spill is off, a hash-join build larger than this estimate uses a nested-loop join. `0` or less disables it. |
+| `max_recursive_cte_iterations` | `10000` | steps | runtime | cluster | Recursive steps that produce rows per CTE run. `0` disables the limit. More steps return `CADB0560`. |
 | `max_recursive_cte_rows` | `10000000` | rows | runtime | cluster | Total rows per recursive CTE run, including seed rows. `0` disables the limit. See [recursive CTEs](/docs/sql-queries#recursive-ctes). |
 | `max_table_function_rows` | `5000000` | rows | runtime | cluster | Maximum rows produced by one read of a function in FROM, before filtering. `0` or less disables it. See [table-function limits](/docs/functions-set-returning#row-limit). |
 | `regex_match_timeout_ms` | `250` | ms | runtime | node | Time limit for one [regex](/docs/functions-regex) match. |
@@ -286,22 +296,22 @@ See [Spill to disk](/docs/spill-to-disk).
 
 | Key | Default | Type | Change | Scope | Description |
 |-----|---------|------|--------|-------|-------------|
-| `spill_enabled` | `true` | bool | runtime | node | Lets sorts, joins, and aggregations write to temporary files when they grow too large. |
-| `spill_threshold_rows` | `500000` | rows | runtime | node | Rows one operator keeps in memory before it spills. Must be above `0`. |
-| `spill_threshold_bytes` | `268435456` | bytes | runtime | node | Bytes one operator keeps in memory before it spills. The operator spills at whichever limit it reaches first. |
+| `spill_enabled` | `true` | bool | runtime | node | Lets large operators, such as sorts and joins, write to temporary files. |
+| `spill_threshold_rows` | `500000` | rows | runtime | node | Rows in memory for one operator before it spills. Must be above `0`. |
+| `spill_threshold_bytes` | `268435456` | bytes | runtime | node | Bytes in memory for one operator before it spills. The operator spills at the first limit that it reaches. |
 | `spill_merge_fan_in` | `16` | int | runtime | node | Spill files merged in one pass. Must be above `0`. |
 | `spill_max_frame_bytes` | `268435456` | bytes | runtime | node | Largest record that a spill file may declare. A larger length is treated as corruption. |
 | `spill_max_total_bytes` | `8589934592` | bytes | runtime | node | Total size of all spill files on this node. A statement that would exceed it fails. |
 
 `SHOW VARIABLES` also lists `force_spill_threshold_rows`, with the value
-`null`. This is a test hook that makes every operator spill on small inputs.
-No configuration layer sets it, and it has no production use.
+`null`. This is a test hook that makes operators spill on small inputs. No
+configuration layer sets it, and it isn't for production use.
 
 ## Caches
 
 | Key | Default | Type | Change | Scope | Description |
 |-----|---------|------|--------|-------|-------------|
-| `sql_parser_cache_ttl_seconds` | `300` | seconds | runtime | node | How long a parsed statement stays cached after its last use. `0` turns the cache off. |
+| `sql_parser_cache_ttl_seconds` | `300` | seconds | runtime | node | Idle time after which a parsed statement is removed from the cache. `0` turns the cache off. |
 | `sql_parser_cache_max_entries` | `2048` | int | runtime | node | Parser cache size limit. `0` means no limit. |
 | `sql_parser_cache_sweep_seconds` | `60` | seconds | runtime | node | How often expired parser-cache entries are removed. Must be above `0`. |
 | `sql_parser_cache_max_bytes` | `67108864` | bytes | runtime | node | Approximate parser cache memory limit. `0` means no limit. |
@@ -316,23 +326,18 @@ The result cache is on by default. A query opts in with a `{cache=…}` hint. Se
 [Query result cache](/docs/query-result-cache) for the purpose of each setting
 and for operator guidance.
 
-`SET CLUSTER SETTING` accepts new values for `query_result_cache_default_ttl_ms`,
-`query_result_cache_max_entries`, `query_result_cache_max_bytes`, and
-`query_result_cache_sweep_interval_ms`, but the running cache keeps the values it
-started with. Restart the node to apply them.
-
 | Key | Default | Type | Change | Scope | Description |
 |-----|---------|------|--------|-------|-------------|
 | `query_result_cache_enabled` | `true` | bool | restart | node | Turns the result cache on or off. |
 | `query_result_cache_default_ttl_ms` | `5000` | ms | runtime | node | Lifetime of an entry whose hint sets no TTL. A change applies to new entries. |
-| `query_result_cache_max_entries` | `1024` | int | runtime | node | Entries the cache holds. A lower value evicts entries at once. |
+| `query_result_cache_max_entries` | `1024` | int | runtime | node | Maximum entries in the cache. A lower value evicts entries at once. |
 | `query_result_cache_max_bytes` | `67108864` | bytes | runtime | node | Total size of all entries. A lower value evicts entries at once. |
 | `query_result_cache_max_entry_bytes` | `1048576` | bytes | runtime | node | A larger result is not cached. |
 | `query_result_cache_max_entry_rows` | `10000` | rows | runtime | node | A result with more rows is not cached. |
 | `query_result_cache_max_deps` | `4096` | int | runtime | node | Dependencies of one entry. |
 | `query_result_cache_max_point_deps` | `2048` | int | runtime | node | Point-key dependencies of one entry. |
 | `query_result_cache_max_ranges` | `256` | int | runtime | node | Range dependencies of one entry. |
-| `query_result_cache_singleflight_wait_ms` | `250` | ms | runtime | node | How long a query waits for an identical query in flight before it runs on its own. |
+| `query_result_cache_singleflight_wait_ms` | `250` | ms | runtime | node | How long a query waits for the result of an identical query in flight. After the wait, the query executes separately. |
 | `query_result_cache_strict_validation_max_keys` | `10000` | int | runtime | node | Keys that strict validation checks before it recomputes the entry. |
 | `query_result_cache_sweep_interval_ms` | `10000` | ms | runtime | node | How often expired entries are removed. |
 
@@ -340,20 +345,20 @@ started with. Restart the node to apply them.
 
 | Key | Default | Type | Change | Scope | Description |
 |-----|---------|------|--------|-------|-------------|
-| `max_identifier_length` | `64` | UTF-16 units | runtime | cluster | Longest name of a new database, table, column, or index. Existing names still load. |
+| `max_identifier_length` | `64` | UTF-16 units | runtime | cluster | Longest name of a new object, such as a table or a column. A lower value doesn't affect existing names. |
 | `max_columns_per_table` | `512` | int | runtime | cluster | Columns per table. |
 | `max_indexes_per_table` | `64` | int | runtime | cluster | Secondary indexes per table. |
 | `max_tables_per_database` | `10000` | int | runtime | cluster | Tables per database. |
 | `max_index_columns` | `32` | int | runtime | cluster | Key and `INCLUDE` columns of one index. See [Indexes](/docs/sql-indexes). |
 | `max_index_include_tuple_bytes` | `4096` | bytes | runtime | cluster | Encoded size of the `INCLUDE` values in one index entry. A larger row is rejected. |
 | `max_view_expansion_depth` | `32` | int | runtime | cluster | Nesting depth of [views](/docs/views) over views. |
-| `max_view_expanded_relations` | `10000` | int | runtime | cluster | View references that the expansion of one statement can add. Excess fails with `CADB0563`. |
-| `max_view_expanded_nodes` | `2000000` | int | runtime | cluster | Syntax-tree nodes that the expansion of one statement can produce. Excess fails with `CADB0563`. |
+| `max_view_expanded_relations` | `10000` | int | runtime | cluster | View references that the expansion of one statement can add. A statement over the limit returns `CADB0563`. |
+| `max_view_expanded_nodes` | `2000000` | int | runtime | cluster | Syntax-tree nodes that the expansion of one statement can produce. A statement over the limit returns `CADB0563`. |
 | `max_view_definition_bytes` | `1048576` | bytes | runtime | cluster | Size of one view or materialized-view body, checked at `CREATE`. |
 | `max_view_definition_nodes` | `200000` | int | runtime | cluster | Syntax-tree nodes of one view body, checked at `CREATE`. |
 | `max_view_output_columns` | `1600` | int | runtime | cluster | Output columns of one view or materialized view, checked at `CREATE`. |
 | `max_view_direct_dependencies` | `1000` | int | runtime | cluster | Relations that one view body reads directly, checked at `CREATE`. |
-| `max_tables_per_statement` | `64` | int | runtime | cluster | Tables that one statement reads, counting the tables of each join, subquery, CTE, and view body. Excess fails with `CADB0564`. |
+| `max_tables_per_statement` | `64` | int | runtime | cluster | Tables that one statement reads, including the tables in subqueries and view bodies. A statement over the limit returns `CADB0564`. |
 
 The statement table limit counts repeated references separately. It includes
 functions in `FROM` and the target table of an `UPDATE` or `DELETE`. A derived
@@ -364,8 +369,8 @@ off.
 
 ## Large values and disk space
 
-The `large_value_*` settings control compression, out-of-line storage, and
-rewrite batching for large `STRING`, `BYTES`/`BLOB`, and `ARRAY` values. See
+The `large_value_*` settings control how large values, such as long `STRING`
+or `BYTES` values, are compressed and stored outside their rows. See
 [Large values](/docs/storage-layout).
 
 | Key | Default | Type | Change | Scope | Description |
@@ -375,17 +380,17 @@ rewrite batching for large `STRING`, `BYTES`/`BLOB`, and `ARRAY` values. See
 | `large_value_compression_min_saving_percent` | `12` | percent | runtime | cluster | A compressed value that saves less is stored raw. |
 | `large_value_rewrite_batch_rows` | `200` | rows | runtime | cluster | Rows per transaction for `ALTER TABLE ... REWRITE STORAGE`. At most half of `max_mutations_per_transaction`. |
 | `large_value_resolve_batch_bytes` | `67108864` | bytes | runtime | node | Decoded size of compressed and out-of-line values that one read resolves at a time. |
-| `min_free_disk_bytes` | `67108864` | bytes | runtime | node | New DML writes fail with `CADB0536` when the data volume has less free space. Reads, DDL, and rollbacks still work. `0` or less turns the check off. |
+| `min_free_disk_bytes` | `67108864` | bytes | runtime | node | A statement that writes rows returns `CADB0536` when the data volume has less free space. This includes `DELETE` and `CREATE TABLE ... AS SELECT`. Reads and rollbacks work, and so does DDL that writes no rows, such as `DROP TABLE`. `0` or less turns the check off. Note that in the current release, a `CREATE INDEX` build and a transaction with `max_mutations_per_transaction` set to `0` skip this check. |
 
 ## Row-level TTL
 
 See [Row-level TTL](/docs/row-level-ttl). The `ttl_default_*` keys apply to a
-table that does not set its own value.
+table that doesn't set a value.
 
 | Key | Default | Type | Change | Scope | Description |
 |-----|---------|------|--------|-------|-------------|
-| `ttl_enabled` | `true` | bool | runtime | cluster | Runs the expired-row sweep. Only tables with a TTL expression take part. |
-| `ttl_default_job_cron` | `@daily` | `@hourly`, `@daily`, `@weekly`, `@monthly` | runtime | cluster | How often a table's sweep runs. |
+| `ttl_enabled` | `true` | bool | runtime | cluster | Turns on the expired-row sweep. Only tables with a TTL expression take part. |
+| `ttl_default_job_cron` | `@daily` | `@hourly`, `@daily`, `@weekly`, `@monthly` | runtime | cluster | Schedule of the sweep of a table. |
 | `ttl_default_select_batch_size` | `500` | rows | runtime | cluster | Rows read per batch while looking for expired rows. |
 | `ttl_default_delete_batch_size` | `100` | rows | runtime | cluster | Rows deleted per transaction. |
 | `ttl_default_select_rate_limit` | `0` | rows/s | runtime | cluster | Read rate limit. `0` means no limit. |
@@ -393,24 +398,29 @@ table that does not set its own value.
 | `ttl_spans_per_table` | `64` | int | runtime | cluster | Number of spans a table is divided into for each run. |
 | `ttl_max_concurrent_spans_per_node` | `1` | int | runtime | node | Number of spans one node processes at once. |
 | `ttl_load_pause_threshold` | `16` | transactions | runtime | node | Pauses the sweep while more foreground transactions than this are running. `0` or less turns the pause off. |
-| `ttl_span_lease_ms` | `30000` | ms | runtime | cluster | Lease on a claimed span. Another node takes over a span whose lease lapses. |
-| `ttl_span_lease_renew_interval_ms` | `10000` | ms | runtime | cluster | How often the owner renews its span lease. Must be below `ttl_span_lease_ms`. |
+| `ttl_span_lease_ms` | `30000` | ms | runtime | cluster | Lease on a claimed span. Another node takes over a span whose lease lapses. A running node uses the value that it started with, and a new value needs a restart. |
+| `ttl_span_lease_renew_interval_ms` | `10000` | ms | runtime | cluster | How often the owner renews its span lease. Must be below `ttl_span_lease_ms`. A running node uses the value that it started with, and a new value needs a restart. |
 
-## Materialized views, branches, and dropped objects
+## Materialized views and branches
 
 | Key | Default | Type | Change | Scope | Description |
 |-----|---------|------|--------|-------|-------------|
 | `materialized_view_refresh_enabled` | `true` | bool | runtime | node | Lets this node run [materialized view](/docs/materialized-views) refreshes. Reads and DDL work either way. |
 | `materialized_view_refresh_chunk_rows` | `10000` | rows | runtime | cluster | Rows a refresh writes per transaction. At most half of `max_mutations_per_transaction`. |
-| `materialized_view_refresh_takeover_attempts` | `3` | int | runtime | cluster | Restarts of an interrupted refresh before it gives up. The view then keeps its previous contents. |
-| `materialized_view_refresh_hold_lease_ms` | `300000` | ms | runtime | cluster | Lease on the history that a running refresh reads. It is renewed while the refresh runs. At least `5000`. |
+| `materialized_view_refresh_takeover_attempts` | `3` | int | runtime | cluster | Restarts of an interrupted refresh before it gives up. After that, the view has its previous contents. |
+| `materialized_view_refresh_hold_lease_ms` | `300000` | ms | runtime | cluster | Lease on the history that a running refresh reads. It is renewed during the refresh. At least `5000`. |
 | `branch_snapshot_hold_lease_ms` | `300000` | ms | runtime | cluster | Lease on the history a [branch](/docs/database-branching) pins on its parent. It is renewed while the branch exists. At least `5000`. |
 | `snapshot_hold_retry_budget_ms` | `10000` | ms | runtime | cluster | How long a statement that needs a snapshot hold, such as creating a branch, retries during a leader election. `0` or less tries once. |
-| `orphan_retention_ms` | `604800000` | ms | runtime | cluster | How long a dropped database or table stays [recoverable](/docs/recover-dropped-objects). `0` or less turns automatic reclaim off. |
+
+## Dropped objects
+
+| Key | Default | Type | Change | Scope | Description |
+|-----|---------|------|--------|-------|-------------|
+| `orphan_retention_ms` | `604800000` | ms | runtime | cluster | How long a dropped database or table can be [recovered](/docs/recover-dropped-objects). `0` or less turns automatic reclaim off. |
 | `orphan_reclaim_interval_ms` | `300000` | ms | runtime | cluster | How often one elected node reclaims expired dropped objects. `0` or less turns the sweep off. |
-| `fence_lease_ms` | `30000` | ms | runtime | cluster | Lease on the lock that `DROP`, `RELINK`, and the reclaim sweep take on a database or table. A crashed holder frees it after the lease. |
+| `fence_lease_ms` | `30000` | ms | runtime | cluster | Lease on the lock that a `DROP` or `RELINK` statement takes on a database or table. The reclaim sweep takes the same lock. A crashed holder frees it after the lease. |
 | `fence_lease_renew_interval_ms` | `10000` | ms | runtime | cluster | How often the holder renews that lease. Must be below `fence_lease_ms`. |
-| `keyspace_purge_batch_size` | `512` | keys | runtime | node | Keys per `DROP DATABASE` purge batch. Each batch shares one delete-many round trip, bounding memory and amortizing Raft work. |
+| `keyspace_purge_batch_size` | `512` | keys | runtime | node | Keys per `DROP DATABASE` purge batch. A larger batch uses more memory and fewer Raft round trips. |
 
 ## Observability and the dashboard
 
@@ -418,15 +428,15 @@ table that does not set its own value.
 |-----|---------|------|--------|-------|-------------|
 | `engine_metrics_enabled` | `true` | bool | restart | node | Collects storage-engine metrics for [`SHOW ENGINE STATS`](/docs/engine-stats). |
 | `slow_query_log_enabled` | `false` | bool | runtime | node | Records slow statements; enabling or disabling takes effect on the next statement. See [Slow query log](/docs/configuration#slow-query-log). |
-| `slow_query_log_threshold_ms` | `1000` | ms | runtime | node | Statements at least this slow are recorded. `0` records every statement. |
-| `slow_query_log_max_entries` | `200` | int | restart | node | Entries the log keeps. |
+| `slow_query_log_threshold_ms` | `1000` | ms | runtime | node | Statements at least this slow are recorded. `0` records all statements. |
+| `slow_query_log_max_entries` | `200` | int | restart | node | Maximum entries in the log. |
 | `slow_query_log_max_sql_length` | `4096` | characters | runtime | node | SQL text stored per slow entry or statement-statistics sample. |
 | `statement_stats_enabled` | `false` | bool | runtime | node | Collects per-shape [statement statistics](/docs/statement-stats). Disabling preserves totals. |
-| `statement_stats_max_shapes` | `2000` | int | restart | node | Maximum recorded shapes. Existing shapes are retained; new admissions are refused at capacity. |
-| `index_usage_enabled` | `true` | bool | runtime | node | Collects [index usage](/docs/index-usage) reads, constraint reads, and writes. Disabling preserves counters. |
+| `statement_stats_max_shapes` | `2000` | int | restart | node | Maximum recorded shapes. At the limit, new shapes aren't recorded. |
+| `index_usage_enabled` | `true` | bool | runtime | node | Collects the [index usage](/docs/index-usage) counters. Turning it off doesn't reset the counters. |
 | `query_activity_enabled` | `true` | bool | runtime | node | Lists running statements for [`SHOW QUERIES`](/docs/query-activity) and `CANCEL QUERY`. |
 | `query_activity_max_sql_length` | `1024` | characters | runtime | node | SQL text shown per `SHOW QUERIES` row. |
-| `cluster_activity_peer_timeout_ms` | `2000` | ms | runtime | node | How long `SHOW CLUSTER QUERIES`, `SHOW CLUSTER CONNECTIONS`, `SHOW CLUSTER TRANSACTIONS`, a forwarded `CANCEL QUERY` and a forwarded `KILL TRANSACTION` wait for each peer. A kill waits half of it for its rollback. |
+| `cluster_activity_peer_timeout_ms` | `2000` | ms | runtime | node | How long a cluster-wide activity statement, such as `SHOW CLUSTER QUERIES`, waits for each peer. A forwarded `CANCEL QUERY` or `KILL TRANSACTION` uses it too. A kill waits half of it for its rollback. |
 | `dashboard_enabled` | `true` | bool | restart | node | Serves the [operator dashboard](/docs/operator-dashboard). |
 | `dashboard_refresh_seconds` | `2` | seconds | runtime | node | Dashboard load panel refresh interval. The server clamps it to `1` to `300`. |
 | `query_tracing_enabled` | `false` | bool | runtime | node | Logs one line per executed plan step. |
@@ -434,10 +444,10 @@ table that does not set its own value.
 
 ## Kahuna keys
 
-Every key below goes under the `kahuna:` map. Each one is read once when the
-node starts, so a change requires a restart, and `SET CLUSTER SETTING` rejects
-it. Each node reads its own file; where a row says so, give every node the same
-value.
+The keys below go under the `kahuna:` map. The node reads them when it starts.
+This means that a change needs a restart, and `SET CLUSTER SETTING` returns an
+error for them. Each node reads these keys from its `config.yml`. Where a row
+says so, all nodes need the same value.
 
 "Kahuna default" means the value comes from the storage engine itself.
 
@@ -463,7 +473,7 @@ value.
 | `kahuna.wal_shard_level0_slowdown_writes_trigger` | unset (`28`) | int | `1` to `64`. |
 | `kahuna.wal_shard_level0_stop_writes_trigger` | unset (`44`) | int | `1` to `64`. |
 | `kahuna.wal_shard_max_bytes_for_level_base_mb` | unset (`256`) | MiB | `1` to `65536`. |
-| `kahuna.wal_shard_universal_compaction` | unset (`false`) | bool | Universal instead of leveled compaction. |
+| `kahuna.wal_shard_universal_compaction` | unset (`false`) | bool | Uses universal compaction. The default is leveled compaction. |
 
 ### Transactions and admission
 
@@ -479,10 +489,12 @@ value.
 | `kahuna.transaction_priority_max_queued` | `4096` (Kahuna default) | int | Transactions that may wait at the gate. More are refused with a retryable error. `0` means no limit. |
 | `kahuna.transaction_outcome_retention_ttl_ms` | `300000` (Kahuna default) | ms | How long a finished transaction's outcome record is kept. `0` turns age pruning off. See [Transaction outcome retention](/docs/configuration#transaction-outcome-retention). |
 | `kahuna.transaction_outcome_retention_max` | `10000` (Kahuna default) | int | Outcome records kept per node. |
-| `kahuna.one_phase_apply_time_validation` | `true` | bool | Lets an eligible single-partition read-modify-write commit in one Raft round. Same value on every node. See [One-phase apply-time validation](/docs/configuration#one-phase-apply-time-validation). |
-| `kahuna.staged_base_fence_retention_ms` | `600000` (Kahuna default) | ms | How long the validation fence remembers committed keys. Same value on every node. Must be above `0`. |
-| `kahuna.durable_materialize_on_resolve` | `true` | bool | A committed transaction installs its values on every replica when it resolves, instead of writing a separate record per key. During a rolling upgrade from a Kahuna version older than 1.10.1, set it to `false` until every node is upgraded. |
-| `kahuna.scan_page_retry_budget_ms` | `5000` (Kahuna default) | ms | How long one range-scan page retries transient errors before the scan fails with an error that names the range. Keep it below the client command deadline. |
+| `kahuna.one_phase_apply_time_validation` | `true` | bool | Lets an eligible single-partition read-modify-write commit in one Raft round. All nodes need the same value. See [One-phase apply-time validation](/docs/configuration#one-phase-apply-time-validation). |
+| `kahuna.staged_base_fence_retention_ms` | `600000` (Kahuna default) | ms | How long the validation fence remembers committed keys. All nodes need the same value. Must be above `0`. |
+| `kahuna.durable_materialize_on_resolve` | `true` | bool | A committed transaction writes its values to the replicas when it resolves. With `false`, it writes a separate record for each key. During a rolling upgrade from a Kahuna version older than 1.10.1, set it to `false` until all nodes are upgraded. |
+| `kahuna.durable_merge_adjacent_settles` | `false` | bool | Combines adjacent settles into one Raft log entry. See [Log entries per commit](/docs/configuration#log-entries-per-commit). |
+| `kahuna.durable_one_phase_bundle_entry` | `false` | bool | Bundles a one-phase commit into one Raft log entry before settlement. Upgrade all nodes to builds with Kahuna.Core 1.19.0 or later first. See [Log entries per commit](/docs/configuration#log-entries-per-commit). |
+| `kahuna.scan_page_retry_budget_ms` | `5000` (Kahuna default) | ms | How long one range-scan page retries transient errors. After that, the scan returns an error that names the range. Keep it below the client command deadline. |
 
 ### Workers and threads
 
@@ -513,19 +525,21 @@ All five must be above `0` when set.
 | Key | Default | Type | Description |
 |-----|---------|------|-------------|
 | `kahuna.max_entries_per_actor` | computed from memory | int | Cached entries per actor. See [Cache defaults proportional to memory](/docs/configuration#cache-defaults-proportional-to-memory). |
-| `kahuna.max_bytes_per_actor` | computed from memory | bytes | Cache size per actor. |
+| `kahuna.max_bytes_per_actor` | computed from memory | bytes | Cache cap per actor. See [Cache defaults proportional to memory](/docs/configuration#cache-defaults-proportional-to-memory). |
 | `kahuna.cache_entry_ttl_ms` | `300000` (Kahuna default) | ms | Idle time after which the collection sweep may evict a cached entry. |
 | `kahuna.cache_entries_to_remove` | `1000` (Kahuna default) | int | Entries one collection pass evicts. |
-| `kahuna.collection_interval_ms` | `60000` (Kahuna default) | ms | How often the collection sweep runs. `range_lock_expires_ms` must be at least twice this value. |
+| `kahuna.collection_interval_ms` | `60000` (Kahuna default) | ms | Interval of the collection sweep. `range_lock_expires_ms` must be at least twice this value. |
 | `kahuna.compact_every_operations` | `1000` (Kahuna default) | int | Persisted Raft log batches between compaction passes. |
-| `kahuna.compact_number_entries` | `50` (Kahuna default) | int | Trailing log entries each pass keeps. |
+| `kahuna.compact_number_entries` | `50` (Kahuna default) | int | Recent log entries that a compaction pass leaves in the log. |
 | `kahuna.max_entries_per_compaction` | `5000` (Kahuna default) | int | Log entries one pass may delete. |
 | `kahuna.rocksdb_shared_memory` | `true` | bool | One RocksDB block cache and write-buffer budget for both the store and the Raft log. Only applies when both use `rocksdb`. |
 | `kahuna.rocksdb_shared_memory_budget_mb` | computed from memory | MiB | Shared cache for RocksDB or [Solarium](https://solariumdb.github.io/), sized from machine/container memory. |
 | `kahuna.rocksdb_shared_memtable_budget_mb` | computed from memory | MiB | Shared memtable sub-budget for RocksDB or Solarium. Must not exceed `kahuna.rocksdb_shared_memory_budget_mb`. |
 | `kahuna.rocksdb_direct_reads` | `false` | bool | Reads SST files with direct I/O, past the operating system page cache. |
 
-The count and size keys above must be above `0` when set.
+The count and size keys above must be above `0` when set. The four keys that
+are computed from memory use small fixed values with `memory_profile: dev`. See
+[Memory profile](/docs/configuration#memory-profile).
 
 ### Write aggregation keys
 
@@ -534,9 +548,9 @@ See [Write aggregation](/docs/configuration#write-aggregation).
 | Key | Default | Type | Description |
 |-----|---------|------|-------------|
 | `kahuna.key_value_write_max_in_flight_batches_per_partition` | `1` (Kahuna default) | int | Write batches a partition may have waiting on Raft. `1` to `64`. |
-| `kahuna.key_value_write_linger_ms` | `1` (Kahuna default) | ms | How long the oldest queued write may wait while nothing is in flight. `0` to `1000`. |
-| `kahuna.key_value_write_post_completion_hold_ms` | `1` | ms | Wait after a batch completes before the next one is sent. `0` to `1000`. |
-| `kahuna.key_value_write_precise_wake` | `true` | bool | Runs the aggregator's timers on a dedicated thread. |
+| `kahuna.key_value_write_linger_ms` | `0` standalone, `1` cluster | ms | How long the oldest queued write may wait when no batch is in flight. `0` to `1000`. |
+| `kahuna.key_value_write_post_completion_hold_ms` | `0` standalone, `1` cluster | ms | Wait after a batch completes before the next one is sent. `0` to `1000`. |
+| `kahuna.key_value_write_precise_wake` | `true` | bool | Uses a dedicated thread for the aggregator's timers. |
 | `kahuna.key_value_write_fill_target_trigger` | `true` | bool | Sends a held batch as soon as it reaches the learned fill target. |
 | `kahuna.key_value_write_max_batch_items` | `512` (Kahuna default) | int | Items per write batch. `1` to `65536`. |
 
@@ -550,13 +564,13 @@ See [Backup and restore](/docs/backup-and-restore).
 | `kahuna.pitr_window_seconds` | `3600` (Kahuna default) | seconds | How far back a restore may target. `1` to `21600`. |
 | `kahuna.base_snapshot_interval_seconds` | `1800` (Kahuna default) | seconds | How often a new base image is taken. Must not exceed `kahuna.pitr_window_seconds`. |
 | `kahuna.restore_root` | unset | path | Turns on remote restore, with destinations confined to this directory. |
-| `kahuna.allow_unconfined_remote_restore` | `false` | bool | Allows remote restore without `kahuna.restore_root`, to any path. Not safe. |
-| `kahuna.backup_cluster_id` | unset | string | Cluster identity written into backup manifests. Same value on every node. |
-| `kahuna.backup_mac_key_file` | unset | path | Key file that signs and verifies backup manifests. Same file on every node. |
+| `kahuna.allow_unconfined_remote_restore` | `false` | bool | Allows a remote restore to any path when `kahuna.restore_root` isn't set. Not safe. |
+| `kahuna.backup_cluster_id` | unset | string | Cluster identity written into backup manifests. All nodes need the same value. |
+| `kahuna.backup_mac_key_file` | unset | path | Key file that signs and verifies backup manifests. All nodes need the same file. |
 | `kahuna.backup_retention_max_chains` | `0` | int | Backup chains to keep. `0` means no limit. |
 | `kahuna.backup_retention_max_age_seconds` | `0` | seconds | Maximum chain age. `0` means no limit. |
 | `kahuna.backup_retention_max_bytes` | `0` | bytes | Total backup size. `0` means no limit. |
-| `kahuna.backup_gc_interval_seconds` | `3600` (Kahuna default) | seconds | How often the backup cleanup runs. `0` turns the timer off. |
+| `kahuna.backup_gc_interval_seconds` | `3600` (Kahuna default) | seconds | Interval of the backup cleanup. `0` turns the timer off. |
 | `kahuna.backup_restore_throttle_bytes_per_sec` | `0` | bytes/s | Copy rate limit of a restore. `0` means no limit. |
 
 `SHOW VARIABLES` also lists a top-level `pitr_window_seconds`. It is a copy of
@@ -588,38 +602,41 @@ These apply only with [key-range sharding](/docs/key-range-sharding). See
 | `kahuna.range_split_load_min_commit_wait_ms` | `0` (Kahuna default) | ms | Commit wait a partition must also show. `0` turns this check off. |
 | `kahuna.range_split_load_window_ms` | `15000` (Kahuna default) | ms | How long the load must last before a split. |
 | `kahuna.range_split_load_poll_interval_ms` | `5000` (Kahuna default) | ms | How often load is sampled. Must be below the window. |
-| `kahuna.range_split_load_imbalance_max` | `0.8` (Kahuna default) | fraction | A split is refused when one child would still get this share of the writes. Above `0.5`, at most `1.0`. |
+| `kahuna.range_split_load_imbalance_max` | `0.8` (Kahuna default) | fraction | A split is cancelled if one child would get at least this share of the writes. Above `0.5`, at most `1.0`. |
 | `kahuna.range_split_settle_window_ms` | `10000` (Kahuna default) | ms | How long a new child range is left alone. Must be at least `kahuna.min_leader_stability_ms`. |
 | `kahuna.range_split_indivisible_cooldown_ms` | `300000` (Kahuna default) | ms | How long a range that could not be split is skipped. |
-| `kahuna.range_move_settle_timeout_ms` | `10000` (Kahuna default) | ms | Longest pause a split or merge holds on the moving range while it settles pending writes. |
+| `kahuna.range_move_settle_timeout_ms` | `10000` (Kahuna default) | ms | Longest pause on the moving range during a split or merge, while its pending writes settle. |
 | `kahuna.range_merge_min_size` | `10` (Kahuna default) | keys | Two neighboring ranges smaller than this may merge. `0` turns merges off. |
-| `kahuna.enable_load_reports` | `false` | bool | Shares per-partition load reports between nodes even when nothing else needs them. |
+| `kahuna.enable_load_reports` | `false` | bool | Shares per-partition load reports between nodes, also when no feature uses them. |
 
 ### Replica placement and leader balancing
 
 | Key | Default | Type | Description |
 |-----|---------|------|-------------|
-| `kahuna.replication_factor` | `0` | int | Replicas per data partition. `0` places every partition on every node. Prefer an odd number. See [Cluster](/docs/cluster). |
+| `kahuna.replication_factor` | `0` | int | Replicas per data partition. `0` places each partition on all nodes. Prefer an odd number. See [Cluster](/docs/cluster). |
 | `kahuna.zone` | unset | string | Failure-domain label of this node, such as a rack or availability zone. Replicas of a range spread across zones. |
 | `kahuna.enable_placement_rebalancer` | `false` | bool | Moves replicas over time: repairs ranges that lost a replica, and evens out the spread as nodes join and leave. |
-| `kahuna.placement_pass_interval_ms` | `5000` (Kahuna default) | ms | How often the placement pass runs. |
+| `kahuna.placement_pass_interval_ms` | `5000` (Kahuna default) | ms | Interval of the placement pass. |
 | `kahuna.max_replica_moves_per_pass` | `4` (Kahuna default) | int | Replica moves one pass may start. |
 | `kahuna.max_concurrent_replica_transfers` | `1` (Kahuna default) | int | Balancing moves in flight. |
 | `kahuna.max_concurrent_replica_repairs` | `3` (Kahuna default) | int | Repair moves in flight. |
 | `kahuna.replica_count_deadband` | `1` (Kahuna default) | int | Replica-count imbalance per node that is tolerated before balancing. |
 | `kahuna.decommission_drain_timeout_ms` | `120000` (Kahuna default) | ms | How long a decommission waits for the leaving node's replicas to move before it removes the node anyway. |
-| `kahuna.enable_leader_balancer` | `false` | bool | Moves Raft leaders between nodes to spread load. Same value on every node. |
-| `kahuna.leader_balancer_interval_ms` | `30000` (Kahuna default) | ms | How often the leader balancer runs. |
+| `kahuna.raft_snapshot_max_pending_bytes` | unset (Kahuna default) | bytes | Largest snapshot that a node can stage to seed a new replica. A replica that needs a larger snapshot can't be seeded. Set it to about twice the largest partition snapshot. All nodes need the same value. |
+| `kahuna.raft_snapshot_transfer_step_timeout_ms` | unset (Kahuna default) | ms | How long one step of an outbound snapshot transfer can make no progress. The export of a partition is one step, and a large partition takes longer. Set it above the longest export in the node log. All nodes need the same value. |
+| `kahuna.enable_leader_balancer` | `false` | bool | Moves Raft leaders between nodes to spread load. All nodes need the same value. |
+| `kahuna.leader_balancer_interval_ms` | `30000` (Kahuna default) | ms | Interval of the leader balancer. |
 | `kahuna.leader_balancer_report_interval_ms` | `5000` (Kahuna default) | ms | How often each node publishes its load report. |
 | `kahuna.leader_balancer_report_ttl_ms` | `20000` (Kahuna default) | ms | Age after which a load report is ignored. Must be above the report interval. |
-| `kahuna.min_leader_stability_ms` | `5000` (Kahuna default) | ms | Shortest time a partition keeps its leader before the balancer may move it again. |
+| `kahuna.min_leader_stability_ms` | `5000` (Kahuna default) | ms | Shortest time between two leader moves of one partition by the balancer. |
 
-The interval, count, and timeout keys in this table must be above `0` when set.
+Except for `kahuna.replication_factor` and `kahuna.replica_count_deadband`, the
+numeric keys in this table must be above `0` when set.
 
 ## Diagnostics keys
 
 Keys under the `diagnostics:` map export server metrics and traces. Everything is off by
-default. The node reads these keys at startup, so a change needs a restart. See
+default. The node reads these keys at startup. This means that a change needs a restart. See
 [Performance diagnostics](/docs/performance-diagnostics).
 
 | Key | Default | Type | Description |

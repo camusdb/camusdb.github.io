@@ -16,16 +16,16 @@ From application code, run SQL with the [.NET](/docs/dotnet-driver),
 driver. The drivers bind the values and handle the transport. For interactive
 use, use [camus-cli](/docs/camus-cli) or the [Web Console](/docs/web-console).
 
-The dialect includes the following features:
+The table lists the main features of the dialect.
 
 | Area | Features |
 | --- | --- |
-| Schema | `CHECK` constraints, foreign keys, sequences, identity columns, views, and materialized views |
-| Queries | Inner, left, right, and cross joins, subqueries, recursive CTEs, `LATERAL`, `VALUES` lists, aggregates, and window functions |
-| Writes | `INSERT ... SELECT`, `UPDATE ... FROM`, `DELETE ... USING`, `ON CONFLICT`, and `RETURNING` |
-| Other | Serializable transactions, time-travel reads, vector search, row-level TTL, and users and grants |
+| Schema | `CHECK` constraints / foreign keys / sequences / identity columns / views / materialized views |
+| Queries | Inner, left, right, and cross joins / subqueries / recursive CTEs / `LATERAL` / `VALUES` lists / aggregates / window functions |
+| Writes | `INSERT ... SELECT` / `UPDATE ... FROM` / `DELETE ... USING` / `ON CONFLICT` / `RETURNING` |
+| Other | Serializable transactions / time-travel reads / vector search / row-level TTL / users and grants |
 
-The following example creates a table and reads from it:
+This example creates a table and reads from it.
 
 ```camussql
 CREATE DATABASE IF NOT EXISTS app;
@@ -54,7 +54,7 @@ statement to its page.
 
 Keywords aren't case-sensitive. The names of schema objects, such as tables and
 columns, are stored in the case that you use when you create or rename them.
-Later lookups ignore case:
+Later lookups ignore case.
 
 ```camussql
 CREATE TABLE Robots (
@@ -71,12 +71,13 @@ such as `SHOW CREATE TABLE`, show the original names. In a query result, a colum
 select list, for example `ROBOTNAME`.
 
 Two names that differ only in case are the same name. This means that `Robots`
-and `robots` can't be two tables in the same database. A table also can't have
-both a `RobotName` and a `robotname` column.
+and `robots` can't be two tables in the same database. The second table returns
+`CADB0013`. A table also can't have both a `RobotName` and a `robotname` column,
+and the second column returns `CADB0403`.
 
 ### Backticks
 
-Use backticks for an identifier that is a reserved keyword or a type name:
+Use backticks for an identifier that is a reserved keyword or a type name.
 
 ```camussql
 CREATE TABLE `order` (
@@ -95,7 +96,7 @@ Keywords such as `END` and `OVER` are also reserved. A column named `end` needs
 
 ## Literals
 
-String literals use single or double quotes. The two forms are the same:
+String literals use single or double quotes. The two forms are the same.
 
 ```camussql
 SELECT "literal text", 'literal text';
@@ -109,7 +110,7 @@ For the literal format of each type, see [Data types](/docs/data-types).
 ## Comments
 
 You can use line comments and block comments. A comment can go anywhere that a
-space can go:
+space can go.
 
 ```camussql
 -- A line comment ends at the end of the line.
@@ -128,7 +129,7 @@ WHERE year < 1980;
 Block comments don't nest. The first `*/` ends the comment. A block comment
 that isn't closed returns `CADB0406`.
 
-A comment marker in a string literal is text:
+A comment marker in a string literal is text.
 
 ```camussql
 SELECT 'not -- a comment' AS value;
@@ -163,24 +164,24 @@ number, write `10 - -5`, with a space.
 
 | Task | Page |
 | --- | --- |
-| `SELECT`, filtering, grouping, sorting, and pagination | [SELECT](/docs/sql-queries) |
+| `SELECT` / filtering / grouping / sorting / pagination | [SELECT](/docs/sql-queries) |
 | Named intermediate queries with `WITH` | [WITH queries](/docs/sql-queries#with-queries) |
 | Joins, subqueries, derived tables | [Joins and subqueries](/docs/joins-and-subqueries) |
 | `UNION`, `INTERSECT`, `EXCEPT`, including `ALL` | [Combine query results](/docs/sql-queries#set-operations) |
-| Ranking, running totals, and comparisons between rows | [Window functions](/docs/sql-queries#window-functions) |
+| Ranking / running totals / comparisons between rows | [Window functions](/docs/sql-queries#window-functions) |
 | `FOR UPDATE`, `NOWAIT`, `SKIP LOCKED` | [Lock rows before updating them](/docs/sql-queries#for-update) |
 | A `SELECT` that reads no table | [SELECT without FROM](/docs/sql-fromless-select) |
 | A historical snapshot | [Time-travel reads](/docs/time-travel-reads) |
-| `INSERT`, `UPDATE`, `DELETE`, joined writes, and `LIMIT` on updates and deletes | [Insert, update, delete](/docs/sql-writes) |
-| `RETURNING` from inserts, updates, and deletes | [Return changed rows](/docs/sql-writes#returning) |
+| `INSERT` / `UPDATE` / `DELETE` / joined writes / `LIMIT` on writes | [Insert, update, delete](/docs/sql-writes) |
+| `RETURNING` from a write | [Return changed rows](/docs/sql-writes#returning) |
 | `ON CONFLICT`, `UPSERT` | [Skip or update conflicting rows](/docs/sql-writes#on-conflict) |
 | `INSERT ... SELECT` and CTAS | [Copying query results](/docs/insert-select-and-ctas) |
 | `TRUNCATE`, which empties a table | [TRUNCATE TABLE](/docs/truncate-table) |
 | JSONB documents, operators, and updates | [JSON documents](/docs/json) |
-| PostgreSQL-style casts, arrays, and expression forms | [PostgreSQL expression syntax](/docs/sql-expression-syntax) |
+| PostgreSQL-style casts / arrays / expression forms | [PostgreSQL expression syntax](/docs/sql-expression-syntax) |
 | Scalar functions | [Functions](/docs/functions) |
 | Generate rows with `generate_series` | [Set-returning functions](/docs/functions-set-returning) |
-| Inline C# `CREATE FUNCTION` and `CREATE TRIGGER`, extension DLLs, and `CALL` procedures | [C# extensions](/docs/csharp-extensions) |
+| Inline C# `CREATE FUNCTION` and `CREATE TRIGGER` / extension DLLs / `CALL` procedures | [C# extensions](/docs/csharp-extensions) |
 | Vectors and nearest neighbor search | [Vector search](/docs/vector-search) |
 | Row expiry | [Row-level TTL](/docs/row-level-ttl) |
 
@@ -188,7 +189,7 @@ number, write `10 - -5`, with a space.
 
 | Task | Page |
 | --- | --- |
-| `BEGIN`, `COMMIT`, `ROLLBACK`, isolation, and locks | [Transactions in SQL](/docs/sql-transactions) |
+| `BEGIN` / `COMMIT` / `ROLLBACK` / isolation / locks | [Transactions in SQL](/docs/sql-transactions) |
 | Snapshot behavior and isolation guarantees | [Transactions and isolation](/docs/serializable-transactions) |
 | Retry a transaction after a conflict | [Retries and conflicts](/docs/serializable-retries) |
 | Transaction size and lifetime limits | [Transaction limits](/docs/transaction-limits) |
@@ -201,7 +202,7 @@ number, write `10 - -5`, with a space.
 | Spill large query buffers to temporary files | [Spill to disk](/docs/spill-to-disk) |
 | Scans across the cluster | [Distributed queries](/docs/distributed-queries) |
 | Learn routes for repeated SQL | [SQL routing advice](/docs/sql-routing-advice) |
-| Partition leaders, replicas, and load with `SHOW PARTITIONS` | [Raft partitions](/docs/sql-inspection#raft-partitions) |
+| Partition leaders / replicas / load with `SHOW PARTITIONS` | [Raft partitions](/docs/sql-inspection#raft-partitions) |
 | The range placement of a table or index | [SHOW RANGES](/docs/show-ranges) |
 | Active queries, connections, and `CANCEL QUERY` | [Query activity](/docs/query-activity) |
 | Open transactions and `KILL TRANSACTION` | [Query activity](/docs/query-activity#open-transactions) |
@@ -212,6 +213,6 @@ number, write `10 - -5`, with a space.
 | Effective configuration with `SHOW VARIABLES` | [SHOW VARIABLES](/docs/show-variables) |
 | Placeholders and prepared handles | [Parameters and prepared statements](/docs/prepared-statements) |
 | A deeply nested generated statement | [Statement nesting limit](/docs/statement-nesting-limit) |
-| List databases, tables, columns, and indexes | [Inspecting the database](/docs/sql-inspection) |
+| List the databases / tables / columns / indexes | [Inspecting the database](/docs/sql-inspection) |
 | Users, passwords, `GRANT`, and `REVOKE` | [Authentication and authorization](/docs/sql-authentication) |
 | `SET`/`RESET CLUSTER SETTING` and `SHOW CLUSTER SETTINGS` | [Runtime cluster settings](/docs/runtime-cluster-settings) |

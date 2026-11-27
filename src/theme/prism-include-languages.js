@@ -40,6 +40,8 @@ function registerCamusSql(PrismObject) {
     keyword: [
       {pattern: /(\bWITH\s+)RECURSIVE\b/i, lookbehind: true},
       {pattern: /(\bSHOW\s+)PARTITIONS\b/i, lookbehind: true},
+      {pattern: /(\bSHOW\s+(?:CLUSTER\s+)?)TRANSACTIONS\b/i, lookbehind: true},
+      {pattern: /\bKILL(?=\s+TRANSACTION\b)/i},
       {pattern: camusSqlKeywords, greedy: true},
     ],
     function: camusSqlFunctions,

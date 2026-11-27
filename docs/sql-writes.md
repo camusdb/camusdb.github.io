@@ -4,10 +4,10 @@ sidebar_position: 2.3
 
 # Insert, update, delete
 
-This page shows how to add, change, and remove rows with `INSERT`, `UPDATE`,
-and `DELETE`. The statements look like the ones in PostgreSQL. They include
-[`RETURNING`](#returning), which returns the changed rows in the same round
-trip. You get generated IDs or new totals with no extra `SELECT`.
+This page shows how to add, change, and remove rows. The statements look like
+the ones in PostgreSQL. They include [`RETURNING`](#returning), which returns
+the changed rows in the same round trip. This means that you don't need an extra
+`SELECT` to get generated IDs or new totals.
 
 CamusDB also protects against common mistakes. Each statement is atomic: all of
 its rows are written, or none are. `UPDATE` and `DELETE` require a
@@ -20,7 +20,7 @@ statements, see [Transactions in SQL](/docs/sql-transactions).
 
 ## INSERT
 
-One statement can insert one row or many:
+One statement can insert one row or many.
 
 ```camussql
 INSERT INTO robots (id, name, year)
@@ -37,15 +37,14 @@ A multi-row `INSERT` is atomic: all rows are inserted, or none are.
 ### Target each column once
 
 A column can be in an `INSERT` column list or an `UPDATE ... SET` list only
-once. This includes the update part of `ON CONFLICT`, `INSERT ... SELECT`
-target lists, and typed row writes. Names aren't case-sensitive, and
+once. This rule applies to all column lists of a write, such as the update part
+of `ON CONFLICT`. Names aren't case-sensitive, and
 `SET quantity = 1, Quantity = 2` returns `CADB0403` (`DuplicateColumn`) before
 any write.
 
-Uncorrelated subqueries can supply `INSERT` values, `UPDATE` assignments, and
-write filters, also in a `CASE` or a function call. They are evaluated once
-before the write. Correlated scalar, `EXISTS`, `IN`, `NOT IN`, and quantified
-subqueries work in `UPDATE ... SET` and `WHERE`, and in `DELETE ... WHERE`. Their
+An uncorrelated subquery can supply a value or a filter of a write, also in a
+`CASE` or a function call. It is evaluated once before the write. A correlated
+subquery works in `UPDATE ... SET` and `WHERE`, and in `DELETE ... WHERE`. Its
 outer row is the target row, and they read at the statement timestamp. See
 [subquery rules](/docs/joins-and-subqueries#subqueries-in-where).
 
@@ -73,7 +72,7 @@ draws from a sequence, assign a value explicitly. The update form returns
 Write `DEFAULT` as the entire value or assignment. For example,
 `SET quantity = DEFAULT + 1` returns `CADB0400`.
 
-You can also produce an object id inline:
+You can also produce an object ID inline.
 
 ```camussql
 INSERT INTO robots (id, name) VALUES (GEN_ID(), 'R2-D2');
@@ -85,7 +84,7 @@ its hexadecimal string. See [Object ID functions](/docs/functions-object-id).
 
 ### INSERT ... SELECT
 
-Copy a query result into an existing table:
+`INSERT ... SELECT` copies a query result into an existing table.
 
 ```camussql
 INSERT INTO archived_robots (id, name, year)
@@ -94,16 +93,15 @@ FROM robots
 WHERE year < 2000;
 ```
 
-CamusDB matches the columns by position. For the full rules, the limits, and
-time-travel sources, see
+CamusDB matches the columns by position. For the full rules, see
 [Copying query results](/docs/insert-select-and-ctas#insert-into--select). The
 same page shows how to create the target table from the query.
 
 ### Skip or update conflicting rows {#on-conflict}
 
 Use `ON CONFLICT` to handle an existing unique key in the same statement. You
-don't need a separate check for the row. For example, add each delivery of
-inventory to the stored quantity:
+don't need a separate check for the row. For example, this statement adds each
+delivery of inventory to the stored quantity.
 
 ```camussql
 CREATE TABLE inventory (
@@ -130,8 +128,8 @@ RETURNING sku, quantity;
 Query OK, 1 rows affected (00:00:00.0417096)
 ```
 
-The first run inserts quantity 5. Run the same statement again, and the update
-arm adds 5 to the stored row:
+The first run inserts quantity 5. If you run the same statement again, the
+update arm adds 5 to the stored row.
 
 ```text
 ┌───────────┬──────────┐
@@ -148,7 +146,7 @@ and `BEFORE INSERT` triggers. All `SET` expressions read the old stored values,
 and `SET a = b, b = a` swaps the two values. To reset a column, use
 [`SET column = DEFAULT`](#defaults) with either `VALUES` or a source `SELECT`.
 
-To ignore duplicates instead:
+`DO NOTHING` ignores the duplicate rows.
 
 ```camussql
 INSERT INTO inventory (sku, quantity) VALUES ('KETTLE-01', 5)
@@ -166,7 +164,7 @@ The clause comes after `VALUES` or the source `SELECT`, and before
 
 #### Choose a conflict target
 
-The target sets which unique indexes decide whether to skip or update a row:
+The target sets which unique indexes decide whether to skip or update a row.
 
 | Target | Conflicts handled |
 | --- | --- |
@@ -174,18 +172,19 @@ The target sets which unique indexes decide whether to skip or update a row:
 | `ON CONFLICT ON CONSTRAINT index_name` | The named unique index. Use `<table>_pkey` for the primary key. |
 | `ON CONFLICT DO NOTHING` | All unique indexes, including the primary key. |
 
-`DO UPDATE` requires a target, and it returns `CADB0400` without one. The
+`DO UPDATE` requires a target. If the target is missing, it returns `CADB0400`.
+The
 target must be a unique index that exists and is built. A `CHECK` or
 foreign-key constraint can't be a target. A duplicate on another unique index
-is an error as usual. Unique keys that contain `NULL` don't conflict, because
-they have no index entry.
+is an error as usual. Unique keys that contain `NULL` don't conflict. These keys
+don't have an index entry.
 
 Proposed rows must pass the `NOT NULL` and `CHECK` checks before conflict
 handling. `DO NOTHING` doesn't skip an invalid row.
 
 #### Conditional updates and repeated keys
 
-Add `WHERE` after `SET` to update only selected conflicts:
+Add `WHERE` after `SET` to update only selected conflicts.
 
 ```camussql
 INSERT INTO inventory (sku, quantity) VALUES ('KETTLE-01', 5)
@@ -194,7 +193,7 @@ WHERE inventory.quantity < excluded.quantity;
 ```
 
 If the condition isn't true, the row is skipped. The update part can't assign
-a primary-key column. Uncorrelated scalar, `IN`, and `EXISTS` subqueries are
+a primary-key column. Uncorrelated subqueries, such as `IN` and `EXISTS`, are
 evaluated once before the writes. Correlated subqueries return an error there.
 
 One `DO UPDATE` statement can't affect the same stored row or new key twice,
@@ -205,7 +204,7 @@ are skipped after the first insert.
 #### UPSERT shorthand
 
 `UPSERT INTO` uses the primary key as its conflict target and replaces each
-listed non-key column with its proposed value:
+listed non-key column with its proposed value.
 
 ```camussql
 UPSERT INTO inventory (sku, quantity)
@@ -223,8 +222,8 @@ Query OK, 1 rows affected (00:00:00.0089565)
 ```
 
 This sets the quantity to 12. Columns that aren't in the list have their
-stored values on update, and their defaults on insert. With no column list, all
-columns are included. A list with only primary-key columns doesn't change an
+stored values on update, and their defaults on insert. If there is no column
+list, all columns are included. A list with only primary-key columns doesn't change an
 existing row. Supply the key that you want to match. A new generated primary
 key doesn't match a different unique key, such as an email address.
 
@@ -235,7 +234,7 @@ values, also in optimistic mode. Concurrent upserts can return retryable
 conflicts. [Retry the transaction](/docs/serializable-retries) in that case. A
 duplicate on an index outside the target isn't a retryable result.
 
-Triggers:
+Upserts fire triggers by these rules.
 
 - `BEFORE INSERT` fires for each proposed row, including a skipped row.
 - A successful insert then fires `AFTER INSERT`. A conflict that updates fires
@@ -256,16 +255,16 @@ updated proposals can use sequence values.
 
 On a branch, inherited keys can conflict. An update writes the branch's copy of
 the row, and the parent doesn't change. Upserts are SQL only: the typed HTTP and
-gRPC insert APIs don't have an upsert form. These aren't supported: MySQL
-`ON DUPLICATE KEY UPDATE`, `MERGE`, `INSERT` target aliases, and the name of a
-user-declared primary-key constraint as a conflict target. Use the primary-key
-columns or `<table>_pkey`. `UPSERT`, `CONFLICT`, `DO`, `NOTHING`, and `EXCLUDED`
-can also be identifiers.
+gRPC insert APIs don't have an upsert form. Some forms aren't supported, such
+as MySQL `ON DUPLICATE KEY UPDATE` and `MERGE`. An `INSERT` target alias isn't
+supported either. The name of a user-declared primary-key constraint can't be a
+conflict target. Use the primary-key columns or `<table>_pkey`. The upsert
+keywords, such as `UPSERT` and `EXCLUDED`, can also be identifiers.
 
 ## UPDATE
 
 Change selected columns of the rows that match a condition. Columns that aren't
-in `SET` don't change:
+in `SET` don't change.
 
 ```camussql
 UPDATE robots
@@ -274,8 +273,8 @@ WHERE id = @id
 RETURNING id, name, year;
 ```
 
-Assignments can use parameters, scalar functions, arithmetic, and existing
-column values. For example, decrease the inventory if enough stock remains:
+An assignment can be any scalar expression, such as arithmetic on the current
+value. This example decreases the inventory if enough stock remains.
 
 ```camussql
 UPDATE inventory
@@ -288,14 +287,14 @@ Each `SET` expression reads the values of the row before the update. The
 assignments happen at the same time, and `SET a = b, b = a` swaps the values. To
 set a nullable column to `NULL`, use `SET column = NULL`.
 
-Primary-key columns can't change. Updated values must follow the column types,
-the length limits, and the `NOT NULL`, `CHECK`, unique, and foreign-key rules.
+Primary-key columns can't change. Updated values must follow the column types
+and all constraints.
 CamusDB updates the affected indexes and fires the `UPDATE` triggers of the
 table. A constraint or trigger failure rolls back the changes of the statement.
 
 ### Limit updated rows
 
-Place `LIMIT` after `WHERE`, before an optional `RETURNING` list:
+Place `LIMIT` after `WHERE`, before an optional `RETURNING` list.
 
 ```camussql
 UPDATE robots
@@ -312,7 +311,7 @@ can be smaller. See [concurrent updates and deletes](#concurrent-updates-and-del
 
 `UPDATE` doesn't support `ORDER BY` or `OFFSET`. Don't assume which matching rows
 a limited update selects. For values from other tables, use
-[`UPDATE ... FROM`](#joined-writes) or a subquery:
+[`UPDATE ... FROM`](#joined-writes) or a subquery.
 
 ```camussql
 UPDATE counters
@@ -320,12 +319,12 @@ SET n = (SELECT COUNT(*) FROM messages)
 WHERE id = @id;
 ```
 
-See [subquery rules](/docs/joins-and-subqueries#subqueries-in-where) for the
-supported scalar, `IN`, and `EXISTS` forms.
+For the supported subquery forms, see
+[subquery rules](/docs/joins-and-subqueries#subqueries-in-where).
 
 ## DELETE
 
-Remove the rows that match a condition, with their index entries:
+`DELETE` removes the rows that match a condition, with their index entries.
 
 ```camussql
 DELETE FROM robots
@@ -334,12 +333,13 @@ RETURNING id, name;
 ```
 
 The affected count is the number of deleted rows. `RETURNING` returns their
-values before the delete. Without `RETURNING`, the statement returns only the
-count. A foreign key can prevent the delete of a referenced parent row, and a
+values before the delete. If there is no `RETURNING`, the statement returns only
+the count. A foreign key can prevent the delete of a referenced parent row, and a
 `DELETE` trigger can reject the delete. See [foreign keys](/docs/foreign-keys)
 and [C# triggers](/docs/csharp-extensions#triggers).
 
-Use a subquery to select rows based on another table:
+A subquery can select the rows from another table. This statement deletes the
+sessions that don't have messages.
 
 ```camussql
 DELETE FROM sessions
@@ -356,7 +356,7 @@ of the subquery makes the `NOT IN` condition unknown. See
 
 ### Limit deleted rows
 
-Bound a cleanup operation with a literal or parameterized `LIMIT`:
+Bound a cleanup operation with a literal or parameterized `LIMIT`.
 
 ```camussql
 DELETE FROM events
@@ -365,9 +365,9 @@ LIMIT @batch_size
 RETURNING id;
 ```
 
-The limit comes after `WHERE` and before `RETURNING`. It works as for
-`UPDATE`: `LIMIT 0` deletes no rows, concurrent changes can reduce the affected
-count, and the order in which rows are selected isn't specified.
+The limit comes after `WHERE` and before `RETURNING`. It works as for `UPDATE`.
+`LIMIT 0` deletes no rows, and concurrent changes can reduce the affected count.
+The order in which rows are selected isn't specified.
 
 For a large cleanup, repeat limited deletes and commit each batch separately.
 For batched updates, make the condition of each batch exclude the rows that are
@@ -394,7 +394,7 @@ statement returns `CADB0400` and changes no rows. This applies to a bare
 The rule applies to standalone `UPDATE` and `DELETE`. An `ON CONFLICT DO UPDATE`
 part selects its row through a unique key, and its `WHERE` is optional.
 
-To change all rows on purpose, write `WHERE TRUE`:
+To change all rows on purpose, write `WHERE TRUE`.
 
 ```camussql
 UPDATE robots SET year = 2000 WHERE TRUE;
@@ -413,10 +413,10 @@ mutation limit doesn't apply to it.
 
 ## RETURNING {#returning}
 
-`INSERT`, `UPDATE`, and `DELETE` can return values from the rows they wrote. Add
-a `RETURNING` list at the end of the statement.
+A write statement can return values from the rows that it wrote. Add a
+`RETURNING` list at the end of the statement.
 
-The examples in this section use this data:
+The examples in this section use the sample data below.
 
 <details>
 <summary>Sample data for the RETURNING examples</summary>
@@ -506,29 +506,29 @@ returned rows.
 
 ### What RETURNING can contain
 
-The `RETURNING` list is a select list over the target table. It can contain:
+The `RETURNING` list is a select list over the target table.
 
-- `*`, which expands to all target columns in schema order. In
-  [joined writes](#joined-writes), a bare `*` returns an error.
-- A column name, including a qualified name such as `orders.total`.
-- A scalar expression, such as arithmetic, `CASE`, a cast, or a scalar
-  function.
-- An alias with `AS`.
-- A bound parameter.
+| Item | Notes |
+| --- | --- |
+| `*` | All target columns in schema order. In [joined writes](#joined-writes), a bare `*` returns an error. |
+| A column name | Also a qualified name, such as `orders.total`. |
+| A scalar expression | Arithmetic / a `CASE` / a cast / a scalar function. |
+| An alias | An item with `AS`, such as `total * 2 AS doubled`. |
+| A bound parameter | Such as `@tag`. |
 
 An item that can't be evaluated once for each written row returns an error
-before any row is written:
+before any row is written.
 
 | Item | Error |
 | --- | --- |
 | An aggregate such as `COUNT(*)` or `SUM(x)` | `CADB0400` `InvalidInput` |
 | A subquery | `CADB0400` `InvalidInput` |
-| A sequence call such as `nextval`, `setval`, `currval`, or `lastval` | `CADB0547` `SequenceCallNotAllowedHere` |
+| A sequence call, such as `nextval` | `CADB0547` `SequenceCallNotAllowedHere` |
 | A name that is not a column of the target table | `CADB0404` `UnknownColumn` |
 
 ### What values come back
 
-`RETURNING` returns the stored row, after defaults and type conversion:
+`RETURNING` returns the stored row, after defaults and type conversion.
 
 | Statement | Row image |
 | --- | --- |
@@ -542,7 +542,7 @@ before any row is written:
 - A function default, such as `gen_id()` or `now()`, is evaluated for each
   inserted row.
 - A value is returned after conversion to the column type.
-- A column with no value and no default returns `NULL`.
+- A column that doesn't get a value or a default returns `NULL`.
 - A large value stored outside the row is returned in full.
 
 Inserted rows are returned in insert order. For `INSERT ... SELECT`, this is the
@@ -563,7 +563,7 @@ removed.
 ### Privileges
 
 A write with `RETURNING` needs the write privilege and `SELECT` on the target
-table, because the `RETURNING` list reads stored values, including defaults.
+table. The `RETURNING` list reads stored values, including defaults.
 For example, a user with only `UPDATE` can run a regular `UPDATE`, but
 `UPDATE ... RETURNING` returns an error for that user.
 
@@ -588,7 +588,7 @@ gRPC client takes at most 4 MiB per message. If the `RETURNING` rows would be
 larger, the statement returns `CADB0550` `ReturningResultTooLarge` before the
 commit, and it is rolled back.
 
-For large returned row sets, either:
+For large returned row sets, you have two options.
 
 - Stream the rows: `ExecuteStreamReaderAsync()` in .NET, or `queryStream()` in
   TypeScript.
@@ -619,8 +619,8 @@ or write the change as one `UPDATE`.
 
 ## UPDATE FROM and DELETE USING {#joined-writes}
 
-Use the rows of another table to adjust balances, or to remove the records of
-closed customers:
+These statements use the rows of another table to adjust balances, and to
+remove the records of closed customers.
 
 ```camussql
 UPDATE accounts AS a
@@ -636,9 +636,8 @@ RETURNING o.id;
 ```
 
 Only the target table changes. The `FROM` or `USING` list can contain the
-same sources as a `SELECT`, such as tables, views, derived tables, CTEs, and joins.
-For an inline batch, use a
-[VALUES source](/docs/joins-and-subqueries#values-sources):
+same sources as a `SELECT`, such as views and joins. For an inline batch, use a
+[VALUES source](/docs/joins-and-subqueries#values-sources).
 
 ```camussql
 UPDATE accounts AS a SET balance = a.balance + d.amount
@@ -646,7 +645,7 @@ FROM (VALUES (1, 25), (2, -10)) AS d (id, amount)
 WHERE a.id = d.id;
 ```
 
-A target alias also works with no source list:
+A target alias also works in a write that has only the target, as in
 `UPDATE accounts AS a SET balance = 0 WHERE a.id = @id`. With an alias, qualify
 the target columns with the alias. A bare column name that the target and a
 source both have is ambiguous (`CADB0400`). A self join needs an alias on at
@@ -664,15 +663,15 @@ update. Subqueries in assignments are computed in the matching phase.
 
 After the lock, CamusDB checks again each `AND` term that references a target
 column and contains no subquery. If concurrent changes make a row fail that
-check, the row is skipped, and it isn't counted. Triggers, constraints, index
-updates, and transaction limits apply as for regular writes. Under
+check, the row is skipped. A skipped row isn't counted. All rules of regular
+writes apply, such as triggers and constraints. Under
 Serializable, the matching phase takes exclusive range locks on the target and
 source tables. The write phase also takes exclusive locks on the target rows.
 
 If a target row matches more than one source row, an `UPDATE` returns
 `CADB0400` and doesn't write any row. PostgreSQL picks one of the matches, and it
 doesn't say which. When several adjustments belong to one row, aggregate the
-source first:
+source first.
 
 ```camussql
 UPDATE accounts AS a
@@ -689,10 +688,11 @@ A `DELETE` removes a target row once, also if it matches several source rows.
 - `LIMIT` isn't supported in these forms, or in an `UPDATE` whose target has an
   alias. A regular `UPDATE` and `DELETE` support it.
 - `RETURNING` can contain only target columns and expressions on the target.
-  Source columns and a bare `RETURNING *` return `CADB0400`. A target alias with
-  no `FROM` or `USING` allows `RETURNING *`.
-- Primary-key assignments, `EXPLAIN UPDATE`, and `EXPLAIN DELETE` aren't
-  supported.
+  Source columns and a bare `RETURNING *` return `CADB0400`. If a write has a
+  target alias but no `FROM` or `USING`, it allows `RETURNING *`.
+- Primary-key assignments aren't supported. `EXPLAIN` doesn't support `UPDATE`
+  or `DELETE` statements, also outside joined writes, and it returns a syntax
+  error.
 - The statement needs `UPDATE` or `DELETE` on the target, and `SELECT` on each
   table that it reads, including the target.
 

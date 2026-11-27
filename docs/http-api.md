@@ -94,6 +94,11 @@ read or operator boundary. If a client stops reading a stream early, the
 server cleans up the query. For long reads, you should use the streaming
 endpoint when your client can process rows one at a time.
 
+A disconnected client won't start a new write transaction or trigger another
+Serializable retry. A write that has started can still commit. The server
+records canceled HTTP requests as status 499. A disconnect by itself leaves
+the write outcome unknown to the client.
+
 ## Authentication
 
 A driver takes credentials in its configuration. A direct HTTP client exchanges

@@ -17,34 +17,31 @@ checks the result. It lives in the
 [`camusdb-caraxes`](https://github.com/camusdb/camusdb-caraxes) repository and
 generates load with [`CamusDB.Workload`](/docs/workload-utility).
 
-A PASS is evidence about one run. It shows that one build, cluster shape,
-workload, and fault schedule passed the checks for the measured window.
+A PASS is evidence about one run. A different build or fault schedule needs a
+new run.
 
-Caraxes has found or guarded against these failures:
+The table lists failures that Caraxes found. Its checks now guard against them.
 
-- Bank transfers that changed the total balance under contention, which means a
-  transfer wasn't atomic.
-- Scans that returned short counts while writes were in flight. A check after
-  the run couldn't see them.
-- Acknowledged writes that were overwritten when two nodes applied different
-  values at the same revision.
-- Bugs in crash recovery, re-election, rejoin, and
-  [leader](/docs/concepts#leader) transfer.
-- Wrong behavior on a full or stalled disk.
-- Placement, range-split, and leader-balancer bugs that appear only when all
-  [partitions](/docs/concepts#partition) carry work.
-- False performance results caused by host disk behavior, a saturated client,
-  or a comparison of runs from different builds.
+| Area | Failure |
+|---|---|
+| Atomicity | Bank transfers changed the total balance under contention. This means that a transfer wasn't atomic. |
+| Scans | Scans returned short counts while writes were in flight. A check after the run couldn't see them. |
+| Replication | Acknowledged writes were overwritten when two nodes applied different values at the same revision. |
+| Recovery | Bugs in crash recovery and re-election, also on rejoin and on [leader](/docs/concepts#leader) transfer. |
+| Disks | Wrong behavior on a full or stalled disk. |
+| Placement | Placement / range-split / leader-balancer bugs that appear when all [partitions](/docs/concepts#partition) carry work. |
+| Measurement | False performance results, for example from a saturated client or from a comparison of builds. |
 
 ## Quick start
 
-You need:
+A run needs three things on the host.
 
 - .NET 10 SDK
 - Docker with `docker compose`
 - A CamusDB checkout, by default at `~/camusdb`
 
-Run the commands on this page from the root of the Caraxes repository:
+Run the commands on this page from the root of the Caraxes repository. This
+command starts the smoke scenario.
 
 ```bash
 dotnet run --project Caraxes -- run --scenario scenarios/smoke-optimistic.yml
@@ -56,15 +53,16 @@ exit code directly. See [Exit codes](#exit-codes).
 
 ## How a run works
 
-`run` does the full cycle:
+`run` does the full cycle in eight steps.
 
 1. Publishes `CamusDB.Workload` from the CamusDB checkout.
 2. Starts the cluster and waits until all nodes are ready.
 3. Seeds the dataset.
 4. Waits `settle_seconds` (default 30) for partition leadership to settle.
 5. Starts the measured workload, with the fault schedule in parallel.
-6. Collects workload results, node metrics, logs, and crash dumps.
-7. Matches faults with errors, writes the verdict, and removes the cluster.
+6. Collects the workload results and the node data, such as logs and crash dumps.
+7. Matches faults with errors, and writes the verdict.
+8. Removes the cluster, unless `teardown` is `false`.
 
 ```mermaid
 sequenceDiagram
@@ -89,22 +87,20 @@ The workload is a one-shot container on the cluster's Docker network. It
 connects to the nodes over TLS by their in-cluster names, and you don't have to
 change certificate trust on the host.
 
-Useful flags:
+The `run` command has four flags that you use often.
 
-- `--tag <name>` stores the run in a separate directory,
-  `runs/scenarios/<scenario>-<tag>`. If you omit it, a run replaces the
-  previous one.
-- `--skip-build` reuses the existing image.
-- `--run-root <dir>` sets the directory for run output. The default is
-  `./runs`.
-- `--correctness-only` shows recovery time and throughput recovery but
-  doesn't fail the run on them. Use it on CI machines of unknown speed. The
-  correctness checks apply as usual.
+| Flag | Effect |
+|---|---|
+| `--tag <name>` | Stores the run in a separate directory, `runs/scenarios/<scenario>-<tag>`. If you omit it, a run replaces the previous one. |
+| `--skip-build` | Reuses the existing image. |
+| `--run-root <dir>` | Sets the directory for run output. The default is `./runs`. |
+| `--correctness-only` | Shows recovery time and throughput recovery, but they don't fail the run. Use it on CI machines of unknown speed. The correctness checks apply as usual. |
 
 ## Scenario files
 
-A scenario is one YAML file. Its `name` is required and uses the pattern
-`[a-z0-9][a-z0-9-]*`:
+A scenario is one YAML file. Its `name` is required, and it uses the pattern
+`[a-z0-9][a-z0-9-]*`. This scenario kills a random node for 20 seconds during a
+bank workload.
 
 ```yml
 name: bank-kill
@@ -142,9 +138,10 @@ checks:
 | `precondition_device_gb` | Write this much synced data during warmup to put the host disk in its steady state. |
 | `drain_observation_seconds` | Read node metrics for this long after the workload ends. |
 | `drain_observation_interval_seconds` | Interval of those metric reads. Default `15`. |
-| `node_log_tail` | Lines of each node log to save. Default `0`, the whole log. |
+| `node_log_tail` | Lines of each node log to save. Default `0` saves all lines. |
 
-A duration can be `250ms`, `15s`, `1m`, or `1h`. A bare number means seconds.
+A duration has the unit `ms`, `s`, `m`, or `h`, as in `250ms`. A bare number
+means seconds.
 
 ## Workloads
 
@@ -155,10 +152,10 @@ that you want to catch.
 |---|---|---|
 | `accounts` | Read-modify-write on rows that don't conflict. The default. | Throughput limits and recovery after faults. |
 | `bank` | Transfers money between any two rows, across partitions. | A changed `SUM(balance)`, which means a transfer wasn't atomic. This check is always on. |
-| `fanout` | Bank transfers between two different tables. Needs `tables: 2` or more. | The same as `bank`, with load on all partitions. Use it for split, placement, and failover tests. |
-| `tokens` | Each write deletes a row and inserts its successor in one transaction. | Lost deletes, lost inserts, a deleted row that comes back, double spends, and stale index entries. |
-| `append` | Elle list-append transactions. | Lost updates, write skew, read skew, dirty reads, and reads of aborted writes. |
-| `rw` | Elle read-write registers: single-row reads and blind writes. | The same anomalies on point reads and writes, through the primary key, a scan, an index, or a join. |
+| `fanout` | Bank transfers between two different tables. Needs `tables: 2` or more. | The same as `bank`, with load on all partitions. Use it for split / placement / failover tests. |
+| `tokens` | Each write deletes a row and inserts its successor in one transaction. | Lost deletes / lost inserts / a deleted row that comes back / double spends / stale index entries. |
+| `append` | Elle list-append transactions. | Lost updates / write skew / read skew / dirty reads / reads of aborted writes. |
+| `rw` | Elle read-write registers: single-row reads and blind writes. | The same anomalies on point reads and writes, through the primary key / a scan / an index / a join. |
 | `predicate` | Reads groups of rows with a `WHERE` clause and writes rows into groups. | Phantoms and write skew on predicate reads, and a `COUNT(*)` that disagrees with the rows read. |
 
 A conserved sum can't detect all wrong orderings of transactions. The Elle
@@ -170,7 +167,7 @@ bugs that appear only while writes are in flight.
 
 **Delete workload.** With the `tokens` kind, a table has exactly `tokens` rows
 (default 2,000) at each committed state. Each move reads a row through a
-non-unique index, deletes it, and inserts the next version. The index isn't
+non-unique index. Then it deletes the row and inserts the next version. The index isn't
 unique, and only the engine's conflict detection prevents a double spend. After
 the run, each slot must have exactly one row at the expected version.
 
@@ -184,11 +181,11 @@ VACUOUS means that the run didn't test what it claims to test. See
 ### Isolation checks with Elle
 
 [Elle](https://github.com/jepsen-io/elle) is the isolation checker from the
-Jepsen project. The `append`, `rw`, and `predicate` workloads record each
-attempt in `history.edn`. After the run, Elle searches that history for
+Jepsen project. The three Elle workloads record each attempt in
+`history.edn`. After the run, Elle searches that history for
 dependency cycles that the isolation level forbids.
 
-Build and check the Elle jar once:
+Build and check the Elle jar once, and then run an Elle scenario.
 
 ```bash
 tools/elle/build.sh     # builds elle-cli with Elle 0.2.8 in Docker
@@ -201,32 +198,33 @@ different Elle version. The last elle-cli release bundles Elle 0.2.7, which has
 a defect in its read-write register checker. The host needs Docker, git, and
 `unzip`.
 
-What fails the run, by isolation level:
+The anomalies that fail the run depend on the isolation level.
 
 | Level | Forbidden |
 |---|---|
-| Read committed | G0, G1a, G1b, G1c (write cycles, aborted reads, intermediate reads, and circular information flow). |
-| Serializable | All of the above, plus G-single, G2-item, G2, lost updates, internal inconsistency, and a predicate `COUNT(*)` mismatch when both reads share one transaction snapshot. |
+| Read committed | G0 (write cycles), G1a (aborted reads), G1b (intermediate reads), G1c (circular information flow). |
+| Serializable | The read committed anomalies / G-single / G2-item / G2 / lost updates / internal inconsistency. Also a predicate `COUNT(*)` mismatch when both reads share one transaction snapshot. |
 | All levels | Final-state errors. See the next paragraph. |
 
-By default, the model follows the isolation level: `read-committed` for read
-committed runs, and `serializable` for the others. The cluster default isolation
+By default, the model follows the isolation level. It is `read-committed` for a
+read committed run, and `serializable` for the others. The cluster default isolation
 is `read_committed`. Neither model requires real-time order, and a read-only
 snapshot can lag behind a write that already returned. Set
 `elle.consistency_models: strict-serializable` if you want to test real-time
 order.
 
 **Final-state check.** After the writers stop, the workload reads back each key
-it wrote and compares it with its log of attempted writes:
+that it wrote. It compares the value with its log of attempted writes.
 
 - A list must contain each acknowledged append exactly once.
 - A register must have a value that an acknowledged or unresolved write
   produced.
-- The primary key, the index, and the join must return the same value.
+- All access paths, such as the primary key and the index, must return the
+  same value.
 - A row count over the key range detects duplicate primary keys.
 
 **How statements reach the server.** `txn_mode` sends the same transactions
-through a different server path:
+through a different server path.
 
 - `explicit` (default): `BEGIN`, one round trip per statement, then `COMMIT`.
 - `autocommit`: each statement is a separate transaction.
@@ -234,7 +232,7 @@ through a different server path:
 
 `rw_access: secondary` and `rw_access: index` don't work in `pipeline` mode.
 
-**Runs with too little history.** A stuck cluster can pass with almost no
+**Too little history.** A stuck cluster can pass with almost no
 history. `checks.min_committed_txns` fails such a run as VACUOUS.
 `workload.stop_after_completed` ends the run after a fixed number of
 operations. The run length then doesn't depend on machine speed.
@@ -257,7 +255,7 @@ elle:
 | `enabled` | `true` | Run the check. `false` gives no isolation verdict. |
 | `jar` | `tools/elle/elle-cli-0.1.11-elle0.2.8-standalone.jar` | Path to the elle-cli jar that `build.sh` builds. |
 | `image` | `eclipse-temurin:21-jdk` | Docker image that supplies `java`. It must be a JDK image. |
-| `consistency_models` | derived | Empty uses `serializable`, or `read-committed` for read committed runs. |
+| `consistency_models` | derived | Empty uses `serializable`, or `read-committed` for a read committed run. |
 | `anomalies` | none | Extra anomalies to search for, such as `G1a,G1b`. |
 | `gated` | `true` | `false` shows Elle findings as `MEASURED, NOT GATED`. |
 | `cycle_search_timeout_ms` | Elle default | Raise it if Elle returns `unknown`. |
@@ -265,7 +263,7 @@ elle:
 | `plots` | `false` | Cycle diagrams. Needs an image with Graphviz. |
 
 Elle writes `elle-result.json`. `valid? = true` passes, and `false` fails.
-`unknown` also fails, because the search didn't prove the model.
+`unknown` also fails. It means that the search didn't prove the model.
 
 ## Faults
 
@@ -296,18 +294,18 @@ Each event has an `at` time (default `0s`), a `fault`, a `target` (default
 | `disk-corrupt` | Kills the node (SIGKILL) and damages one data file on its volume. See [Storage corruption](#storage-corruption). | Restarting the node. |
 | `split` | Splits one key space of a table at its median key. See [Range splits](#range-splits). | No heal needed. The fault window closes after `duration`. |
 
-Targets:
-
-- A node name, such as `camus2`.
-- `random`: a node picked from the seed, which makes the run reproducible.
-- `leader`: the node that leads the most partitions when the event fires.
-- `zone:<name>`: all nodes in that failure zone, together.
+| `target` | Node that gets the fault |
+|---|---|
+| A node name, such as `camus2` | That node. |
+| `random` | A node picked from the seed. This makes the run reproducible. |
+| `leader` | The node that leads the most partitions when the event fires. |
+| `zone:<name>` | All nodes in that failure zone, together. |
 
 Set `heal: false` to leave a fault in place for the rest of the run. When the
 workload ends, Caraxes heals the open faults that it can heal. A fault with
 `heal: false` and a `remove-node` fault stay in place.
 
-A seeded `random` schedule gives a chaos soak in place of a fixed timeline:
+A seeded `random` schedule gives a chaos soak in place of a fixed timeline.
 
 ```yml
 nemesis:
@@ -320,8 +318,8 @@ nemesis:
 ```
 
 `count` limits the number of faults. The default, `0`, injects faults until the
-workload ends. The defaults for the other keys are `min_interval: 10s`,
-`max_interval: 20s`, and `duration: 10s`. A `random` schedule can't pick the
+workload ends. `min_interval` defaults to `10s`, and `max_interval` to `20s`.
+`duration` defaults to `10s`. A `random` schedule can't pick the
 `sql` fault.
 
 ### Disk faults
@@ -329,11 +327,11 @@ workload ends. The defaults for the other keys are `min_interval: 10s`,
 `fill-disk` needs `cluster.data_tmpfs_mb`, which puts `/data` on a size-capped
 RAM disk. The full node must refuse writes with `CADB0536`
 (`InsufficientDiskSpace`). After the space is free, it must accept writes again,
-and it must not need a restart. A RAM disk is lost on restart, so this fault
-tests disk pressure only.
+and it must not need a restart. A RAM disk is lost on restart. This means that
+this fault tests disk pressure only.
 
-`slow-disk` throttles the real disk behind the node's data volume. The process,
-the network, and the peers stay healthy. The default `write_bps: 4096` acts as
+`slow-disk` throttles the real disk behind the node's data volume. Only the
+disk is slow, and the rest of the node is healthy. The default `write_bps: 4096` acts as
 a paused disk, and a few MiB per second acts as a slow disk. `write_iops` and
 `read_bps` (default `0`, no limit) add more limits. `device` sets the
 `MAJ:MIN` of the disk, which Caraxes finds by default. `slow-disk` doesn't
@@ -355,9 +353,9 @@ volume, and restarts the node when the fault heals. It doesn't work with
 
 | Key | Default | Meaning |
 |---|---|---|
-| `damage` | (required) | `bit-flip`, `truncate-tail`, `truncate-middle`, `chunk-shuffle`, `chunk-duplicate`, or `chunk-replace`. |
+| `damage` | (required) | `bit-flip` / `truncate-tail` / `truncate-middle` / `chunk-shuffle` / `chunk-duplicate` / `chunk-replace`. |
 | `damage_layer` | `store` | `store` for the key-value store, or `wal` for the Raft log. |
-| `damage_file` | `sst` | `sst` (the largest), `live-log`, `closed-log`, or `manifest`. |
+| `damage_file` | `sst` | `sst` (the largest) / `live-log` / `closed-log` / `manifest`. |
 | `damage_seed` | `1` | Seed of the damage, for a reproducible run. |
 | `damage_count` | `2` | Bits for `bit-flip`, or chunks for `chunk-shuffle`. Other damages ignore it. |
 
@@ -369,8 +367,8 @@ See `scenarios/corrupt-store-sst-bitflip-rf1.yml` and
 `clock-skew` needs `cluster.clock_skew: true`. It moves only the node's wall
 clock. `offset_ms` can't be `0`, and it must be within ±12 hours. That clock feeds CamusDB's [hybrid logical clock](/docs/concepts#hlc)
 and the timeouts built on it. Raft elections use a separate clock, and the
-fault doesn't affect them. The bundled scenarios test jumps above 5 seconds,
-above 15 seconds, and of several minutes. A ±2 second run is the control.
+fault doesn't affect them. The bundled scenarios test jumps from more than 5
+seconds to several minutes. A ±2 second run is the control.
 
 ```yml
 cluster:
@@ -385,8 +383,8 @@ nemesis:
 `split` divides one key space of a table in the workload database at its median
 key. At the scheduled time, it calls
 [`POST /v1/cluster/split-range`](/docs/key-range-sharding#split-a-range-manually).
-It asks the target node first and then the other nodes, follows the leader
-hint, and retries refusals that can clear with time. The run fails if a
+It asks the target node first, and then the other nodes. It follows the leader
+hint, and it retries refusals that can clear with time. The run fails if a
 scheduled split didn't commit or didn't start.
 
 | Key | Default | Meaning |
@@ -404,7 +402,7 @@ With `cluster.backups: true`, the `backup` fault takes backups during the load,
 and Caraxes grades their cost. `backup_kind` is `incremental` (the default),
 `full`, or `coordinated`.
 
-`backup_verify` then checks that no data was lost:
+`backup_verify` then checks in four steps that no data was lost.
 
 1. Take a final incremental backup after the load stops.
 2. Read a fingerprint of the live data: row count, `SUM(balance)`, and
@@ -420,8 +418,8 @@ that lost the latest writes.
 node from the backup chain. The node replays the backup and then receives the
 newer changes from the cluster. Set `seed_from_backup: false` to start the node
 empty and send it a full snapshot. `node_name` sets the name of the new node. The default is the next free
-index. The new node must become a voter, host the expected partitions, and read
-the same data as the other nodes.
+index. The new node must become a voter and host the expected partitions. It
+must also read the same data as the other nodes.
 
 ```yml
 nemesis:
@@ -436,14 +434,14 @@ See [Backup and restore](/docs/backup-and-restore).
 ### Online schema changes
 
 The `sql` fault executes one statement on a node during the workload, such as
-`CREATE INDEX` or `ALTER TABLE ... ADD COLUMN`. The `sql` key holds the
+`CREATE INDEX` or `ALTER TABLE ... ADD COLUMN`. The `sql` key is the
 statement. `sql_timeout_seconds` (default 1800) limits one statement, and it
 must cover the backfill of the largest table. Schedule kills around it to crash
 the node that applies the change. Retryable errors are retried up to
 `sql_retries` times (default 10). `expect` sets the required result: `ok`
 (default), `error`, or `any`.
 
-After the workload, `schema_verify` checks that:
+After the workload, `schema_verify` checks the result of the change.
 
 - All nodes report the same schema, and the schema is stable.
 - An index contains the same rows and values as the table.
@@ -458,7 +456,7 @@ See `scenarios/schema-add-column-kill.yml` and `scenarios/schema-index-kill.yml`
 
 ## Verdict
 
-A scenario passes when:
+A scenario passes when all three conditions are true.
 
 - The workload accepted the run, and its correctness checks held.
 - The run had no internal errors. In a scenario with a `nemesis` block,
@@ -496,9 +494,9 @@ the error rate falls to 1 percent or below. It writes the results to
 | `min_committed_txns` | `0` | An Elle history has fewer committed transactions than this. |
 | `require_split` | `false` | No range split happened during the run. |
 | `require_replica_move` | `false` | No replica moved during the run. |
-| `require_client_headroom` | `false` | The load generator was the bottleneck. For capacity runs. |
-| `require_cluster_facts` | `false` | The run can't record which build it measured. For capacity runs. |
-| `require_quiet_host` | `false` | The host was busy before the run started. For capacity runs. |
+| `require_client_headroom` | `false` | The load generator was the bottleneck. Use it for a capacity run. |
+| `require_cluster_facts` | `false` | The run can't record which build it measured. Use it for a capacity run. |
+| `require_quiet_host` | `false` | The host was busy before the run started. Use it for a capacity run. |
 | `require_spread_leadership` | `false` | Leadership was on few nodes when the measured run started. |
 
 The node health and divergent-apply checks apply to all scenarios, also to
@@ -507,21 +505,21 @@ those that inject no faults.
 ## Capacity evidence
 
 A throughput number alone is easy to misread. Caraxes records the context that
-explains it:
+explains it.
 
 | File | Shows |
 |---|---|
-| `cluster-facts.json` | The build, settings, and data placement on each node. Don't compare two runs with different fingerprints. |
-| `node-metrics.csv`, `bottleneck-report.md` | Work per node, the commit path, and backlog growth. They show when one leader does all the writes. |
-| `client-resources.json` | The load generator's CPU, memory, and thread-pool backlog. Use it to check that a slow result isn't caused by the client. |
+| `cluster-facts.json` | The build and settings of each node, with its data placement. Don't compare results with different fingerprints. |
+| `node-metrics.csv`, `bottleneck-report.md` | Work per node / the commit path / backlog growth. They show when one leader does all the writes. |
+| `client-resources.json` | CPU / memory / thread-pool backlog of the load generator. Use it to check that a slow result isn't caused by the client. |
 | `host-io.csv` | Host disk behavior during the run. |
 | `precondition.json` | The warmup data written to put the host disk in its steady state. |
 
-Don't compare runs across disk setups: a RAM disk, a preconditioned disk, and a
-disk that wasn't preconditioned. Each setup is a different baseline.
+Each disk setup, such as a RAM disk or a preconditioned disk, is a different
+baseline. Don't compare results across disk setups.
 
 To set a baseline, repeat a scenario at least three times and combine the
-results:
+results.
 
 ```bash
 for i in 1 2 3; do
@@ -534,15 +532,14 @@ CamusDB.Workload baseline --runs \
   runs/scenarios/capacity-baseline-r3/artifacts/run
 ```
 
-`baseline` sets a baseline when it has at least three comparable runs and
-their coefficient of variation is 10 percent or less. It also reports the
-spread between runs, as context.
-`CamusDB.Workload compare` returns an error for two runs from different builds
-or workload shapes. See [Workload utility](/docs/workload-utility).
+`baseline` sets a baseline when it has at least three comparable results and
+their coefficient of variation is 10 percent or less. It also shows the spread
+between them, as context. `CamusDB.Workload compare` returns an error for two
+results from different builds or workload shapes. See [Workload utility](/docs/workload-utility).
 
 ## Matrix sweeps
 
-A matrix tests each combination of settings and writes one report:
+A matrix tests each combination of settings and writes one report.
 
 ```bash
 dotnet run --project Caraxes -- matrix --matrix scenarios/matrix-resilience.yml
@@ -573,20 +570,20 @@ exits with a nonzero code if a cell failed.
 
 ## Leader-balance test
 
-This test checks the leader balancer on an idle cluster:
+This test checks the leader balancer on an idle cluster.
 
 ```bash
 dotnet run --project Caraxes -- leader-balance --spec scenarios/leader-balance.yml
 ```
 
-It kills the node that leads the most partitions, restarts it, and checks that
-the balancer moves leadership back. The test passes when the node gets back at
+It kills the node that leads the most partitions, and then restarts it. The test
+checks that the balancer moves leadership back. The test passes when the node gets back at
 least half of its fair share and the leadership spread is close to even.
 `leader-balance` takes `--skip-build`.
 
 ## Cluster commands
 
-These commands manage a cluster outside a test run:
+These commands manage a cluster outside a test run.
 
 ```bash
 dotnet run --project Caraxes -- up --spec scenarios/cluster-3.yml       # start and wait until ready
@@ -610,7 +607,7 @@ scenario or matrix file exits with code `1`.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `name` | (required) | Lowercase `[a-z0-9-]` name for containers, volumes, and the image tag. |
+| `name` | (required) | Lowercase `[a-z0-9-]` name for the containers / volumes / image tag. |
 | `nodes` | `3` | Node count. |
 | `partitions` | `3` | Initial partitions. |
 | `replication_factor` | `3` | [Replicas](/docs/concepts#replica-and-replication-factor) per partition. `0` puts each partition on all nodes. |
@@ -635,23 +632,23 @@ scenario or matrix file exits with code `1`.
 | `base_rest_port` | `15095` | Host REST port of node 1. |
 | `base_grpc_port` | `16095` | Host gRPC port of node 1. |
 | `base_raft_port` | `7070` | Internal [Raft](/docs/concepts#raft) port of node 1. Not published to the host. |
-| `spare_certs` | `5` | Extra certificate names, so `add-node` works without new certificates. |
+| `spare_certs` | `5` | Extra certificate names. `add-node` uses them, and it needs no new certificates. |
 | `camusdb_repo` | `~/camusdb` | Path to the CamusDB checkout. |
 | `image` | (derived) | Image tag. Empty uses `caraxes/camusdb:{name}`. |
 | `kahuna` | `{}` | Raw settings for the generated `kahuna:` config section. |
 | `camusdb` | `{}` | Raw settings for the generated CamusDB config. `kahuna` and `data_dir` aren't allowed here. |
-| `log_levels` | `{}` | Log level per category, for diagnostic runs. |
+| `log_levels` | `{}` | Log level per category, for a diagnostic run. |
 | `env` | `{}` | Extra environment variables for all nodes. |
 
 ## Workload keys
 
 `workload` keys map to [`CamusDB.Workload`](/docs/workload-utility) flags.
-Chaos runs test behavior under faults, and the defaults put less load on the
+A chaos run tests behavior under faults. Its defaults put less load on the
 cluster than the defaults of the standalone tool.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `kind` | `accounts` | `accounts`, `bank`, `fanout`, `tokens`, `append`, `rw`, or `predicate`. See [Workloads](#workloads). |
+| `kind` | `accounts` | The workload kind. See [Workloads](#workloads). |
 | `database` | `caraxes` | Database to seed and use. |
 | `seed` | `1847` | Data and workload seed. |
 | `rows` | `100000` | Rows to seed. |
@@ -684,15 +681,15 @@ cluster than the defaults of the standalone tool.
 | `cluster_facts` | `true` | Write `cluster-facts.json`. |
 | `tokens` | `2000` | `tokens` only: rows in the token table. |
 | `pipeline` | `false` | Send writes in pipelined frames during the measured run. |
-| `txn_mode` | `explicit` | Elle kinds only: `explicit`, `autocommit`, or `pipeline`. |
+| `txn_mode` | `explicit` | Elle kinds only: `explicit` / `autocommit` / `pipeline`. |
 | `elle_key_distribution` | (by kind) | Elle kinds only: `uniform` or `exponential`. `rw` and `predicate` default to `exponential`. |
 | `append_keys`, `append_max_writes_per_key`, `append_max_txn_length` | `10`, `64`, `4` | `append` only: active lists, appends per list, steps per transaction. |
 | `rw_keys`, `rw_max_writes_per_key`, `rw_max_txn_length` | `10`, `32`, `4` | `rw` only: active registers, writes per register, steps per transaction. |
-| `rw_key_type` | `int64` | `rw` only: `int64`, `string`, or `numeric`. |
-| `rw_access` | `pk` | `rw` only: `pk`, `secondary` (scan), `index`, or `join`. |
+| `rw_key_type` | `int64` | `rw` only: `int64` / `string` / `numeric`. |
+| `rw_access` | `pk` | `rw` only: `pk` / `secondary` (scan) / `index` / `join`. |
 | `predicate_groups`, `predicate_group_size` | `8`, `8` | `predicate` only: active groups and keys per group. |
 | `predicate_max_writes_per_group`, `predicate_max_txn_length` | `12`, `3` | `predicate` only: writes per group, steps per transaction. |
-| `predicate_read` | `index` | `predicate` only: `index`, `scan`, or `range`. |
+| `predicate_read` | `index` | `predicate` only: `index` / `scan` / `range`. |
 
 ## Artifacts
 
@@ -703,11 +700,11 @@ Use it to trace a verdict back to its code.
 
 | Path | Contains |
 |---|---|
-| `runs/scenarios/<name>/scenario.json` | Settings, CamusDB commit, verdict, notes, and fault analysis. |
+| `runs/scenarios/<name>/scenario.json` | Settings / CamusDB commit / verdict / notes / fault analysis. |
 | `runs/scenarios/<name>/analysis.md` | Fault analysis in readable form. |
-| `runs/scenarios/<name>/timeline.jsonl` | One line per fault, heal, error, and note. |
+| `runs/scenarios/<name>/timeline.jsonl` | One line per fault / heal / error / note. |
 | `runs/scenarios/<name>/node-health.csv` | `/ping` samples per node. |
-| `runs/scenarios/<name>/artifacts/run/` | Workload results: `summary.md`, `intervals.csv`, `errors.json`, `reconciliation.json`, metrics, and node logs. |
+| `runs/scenarios/<name>/artifacts/run/` | Workload results: `summary.md` / `intervals.csv` / `errors.json` / `reconciliation.json` / metrics / node logs. |
 | `runs/scenarios/<name>/artifacts/run/history.edn` | Elle history for the Elle kinds. |
 | `runs/scenarios/<name>/artifacts/run/elle-result.json` | Elle verdict. Explanations are in `elle/`. |
 | `runs/scenarios/<name>/artifacts/run/divergent-applies.txt` | Divergent-apply log lines, when found. |
@@ -731,43 +728,43 @@ Use it to trace a verdict back to its code.
 | File or family | Tests |
 |---|---|
 | `cluster-3.yml`, `cluster-5.yml`, `cluster-zones.yml` | Cluster specs for reuse. |
-| `smoke-optimistic.yml`, `smoke-pessimistic.yml` | Baselines with no faults. |
-| `kill-follower.yml`, `partition-and-slow.yml`, `zone-failure.yml`, `soak-random.yml` | Recovery from process, network, and zone faults. |
+| `smoke-optimistic.yml`, `smoke-pessimistic.yml` | Baselines that inject no faults. |
+| `kill-follower.yml`, `partition-and-slow.yml`, `zone-failure.yml`, `soak-random.yml` | Recovery from process / network / zone faults. |
 | `disk-full.yml`, `bank-slow-disk-pause-nvme.yml` | Full and stalled disks. |
 | `corrupt-store-*.yml` | Storage corruption with replication factor 1 and 3. |
 | `append-clock-*.yml` | Clock jumps of different sizes. |
 | `bank-backup-*` | Backup restore and node replacement. |
 | `schema-*.yml` | Online schema changes under kills. |
-| `tokens-*.yml` | Delete correctness under faults, splits, and leader changes. |
-| `bank-*.yml`, `fanout-*.yml`, `split-*.yml` | The bank invariant under faults, lock modes, splits, and long soaks. |
-| `append-*.yml`, `rw-*.yml`, `predicate-*.yml` | Elle histories, with and without faults. |
-| `matrix-elle-*.yml` | Elle sweeps of locking, isolation, and `txn_mode` on 1 and 3 nodes. |
+| `tokens-*.yml` | Delete correctness under faults / splits / leader changes. |
+| `bank-*.yml`, `fanout-*.yml`, `split-*.yml` | The bank invariant under faults / lock modes / splits / long soaks. |
+| `append-*.yml`, `rw-*.yml`, `predicate-*.yml` | Elle histories, also under faults. |
+| `matrix-elle-*.yml` | Elle sweeps of locking / isolation / `txn_mode` on 1 and 3 nodes. |
 | `capacity-baseline.yml`, `bank-cap-*`, `tables-scale-*` | Capacity limits and scaling. |
 | `leader-*.yml`, `leaders-*.yml` | Leader balancing and transfer. |
 
 The `scenarios/` directory has more files for specific investigations.
 
-GitHub Actions runs these on a schedule:
+GitHub Actions starts these workflows on a schedule.
 
 - [Nightly append](https://github.com/camusdb/camusdb-caraxes/actions/workflows/nightly-append.yml):
   the Elle list-append scenarios except `append-autocommit.yml` and
   `append-pipeline.yml`, plus the bank split and placement scenarios and
   `bank-split-kill-window.yml`.
 - [Nightly Elle](https://github.com/camusdb/camusdb-caraxes/actions/workflows/nightly-elle.yml):
-  the `rw`, `predicate`, and `append` matrices with no faults, plus single-node
-  kill runs.
+  the matrices of the three Elle kinds, which inject no faults, and kill tests
+  on a one-node cluster.
 - [Weekly Elle volume](https://github.com/camusdb/camusdb-caraxes/actions/workflows/weekly-elle-volume.yml):
   each Sunday, one of six `matrix-elle-volume-*` files, chosen by ISO week. Each
-  cell runs up to one million committed transactions, with a 4-hour limit.
+  cell executes up to one million committed transactions, with a 4-hour limit.
 
-Not covered yet: block-device faults through device-mapper, because they need
-root access on the host.
+Not covered yet: block-device faults through device-mapper. They need root
+access on the host.
 
 ## Related pages
 
 - [Workload utility](/docs/workload-utility): the load generator that Caraxes
   uses.
-- [Cluster mode](/docs/cluster): partitions, placement, and replication.
+- [Cluster mode](/docs/cluster): how partitions and replicas are placed.
 - [Distributed transactions and HLC](/docs/distributed-transactions): the
   commit path that a kill under load tests.
 - [A dragon to attack our own database](/blog/a-dragon-to-attack-our-own-database/):

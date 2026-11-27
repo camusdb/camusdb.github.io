@@ -11,13 +11,14 @@ doesn't need to read the table.
 ## What an index speeds up, and what it costs
 
 If no index matches, a query that filters on a column reads all the rows of the
-table. This cost grows with the table. An index makes these operations fast:
+table. This cost grows with the table. An index can speed up lookups and
+enforce uniqueness.
 
 - A lookup of the rows with one value, such as `WHERE email = @email`.
 - A range of values, such as `WHERE created_at >= @since`.
 - An `ORDER BY` with a `LIMIT`, such as the 20 newest rows. CamusDB reads the
   index in order, and it can stop after 20 rows.
-- A unique value. A unique index returns an error for a duplicate.
+- A uniqueness check. A unique index returns an error for a duplicate.
 
 However, each write must also update the indexes of the table. This means that
 writes are slower, and the table uses more storage. You should add indexes for
@@ -38,17 +39,20 @@ CREATE INDEX robots_year_idx ON robots (year DESC);
 CREATE UNIQUE INDEX robots_name_idx ON robots (name);
 ```
 
-A unique index can have several columns:
+A unique index on several columns enforces uniqueness of their combined values.
 
 ```camussql
 CREATE UNIQUE INDEX robots_kind_year_uq ON robots (kind, year);
 ```
 
-To create or drop an index, you need the `INDEX` privilege on the table.
+On a populated table, an ordered index build reads existing rows before the index is
+available to queries. In standalone and cluster mode, schema changes on other
+tables can proceed during that scan. Schema changes on the indexed table wait.
+For more information, see [Backfill](/docs/distributed-schema#backfill).
 
 ## Index column order
 
-Each index column can have `ASC` or `DESC`. The default is `ASC`:
+Each index column can have `ASC` or `DESC`. The default is `ASC`.
 
 ```camussql
 CREATE INDEX robots_year_asc_idx ON robots (year ASC);
@@ -58,7 +62,7 @@ CREATE INDEX robots_kind_year_idx ON robots (kind ASC, year DESC);
 
 The order matters for `ORDER BY`. CamusDB scans an index forward. This means
 that the direction of the query must match the direction of the index. Then the
-planner doesn't need a separate sort:
+planner can return rows in index order.
 
 ```camussql
 CREATE INDEX robots_year_desc_idx ON robots (year DESC);
@@ -91,8 +95,7 @@ ALTER TABLE robots DROP INDEX robots_kind_year_idx;
 
 ## Drop an index
 
-To remove a secondary index and keep its table and rows, use one of these
-forms:
+Dropping a secondary index preserves its table and rows.
 
 ```camussql
 DROP INDEX robots_year_idx ON robots;
@@ -158,8 +161,18 @@ when rebuilding an index, as expressions can contain commas. `SHOW CREATE TABLE`
 includes expression indexes in the table definition. Drop an affected index
 before dropping a column that its expression reads.
 
+You can index a [sized cast](/docs/data-types#casting-to-a-length). Use the
+same target length in the query to let the planner match the expression.
+
 During a rolling upgrade, wait until all nodes support expression indexes
 before creating one. An older node cannot write to an expression index.
+
+Rebuild expression indexes created by an earlier build if they use a
+[common result type](/docs/data-types#conditional-result-types) across columns
+of different types. The old index can contain keys computed from the values
+of individual rows. For example, when `i` is an integer and `f` is a float,
+`COALESCE(i, f) / 4` gives `0.5` for `i = 2, f = NULL`. An older index can
+store `0` for that row. Use `DROP INDEX` and `CREATE INDEX` to rebuild it.
 
 ## Covering indexes
 
@@ -173,7 +186,7 @@ returns a few other columns.
 
 ### Create a covering index
 
-Add `INCLUDE (...)` after the key columns:
+Add `INCLUDE (...)` after the key columns.
 
 ```camussql
 CREATE INDEX orders_customer_idx
@@ -185,7 +198,7 @@ INCLUDE (status, total, created_at);
 bounds of a scan. The included columns are stored values. They don't change the
 order, and a search can't use them as key columns.
 
-A unique index can also include columns:
+A unique index can also include columns.
 
 ```camussql
 CREATE UNIQUE INDEX users_email_idx
@@ -198,7 +211,7 @@ and the included columns aren't part of the constraint.
 
 ### Inline syntax
 
-You can declare a covering index in `CREATE TABLE`:
+To declare a covering index in `CREATE TABLE`, add `INCLUDE (...)` to the key.
 
 ```camussql
 CREATE TABLE orders (
@@ -217,7 +230,7 @@ columns of an index, drop the index and create it again.
 ### Covered queries
 
 A query is covered when the index has all the columns that the query needs, in
-its key or in its included columns:
+its key or in its included columns.
 
 ```camussql
 CREATE INDEX orders_customer_idx
@@ -229,8 +242,8 @@ FROM orders
 WHERE customer_id = 17;
 ```
 
-`orders_customer_idx` covers this query. The next query isn't covered, because
-`note` isn't in the index:
+`orders_customer_idx` covers this query. Selecting `note` requires a row
+fetch.
 
 ```camussql
 SELECT customer_id, status, note
@@ -265,7 +278,7 @@ value of `0` or less turns off the limit.
 ### Inspect the schema
 
 `SHOW INDEXES` shows the included columns, and `SHOW CREATE TABLE` shows the
-`INCLUDE (...)` clause:
+`INCLUDE (...)` clause.
 
 ```camussql
 SHOW INDEXES FROM orders;
@@ -275,7 +288,7 @@ SHOW CREATE TABLE orders;
 ### Read the plan with EXPLAIN
 
 `EXPLAIN` shows `index-only=true` on a covered scan. `EXPLAIN (ANALYZE)` also
-shows `rows_read = 0` on the scan, because no rows were fetched:
+shows `rows_read = 0` on the scan when it fetches zero rows from the table.
 
 ```camussql
 EXPLAIN (ANALYZE)
@@ -288,7 +301,7 @@ WHERE customer_id = 17;
 
 An ordered index can't index a `JSONB` column. To search in JSON documents,
 create a GIN index (generalized inverted index). It maps each key and value of
-each document to the rows that have it:
+each document to the rows that have it.
 
 ```camussql
 CREATE INDEX events_payload_gin ON events USING GIN (payload);
@@ -305,7 +318,7 @@ For the other forms and the write cost, see [GIN indexes](/docs/json#gin-indexes
 
 ## Query plans
 
-An index can drive the following operations:
+An index scan can serve a single lookup or drive more of the query plan.
 
 - Point lookups.
 - Range scans.
@@ -319,3 +332,7 @@ An index can drive the following operations:
 For planner behavior, see [Query planning](/docs/query-planning). For query
 examples that use indexes, see [SELECT](/docs/sql-queries) and
 [Joins and subqueries](/docs/joins-and-subqueries).
+
+## Permissions
+
+To create or drop an index, you need the `INDEX` privilege on the table.

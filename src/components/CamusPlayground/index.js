@@ -387,6 +387,8 @@ function tokenizeSql(sql) {
       else if (sqlTypes.has(upper)) kind = 'type';
       else if (upper === 'RECURSIVE' && /\bWITH\s+$/i.test(sql.slice(0, index))) kind = 'keyword';
       else if (upper === 'PARTITIONS' && /\bSHOW\s+$/i.test(sql.slice(0, index))) kind = 'keyword';
+      else if (upper === 'TRANSACTIONS' && /\bSHOW\s+(?:CLUSTER\s+)?$/i.test(sql.slice(0, index))) kind = 'keyword';
+      else if (upper === 'KILL' && /^TRANSACTION\b/i.test(after)) kind = 'keyword';
       else if (upper === 'IF' && after.startsWith('(')) kind = 'function';
       else if (sqlKeywords.has(upper)) kind = 'keyword';
       else if (sqlFunctions.has(upper) || after.startsWith('(')) kind = 'function';
