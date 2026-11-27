@@ -426,7 +426,7 @@ table that does not set its own value.
 | `index_usage_enabled` | `true` | bool | runtime | node | Collects [index usage](/docs/index-usage) reads, constraint reads, and writes. Disabling preserves counters. |
 | `query_activity_enabled` | `true` | bool | runtime | node | Lists running statements for [`SHOW QUERIES`](/docs/query-activity) and `CANCEL QUERY`. |
 | `query_activity_max_sql_length` | `1024` | characters | runtime | node | SQL text shown per `SHOW QUERIES` row. |
-| `cluster_activity_peer_timeout_ms` | `2000` | ms | runtime | node | How long `SHOW CLUSTER QUERIES`, `SHOW CLUSTER CONNECTIONS`, and a forwarded `CANCEL QUERY` wait for each peer. |
+| `cluster_activity_peer_timeout_ms` | `2000` | ms | runtime | node | How long `SHOW CLUSTER QUERIES`, `SHOW CLUSTER CONNECTIONS`, `SHOW CLUSTER TRANSACTIONS`, a forwarded `CANCEL QUERY` and a forwarded `KILL TRANSACTION` wait for each peer. A kill waits half of it for its rollback. |
 | `dashboard_enabled` | `true` | bool | restart | node | Serves the [operator dashboard](/docs/operator-dashboard). |
 | `dashboard_refresh_seconds` | `2` | seconds | runtime | node | Dashboard load panel refresh interval. The server clamps it to `1` to `300`. |
 | `query_tracing_enabled` | `false` | bool | runtime | node | Logs one line per executed plan step. |
